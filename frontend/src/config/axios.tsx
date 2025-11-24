@@ -27,7 +27,7 @@ const instance = axios.create({
 // ✅ Request interceptor: Add /secure prefix and token based on isSecure flag
 instance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem("accessToken") || "";
+    const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") || "" : "";
     if (token && config.url !== "/auth/logout" && config.url !== "/auth/introspect" && config.url !== "/accounts/register") {
       config.headers.Authorization = `Bearer ${token}`;
     }

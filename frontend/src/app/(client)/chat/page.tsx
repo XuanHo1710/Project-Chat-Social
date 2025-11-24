@@ -1,225 +1,557 @@
-import React, { useState } from 'react';
+"use client";
+import React, { useState, useRef, useEffect } from "react";
 import {
-    Search,
-    MoreHorizontal,
-    Edit,
-    Video,
-    Phone,
-    Info,
-    Image as ImageIcon,
-    Smile,
-    ThumbsUp,
-    PlusCircle,
-    FileText,
-    Send,
-    ChevronDown,
-    Bell,
-    Search as SearchIcon
-} from 'lucide-react';
+    Box,
+    Stack,
+    Paper,
+    List,
+    ListItemButton,
+    ListItemAvatar,
+    Avatar,
+    ListItemText,
+    Typography,
+    IconButton,
+    TextField,
+    InputAdornment,
+    Badge,
+    Menu,
+    MenuItem,
+    Divider,
+} from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import SendIcon from "@mui/icons-material/Send";
+import VideocamIcon from "@mui/icons-material/Videocam";
+import CallIcon from "@mui/icons-material/Call";
+import InfoIcon from "@mui/icons-material/Info";
+import InsertPhotoIcon from "@mui/icons-material/InsertPhoto";
+import EmojiEmotionsIcon from "@mui/icons-material/EmojiEmotions";
+import AddCircleIcon from "@mui/icons-material/AddCircle";
+import LogoutIcon from "@mui/icons-material/Logout";
+import PersonIcon from "@mui/icons-material/Person";
+import SettingsIcon from "@mui/icons-material/Settings";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { authService } from "@/services/auth.service";
+import { toast } from "sonner";
 
-// --- MOCK DATA (Hardcode dữ liệu giả) ---
-const USERS = [
-    { id: 1, name: 'Công nương nemchuazabeth', avatar: 'https://i.pravatar.cc/150?u=1', status: 'online', lastMsg: 'bá tước Patrick Walker: ae trungky oc...', time: '31 phút' },
-    { id: 2, name: 'To Ki', avatar: 'https://i.pravatar.cc/150?u=2', status: 'offline', lastMsg: 'Bạn: I love you too 🥰🥰🥰', time: '1 giờ' },
-    { id: 3, name: 'Trường Giang', avatar: 'https://i.pravatar.cc/150?u=3', status: 'online', lastMsg: 'Bạn: Cảm giác tự tay làm nó đã', time: '1 giờ' },
-    { id: 4, name: 'Nghiêm Chí Thiện', avatar: 'https://i.pravatar.cc/150?u=4', status: 'offline', lastMsg: 'Bạn: Wtf', time: '3 giờ' },
-    { id: 5, name: 'Senseiiiii', avatar: 'https://i.pravatar.cc/150?u=5', status: 'online', lastMsg: 'Bạn đã gửi một nhãn dán', time: '4 giờ' },
-    { id: 6, name: 'Mạnh Cường', avatar: 'https://i.pravatar.cc/150?u=6', status: 'offline', lastMsg: 'Bạn: Okii', time: '5 giờ' },
-];
-
-const MESSAGES = [
-    { id: 1, senderId: 1, text: 'Chào mọi người, tôi là IVYmoda...', type: 'text', time: '16:20' },
-    { id: 2, senderId: 1, text: '', type: 'image', imageUrl: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80', time: '16:25' },
-    { id: 3, senderId: 'me', text: 'ae trungky oc oc', type: 'text', time: '16:27' },
-];
-
-// Component con: Accordion cho Sidebar phải
-const AccordionItem = ({ title = "", children = "", isOpen = false }: { title?: string, children?: React.ReactNode, isOpen?: boolean }) => {
-    const [open, setOpen] = useState(isOpen);
-    return (
-        <div className="border-b border-transparent">
-            <button
-                className="w-full flex justify-between items-center p-4 hover:bg-[#3A3B3C] transition-colors"
-                onClick={() => setOpen(!open)}
-            >
-                <span className="font-semibold text-[14px] text-[#E4E6EB]">{title}</span>
-                <ChevronDown size={18} className={`transform transition-transform ${open ? 'rotate-180' : ''}`} />
-            </button>
-            {open && <div className="px-2 pb-2 text-[#B0B3B8]">{children}</div>}
-        </div>
-    )
+interface Message {
+    id: number;
+    senderId: number | string;
+    text: string;
+    type: "text" | "image";
+    imageUrl?: string;
+    timestamp: Date;
 }
 
+interface ChatUser {
+    id: number;
+    name: string;
+    avatar: string;
+    status: "online" | "offline";
+    lastMsg: string;
+    time: string;
+}
+
+const INITIAL_USERS: ChatUser[] = [
+    { id: 1, name: "Công nương nemchuazabeth", avatar: "https://i.pravatar.cc/150?u=1", status: "online", lastMsg: "Chào bạn!", time: "31 phút" },
+    { id: 2, name: "To Ki", avatar: "https://i.pravatar.cc/150?u=2", status: "offline", lastMsg: "Bạn: I love you too 🥰", time: "1 giờ" },
+    { id: 3, name: "Trường Giang", avatar: "https://i.pravatar.cc/150?u=3", status: "online", lastMsg: "Bạn: Cảm giác tự tay làm nó đã", time: "1 giờ" },
+];
+
+const INITIAL_MESSAGES: Message[] = [
+    { id: 1, senderId: 1, text: "Chào bạn! Bạn khỏe không?", type: "text", timestamp: new Date("2024-01-01T10:00:00") },
+    { id: 2, senderId: "me", text: "Mình khỏe, cảm ơn bạn!", type: "text", timestamp: new Date("2024-01-01T10:05:00") },
+    { id: 3, senderId: 1, text: "Hôm nay có gì vui không?", type: "text", timestamp: new Date("2024-01-01T10:10:00") },
+];
+
 export default function ChatPage() {
+    const user = useAuthStore((state) => state.user);
+    const logout = useAuthStore((state) => state.logout);
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const [selectedChat, setSelectedChat] = useState<ChatUser>(INITIAL_USERS[0]);
+    const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+    const [newMessage, setNewMessage] = useState("");
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+
+    // Auto scroll to bottom when new message added
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    const handleSendMessage = (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!newMessage.trim()) {
+            return;
+        }
+
+        const message: Message = {
+            id: messages.length + 1,
+            senderId: "me",
+            text: newMessage,
+            type: "text",
+            timestamp: new Date(),
+        };
+
+        setMessages([...messages, message]);
+        setNewMessage("");
+        toast.success("Tin nhắn đã được gửi!");
+    };
+
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage(e as any);
+        }
+    };
+
+    const formatTime = (date: Date) => {
+        return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+        setAnchorEl(null);
+    };
+
+    const handleLogout = async () => {
+        handleMenuClose();
+        await authService.logout();
+        logout();
+        toast.success("Đã đăng xuất thành công!");
+        window.location.href = "/auth/login";
+    };
+
     return (
-        <div className="flex h-screen w-full bg-[#18191A] text-[#E4E6EB] overflow-hidden font-sans">
-            {/* --- LEFT SIDEBAR (Chat List) --- */}
-            <div className="w-[360px] flex flex-col border-r border-[#2F3031]">
-                <div className="p-4 flex justify-between items-center">
-                    <h2 className="text-2xl font-bold">Đoạn chat</h2>
-                    <div className="flex gap-2">
-                        <button className="p-2 bg-[#3A3B3C] rounded-full hover:bg-[#4E4F50]"><MoreHorizontal size={20} /></button>
-                        <button className="p-2 bg-[#3A3B3C] rounded-full hover:bg-[#4E4F50]"><Edit size={20} /></button>
-                    </div>
-                </div>
+        <Box
+            suppressHydrationWarning
+            sx={{
+                display: "flex",
+                height: "100vh",
+                bgcolor: "#0a0a0a",
+                overflow: "hidden"
+            }}
+        >
+            {/* Sidebar - User List */}
+            <Paper
+                elevation={0}
+                sx={{
+                    width: 360,
+                    display: "flex",
+                    flexDirection: "column",
+                    bgcolor: "#1c1c1e",
+                    borderRight: "1px solid rgba(255,255,255,0.1)"
+                }}
+            >
+                {/* Sidebar Header */}
+                <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{
+                        p: 2,
+                        borderBottom: "1px solid rgba(255,255,255,0.05)"
+                    }}
+                >
+                    <Stack direction="row" alignItems="center" spacing={1.5}>
+                        <Badge
+                            overlap="circular"
+                            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                            variant="dot"
+                            color="success"
+                        >
+                            <Avatar
+                                src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.username || 'User'}&background=667eea&color=fff`}
+                                sx={{ width: 40, height: 40, cursor: "pointer" }}
+                                onClick={handleMenuOpen}
+                            />
+                        </Badge>
+                        <Box>
+                            <Typography variant="subtitle2" fontWeight={700} color="white">
+                                Đoạn chat
+                            </Typography>
+                            <Typography variant="caption" color="rgba(255,255,255,0.6)">
+                                {user?.username || 'User'}
+                            </Typography>
+                        </Box>
+                    </Stack>
+                    <IconButton size="small" sx={{ color: "rgba(255,255,255,0.7)" }}>
+                        <MoreVertIcon />
+                    </IconButton>
+                </Stack>
 
-                <div className="px-4 pb-2">
-                    <div className="relative">
-                        <SearchIcon className="absolute left-3 top-2.5 text-[#B0B3B8]" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Tìm kiếm trên Messenger"
-                            className="w-full bg-[#3A3B3C] rounded-full py-2 pl-10 pr-4 outline-none text-sm placeholder-[#B0B3B8]"
+                {/* User Menu */}
+                <Menu
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl)}
+                    onClose={handleMenuClose}
+                    transformOrigin={{ horizontal: "left", vertical: "top" }}
+                    anchorOrigin={{ horizontal: "left", vertical: "bottom" }}
+                    PaperProps={{
+                        sx: {
+                            mt: 1,
+                            minWidth: 220,
+                            borderRadius: 2,
+                            bgcolor: "#2c2c2e",
+                            color: "white",
+                            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+                        }
+                    }}
+                >
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                            <Avatar
+                                src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.username || 'User'}&background=667eea&color=fff`}
+                                sx={{ width: 48, height: 48 }}
+                            />
+                            <Box>
+                                <Typography variant="subtitle2" fontWeight={700}>
+                                    {user?.fullName || user?.username}
+                                </Typography>
+                                <Typography variant="caption" color="rgba(255,255,255,0.6)">
+                                    {user?.email || 'user@example.com'}
+                                </Typography>
+                            </Box>
+                        </Stack>
+                    </Box>
+                    <MenuItem onClick={handleMenuClose} sx={{ py: 1.5, color: "white" }}>
+                        <PersonIcon sx={{ mr: 1.5, fontSize: 20 }} />
+                        <Typography variant="body2">Hồ sơ của tôi</Typography>
+                    </MenuItem>
+                    <MenuItem onClick={handleMenuClose} sx={{ py: 1.5, color: "white" }}>
+                        <SettingsIcon sx={{ mr: 1.5, fontSize: 20 }} />
+                        <Typography variant="body2">Cài đặt</Typography>
+                    </MenuItem>
+                    <Divider sx={{ borderColor: "rgba(255,255,255,0.1)" }} />
+                    <MenuItem onClick={handleLogout} sx={{ py: 1.5, color: "#ff453a" }}>
+                        <LogoutIcon sx={{ mr: 1.5, fontSize: 20 }} />
+                        <Typography variant="body2">Đăng xuất</Typography>
+                    </MenuItem>
+                </Menu>
+
+                {/* Search */}
+                <Box sx={{ px: 2, py: 2 }}>
+                    <TextField
+                        fullWidth
+                        placeholder="Tìm kiếm trên Messenger"
+                        size="small"
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon sx={{ color: "rgba(255,255,255,0.5)" }} />
+                                </InputAdornment>
+                            ),
+                            sx: {
+                                borderRadius: 3,
+                                bgcolor: "rgba(255,255,255,0.05)",
+                                color: "white",
+                                "& .MuiOutlinedInput-notchedOutline": {
+                                    border: "none"
+                                },
+                                "&:hover": {
+                                    bgcolor: "rgba(255,255,255,0.08)"
+                                }
+                            }
+                        }}
+                    />
+                </Box>
+
+                {/* User List */}
+                <Box sx={{ flex: 1, overflow: "auto" }}>
+                    <List disablePadding>
+                        {INITIAL_USERS.map((chatUser) => (
+                            <ListItemButton
+                                key={chatUser.id}
+                                selected={selectedChat.id === chatUser.id}
+                                onClick={() => setSelectedChat(chatUser)}
+                                sx={{
+                                    py: 1.5,
+                                    "&.Mui-selected": {
+                                        bgcolor: "rgba(102, 126, 234, 0.2)",
+                                        "&:hover": {
+                                            bgcolor: "rgba(102, 126, 234, 0.3)"
+                                        }
+                                    },
+                                    "&:hover": {
+                                        bgcolor: "rgba(255,255,255,0.05)"
+                                    }
+                                }}
+                            >
+                                <ListItemAvatar>
+                                    <Badge
+                                        overlap="circular"
+                                        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                                        variant={chatUser.status === "online" ? "dot" : undefined}
+                                        color="success"
+                                    >
+                                        <Avatar src={chatUser.avatar} sx={{ width: 48, height: 48 }} />
+                                    </Badge>
+                                </ListItemAvatar>
+                                <ListItemText
+                                    primary={
+                                        <Typography noWrap fontWeight={600} fontSize={15} color="white">
+                                            {chatUser.name}
+                                        </Typography>
+                                    }
+                                    secondary={
+                                        <Typography noWrap variant="caption" color="rgba(255,255,255,0.5)" component="span">
+                                            {chatUser.lastMsg}
+                                        </Typography>
+                                    }
+                                />
+                                <Typography variant="caption" color="rgba(255,255,255,0.4)">
+                                    {chatUser.time}
+                                </Typography>
+                            </ListItemButton>
+                        ))}
+                    </List>
+                </Box>
+            </Paper>
+
+            {/* Main Chat Area */}
+            <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                {/* Chat Header */}
+                <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{
+                        height: 64,
+                        px: 3,
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
+                        bgcolor: "#1c1c1e"
+                    }}
+                >
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        <Badge
+                            overlap="circular"
+                            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                            variant="dot"
+                            color="success"
+                        >
+                            <Avatar src={selectedChat.avatar} sx={{ width: 40, height: 40 }} />
+                        </Badge>
+                        <Box>
+                            <Typography fontWeight={700} fontSize={17} color="white">
+                                {selectedChat.name}
+                            </Typography>
+                            <Typography variant="caption" color="rgba(255,255,255,0.6)">
+                                {selectedChat.status === "online" ? "Đang hoạt động" : "Không hoạt động"}
+                            </Typography>
+                        </Box>
+                    </Stack>
+                    <Stack direction="row" spacing={1}>
+                        <IconButton sx={{ color: "rgba(255,255,255,0.7)" }}>
+                            <CallIcon />
+                        </IconButton>
+                        <IconButton sx={{ color: "rgba(255,255,255,0.7)" }}>
+                            <VideocamIcon />
+                        </IconButton>
+                        <IconButton sx={{ color: "rgba(255,255,255,0.7)" }}>
+                            <InfoIcon />
+                        </IconButton>
+                    </Stack>
+                </Stack>
+
+                {/* Messages Area */}
+                <Box
+                    ref={chatContainerRef}
+                    sx={{
+                        flex: 1,
+                        overflow: "auto",
+                        p: 3,
+                        bgcolor: "#0a0a0a",
+                        backgroundImage: "radial-gradient(circle at 1px 1px, rgba(102, 126, 234, 0.05) 1px, transparent 0)",
+                        backgroundSize: "40px 40px",
+                        "&::-webkit-scrollbar": {
+                            width: "8px"
+                        },
+                        "&::-webkit-scrollbar-track": {
+                            background: "transparent"
+                        },
+                        "&::-webkit-scrollbar-thumb": {
+                            background: "rgba(255,255,255,0.2)",
+                            borderRadius: "4px",
+                            "&:hover": {
+                                background: "rgba(255,255,255,0.3)"
+                            }
+                        }
+                    }}
+                >
+                    <Stack spacing={2}>
+                        {messages.map((msg) => (
+                                <Stack
+                                    key={msg.id}
+                                    direction="row"
+                                    spacing={1}
+                                    justifyContent={msg.senderId === "me" ? "flex-end" : "flex-start"}
+                                    alignItems="center"
+                                >
+                                    {msg.senderId === "me" && (
+                                        <Typography
+                                            variant="caption"
+                                            color="rgba(255,255,255,0.4)"
+                                            sx={{ mt: 0.5, ml: 1, display: "block" }}
+                                            textAlign={"right"}
+                                            margin={"0 10 0 0"}
+                                            suppressHydrationWarning
+                                        >
+                                            {formatTime(msg.timestamp)}
+                                        </Typography>
+                                    )}
+
+                                    {msg.senderId !== "me" && (
+                                        <Avatar src={selectedChat.avatar} sx={{ width: 32, height: 32 }} />
+                                    )}
+                                    <Box sx={{ maxWidth: "70%" }}>
+                                        <Paper
+                                            sx={{
+                                                px: 2,
+                                                py: 1.5,
+                                                borderRadius: 3,
+                                                bgcolor: msg.senderId === "me"
+                                                    ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                                                    : "#2c2c2e",
+                                                color: "white",
+                                                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                                                background: msg.senderId === "me"
+                                                    ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                                                    : "#2c2c2e"
+                                            }}
+                                        >
+                                            <Typography variant="body1">{msg.text}</Typography>
+                                        </Paper>
+                                    </Box>
+                                    {msg.senderId !== "me" && (
+                                        <Typography
+                                            variant="caption"
+                                            color="rgba(255,255,255,0.4)"
+                                            sx={{ mt: 0.5, ml: 1, display: "block" }}
+                                            textAlign={"right"}
+                                            margin={"0 10 0 0"}
+                                            suppressHydrationWarning
+                                        >
+                                            {formatTime(msg.timestamp)}
+                                        </Typography>
+                                    )}
+                                </Stack>
+                        ))}
+                        <div ref={messagesEndRef} />
+                    </Stack>
+                </Box>
+
+                {/* Message Input */}
+                <Box
+                    component="form"
+                    onSubmit={handleSendMessage}
+                    sx={{
+                        p: 2,
+                        borderTop: "1px solid rgba(255,255,255,0.1)",
+                        bgcolor: "#1c1c1e"
+                    }}
+                >
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                        <IconButton
+                            sx={{
+                                color: "#667eea",
+                                transition: "all 0.2s",
+                                "&:hover": {
+                                    transform: "scale(1.1)",
+                                    bgcolor: "rgba(102, 126, 234, 0.1)"
+                                }
+                            }}
+                        >
+                            <AddCircleIcon />
+                        </IconButton>
+                        <IconButton
+                            sx={{
+                                color: "#667eea",
+                                transition: "all 0.2s",
+                                "&:hover": {
+                                    transform: "scale(1.1)",
+                                    bgcolor: "rgba(102, 126, 234, 0.1)"
+                                }
+                            }}
+                        >
+                            <InsertPhotoIcon />
+                        </IconButton>
+                        <TextField
+                            fullWidth
+                            placeholder="Nhập tin nhắn của bạn..."
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            onKeyPress={handleKeyPress}
+                            multiline
+                            maxRows={4}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            edge="end"
+                                            sx={{
+                                                color: "#667eea",
+                                                transition: "all 0.2s",
+                                                "&:hover": {
+                                                    transform: "rotate(15deg) scale(1.1)"
+                                                }
+                                            }}
+                                        >
+                                            <EmojiEmotionsIcon />
+                                        </IconButton>
+                                    </InputAdornment>
+                                ),
+                                sx: {
+                                    borderRadius: 5,
+                                    bgcolor: "rgba(255,255,255,0.05)",
+                                    color: "white",
+                                    transition: "all 0.3s",
+                                    "& .MuiOutlinedInput-notchedOutline": {
+                                        borderColor: "transparent"
+                                    },
+                                    "&:hover": {
+                                        bgcolor: "rgba(255,255,255,0.08)",
+                                        boxShadow: "0 2px 8px rgba(102, 126, 234, 0.15)"
+                                    },
+                                    "&.Mui-focused": {
+                                        bgcolor: "rgba(255,255,255,0.08)",
+                                        boxShadow: "0 4px 12px rgba(102, 126, 234, 0.25)",
+                                        "& .MuiOutlinedInput-notchedOutline": {
+                                            borderColor: "#667eea"
+                                        }
+                                    }
+                                }
+                            }}
                         />
-                    </div>
-                </div>
-
-                <div className="flex gap-2 px-4 py-2">
-                    <button className="px-3 py-1 bg-[#252F3C] text-[#2E89FF] rounded-full text-sm font-semibold">Tất cả</button>
-                    <button className="px-3 py-1 hover:bg-[#3A3B3C] rounded-full text-sm font-semibold text-[#B0B3B8]">Chưa đọc</button>
-                    <button className="px-3 py-1 hover:bg-[#3A3B3C] rounded-full text-sm font-semibold text-[#B0B3B8]">Nhóm</button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    {USERS.map((user) => (
-                        <div key={user.id} className={`flex items-center p-3 gap-3 cursor-pointer hover:bg-[#252F3C] ${user.id === 1 ? 'bg-[#252F3C]' : ''}`}>
-                            <div className="relative">
-                                <img src={user.avatar} alt={user.name} className="w-14 h-14 rounded-full object-cover" />
-                                {user.status === 'online' && <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-[#18191A]"></div>}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-[15px] truncate">{user.name}</h4>
-                                <div className="flex items-center text-[13px] text-[#B0B3B8] gap-1">
-                                    <p className="truncate">{user.lastMsg}</p>
-                                    <span>·</span>
-                                    <span>{user.time}</span>
-                                </div>
-                            </div>
-                            {user.id === 1 && <div className="w-3 h-3 bg-[#2E89FF] rounded-full"></div>}
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* --- MAIN CHAT AREA --- */}
-            <div className="flex-1 flex flex-col min-w-0">
-                {/* Header */}
-                <div className="h-16 px-4 flex items-center justify-between border-b border-[#2F3031] shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="relative">
-                            <img src={USERS[0].avatar} alt="" className="w-10 h-10 rounded-full" />
-                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#18191A]"></div>
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-[17px]">Công nương nemchuazabeth của vương quốc raumania</h3>
-                            <p className="text-[13px] text-[#B0B3B8]">Đang hoạt động</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-4 text-[#A8ABDF]">
-                        <Phone size={24} className="cursor-pointer hover:opacity-80" />
-                        <Video size={24} className="cursor-pointer hover:opacity-80" />
-                        <Info size={24} className="cursor-pointer hover:opacity-80" />
-                    </div>
-                </div>
-
-                {/* Messages Body */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    <div className="text-center text-[#B0B3B8] text-xs my-4">16 Tháng 4 lúc 16:15</div>
-
-                    {/* Pinned Message Mock */}
-                    <div className="bg-[#242526] p-3 rounded-lg mb-4 flex items-start gap-3 border border-[#2F3031]">
-                        <div className="text-xs text-[#B0B3B8]">
-                            <span className="font-bold text-[#E4E6EB]">Princesse de Raumania</span> đã ghim tin nhắn này.
-                            <div className="mt-1 text-[#E4E6EB] italic">"大家好, 我是 IVYmoda..."</div>
-                        </div>
-                    </div>
-
-                    {MESSAGES.map((msg) => (
-                        <div key={msg.id} className={`flex gap-2 ${msg.senderId === 'me' ? 'justify-end' : 'justify-start'}`}>
-                            {msg.senderId !== 'me' && (
-                                <img src={USERS[0].avatar} className="w-8 h-8 rounded-full self-end mb-1" />
-                            )}
-                            <div className={`max-w-[70%] ${msg.type === 'image' ? '' : 'px-3 py-2 rounded-2xl'} ${msg.senderId === 'me'
-                                ? 'bg-[#3E4042] text-white'
-                                : msg.type === 'image' ? '' : 'bg-[#3E4042] text-white'
-                                }`}>
-                                {msg.type === 'image' ? (
-                                    <div className="relative group">
-                                        <img src={msg.imageUrl} className="rounded-xl border border-[#2F3031] max-h-80 w-auto object-cover" />
-                                    </div>
-                                ) : (
-                                    <p>{msg.text}</p>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* Typing indicator mock */}
-                    <div className="flex justify-end text-[11px] text-[#B0B3B8] mt-1 mr-2">Đã xem</div>
-                </div>
-
-                {/* Input Area */}
-                <div className="p-3 flex items-center gap-3">
-                    <PlusCircle size={24} className="text-[#A8ABDF] cursor-pointer" />
-                    <ImageIcon size={24} className="text-[#A8ABDF] cursor-pointer" />
-                    <FileText size={24} className="text-[#A8ABDF] cursor-pointer" />
-                    <div className="flex-1 relative">
-                        <input
-                            type="text"
-                            placeholder="Aa"
-                            className="w-full bg-[#3A3B3C] rounded-full py-2 pl-4 pr-10 outline-none text-[#E4E6EB]"
-                        />
-                        <Smile className="absolute right-3 top-2 text-[#A8ABDF] cursor-pointer" size={20} />
-                    </div>
-                    <ThumbsUp size={24} className="text-[#A8ABDF] cursor-pointer" />
-                </div>
-            </div>
-
-            {/* --- RIGHT SIDEBAR (Details) --- */}
-            <div className="w-[300px] border-l border-[#2F3031] flex flex-col hidden lg:flex">
-                <div className="p-4 flex flex-col items-center border-b border-[#2F3031]">
-                    <div className="relative mb-3">
-                        <img src={USERS[0].avatar} className="w-24 h-24 rounded-full object-cover" />
-                        <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 rounded-full border-4 border-[#18191A]"></div>
-                    </div>
-                    <h3 className="font-bold text-center text-lg mb-1">Công nương nemchuazabeth của vương quốc raumania</h3>
-                    <p className="text-sm text-[#B0B3B8]">Đang hoạt động</p>
-
-                    <div className="flex gap-6 mt-4">
-                        <div className="flex flex-col items-center gap-1 cursor-pointer">
-                            <div className="w-9 h-9 bg-[#3A3B3C] rounded-full flex items-center justify-center hover:bg-[#4E4F50]"><Bell size={18} /></div>
-                            <span className="text-xs text-[#B0B3B8]">Bật lại</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 cursor-pointer">
-                            <div className="w-9 h-9 bg-[#3A3B3C] rounded-full flex items-center justify-center hover:bg-[#4E4F50]"><SearchIcon size={18} /></div>
-                            <span className="text-xs text-[#B0B3B8]">Tìm kiếm</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto">
-                    <AccordionItem title="Thông tin về đoạn chat" />
-                    <AccordionItem title="Tùy chỉnh đoạn chat" />
-                    <AccordionItem title="Thành viên trong đoạn chat" />
-                    <AccordionItem title="File phương tiện, file và liên kết" isOpen={true}>
-                        <div className="flex flex-col gap-2 pl-2">
-                            <div className="flex items-center gap-3 p-2 hover:bg-[#3A3B3C] rounded cursor-pointer">
-                                <ImageIcon size={18} className="text-[#B0B3B8]" />
-                                <span className="font-medium text-sm">File phương tiện</span>
-                            </div>
-                            <div className="flex items-center gap-3 p-2 hover:bg-[#3A3B3C] rounded cursor-pointer">
-                                <FileText size={18} className="text-[#B0B3B8]" />
-                                <span className="font-medium text-sm">File</span>
-                            </div>
-                            <div className="flex items-center gap-3 p-2 hover:bg-[#3A3B3C] rounded cursor-pointer">
-                                <div className="rotate-45"><PlusCircle size={18} className="text-[#B0B3B8]" /></div>
-                                <span className="font-medium text-sm">Liên kết</span>
-                            </div>
-                        </div>
-                    </AccordionItem>
-                    <AccordionItem title="Quyền riêng tư và hỗ trợ" />
-                </div>
-            </div>
-        </div>
+                        <IconButton
+                            type="submit"
+                            disabled={!newMessage.trim()}
+                            sx={{
+                                bgcolor: newMessage.trim() ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "rgba(255,255,255,0.1)",
+                                background: newMessage.trim() ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "rgba(255,255,255,0.1)",
+                                color: "white",
+                                transition: "all 0.2s",
+                                "&:hover": {
+                                    transform: newMessage.trim() ? "scale(1.1)" : "none",
+                                    background: newMessage.trim() ? "linear-gradient(135deg, #764ba2 0%, #667eea 100%)" : "rgba(255,255,255,0.1)"
+                                },
+                                "&.Mui-disabled": {
+                                    color: "rgba(255,255,255,0.3)"
+                                }
+                            }}
+                        >
+                            <SendIcon />
+                        </IconButton>
+                    </Stack>
+                </Box>
+            </Box>
+        </Box>
     );
-};
+}

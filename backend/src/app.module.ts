@@ -13,6 +13,8 @@ import { AuthModule } from 'src/auth/auth.module';
 import { JwtModule } from '@nestjs/jwt';
 import { LocalStrategy } from 'src/auth/passport/local.strategy';
 import { GoogleStrategy } from 'src/auth/passport/google.strategy';
+import { RelationshipModule } from './relationship/relationship.module';
+import { ConversationModule } from './conversation/conversation.module';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 @Module({
   imports: [
@@ -29,7 +31,9 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
       inject: [ConfigService]
     }),
     AccountModule,
-    AuthModule
+    AuthModule,
+    RelationshipModule,
+    ConversationModule
   ],
   controllers: [AppController],
   providers: [

@@ -22,6 +22,9 @@ import { useChatByConversationId } from "@/queries/useChatQueries";
 import { MessageResponse, SendMessagePayload } from "@/types/chat";
 import { formatTime } from "@/utils/formatDate";
 import { useSocket } from "@/contexts/SocketContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { QUERY_KEYS } from "@/constants/query-keys";
+import { APIResponse } from "@/types/common";
 
 
 interface SelectedConversation {
@@ -35,19 +38,12 @@ interface SelectedConversation {
 
 
 export default function AreaChatMessages({ selectedConversation, userId }: { selectedConversation: SelectedConversation, userId: string }) {
-    const { data: chatData, isLoading: isLoadingChats } = useChatByConversationId(selectedConversation._id);
     const { socket } = useSocket();
-    const [messages, setMessages] = useState<MessageResponse[]>([]);
+    const queryClient = useQueryClient();
+
+    const { data: chatData, isLoading: isLoadingChats } = useChatByConversationId(selectedConversation._id);
 
 
-    useEffect(() => {
-        const fecthMessage = () => {
-            if (!isLoadingChats && chatData?.data) {
-                setMessages(chatData.data);
-            }
-        }
-        fecthMessage();
-    }, [chatData, isLoadingChats])
 
 
     const [newMessage, setNewMessage] = useState("");
@@ -63,9 +59,19 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
     useEffect(() => {
         if (!socket) return;
+
         const handleNewMessage = (msg: MessageResponse) => {
-            setMessages(prev => [...prev, msg]);
-            scrollToBottom();
+            queryClient.setQueryData<APIResponse<MessageResponse[]>>(
+                [QUERY_KEYS.CHATS, selectedConversation._id],
+                (oldData) => {
+                    if (!oldData) {
+                        // nếu chưa có dữ liệu, tạo mới
+                        return { data: [msg] };
+                    }
+                    // trả về object mới, data là mảng mới
+                    return { ...oldData, data: [...oldData.data, msg] };
+                }
+            );
         };
 
         socket.on("message:new", handleNewMessage);
@@ -73,7 +79,11 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         return () => {
             socket.off("message:new", handleNewMessage);
         };
-    }, [socket]);
+    }, [socket, queryClient, selectedConversation._id]);
+
+    console.log("Chat Data:", chatData);
+
+
 
     useEffect(() => {
         scrollToBottom();
@@ -177,7 +187,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                 }}
             >
                 <Stack spacing={2}>
-                    {!isLoadingChats && messages.map((msg, index) => (
+                    {!isLoadingChats && chatData?.data.map((msg, index) => (
                         <Stack
                             key={index}
                             direction="row"

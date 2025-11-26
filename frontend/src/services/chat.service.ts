@@ -5,7 +5,7 @@ import { APIResponse } from "@/types/common";
 class ChatService {
     async getMessagesByConversationId(conversationId: string): Promise<APIResponse<MessageResponse[]>> {
         const response = await axios.get<APIResponse<MessageResponse[]>>("/chat/messages/" + conversationId);
-        return response.data;
+        return response.data || [];
     }
 
     async sendMessage(payload: SendMessagePayload): Promise<APIResponse<MessageResponse[]>> {

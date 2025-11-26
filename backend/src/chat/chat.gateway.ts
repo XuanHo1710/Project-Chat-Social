@@ -103,7 +103,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 
     @SubscribeMessage('message')
-    async handleSendMessage(@MessageBody() data: CreateMessageDto,
+    handleSendMessage(@MessageBody() data: CreateMessageDto,
         @ConnectedSocket() client: Socket) {
 
         const userId = client.data.userId;
@@ -113,19 +113,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
 
 
-        const message = await this.chatService.sendMessage(data);
-
-        if (!message) {
-            return { success: false, error: 'Failed to send message' };
-        }
-
-        await this.conversationService.updateLastMessage(data.conversationId.toString(), message._id.toString());
-
-
         data["createdAt"] = new Date();
 
         // Gửi data đến tất cả các client trong phòng tương ứng với conversationId
         this.server.to(`room:${data.conversationId.toString()}`).emit('message:new', data);
+
+
+        // Khỏi cần asyn await vì socket nó không cần thiết mấy cái quỷ này
+
+        this.chatService.sendMessage(data)
+            .then(msg => {
+                // Cập nhật lastMessage
+                this.conversationService.updateLastMessage(data.conversationId.toString(), msg._id.toString())
+                    .catch(err => this.logger.error('Failed to update last message', err));
+            })
+            .catch(err => this.logger.error('Failed to save message', err));
     }
 
 

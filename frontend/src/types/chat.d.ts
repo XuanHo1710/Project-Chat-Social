@@ -44,3 +44,9 @@ export interface SendMessagePayload {
     replyTo?: string;
     postId?: string;
 }
+
+export interface PaginatedMessagesResponse {
+    messages: MessageResponse[];
+    hasMore: boolean;
+    nextCursor: string | null;
+}

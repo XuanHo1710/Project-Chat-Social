@@ -9,8 +9,8 @@ export function useChatByConversationId(conversationId: string) {
         queryKey: [QUERY_KEYS.CHATS, conversationId],
         queryFn: () => chatService.getMessagesByConversationId(conversationId),
         enabled: !!conversationId,
-        staleTime: Infinity,  // tin nhắn không stale
-        gcTime: Infinity,     // không bị xóa khi chuyển room
+        staleTime: Infinity,
+        gcTime: Infinity,
     });
 }
 
@@ -30,5 +30,3 @@ export function useSendMessage() {
         }
     });
 }
-
-

@@ -25,6 +25,7 @@ import { useSocket } from "@/contexts/SocketContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/constants/query-keys";
 import { APIResponse } from "@/types/common";
+import { Virtuoso } from 'react-virtuoso';
 
 
 interface SelectedConversation {
@@ -87,7 +88,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
     useEffect(() => {
         scrollToBottom();
-    }, [chatData?.data]);
+    }, [chatData]);
 
     const handleSendMessage = (e: React.FormEvent) => {
         e.preventDefault();
@@ -115,6 +116,10 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             handleSendMessage(e);
         }
     };
+
+    const fetchMoreMessages = () => {
+
+    }
 
     return (
         <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -162,7 +167,84 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             </Stack>
 
             {/* Messages Area */}
-            <Box
+
+            {
+                !isLoadingChats &&
+                <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <Virtuoso
+                        data={chatData?.data || []}
+                        className="container-chat w-full!"
+
+                        itemContent={(index, msg) =>
+                            <Stack
+                                key={index}
+                                direction="row"
+                                padding={"10px"}
+                                spacing={1}
+                                justifyContent={msg.senderId === userId ? "flex-end" : "flex-start"}
+                                alignItems="center"
+
+                            >
+                                {msg.senderId === userId && (
+                                    <Typography
+                                        variant="caption"
+                                        color="rgba(255,255,255,0.4)"
+                                        sx={{ mt: 0.5, ml: 1, display: "block" }}
+                                        textAlign={"right"}
+                                        margin={"0 10 0 0"}
+                                        suppressHydrationWarning
+                                    >
+                                        {formatTime(msg?.createdAt)}
+                                    </Typography>
+                                )}
+
+                                {msg.senderId !== "me" && (
+                                    <Avatar src={selectedConversation.avatar} sx={{ width: 32, height: 32 }} />
+                                )}
+                                <Box sx={{ maxWidth: "70%" }}>
+                                    <Paper
+                                        sx={{
+                                            px: 2,
+                                            py: 1.5,
+                                            borderRadius: 3,
+                                            bgcolor: msg.senderId === "me"
+                                                ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                                                : "#2c2c2e",
+                                            color: "white",
+                                            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                                            background: msg.senderId === "me"
+                                                ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                                                : "#2c2c2e"
+                                        }}
+                                    >
+                                        <Typography variant="body1">{msg.content}</Typography>
+                                    </Paper>
+                                </Box>
+                                {msg.senderId !== userId && (
+                                    <Typography
+                                        variant="caption"
+                                        color="rgba(255,255,255,0.4)"
+                                        sx={{ mt: 0.5, ml: 1, display: "block" }}
+                                        textAlign={"right"}
+                                        margin={"0 10 0 0"}
+                                        suppressHydrationWarning
+                                    >
+                                        {formatTime(msg?.createdAt)}
+                                    </Typography>
+                                )}
+                            </Stack>
+                        }
+                        initialTopMostItemIndex={chatData?.data?.length ? chatData.data.length - 1 : 0} // scroll xuống cuối
+                        firstItemIndex={0} // mặc định 0
+                        startReached={() => {
+                            // scroll lên đầu → load thêm
+                            fetchMoreMessages();
+                        }}
+                        followOutput="smooth" // tự scroll xuống dưới khi có tin nhắn mới
+                    />
+                </Box>
+            }
+            {/* <Box
                 ref={chatContainerRef}
                 sx={{
                     flex: 1,
@@ -246,7 +328,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                     ))}
                     <div ref={messagesEndRef} />
                 </Stack>
-            </Box>
+            </Box> */}
 
             {/* Message Input */}
             <Box

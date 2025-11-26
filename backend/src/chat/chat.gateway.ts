@@ -1,11 +1,8 @@
-import { Logger, UseGuards } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
-import { Model } from "mongoose";
 import { Server, Socket } from "socket.io";
-import { Account } from "src/account/entities/account.entity";
 import { ChatService } from "src/chat/chat.service";
 import { CreateMessageDto } from "src/chat/dto/create-message.dto";
-import { Message } from "src/chat/entities/message.entity";
 import { ConversationService } from "src/conversation/conversation.service";
 
 // Map để lưu userId -> Set<socketId> (support multiple connections per user)
@@ -103,7 +100,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 
     @SubscribeMessage('message')
-    handleSendMessage(@MessageBody() data: CreateMessageDto,
+    async handleSendMessage(@MessageBody() data: CreateMessageDto,
         @ConnectedSocket() client: Socket) {
 
         const userId = client.data.userId;
@@ -112,22 +109,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             return { success: false, error: 'User not authenticated' };
         }
 
+        try {
+            const savedMessage = await this.chatService.sendMessage(data);
 
-        data["createdAt"] = new Date();
+            this.server.to(`room:${data.conversationId.toString()}`).emit('message:new', savedMessage);
 
-        // Gửi data đến tất cả các client trong phòng tương ứng với conversationId
-        this.server.to(`room:${data.conversationId.toString()}`).emit('message:new', data);
+            await this.conversationService.updateLastMessage(
+                data.conversationId.toString(),
+                savedMessage._id.toString()
+            );
 
-
-        // Khỏi cần asyn await vì socket nó không cần thiết mấy cái quỷ này
-
-        this.chatService.sendMessage(data)
-            .then(msg => {
-                // Cập nhật lastMessage
-                this.conversationService.updateLastMessage(data.conversationId.toString(), msg._id.toString())
-                    .catch(err => this.logger.error('Failed to update last message', err));
-            })
-            .catch(err => this.logger.error('Failed to save message', err));
+            return { success: true, message: savedMessage };
+        } catch (err) {
+            this.logger.error('Failed to save message', err);
+            return { success: false, error: 'Failed to save message' };
+        }
     }
 
 

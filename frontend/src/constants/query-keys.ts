@@ -1,9 +1,13 @@
 export const QUERY_KEYS = {
-  // Insurance Categories
-  INSURANCE_CATEGORIES: "insurance_categories",
-  INSURANCE_CATEGORIES_PAGINATED: "insurance_categories_paginated",
-  INSURANCE_CATEGORY_DETAIL: "insurance_category_detail",
-  INSURANCE_CATEGORY_ALL: "insurance_category_all",
+  // CONVERSATIONS
+  CONVERSATIONS: "conversations",
+  CONVERSATION_BY_USER: "conversation_by_user",
+
+
+  // CHATS
+  CHATS: "chats",
+  CHATS_PAGINATED: "chats_paginated",
+  CHAT_DETAIL: "chat_detail",
 
   // Files
   FILES: "files",

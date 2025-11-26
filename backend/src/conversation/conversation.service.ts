@@ -1,26 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
+import { Model } from 'mongoose';
+import { Conversation, ConversationDocument } from 'src/conversation/entities/conversation.entity';
+import { InjectModel } from '@nestjs/mongoose';
 
 @Injectable()
 export class ConversationService {
-  create(createConversationDto: CreateConversationDto) {
-    return 'This action adds a new conversation';
+  constructor(@InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>) { }
+
+  async create(createConversationDto: CreateConversationDto) {
+    const converstation = await this.conversationModel.create(createConversationDto);
+    return await converstation.save();
   }
 
-  findAll() {
-    return `This action returns all conversation`;
+  async findAll() {
+    return await this.conversationModel.find().exec();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} conversation`;
+  async findConversationByUserId(userId: string) {
+    const conversation = await this.conversationModel.find({
+      "participants.user": userId
+    }).populate('participants.user', '-password').exec();
+    return conversation;
   }
 
-  update(id: number, updateConversationDto: UpdateConversationDto) {
-    return `This action updates a #${id} conversation`;
+  async update(id: string, updateConversationDto: UpdateConversationDto) {
+    return await this.conversationModel.findByIdAndUpdate(id, updateConversationDto, { new: true }).exec();
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} conversation`;
+  async remove(id: string) {
+    return await this.conversationModel.findByIdAndDelete(id).exec();
   }
 }

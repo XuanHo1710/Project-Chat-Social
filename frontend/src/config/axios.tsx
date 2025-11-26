@@ -5,7 +5,6 @@ import axios, {
 } from "axios";
 import { toast } from "sonner";
 // import useAuthStore from "../hooks/useAuthStore";
-import { ADMIN_PATH } from "@/constants/paths";
 
 declare module "axios" {
   export interface AxiosRequestConfig {
@@ -28,7 +27,7 @@ const instance = axios.create({
 instance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") || "" : "";
-    if (token && config.url !== "/auth/logout" && config.url !== "/auth/introspect" && config.url !== "/accounts/register") {
+    if (token && config.url !== "/auth/logout" && config.url !== "/auth/login" && config.url !== "/accounts/register") {
       config.headers.Authorization = `Bearer ${token}`;
     }
     if (config.isSecure && config.url) {

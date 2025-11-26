@@ -3,6 +3,14 @@ import mongoose, { HydratedDocument } from 'mongoose';
 import { Account } from "src/account/entities/account.entity";
 export type RelationshipDocument = HydratedDocument<Relationship>;
 
+
+export enum RelationshipStatus {
+    PENDING = 'PENDING',
+    ACCEPTED = 'ACCEPTED',
+    BLOCKED = 'BLOCKED',
+    REJECTED = 'REJECTED',
+}
+
 @Schema({ timestamps: true })
 export class Relationship {
     _id: mongoose.Schema.Types.ObjectId;
@@ -13,6 +21,9 @@ export class Relationship {
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Account.name, required: true })
     friendId: mongoose.Schema.Types.ObjectId;
 
+    @Prop({ type: String, enum: RelationshipStatus, default: RelationshipStatus.PENDING })
+    status: RelationshipStatus; // PENDING, ACCEPTED, BLOCKED, REJECTED
+
     @Prop({ type: { isBlocked: Boolean, blockedAt: Date, userBlockedId: mongoose.Schema.Types.ObjectId }, default: { isBlocked: false, blockedAt: null, userBlockedId: null } })
     block: {
         isBlocked: boolean;
@@ -22,7 +33,6 @@ export class Relationship {
 
     @Prop()
     createdAt: Date;
-
 
     @Prop()
     deletedAt: Date;

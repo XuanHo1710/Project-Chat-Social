@@ -37,7 +37,8 @@ export class AuthService {
             fullname: account.firstName + " " + account.lastName,
             gender: account.gender,
             role: account.role,
-            username: account.username
+            username: account.username,
+            _id: account._id.toString()
         };
 
         const access_token = this.createAccessToken(payload);
@@ -90,7 +91,8 @@ export class AuthService {
                 fullname: account.firstName + " " + account.lastName,
                 gender: account.gender,
                 role: account.role,
-                username: account.username
+                username: account.username,
+                _id: account._id.toString()
             };
 
             const access_token = this.createAccessToken(payload);

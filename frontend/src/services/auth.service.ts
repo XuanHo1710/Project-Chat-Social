@@ -1,34 +1,14 @@
 import axios from "@/config/axios";
-
-export interface LoginRequest {
-    username: string;
-    password: string;
-}
-
-export interface LoginResponseData {
-    access_token: string;
-    refresh_token?: string;
-    payload: {
-        fullname: string;
-        gender?: string;
-        role?: string;
-        username: string;
-    };
-}
-
-export interface LoginResponse {
-    data: LoginResponseData;
-    message?: string;
-    statusCode?: number;
-}
+import { LoginRequest, LoginResponseData } from "@/types/auth";
+import { APIResponse } from "@/types/common";
 
 class AuthService {
-    async login(loginData: LoginRequest): Promise<LoginResponse> {
-        const response = await axios.post<LoginResponse>("/auth/login", loginData);
+    async login(loginData: LoginRequest): Promise<APIResponse<LoginResponseData>> {
+        const response = await axios.post<APIResponse<LoginResponseData>>("/auth/login", loginData);
 
         // Only store access token in localStorage
         // User data will be fetched from /api/auth/me via refresh_token cookie
-        if (response.data?.data?.access_token) {
+        if (response.data?.data.access_token) {
             localStorage.setItem("accessToken", response.data.data.access_token);
         }
 

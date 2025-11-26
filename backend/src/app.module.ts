@@ -15,6 +15,7 @@ import { LocalStrategy } from 'src/auth/passport/local.strategy';
 import { GoogleStrategy } from 'src/auth/passport/google.strategy';
 import { RelationshipModule } from './relationship/relationship.module';
 import { ConversationModule } from './conversation/conversation.module';
+import { ChatModule } from './chat/chat.module';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 @Module({
   imports: [
@@ -33,7 +34,8 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     AccountModule,
     AuthModule,
     RelationshipModule,
-    ConversationModule
+    ConversationModule,
+    ChatModule
   ],
   controllers: [AppController],
   providers: [

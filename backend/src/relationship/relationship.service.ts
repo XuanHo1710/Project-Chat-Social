@@ -4,29 +4,54 @@ import { UpdateRelationshipDto } from './dto/update-relationship.dto';
 import { Relationship, RelationshipDocument } from 'src/relationship/entities/relationship.entity';
 import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
+import { Conversation, ConversationDocument } from 'src/conversation/entities/conversation.entity';
+import { Account, AccountDocument } from 'src/account/entities/account.entity';
 
 @Injectable()
 export class RelationshipService {
-  constructor(@InjectModel(Relationship.name) private readonly relationshipModel: Model<RelationshipDocument>) { }
+  constructor(
+    @InjectModel(Relationship.name) private readonly relationshipModel: Model<RelationshipDocument>,
+    @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
+  ) { }
 
   async create(createRelationshipDto: CreateRelationshipDto) {
     const relationship = new this.relationshipModel(createRelationshipDto);
-    return relationship.save();
+    await relationship.save();
+
+    const dataConverstation = {
+      type: 'DIRECT',
+      participants: [{
+        user: createRelationshipDto.userId,
+        nickname: "",
+        joinedAt: new Date(),
+        isAdmin: false,
+      },
+      {
+        user: createRelationshipDto.friendId,
+        nickname: "",
+        joinedAt: new Date(),
+        isAdmin: false
+      }]
+    }
+
+    const conversation = new this.conversationModel(dataConverstation);
+
+    return await conversation.save();
   }
 
   async findAll() {
     return await this.relationshipModel.find().exec();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} relationship`;
+  async findOne(id: string) {
+    return await this.relationshipModel.findById(id).exec();
   }
 
-  update(id: number, updateRelationshipDto: UpdateRelationshipDto) {
-    return `This action updates a #${id} relationship`;
+  async update(id: string, updateRelationshipDto: UpdateRelationshipDto) {
+    return await this.relationshipModel.findByIdAndUpdate(id, updateRelationshipDto, { new: true }).exec();
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} relationship`;
+  async remove(id: string) {
+    return await this.relationshipModel.findByIdAndDelete(id).exec();
   }
 }

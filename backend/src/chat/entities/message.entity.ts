@@ -1,7 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Account } from 'src/account/entities/account.entity';
-import { Conversation } from 'src/conversation/entities/conversation.entity';
 
 export type MessageDocument = Message & Document;
 
@@ -20,12 +19,20 @@ export enum MessageStatus {
     READ = 'READ',
 }
 
+export enum EmotionType {
+    LIKE = 'LIKE',
+    LOVE = 'LOVE',
+    FUNNY = 'FUNNY',
+    SAD = 'SAD',
+    ANGRY = 'ANGRY',
+}
+
 @Schema({ timestamps: true })
 export class Message {
-    @Prop({ type: Types.ObjectId, ref: Conversation.name, required: true })
+    @Prop({ type: Types.ObjectId, ref: "Conversation", required: true })
     conversationId: Types.ObjectId;
 
-    @Prop({ type: Types.ObjectId, ref: Account.name, required: true })
+    @Prop({ type: Types.ObjectId, ref: "Account", required: true })
     senderId: Types.ObjectId;
 
     @Prop({ type: String, enum: MessageType, default: MessageType.TEXT })
@@ -34,14 +41,20 @@ export class Message {
     @Prop({ type: String, required: true, maxlength: 5000 })
     content: string; // Nội dung text hoặc URL của file/image (max 5000 chars)
 
+    @Prop({ type: { userId: Types.ObjectId, emotionType: String } })
+    emotions?: {
+        userId: Types.ObjectId;
+        emotionType: EmotionType; // Loại cảm xúc, ví dụ: 'LIKE', 'LOVE', 'FUNNY', 'SAD', 'ANGRY'
+    }
+
     @Prop({ type: [String] })
     attachments?: string[]; // Danh sách file đính kèm
 
-    @Prop({ type: Types.ObjectId, ref: Message.name })
+    @Prop({ type: Types.ObjectId, ref: "Message" })
     replyTo?: Types.ObjectId; // Tin nhắn được reply
 
-    // @Prop({ type: Types.ObjectId, ref: 'Post' })
-    // postId?: Types.ObjectId; // ID của bài viết được chia sẻ (cho type=POST)
+    @Prop({ type: Types.ObjectId, ref: 'Post' })
+    postId?: Types.ObjectId; // ID của bài viết được chia sẻ (cho type=POST)
 
     // @Prop({ type: Object })
     // postData?: any; // Dữ liệu bài viết được cache (để hiển thị nhanh)
@@ -51,6 +64,9 @@ export class Message {
 
     @Prop({ type: [{ type: Types.ObjectId, ref: Account.name }], default: [] })
     readBy: Types.ObjectId[]; // Danh sách user đã đọc
+
+    @Prop({ type: Date, default: Date.now })
+    createdAt: Date;
 
     @Prop({ type: Boolean, default: false })
     isDeleted: boolean;

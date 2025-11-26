@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import mongoose, { HydratedDocument } from 'mongoose';
 import { Account } from "src/account/entities/account.entity";
-import { Message } from "src/conversation/entities/message.entity";
+import { Message } from "src/chat/entities/message.entity";
 export type ConversationDocument = HydratedDocument<Conversation>;
 
 @Schema({ timestamps: true })
@@ -15,7 +15,7 @@ export class Conversation {
     isBlocked: boolean;
 
     @Prop()
-    nickname: string;
+    nickname?: string; // Biệt danh trong cuộc trò chuyện nhóm
 
     @Prop({ type: String, default: '👍' })
     quickReaction?: string;
@@ -35,24 +35,23 @@ export class Conversation {
     @Prop({ type: String })
     avatar?: string;  // Dành cho nhóm
 
-    @Prop({ type: [{ userId: mongoose.Schema.Types.ObjectId, joinedAt: Date, isAdmin: Boolean, fullName: String, avatar: String }] })
+    @Prop({ type: [{ user: { type: mongoose.Schema.Types.ObjectId, ref: Account.name }, joinedAt: Date, isAdmin: Boolean, fullName: String, avatar: String, nickname: String }] })
     participants: [{
-        userId: mongoose.Schema.Types.ObjectId;
-        fullName: string;
-        avatar: string;
+        user: mongoose.Schema.Types.ObjectId;
+        nickname?: string;
         joinedAt: Date;
         isAdmin: boolean;
     }]
 
     @Prop()
-    expireBlockAt: Date;
+    expireBlockAt?: Date;
 
 
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Account.name })
     creator?: mongoose.Schema.Types.ObjectId; // Người tạo nhóm (admin đầu tiên)
 
 
-    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Message.name })
+    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: "Message" })
     lastMessage?: mongoose.Schema.Types.ObjectId; // Tin nhắn cuối cùng
 
     @Prop({ type: Date })

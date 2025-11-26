@@ -29,17 +29,15 @@ import {
 } from "@mui/icons-material";
 import { authService } from "@/services/auth.service";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("123456");
+  const [username, setUsername] = useState("xuanho");
+  const [password, setPassword] = useState("123");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const setUser = useAuthStore((state) => state.setUser);
-  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +55,7 @@ export default function LoginPage() {
       if (response.data?.payload) {
         // Map backend response to User type and save to Zustand store
         const userData = {
-          id: response.data.payload.username, // Using username as ID
+          id: response.data.payload._id, // Using username as ID
           username: response.data.payload.username,
           fullName: response.data.payload.fullname,
           role: response.data.payload.role,

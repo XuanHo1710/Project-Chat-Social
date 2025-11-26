@@ -31,8 +31,6 @@ export class AuthService {
             throw new BadRequestException("Not found bla bla")
         }
 
-        console.log(account)
-
         const payload = {
             fullname: account.firstName + " " + account.lastName,
             gender: account.gender,

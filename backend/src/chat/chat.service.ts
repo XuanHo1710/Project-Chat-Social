@@ -27,6 +27,10 @@ export class ChatService {
     return await this.messageModel.find({ conversationId: conversationId }).sort({ createdAt: 1 }).exec();
   }
 
+  async findOne(id: string) {
+    return await this.messageModel.findById(id).exec();
+  }
+
   update(id: number, updateMessageDto: UpdateMessageDto) {
     return `This action updates a #${id} chat`;
   }

@@ -30,8 +30,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 });
 
                 if (res.status === 200 && res.data !== null) {
-                    console.log("Fetched account info:", res.data);
-
                     const { accessToken, data } = res.data;
                     const { account } = data;
 

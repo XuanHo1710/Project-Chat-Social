@@ -12,5 +12,6 @@ import { Conversation, ConversationSchema } from 'src/conversation/entities/conv
   ],
   controllers: [ConversationController],
   providers: [ConversationService],
+  exports: [ConversationService],
 })
 export class ConversationModule { }

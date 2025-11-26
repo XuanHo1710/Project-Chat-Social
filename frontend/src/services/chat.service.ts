@@ -12,6 +12,11 @@ class ChatService {
         const response = await axios.post<APIResponse<MessageResponse[]>>("/chat/messages", payload);
         return response.data;
     }
+
+    async getMessageById(id: string): Promise<APIResponse<MessageResponse>> {
+        const response = await axios.get<APIResponse<MessageResponse>>("/chat/" + id);
+        return response.data;
+    }
 }
 
 export const chatService = new ChatService();

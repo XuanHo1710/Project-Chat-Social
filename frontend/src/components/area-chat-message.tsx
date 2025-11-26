@@ -18,10 +18,10 @@ import InfoIcon from "@mui/icons-material/Info";
 import InsertPhotoIcon from "@mui/icons-material/InsertPhoto";
 import EmojiEmotionsIcon from "@mui/icons-material/EmojiEmotions";
 import AddCircleIcon from "@mui/icons-material/AddCircle";
-import { toast } from "sonner";
-import { useChatByConversationId, useSendMessage } from "@/queries/useChatQueries";
-import { SendMessagePayload } from "@/types/chat";
+import { useChatByConversationId } from "@/queries/useChatQueries";
+import { MessageResponse, SendMessagePayload } from "@/types/chat";
 import { formatTime } from "@/utils/formatDate";
+import { useSocket } from "@/contexts/SocketContext";
 
 
 interface SelectedConversation {
@@ -36,17 +36,44 @@ interface SelectedConversation {
 
 export default function AreaChatMessages({ selectedConversation, userId }: { selectedConversation: SelectedConversation, userId: string }) {
     const { data: chatData, isLoading: isLoadingChats } = useChatByConversationId(selectedConversation._id);
+    const { socket } = useSocket();
+    const [messages, setMessages] = useState<MessageResponse[]>([]);
+
+
+    useEffect(() => {
+        const fecthMessage = () => {
+            if (!isLoadingChats && chatData?.data) {
+                setMessages(chatData.data);
+            }
+        }
+        fecthMessage();
+    }, [chatData, isLoadingChats])
+
 
     const [newMessage, setNewMessage] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
 
-    const sendMessageMutation = useSendMessage();
 
     // Auto scroll to bottom when new message added
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
+
+
+    useEffect(() => {
+        if (!socket) return;
+        const handleNewMessage = (msg: MessageResponse) => {
+            setMessages(prev => [...prev, msg]);
+            scrollToBottom();
+        };
+
+        socket.on("message:new", handleNewMessage);
+
+        return () => {
+            socket.off("message:new", handleNewMessage);
+        };
+    }, [socket]);
 
     useEffect(() => {
         scrollToBottom();
@@ -63,11 +90,13 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             conversationId: selectedConversation._id,
             senderId: userId,
             type: "TEXT",
-            content: newMessage
+            content: newMessage,
         };
-        sendMessageMutation.mutate(message);
+
+        if (socket) {
+            socket.emit("message", message);
+        }
         setNewMessage("");
-        toast.success("Tin nhắn đã được gửi!");
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -148,7 +177,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                 }}
             >
                 <Stack spacing={2}>
-                    {!isLoadingChats && chatData?.data.map((msg, index) => (
+                    {!isLoadingChats && messages.map((msg, index) => (
                         <Stack
                             key={index}
                             direction="row"

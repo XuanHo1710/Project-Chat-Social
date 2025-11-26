@@ -21,12 +21,17 @@ export class ConversationService {
   async findConversationByUserId(userId: string) {
     const conversation = await this.conversationModel.find({
       "participants.user": userId
-    }).populate('participants.user', '-password').exec();
+    }).populate('participants.user', '-password').populate('lastMessage', 'content type createdAt').exec();
     return conversation;
   }
 
+
+  async updateLastMessage(id: string, lastMessage: string) {
+    return await this.conversationModel.updateOne({ _id: id }, { $set: { lastMessage: lastMessage, lastMessageAt: new Date() } }).exec();
+  }
+
   async update(id: string, updateConversationDto: UpdateConversationDto) {
-    return await this.conversationModel.findByIdAndUpdate(id, updateConversationDto, { new: true }).exec();
+    return await this.conversationModel.findByIdAndUpdate(id, updateConversationDto).exec();
   }
 
   async remove(id: string) {

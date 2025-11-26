@@ -28,6 +28,7 @@ import { authService } from "@/services/auth.service";
 import { toast } from "sonner";
 import { useConversationByUserId } from "@/queries/useConversationQueries";
 import AreaChatMessages from "@/components/area-chat-message";
+import { formatTime } from "@/utils/formatDate";
 
 
 
@@ -257,12 +258,12 @@ export default function ChatPage() {
                                         }
                                         secondary={
                                             <Typography noWrap variant="caption" color="rgba(255,255,255,0.5)" component="span">
-                                                {conversation.lastMessage ? conversation.lastMessage : "Vui lòng nhắn tin để bắt đầu cuộc trò chuyện"}
+                                                {conversation.lastMessage ? conversation.lastMessage.content : "Vui lòng nhắn tin để bắt đầu cuộc trò chuyện"}
                                             </Typography>
                                         }
                                     />
                                     <Typography variant="caption" color="rgba(255,255,255,0.4)">
-                                        {conversation.lastMessageAt ? conversation.lastMessageAt.toLocaleString() : ""}
+                                        {conversation.lastMessageAt ? formatTime(conversation.lastMessageAt) : ""}
                                     </Typography>
                                 </ListItemButton>
                             );

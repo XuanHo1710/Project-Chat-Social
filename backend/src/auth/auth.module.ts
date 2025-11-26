@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PassportModule } from '@nestjs/passport';
 import { AccountModule } from 'src/account/account.module';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 const ms = require("ms")
 
@@ -23,7 +23,7 @@ const ms = require("ms")
         }),
     ],
     controllers: [AuthController],
-    providers: [AuthService],
-    exports: [AuthService]
+    providers: [AuthService, JwtService, ConfigService],
+    exports: [AuthService, JwtService, ConfigService]
 })
 export class AuthModule { }

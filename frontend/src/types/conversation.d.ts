@@ -1,5 +1,6 @@
 
 import { AccountType } from "@/schema/account.schema";
+import { MessageType } from "@/types/chat";
 
 export type ConversationTypeEnum = "DIRECT" | "GROUP";
 
@@ -20,6 +21,11 @@ export interface ConversationResponseData {
             nickname: ""
         }
     ],
-    lastMessage?: string,
+    lastMessage?: {
+        _id: string,
+        type: MessageType,
+        content: string,
+        createdAt: Date
+    },
     lastMessageAt?: Date,
 }

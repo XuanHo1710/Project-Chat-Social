@@ -5,6 +5,7 @@ import localFont from "next/font/local";
 import { Toaster } from "sonner";
 import { QueryProvider } from "@/hooks/QueryProvider";
 import { AuthProvider } from "@/contexts/AuthProvider";
+import { SocketProvider } from "@/contexts/SocketContext";
 
 const myFont = localFont({
   src: [
@@ -38,13 +39,15 @@ export default function RootLayout({
       >
         <QueryProvider>
           <AuthProvider>
-            {children}
-            <Toaster
-              position="top-right"
-              richColors
-              closeButton
-              duration={4000}
-            />
+            <SocketProvider>
+              {children}
+              <Toaster
+                position="top-right"
+                richColors
+                closeButton
+                duration={4000}
+              />
+            </SocketProvider>
           </AuthProvider>
         </QueryProvider>
       </body>

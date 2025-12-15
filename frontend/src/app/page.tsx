@@ -11,6 +11,7 @@ import { useEffect } from 'react';
 import { CLIENT_PATH } from '@/constants/paths';
 import Feed from '@/components/Feed';
 
+
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuthStore();
   const router = useRouter();

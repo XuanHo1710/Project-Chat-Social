@@ -109,6 +109,9 @@ export const ADMIN_PATH = {
 } as const;
 
 export const CLIENT_PATH = {
+
+  CHAT: "/chat",
+
   // Auth
   LOGIN: "/auth/login",
   REGISTER: "/auth/register",

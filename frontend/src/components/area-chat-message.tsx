@@ -1,14 +1,12 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Box,
-    Stack,
     Paper,
     Avatar,
     Typography,
     IconButton,
     TextField,
-    InputAdornment,
     Badge,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
@@ -42,22 +40,22 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const { socket } = useSocket();
     const queryClient = useQueryClient();
 
-    const { data: chatData, isLoading: isLoadingChats } = useChatByConversationId(selectedConversation._id);
-
-
-
+    const { data: chatData } = useChatByConversationId(selectedConversation._id);
 
     const [newMessage, setNewMessage] = useState("");
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const chatContainerRef = useRef<HTMLDivElement>(null);
 
+    // Join conversation room
+    useEffect(() => {
+        if (!socket || !selectedConversation._id) return;
 
-    // Auto scroll to bottom when new message added
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+        socket.emit("room", { conversationId: selectedConversation._id });
 
+        return () => {
+            // No leave event in backend, just clean up
+        };
+    }, [socket, selectedConversation._id]);
 
+    // Listen for new messages
     useEffect(() => {
         if (!socket) return;
 
@@ -80,358 +78,235 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         return () => {
             socket.off("message:new", handleNewMessage);
         };
-    }, [socket, queryClient, selectedConversation._id]);
-
-    console.log("Chat Data:", chatData);
+    }, [socket, selectedConversation._id, queryClient]);
 
 
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [chatData]);
-
-    const handleSendMessage = (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!newMessage.trim()) {
-            return;
+    const handleSendMessage = () => {
+        if (newMessage.trim() && socket) {
+            const payload: SendMessagePayload = {
+                conversationId: selectedConversation._id,
+                senderId: userId,
+                type: 'TEXT',
+                content: newMessage,
+            };
+            socket.emit("message", payload);
+            setNewMessage("");
         }
-
-        const message: SendMessagePayload = {
-            conversationId: selectedConversation._id,
-            senderId: userId,
-            type: "TEXT",
-            content: newMessage,
-        };
-
-        if (socket) {
-            socket.emit("message", message);
-        }
-        setNewMessage("");
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            handleSendMessage(e);
+            handleSendMessage();
         }
     };
 
-    const fetchMoreMessages = () => {
-
-    }
 
     return (
-        <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <Box
+            sx={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                bgcolor: "white",
+                height: "100vh",
+            }}
+        >
             {/* Chat Header */}
-            <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
+            <Box
                 sx={{
-                    height: 64,
-                    px: 3,
-                    borderBottom: "1px solid rgba(255,255,255,0.1)",
-                    bgcolor: "#1c1c1e"
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    p: 2,
+                    borderBottom: "1px solid #e4e6eb",
+                    bgcolor: "white",
                 }}
             >
-                <Stack direction="row" spacing={2} alignItems="center">
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <Badge
                         overlap="circular"
                         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
                         variant="dot"
-                        color="success"
+                        sx={{
+                            "& .MuiBadge-badge": {
+                                backgroundColor: selectedConversation.status === "online" ? "#31a24c" : "#8a8d91",
+                                border: "2px solid white",
+                                width: 12,
+                                height: 12,
+                            },
+                        }}
                     >
-                        <Avatar src={selectedConversation?.avatar} sx={{ width: 40, height: 40 }} />
+                        <Avatar src={selectedConversation.avatar} sx={{ width: 40, height: 40 }} />
                     </Badge>
                     <Box>
-                        <Typography fontWeight={700} fontSize={17} color="white">
-                            {selectedConversation?.fullName}
+                        <Typography fontWeight={600} fontSize={15} color="#050505">
+                            {selectedConversation.fullName}
                         </Typography>
-                        <Typography variant="caption" color="rgba(255,255,255,0.6)">
-                            {selectedConversation.status === "online" ? "Đang hoạt động" : "Không hoạt động"}
+                        <Typography variant="body2" fontSize={12} color="#65676b">
+                            {selectedConversation.status === "online" ? "Đang hoạt động" : "Offline"}
                         </Typography>
                     </Box>
-                </Stack>
-                <Stack direction="row" spacing={1}>
-                    <IconButton sx={{ color: "rgba(255,255,255,0.7)" }}>
-                        <CallIcon />
-                    </IconButton>
-                    <IconButton sx={{ color: "rgba(255,255,255,0.7)" }}>
-                        <VideocamIcon />
-                    </IconButton>
-                    <IconButton sx={{ color: "rgba(255,255,255,0.7)" }}>
-                        <InfoIcon />
-                    </IconButton>
-                </Stack>
-            </Stack>
-
-            {/* Messages Area */}
-
-            {
-                !isLoadingChats &&
-                <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                    <Virtuoso
-                        data={chatData?.data || []}
-                        className="container-chat w-full!"
-
-                        itemContent={(index, msg) =>
-                            <Stack
-                                key={index}
-                                direction="row"
-                                padding={"10px"}
-                                spacing={1}
-                                justifyContent={msg.senderId === userId ? "flex-end" : "flex-start"}
-                                alignItems="center"
-
-                            >
-                                {msg.senderId === userId && (
-                                    <Typography
-                                        variant="caption"
-                                        color="rgba(255,255,255,0.4)"
-                                        sx={{ mt: 0.5, ml: 1, display: "block" }}
-                                        textAlign={"right"}
-                                        margin={"0 10 0 0"}
-                                        suppressHydrationWarning
-                                    >
-                                        {formatTime(msg?.createdAt)}
-                                    </Typography>
-                                )}
-
-                                {msg.senderId !== "me" && (
-                                    <Avatar src={selectedConversation.avatar} sx={{ width: 32, height: 32 }} />
-                                )}
-                                <Box sx={{ maxWidth: "70%" }}>
-                                    <Paper
-                                        sx={{
-                                            px: 2,
-                                            py: 1.5,
-                                            borderRadius: 3,
-                                            bgcolor: msg.senderId === "me"
-                                                ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                                                : "#2c2c2e",
-                                            color: "white",
-                                            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                                            background: msg.senderId === "me"
-                                                ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                                                : "#2c2c2e"
-                                        }}
-                                    >
-                                        <Typography variant="body1">{msg.content}</Typography>
-                                    </Paper>
-                                </Box>
-                                {msg.senderId !== userId && (
-                                    <Typography
-                                        variant="caption"
-                                        color="rgba(255,255,255,0.4)"
-                                        sx={{ mt: 0.5, ml: 1, display: "block" }}
-                                        textAlign={"right"}
-                                        margin={"0 10 0 0"}
-                                        suppressHydrationWarning
-                                    >
-                                        {formatTime(msg?.createdAt)}
-                                    </Typography>
-                                )}
-                            </Stack>
-                        }
-                        initialTopMostItemIndex={chatData?.data?.length ? chatData.data.length - 1 : 0} // scroll xuống cuối
-                        firstItemIndex={0} // mặc định 0
-                        startReached={() => {
-                            // scroll lên đầu → load thêm
-                            fetchMoreMessages();
-                        }}
-                        followOutput="smooth" // tự scroll xuống dưới khi có tin nhắn mới
-                    />
                 </Box>
-            }
-            {/* <Box
-                ref={chatContainerRef}
-                sx={{
-                    flex: 1,
-                    overflow: "auto",
-                    p: 3,
-                    bgcolor: "#0a0a0a",
-                    backgroundImage: "radial-gradient(circle at 1px 1px, rgba(102, 126, 234, 0.05) 1px, transparent 0)",
-                    backgroundSize: "40px 40px",
-                    "&::-webkit-scrollbar": {
-                        width: "8px"
-                    },
-                    "&::-webkit-scrollbar-track": {
-                        background: "transparent"
-                    },
-                    "&::-webkit-scrollbar-thumb": {
-                        background: "rgba(255,255,255,0.2)",
-                        borderRadius: "4px",
-                        "&:hover": {
-                            background: "rgba(255,255,255,0.3)"
-                        }
-                    }
-                }}
-            >
-                <Stack spacing={2}>
-                    {!isLoadingChats && chatData?.data.map((msg, index) => (
-                        <Stack
-                            key={index}
-                            direction="row"
-                            spacing={1}
-                            justifyContent={msg.senderId === userId ? "flex-end" : "flex-start"}
-                            alignItems="center"
-                        >
-                            {msg.senderId === userId && (
-                                <Typography
-                                    variant="caption"
-                                    color="rgba(255,255,255,0.4)"
-                                    sx={{ mt: 0.5, ml: 1, display: "block" }}
-                                    textAlign={"right"}
-                                    margin={"0 10 0 0"}
-                                    suppressHydrationWarning
-                                >
-                                    {formatTime(msg?.createdAt)}
-                                </Typography>
-                            )}
+                <Box sx={{ display: "flex", gap: 1 }}>
+                    <IconButton
+                        size="small"
+                        sx={{
+                            color: "#1877f2",
+                            bgcolor: "#f0f2f5",
+                            "&:hover": { bgcolor: "#e4e6eb" },
+                        }}
+                    >
+                        <CallIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                        size="small"
+                        sx={{
+                            color: "#1877f2",
+                            bgcolor: "#f0f2f5",
+                            "&:hover": { bgcolor: "#e4e6eb" },
+                        }}
+                    >
+                        <VideocamIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                        size="small"
+                        sx={{
+                            color: "#1877f2",
+                            bgcolor: "#f0f2f5",
+                            "&:hover": { bgcolor: "#e4e6eb" },
+                        }}
+                    >
+                        <InfoIcon fontSize="small" />
+                    </IconButton>
+                </Box>
+            </Box>
 
-                            {msg.senderId !== "me" && (
-                                <Avatar src={selectedConversation.avatar} sx={{ width: 32, height: 32 }} />
-                            )}
-                            <Box sx={{ maxWidth: "70%" }}>
-                                <Paper
+            {/* Messages Area with Virtuoso */}
+            <Box sx={{ flex: 1, overflow: "hidden", bgcolor: "white" }}>
+                <Virtuoso
+                    style={{ height: '100%' }}
+                    data={chatData?.data || []}
+                    alignToBottom
+                    initialTopMostItemIndex={(chatData?.data || []).length - 1}
+                    itemContent={(index, message) => {
+                        const isOwn = message.senderId === userId;
+                        const showAvatar = index === 0 || (chatData?.data[index - 1]?.senderId !== message.senderId);
+
+                        return (
+                            <Box
+                                key={message.senderId}
+                                sx={{
+                                    display: "flex",
+                                    justifyContent: isOwn ? "flex-end" : "flex-start",
+                                    px: 2,
+                                    py: 0.5,
+                                    gap: 1,
+                                }}
+                            >
+                                {!isOwn && (
+                                    <Avatar
+                                        src={selectedConversation.avatar}
+                                        sx={{
+                                            width: 28,
+                                            height: 28,
+                                            visibility: showAvatar ? "visible" : "hidden",
+                                        }}
+                                    />
+                                )}
+                                <Box
                                     sx={{
-                                        px: 2,
-                                        py: 1.5,
-                                        borderRadius: 3,
-                                        bgcolor: msg.senderId === "me"
-                                            ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                                            : "#2c2c2e",
-                                        color: "white",
-                                        boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                                        background: msg.senderId === "me"
-                                            ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                                            : "#2c2c2e"
+                                        maxWidth: "60%",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: isOwn ? "flex-end" : "flex-start",
                                     }}
                                 >
-                                    <Typography variant="body1">{msg.content}</Typography>
-                                </Paper>
+                                    <Paper
+                                        sx={{
+                                            p: 1.5,
+                                            bgcolor: isOwn ? "#1877f2" : "#f0f2f5",
+                                            color: isOwn ? "white" : "#050505",
+                                            borderRadius: 4,
+                                            wordBreak: "break-word",
+                                            boxShadow: "none",
+                                        }}
+                                    >
+                                        <Typography fontSize={15}>{message.content}</Typography>
+                                    </Paper>
+                                    <Typography
+                                        variant="caption"
+                                        color="#65676b"
+                                        fontSize={11}
+                                        sx={{ mt: 0.5, px: 1 }}
+                                    >
+                                        {formatTime(message.createdAt)}
+                                    </Typography>
+                                </Box>
                             </Box>
-                            {msg.senderId !== userId && (
-                                <Typography
-                                    variant="caption"
-                                    color="rgba(255,255,255,0.4)"
-                                    sx={{ mt: 0.5, ml: 1, display: "block" }}
-                                    textAlign={"right"}
-                                    margin={"0 10 0 0"}
-                                    suppressHydrationWarning
-                                >
-                                    {formatTime(msg?.createdAt)}
-                                </Typography>
-                            )}
-                        </Stack>
-                    ))}
-                    <div ref={messagesEndRef} />
-                </Stack>
-            </Box> */}
+                        );
+                    }}
+                />
+            </Box>
 
-            {/* Message Input */}
+            {/* Input Area */}
             <Box
-                component="form"
-                onSubmit={handleSendMessage}
                 sx={{
                     p: 2,
-                    borderTop: "1px solid rgba(255,255,255,0.1)",
-                    bgcolor: "#1c1c1e"
+                    bgcolor: "white",
+                    borderTop: "1px solid #e4e6eb",
                 }}
             >
-                <Stack direction="row" alignItems="center" spacing={1}>
-                    <IconButton
-                        sx={{
-                            color: "#667eea",
-                            transition: "all 0.2s",
-                            "&:hover": {
-                                transform: "scale(1.1)",
-                                bgcolor: "rgba(102, 126, 234, 0.1)"
-                            }
-                        }}
-                    >
-                        <AddCircleIcon />
+                <Box
+                    sx={{
+                        display: "flex",
+                        alignItems: "flex-end",
+                        gap: 1,
+                        bgcolor: "#f0f2f5",
+                        borderRadius: 5,
+                        px: 2,
+                        py: 1,
+                    }}
+                >
+                    <IconButton size="small" sx={{ color: "#1877f2" }}>
+                        <AddCircleIcon fontSize="small" />
                     </IconButton>
-                    <IconButton
-                        sx={{
-                            color: "#667eea",
-                            transition: "all 0.2s",
-                            "&:hover": {
-                                transform: "scale(1.1)",
-                                bgcolor: "rgba(102, 126, 234, 0.1)"
-                            }
-                        }}
-                    >
-                        <InsertPhotoIcon />
+                    <IconButton size="small" sx={{ color: "#1877f2" }}>
+                        <InsertPhotoIcon fontSize="small" />
                     </IconButton>
                     <TextField
                         fullWidth
-                        placeholder="Nhập tin nhắn của bạn..."
+                        multiline
+                        maxRows={4}
+                        placeholder="Aa"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        multiline
-                        maxRows={4}
+                        variant="standard"
                         InputProps={{
-                            endAdornment: (
-                                <InputAdornment position="end">
-                                    <IconButton
-                                        edge="end"
-                                        sx={{
-                                            color: "#667eea",
-                                            transition: "all 0.2s",
-                                            "&:hover": {
-                                                transform: "rotate(15deg) scale(1.1)"
-                                            }
-                                        }}
-                                    >
-                                        <EmojiEmotionsIcon />
-                                    </IconButton>
-                                </InputAdornment>
-                            ),
+                            disableUnderline: true,
                             sx: {
-                                borderRadius: 5,
-                                bgcolor: "rgba(255,255,255,0.05)",
-                                color: "white",
-                                transition: "all 0.3s",
-                                "& .MuiOutlinedInput-notchedOutline": {
-                                    borderColor: "transparent"
+                                color: "#050505",
+                                fontSize: "15px",
+                                "& .MuiInputBase-input": {
+                                    py: 0.5,
                                 },
-                                "&:hover": {
-                                    bgcolor: "rgba(255,255,255,0.08)",
-                                    boxShadow: "0 2px 8px rgba(102, 126, 234, 0.15)"
+                                "&::placeholder": {
+                                    color: "#65676b",
+                                    opacity: 1,
                                 },
-                                "&.Mui-focused": {
-                                    bgcolor: "rgba(255,255,255,0.08)",
-                                    boxShadow: "0 4px 12px rgba(102, 126, 234, 0.25)",
-                                    "& .MuiOutlinedInput-notchedOutline": {
-                                        borderColor: "#667eea"
-                                    }
-                                }
-                            }
+                            },
                         }}
                     />
-                    <IconButton
-                        type="submit"
-                        disabled={!newMessage.trim()}
-                        sx={{
-                            bgcolor: newMessage.trim() ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "rgba(255,255,255,0.1)",
-                            background: newMessage.trim() ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "rgba(255,255,255,0.1)",
-                            color: "white",
-                            transition: "all 0.2s",
-                            "&:hover": {
-                                transform: newMessage.trim() ? "scale(1.1)" : "none",
-                                background: newMessage.trim() ? "linear-gradient(135deg, #764ba2 0%, #667eea 100%)" : "rgba(255,255,255,0.1)"
-                            },
-                            "&.Mui-disabled": {
-                                color: "rgba(255,255,255,0.3)"
-                            }
-                        }}
-                    >
-                        <SendIcon />
+                    <IconButton size="small" sx={{ color: "#1877f2" }}>
+                        <EmojiEmotionsIcon fontSize="small" />
                     </IconButton>
-                </Stack>
+                    {newMessage.trim() ? (
+                        <IconButton onClick={handleSendMessage} size="small" sx={{ color: "#1877f2" }}>
+                            <SendIcon fontSize="small" />
+                        </IconButton>
+                    ) : null}
+                </Box>
             </Box>
         </Box>
     );

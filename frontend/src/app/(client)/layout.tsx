@@ -5,7 +5,7 @@ import { ThemeProvider, createTheme, CssBaseline } from "@mui/material";
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
     const theme = createTheme({
         palette: {
-            mode: "dark",
+            mode: "light",
             primary: { main: "#2E89FF" },
             background: { default: "#18191A", paper: "#242526" },
         },

@@ -23,6 +23,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { CLIENT_PATH } from '@/constants/paths';
 
 interface AvatarMenuProps {
     onClose: () => void;
@@ -35,10 +36,14 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
 
     const handleLogout = async () => {
         onClose();
-        await authService.logout();
-        logout();
-        toast.success('Đã đăng xuất thành công!');
-        router.push('/auth/login');
+        const response = await authService.logout();
+        if (response.statusCode === 201) {
+            logout();
+            toast.success('Đã đăng xuất thành công!');
+            router.push(CLIENT_PATH.LOGIN);
+        } else {
+            toast.error('Đăng xuất thất bại. Vui lòng thử lại.');
+        }
     };
 
     return (

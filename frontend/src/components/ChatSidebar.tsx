@@ -30,6 +30,8 @@ import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
 import { formatTime } from '@/utils/formatDate';
 import { ConversationResponseData } from '@/types/conversation';
+import { useRouter } from 'next/navigation';
+import { CLIENT_PATH } from '@/constants/paths';
 
 
 
@@ -57,6 +59,8 @@ export default function ChatSidebar({
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
+    const router = useRouter();
+
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget);
     };
@@ -67,10 +71,14 @@ export default function ChatSidebar({
 
     const handleLogout = async () => {
         handleMenuClose();
-        await authService.logout();
-        logout();
-        toast.success('Đã đăng xuất thành công!');
-        window.location.href = '/auth/login';
+        const response = await authService.logout();
+        if (response.statusCode === 201) {
+            logout();
+            toast.success('Đã đăng xuất thành công!');
+            router.push(CLIENT_PATH.LOGIN);
+        } else {
+            toast.error('Đăng xuất thất bại. Vui lòng thử lại.');
+        }
     };
 
     const filteredConversations = conversations.filter((conversation) => {

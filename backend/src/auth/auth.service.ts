@@ -59,12 +59,12 @@ export class AuthService {
             }
         );
 
-        response.cookie("access_token", access_token,
-            {
-                httpOnly: true,
-                maxAge: ms(this.configService.get<string>('JWT_ACCESS_EXPIRE') as string),
-            }
-        );
+        // response.cookie("access_token", access_token,
+        //     {
+        //         httpOnly: true,
+        //         maxAge: ms(this.configService.get<string>('JWT_ACCESS_EXPIRE') as string),
+        //     }
+        // );
 
         return {
             access_token,
@@ -101,12 +101,12 @@ export class AuthService {
             //     account._id.toString()
             // );
 
-            response.cookie("access_token", access_token, {
-                httpOnly: true,
-                maxAge: ms(this.configService.get<string>('JWT_ACCESS_EXPIRE') as string),
-            });
+            // response.cookie("access_token", access_token, {
+            //     httpOnly: true,
+            //     maxAge: ms(this.configService.get<string>('JWT_ACCESS_EXPIRE') as string),
+            // });
 
-            return { access_token, ...payload };
+            return { access_token, payload: {...payload} };
 
         } catch (err) {
             throw new BadRequestException("Refresh token không hợp lệ hoặc đã hết hạn");
@@ -135,8 +135,9 @@ export class AuthService {
     }
 
     async logout(response: Response) {
+        console.log("Logout backend nè");
         response.clearCookie("refresh_token");
-        response.clearCookie("access_token");
+        // response.clearCookie("access_token");
         return { message: "Success Logout" }
     }
 }

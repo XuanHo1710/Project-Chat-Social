@@ -20,17 +20,18 @@ export class AuthController {
 
     @Post('/logout')
     handleLogout(@Res({ passthrough: true }) response: Response) {
+        console.log("Logout called in controller");
         return this.authService.logout(response);
     }
 
     @Public()
     @Post("/refresh-token")
-    refreshToken(@Req() req: Request, @Res({ passthrough: true }) response: Response) {
-        const refreshToken: string = req.cookies['refresh_token'];
-        return this.authService.processNewToken(refreshToken, response);
+    refreshToken(@Res({ passthrough: true }) response: Response, @Body() body: { refreshToken: string }) {
+        console.log("Refresh token called in controller:", body.refreshToken);
+        return this.authService.processNewToken(body.refreshToken, response);
     }
 
-    @Get('profile')
+    @Get('/profile')
     getProfile(@UserInfo() user: any) {
         return user;
     }

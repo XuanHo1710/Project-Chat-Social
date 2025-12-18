@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import axios from 'axios';
 
-export async function POST(request: Request) {
+export async function POST() {
     try {
-        const { accessToken } = await request.json();
         const cookieStore = await cookies();
         const refreshToken = cookieStore.get('refresh_token')?.value;
 
@@ -16,58 +16,20 @@ export async function POST(request: Request) {
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
 
         try {
-            // Thử get profile với access token hiện tại
-            const profileResponse = await fetch(`${backendUrl}/auth/profile`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Cookie': `refresh_token=${refreshToken}`,
-                },
-                credentials: 'include',
-            });
 
-            if (profileResponse.ok) {
-                const accountData = await profileResponse.json();
+            // Nếu refresh cho access token
+            const refreshResponse = await axios.post(`${backendUrl}/auth/refresh-token`, { refreshToken: refreshToken});
+
+            if (refreshResponse.status === 201 && refreshResponse.data?.data?.access_token) {
+                const accessToken =  refreshResponse.data?.data?.access_token;
+                const accountData = refreshResponse.data?.data?.payload;
 
                 return NextResponse.json({
-                    accessToken: accessToken, // Giữ nguyên access token
+                    accessToken: accessToken, 
                     data: {
                         account: accountData.data || accountData
                     }
                 });
-            }
-
-            // Nếu access token hết hạn, thử refresh
-            const refreshResponse = await fetch(`${backendUrl}/auth/refresh-token`, {
-                method: 'POST',
-                headers: {
-                    'Cookie': `refresh_token=${refreshToken}`,
-                },
-                credentials: 'include',
-            });
-
-            if (refreshResponse.ok) {
-                const refreshData = await refreshResponse.json();
-                const newAccessToken = refreshData.data?.access_token || refreshData.access_token;
-
-                // Lấy lại profile với token mới
-                const newProfileResponse = await fetch(`${backendUrl}/auth/profile`, {
-                    headers: {
-                        'Authorization': `Bearer ${newAccessToken}`,
-                        'Cookie': `refresh_token=${refreshToken}`,
-                    },
-                    credentials: 'include',
-                });
-
-                if (newProfileResponse.ok) {
-                    const accountData = await newProfileResponse.json();
-
-                    return NextResponse.json({
-                        accessToken: newAccessToken, // Trả về access token mới
-                        data: {
-                            account: accountData.data || accountData
-                        }
-                    });
-                }
             }
 
             // Nếu cả 2 đều fail thì return null

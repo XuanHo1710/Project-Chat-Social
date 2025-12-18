@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/stores/useAuthStore";
 import axios, {
   AxiosError,
   AxiosResponse,
@@ -26,8 +27,8 @@ const instance = axios.create({
 // ✅ Request interceptor: Add /secure prefix and token based on isSecure flag
 instance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") || "" : "";
-    if (token && config.url !== "/auth/logout" && config.url !== "/auth/login" && config.url !== "/accounts/register") {
+    const token = typeof window !== "undefined" ? useAuthStore.getState().accessToken || "" : "";
+    if (token && config.url !== "/auth/login" && config.url !== "/accounts/register") {
       config.headers.Authorization = `Bearer ${token}`;
     }
     if (config.isSecure && config.url) {

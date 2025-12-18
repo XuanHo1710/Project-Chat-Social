@@ -30,6 +30,7 @@ import {
 import { authService } from "@/services/auth.service";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("xuanho");
@@ -37,7 +38,9 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const setUser = useAuthStore((state) => state.setUser);
+  const { setUser, setAccessToken } = useAuthStore();
+
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,18 +67,15 @@ export default function LoginPage() {
           avatar: undefined, // Backend doesn't provide avatar in login response
         };
 
-        // Set user in Zustand store (only in-memory, not localStorage)
+
+        setAccessToken(response.data.access_token);
         setUser(userData);
 
         toast.success(`Xin chào ${response.data.payload.fullname}! Đăng nhập thành công!`);
-
-        // Middleware will redirect to /chat via refresh_token cookie
-        // Force reload to trigger middleware check
-        window.location.href = "/chat";
+        router.push("/")
       }
-    } catch (error: any) {
-      console.error("Login error:", error);
-      const errorMessage = error.response?.data?.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.";
+    } catch {
+      const errorMessage = "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.";
       toast.error(errorMessage);
     } finally {
       setLoading(false);

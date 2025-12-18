@@ -1,16 +1,10 @@
-// import axios from "@/config/axios";
-// import {
-//   AccountCreateRequestType,
-//   AccountUpdateRequestType,
-//   AccountResponseType,
-//   AccountUpdateProfileRequestType,
-//   ChangePasswordRequestType,
-// } from "@/schema/account.schema";
-// import { ApiResponse, PageResponse } from "@/dtypes/api-response";
+import axios from "@/config/axios";
+import { AccountCardFriendType, AccountType } from "@/types/account";
+import { APIResponse, PageResponse } from "@/types/common";
 
-// const PREFIX = "accounts";
+const PREFIX = "account";
 
-// class AccountService {
+class AccountService {
 //   async createAccount(data: AccountCreateRequestType) {
 //     const response = await axios.post<ApiResponse<AccountResponseType>>(
 //       `/${PREFIX}`,
@@ -61,12 +55,12 @@
 //     return response.data;
 //   }
 
-//   async getAccountsByPage(params?: Record<string, string | number | boolean | Array<string>>) {
-//     const response = await axios.get<
-//       ApiResponse<PageResponse<AccountResponseType>>
-//     >(`/${PREFIX}`, { params, isSecure: true });
-//     return response.data.data;
-//   }
+  async getAccountsByPage(params?: Record<string, string | number | boolean | Array<string>>) {
+    const response = await axios.get<
+      APIResponse<PageResponse<AccountCardFriendType>>
+    >(`/${PREFIX}`, { params });
+    return response.data.data;
+  }
 
 //   async getCustomerAccountsByPage(params?: Record<string, string | number | boolean>) {
 //     const response = await axios.get<
@@ -90,6 +84,6 @@
 //     );
 //     return response.data;
 //   }
-// }
+}
 
-// export const accountService = new AccountService();
+export const accountService = new AccountService();

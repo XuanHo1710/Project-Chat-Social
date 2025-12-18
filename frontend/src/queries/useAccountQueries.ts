@@ -1,53 +1,44 @@
-// import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-// import { accountService } from "@/services/admin/account.service";
-// import {
-//   AccountCreateRequestType,
-//   AccountUpdateRequestType,
-//   AccountResponseType,
-//   AccountUpdateProfileRequestType,
-//   ChangePasswordRequestType,
-// } from "@/schema/account.schema";
-// import { PageResponse } from "@/dtypes/api-response";
+import { accountService } from "@/services/account.service";
+import { AccountCardFriendType, AccountType } from "@/types/account";
+import { PageResponse } from "@/types/common";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-// export const QUERY_KEYS = {
-//   CUSTOMER_ACCOUNTS_PAGINATED: "customer-accounts-paginated",
-//   ACCOUNTS_PAGINATED: "accounts-paginated",
-//   ACCOUNT_BY_ID: "account-by-id",
-// };
 
-// interface AccountFilterParams {
-//   page?: number;
-//   size?: number;
-//   sort?: string;
-//   search?: string;
-//   active?: boolean;
-//   roleIds?: string;
-//   membership?: string;
-// }
+export const QUERY_KEYS = {
+  ACCOUNTS_PAGINATED: "accounts-paginated",
+  ACCOUNT_BY_ID: "account-by-id",
+};
 
-// export function useAccountsByPage(params: AccountFilterParams = {}) {
-//   const { page = 0, size = 12, sort, search, active, roleIds } = params;
-//   const queryParams: Record<string, string | number | boolean> = { page, size };
+interface AccountFilterParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+  search?: string;
+  active?: boolean;
+}
+
+
+// All accounts to test add Friends
+export function useAccountsByPage(userId: string, params: AccountFilterParams = {}) {
+  const { page = 1, size = 12, sort, search } = params;
+  const queryParams: Record<string, string | number | boolean> = { page, size };
 //   if (sort) queryParams.sort = sort;
 //   else queryParams.sort = "createdAt,desc";
 
-//   if (search) queryParams.search = search;
-//   if (active !== undefined) queryParams.active = active;
-//   if (roleIds) queryParams.roleIds = roleIds;
+  if (search) queryParams.search = search;
 
-//   return useQuery<PageResponse<AccountResponseType>, Error>({
-//     queryKey: [
-//       QUERY_KEYS.ACCOUNTS_PAGINATED,
-//       page,
-//       size,
-//       sort,
-//       search,
-//       active,
-//       roleIds,
-//     ],
-//     queryFn: () => accountService.getAccountsByPage(queryParams),
-//   });
-// }
+  return useQuery<PageResponse<AccountCardFriendType>, Error>({
+    queryKey: [
+      QUERY_KEYS.ACCOUNTS_PAGINATED,
+      page,
+      size,
+      sort,
+      search,
+      userId
+    ],
+    queryFn: () => accountService.getAccountsByPage(queryParams),
+  });
+}
 
 
 // export function useCustomerAccountsByPage(params: AccountFilterParams = {}) {

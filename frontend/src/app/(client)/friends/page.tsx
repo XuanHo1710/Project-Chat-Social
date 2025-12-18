@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { Box, Card, CardContent, Typography, Avatar, Button, IconButton } from '@mui/material';
 import {
     PersonAdd as PersonAddIcon,
-    Check as CheckIcon,
     Close as CloseIcon,
     MoreHoriz as MoreIcon,
 } from '@mui/icons-material';
 import Header from '@/components/Header';
+import CardFriendShowAllComponent from '@/components/friends/CardFriendShowAll';
+import { useAccountsByPage } from '@/queries/useAccountQueries';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 // Mock data
 const friendRequests = [
@@ -91,6 +93,9 @@ const currentFriends = [
 
 export default function FriendsPage() {
     const [tabValue, setTabValue] = useState(0);
+    const { user } = useAuthStore();
+
+    const { data: allAccounts, isLoading: isLoadingAccounts } = useAccountsByPage(user?.id || "", { page: 1, size: 12 });
 
     return (
         <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
@@ -219,10 +224,42 @@ export default function FriendsPage() {
                         {tabValue === 0 && (
                             <Box>
                                 {/* Friend Requests Section */}
+                                {!isLoadingAccounts && allAccounts && allAccounts?.items?.length > 0 && (
+                                    <Box sx={{ mb: 4 }}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                            <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
+                                                Người dùng khác...
+                                            </Typography>
+                                            <Button
+                                                sx={{
+                                                    color: '#1877f2',
+                                                    textTransform: 'none',
+                                                    fontSize: '15px',
+                                                    fontWeight: 500,
+                                                }}
+                                            >
+                                                Xem tất cả
+                                            </Button>
+                                        </Box>
+
+                                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
+                                            {allAccounts.items.map((account, index) => (
+                                                <CardFriendShowAllComponent key={index} friend={account} />
+                                            ))}
+                                        </Box>
+                                    </Box>
+                                )}
+                            </Box>
+                        )}
+
+                        {/* Tab 1: Lời mời kết bạn */}
+                        {tabValue === 1 && (
+                            <Box>
+                                {/* Friend Requests Section */}
                                 {friendRequests.length > 0 && (
                                     <Box sx={{ mb: 4 }}>
                                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                            <Typography variant="h6" fontWeight={700} color="#050505">
+                                            <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
                                                 Lời mời kết bạn
                                             </Typography>
                                             <Button
@@ -341,82 +378,6 @@ export default function FriendsPage() {
                                             </Card>
                                         ))}
                                     </Box>
-                                </Box>
-                            </Box>
-                        )}
-
-                        {/* Tab 1: Lời mời kết bạn */}
-                        {tabValue === 1 && (
-                            <Box>
-                                <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
-                                    Lời mời kết bạn
-                                </Typography>
-
-                                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                                    {friendRequests.map((request) => (
-                                        <Card key={request.id} sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                                            <CardContent sx={{ p: 0 }}>
-                                                <Box sx={{ position: 'relative', pb: '100%', bgcolor: '#f0f2f5' }}>
-                                                    <Avatar
-                                                        src={`https://ui-avatars.com/api/?name=${request.name}&background=1877f2&color=fff`}
-                                                        sx={{
-                                                            position: 'absolute',
-                                                            top: 0,
-                                                            left: 0,
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            borderRadius: 0,
-                                                        }}
-                                                    />
-                                                </Box>
-                                                <Box sx={{ p: 2 }}>
-                                                    <Typography fontWeight={600} fontSize={15} color="#050505" sx={{ mb: 0.5 }}>
-                                                        {request.name}
-                                                    </Typography>
-                                                    <Typography variant="body2" color="#65676b" fontSize={13} sx={{ mb: 1.5 }}>
-                                                        {request.mutualFriends} bạn chung
-                                                    </Typography>
-                                                    <Typography variant="caption" color="#65676b" fontSize={12} sx={{ mb: 2, display: 'block' }}>
-                                                        {request.time}
-                                                    </Typography>
-
-                                                    <Box sx={{ display: 'flex', gap: 1 }}>
-                                                        <Button
-                                                            fullWidth
-                                                            variant="contained"
-                                                            sx={{
-                                                                bgcolor: '#1877f2',
-                                                                textTransform: 'none',
-                                                                fontWeight: 600,
-                                                                py: 1,
-                                                                '&:hover': {
-                                                                    bgcolor: '#166fe5',
-                                                                },
-                                                            }}
-                                                        >
-                                                            Xác nhận
-                                                        </Button>
-                                                        <Button
-                                                            fullWidth
-                                                            variant="contained"
-                                                            sx={{
-                                                                bgcolor: '#e4e6eb',
-                                                                color: '#050505',
-                                                                textTransform: 'none',
-                                                                fontWeight: 600,
-                                                                py: 1,
-                                                                '&:hover': {
-                                                                    bgcolor: '#d8dadf',
-                                                                },
-                                                            }}
-                                                        >
-                                                            Xóa
-                                                        </Button>
-                                                    </Box>
-                                                </Box>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
                                 </Box>
                             </Box>
                         )}

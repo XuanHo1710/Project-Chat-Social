@@ -2,16 +2,19 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { Account, AccountDocument, AccountSchema } from 'src/account/entities/account.entity';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 
 import * as bcrypt from 'bcrypt';
+import { Relationship } from 'src/relationship/entities/relationship.entity';
+import { FindAllResponse } from 'src/account/dto/filter-account-dto';
 
 
 @Injectable()
 export class AccountService {
   constructor(
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
+    @InjectModel(Relationship.name) private relationshipModel: Model<Relationship>,
   ) { }
 
 
@@ -34,8 +37,78 @@ export class AccountService {
     return account.save();
   }
 
-  async findAll() {
-    return await this.accountModel.find({});
+  
+
+  // Get all accounts to test add friends
+  async findAll(user, currentPage: number = 1) : Promise<FindAllResponse> {
+    const limit = 5;
+    const skip = limit * (currentPage - 1);
+
+    const me = new Types.ObjectId(user._id);
+    // 1. Lấy tất cả relationship liên quan đến mình
+    const relationships = await this.relationshipModel.find(
+      {
+        $or: [
+          {$and: [{ userId: me }, {$or: [ {status: 'ACCEPTED'}, {status: 'PENDING' }, {status: 'BLOCKED' } ]}]},
+          {$and: [{ friendId: me }, {$or: [ {status: 'ACCEPTED'}, {status: 'PENDING' }, {status: 'BLOCKED' } ]}]},
+        ],
+      },
+      { userId: 1, friendId: 1 } // chỉ lấy field cần
+    ).lean();
+
+    // 2. Loại bỏ những userId, friendId đã có trong mối quan hệ với mình
+    const excludedUserIds = new Set<string>();
+
+    excludedUserIds.add(me.toString()); // loại chính mình
+
+    relationships.forEach(r => {
+      if (r.userId.toString() === me.toString()) {
+        excludedUserIds.add(r.friendId.toString());
+      } else {
+        excludedUserIds.add(r.userId.toString());
+      }
+    });
+
+    const excludedIdsArray = Array.from(excludedUserIds).map(
+      id => new Types.ObjectId(id)
+    );
+
+
+
+    const [items, totalItems] = await Promise.all([
+      this.accountModel
+        .find({
+          _id: { $nin: excludedIdsArray },
+          isDeleted: false,
+          isActive: true,
+        })
+        .select('_id firstName lastName avatar')
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+
+      this.accountModel.countDocuments({
+          _id: { $nin: excludedIdsArray },
+          isDeleted: false,
+          isActive: true,
+        }),
+    ]);
+
+    
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return {
+      items: items.map(item => ({
+        id: item._id,
+        name: item.firstName + ' ' + item.lastName,
+        mutualFriends: 0,
+        avatar: item.avatar,
+        time: '1 ngày',
+      })),
+      totalItems,
+      totalPages,
+      currentPage,
+    };
   }
 
   async findOne(id: string) {

@@ -16,6 +16,15 @@ export interface UserLoginType {
 }
 
 
+export interface AccountCardFriendType {
+    id: string;
+    name: string;
+    mutualFriends: number;
+    avatar?: string;
+    time: string;
+}
+
+
 export interface AccountType {
     _id: string,
     firstName: string,

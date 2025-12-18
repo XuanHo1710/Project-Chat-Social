@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { AccountService } from './account.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
+import { UserInfo } from 'decorators/customize';
 
 @Controller('account')
 export class AccountController {
@@ -13,8 +14,8 @@ export class AccountController {
   }
 
   @Get()
-  findAll() {
-    return this.accountService.findAll();
+  findAll(@UserInfo() user: any, @Query('page') page: number) {
+    return this.accountService.findAll(user, +page);
   }
 
 

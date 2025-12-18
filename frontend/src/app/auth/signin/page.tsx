@@ -9,8 +9,6 @@ import {
   Button,
   Divider,
   Stack,
-  Checkbox,
-  FormControlLabel,
   IconButton,
   InputAdornment,
   CircularProgress,
@@ -33,20 +31,21 @@ import { useRouter } from "next/navigation";
 import { CLIENT_PATH } from "@/constants/paths";
 import Link from "next/link";
 
-export default function LoginPage() {
-  const [username, setUsername] = useState("xuanho");
-  const [password, setPassword] = useState("123");
+export default function SigninPage() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const { setUser, setAccessToken } = useAuthStore();
 
   const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSign = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!username || !password) {
+    if (!username || !password || !firstName || !lastName) {
       toast.error("Vui lòng nhập đầy đủ thông tin");
       return;
     }
@@ -54,7 +53,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await authService.login({ username, password });
+      const response = await authService.signup({ username, password, firstName, lastName });
 
       if (response.data?.payload) {
         // Map backend response to User type and save to Zustand store
@@ -72,11 +71,11 @@ export default function LoginPage() {
         setAccessToken(response.data.access_token);
         setUser(userData);
 
-        toast.success(`Xin chào ${response.data.payload.fullname}! Đăng nhập thành công!`);
+        toast.success(`Xin chào ${response.data.payload.fullname}! Đăng ký thành công!`);
         router.push(CLIENT_PATH.HOME)
       }
     } catch {
-      const errorMessage = "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.";
+      const errorMessage = "Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.";
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -213,22 +212,76 @@ export default function LoginPage() {
                 boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.37)",
               }}
             >
-              <form onSubmit={handleLogin}>
+              <form onSubmit={handleSign}>
                 <Stack spacing={3}>
                   {/* Header */}
                   <Box sx={{ textAlign: "center", mb: 2 }}>
                     <Typography variant="h4" fontWeight={800} color="primary" mb={1}>
-                      Đăng nhập
+                      Đăng ký tài khoản
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Chưa có tài khoản?{" "}
-                      <Link href={CLIENT_PATH.REGISTER} className="hover:underline cursor-pointer text-blue-600">
-                        Đăng ký ngay
+                      Đã có tài khoản?{" "}
+                      <Link href={CLIENT_PATH.LOGIN} className="hover:underline cursor-pointer text-blue-600" >
+                        Đăng nhập
                       </Link>
                     </Typography>
                   </Box>
 
                   {/* Username Field */}
+                  <TextField
+                    label="Họ"
+                    placeholder="Nhập họ"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    fullWidth
+                    variant="outlined"
+                    disabled={loading}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Person color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        transition: "all 0.3s",
+                        "&:hover": {
+                          transform: "translateY(-2px)",
+                          boxShadow: "0 4px 12px rgba(102, 126, 234, 0.2)",
+                        },
+                      },
+                    }}
+                  />
+
+                  <TextField
+                    label="Tên"
+                    placeholder="Nhập tên"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    fullWidth
+                    variant="outlined"
+                    disabled={loading}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Person color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        transition: "all 0.3s",
+                        "&:hover": {
+                          transform: "translateY(-2px)",
+                          boxShadow: "0 4px 12px rgba(102, 126, 234, 0.2)",
+                        },
+                      },
+                    }}
+                  />
+
                   <TextField
                     label="Tên đăng nhập"
                     placeholder="Nhập tên đăng nhập"
@@ -296,24 +349,8 @@ export default function LoginPage() {
                     }}
                   />
 
-                  {/* Remember Me & Forgot Password */}
-                  <Stack direction="row" alignItems="center" justifyContent="space-between">
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={rememberMe}
-                          onChange={(e) => setRememberMe(e.target.checked)}
-                          disabled={loading}
-                        />
-                      }
-                      label="Ghi nhớ đăng nhập"
-                    />
-                    <Link href="#" className="hover:underline cursor-pointer">
-                      Quên mật khẩu?
-                    </Link>
-                  </Stack>
 
-                  {/* Login Button */}
+                  {/* Sign in Button */}
                   <Button
                     type="submit"
                     variant="contained"
@@ -342,7 +379,7 @@ export default function LoginPage() {
                     {loading ? (
                       <CircularProgress size={24} sx={{ color: "white" }} />
                     ) : (
-                      "Đăng nhập"
+                      "Đăng ký"
                     )}
                   </Button>
 

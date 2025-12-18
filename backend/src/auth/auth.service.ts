@@ -73,6 +73,17 @@ export class AuthService {
         };
     }
 
+    async signup(signupData: { username: string; password: string; firstName: string; lastName: string }, response: Response) {
+        const newAccount = await this.accountService.create({
+            username: signupData.username,  
+            password: signupData.password,
+            firstName: signupData.firstName,
+            lastName: signupData.lastName,
+        });
+        return this.login(newAccount, response);
+    }
+
+
     processNewToken = async (refreshToken: string, response: Response) => {
         console.log("Refresh token nè kakakak");
         try {
@@ -112,8 +123,6 @@ export class AuthService {
             throw new BadRequestException("Refresh token không hợp lệ hoặc đã hết hạn");
         }
     }
-
-
 
     createAccessToken = (payload: any) => {
         const access_token = this.jwtService.sign(payload, {

@@ -8,6 +8,12 @@ class AuthService {
         return response.data;
     }
 
+
+    async signup(signupData: { username: string; password: string; firstName: string; lastName: string; }): Promise<APIResponse<LoginResponseData>> {
+        const response = await axios.post<APIResponse<LoginResponseData>>("/auth/signup", signupData);
+        return response.data;
+    }
+
     async logout() {
         try {
            const response = await axios.post("/auth/logout", {});

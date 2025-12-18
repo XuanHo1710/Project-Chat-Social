@@ -17,6 +17,13 @@ export class AuthController {
     }
 
 
+    @Public()
+    @Post('/signup')
+    async signup(@Body() signupData: { username: string; password: string; firstName: string; lastName: string }, @Res({ passthrough: true }) response: Response) {
+        return this.authService.signup(signupData, response);
+    }
+
+
 
     @Post('/logout')
     handleLogout(@Res({ passthrough: true }) response: Response) {

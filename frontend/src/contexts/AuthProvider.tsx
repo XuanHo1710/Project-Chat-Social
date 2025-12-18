@@ -3,6 +3,7 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import axios from "axios";
+import { CLIENT_PATH } from "@/constants/paths";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
@@ -46,14 +47,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     });
 
                     // Redirect logic
-                    if (pathname === "/auth/login" && account) {
-                        router.replace("/");
+                    if (pathname === CLIENT_PATH.LOGIN && account) {
+                        router.replace(CLIENT_PATH.HOME);
                     }
                 } else {
                     logout();
 
-                    if (pathname.startsWith("/")) {
-                        router.replace("/auth/login");
+                    if (pathname.startsWith("/") && !pathname.startsWith("/auth")) {
+                        router.replace(CLIENT_PATH.LOGIN);
                     }
                 }
             } catch (error) {
@@ -61,8 +62,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Clear auth nếu có lỗi
                 logout();
 
-                if (pathname.startsWith("/")) {
-                    router.replace("/auth/login");
+                if (pathname.startsWith("/") && !pathname.startsWith("/auth")) {
+                    router.replace(CLIENT_PATH.LOGIN);
                 }
             } finally {
                 setLoading(false);

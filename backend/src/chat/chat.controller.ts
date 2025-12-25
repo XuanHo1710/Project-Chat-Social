@@ -1,11 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) { }
+  constructor(private readonly chatService: ChatService) {}
 
   @Post('/messages')
   sendMessageByConversationId(@Body() createMessageDto: CreateMessageDto) {
@@ -18,8 +18,18 @@ export class ChatController {
   }
 
   @Get('/messages/:id')
-  findAllMessagesByConversationId(@Param('id') conversationId: string) {
-    return this.chatService.findAllMessagesByConversationId(conversationId);
+  findAllMessagesByConversationId(
+    @Param('id') conversationId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('before') before?: string
+  ) {
+    return this.chatService.findAllMessagesByConversationId(
+      conversationId,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 15,
+      before
+    );
   }
 
   @Get('/:id')

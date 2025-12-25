@@ -79,6 +79,17 @@ export class RelationshipService {
       { status: RelationshipStatus.ACCEPTED }
     );
 
+    const converstationExists = await this.conversationModel.findOne({
+      type: 'DIRECT',
+      participants: {
+        $all: [{ $elemMatch: { user: userId } }, { $elemMatch: { user: friendId } }],
+      },
+    });
+
+    if (converstationExists) {
+      return converstationExists;
+    }
+
     const dataConverstation = {
       type: 'DIRECT',
       participants: [

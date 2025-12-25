@@ -18,6 +18,8 @@ import { ConversationModule } from './conversation/conversation.module';
 import { ChatModule } from './chat/chat.module';
 import { PostModule } from './post/post.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { CommentModule } from './comment/comment.module';
+import { ReactionModule } from './reaction/reaction.module';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 @Module({
   imports: [
@@ -40,6 +42,8 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     ChatModule,
     PostModule,
     CloudinaryModule,
+    CommentModule,
+    ReactionModule,
   ],
   controllers: [AppController],
   providers: [

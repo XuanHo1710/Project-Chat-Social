@@ -2,7 +2,7 @@
 
 import {
     Box, Card, CardContent, Avatar, Typography, IconButton, Divider,
-    Modal, Button, Menu, MenuItem, ListItemIcon, InputBase, Fade, Skeleton
+    Modal, Button, Menu, MenuItem, ListItemIcon, InputBase, Skeleton
 } from '@mui/material';
 import {
     VideoCall as VideoIcon,
@@ -10,7 +10,6 @@ import {
     Mood as MoodIcon,
     MoreHoriz as MoreIcon,
     ThumbUp as ThumbUpIcon,
-    ThumbUpOutlined as ThumbUpOutlinedIcon,
     ChatBubbleOutline as CommentIcon,
     Share as ShareIcon,
     Public as PublicIcon,
@@ -20,7 +19,6 @@ import {
     Close as CloseIcon,
     Lock as LockIcon,
     KeyboardArrowDown as ArrowDownIcon,
-    Gif as GifIcon,
     SentimentSatisfiedAlt as EmojiIcon,
     Favorite as FavoriteIcon,
     RemoveCircleOutline as RemoveIcon,
@@ -30,7 +28,6 @@ import {
     Report as ReportIcon,
     Block as BlockIcon,
     VisibilityOff as HideIcon,
-    Send as SendIcon,
     People as PeopleIcon,
     Link as LinkIcon,
     Groups as GroupsIcon,
@@ -49,19 +46,10 @@ import { PostType, PostPrivacy, MediaItem } from '@/types/post';
 import CreatePostModal from './CreatePostModal';
 import EditPostModal from './EditPostModal';
 import ImageViewer from './ImageViewer';
+import ReactionButton from './ReactionButton';
+import CommentSection from './CommentSection';
 import { deleteCloudinaryMedia } from '@/services/cloudinary.service';
 import { timeAgo } from '@/utils/formatDate';
-
-// Reactions data
-const reactions = [
-    { id: 'like', emoji: '👍', label: 'Thích', color: '#1877f2' },
-    { id: 'love', emoji: '❤️', label: 'Yêu thích', color: '#f33e58' },
-    { id: 'care', emoji: '🥰', label: 'Thương thương', color: '#f7b125' },
-    { id: 'haha', emoji: '😆', label: 'Haha', color: '#f7b125' },
-    { id: 'wow', emoji: '😮', label: 'Wow', color: '#f7b125' },
-    { id: 'sad', emoji: '😢', label: 'Buồn', color: '#f7b125' },
-    { id: 'angry', emoji: '😡', label: 'Phẫn nộ', color: '#e9710f' },
-];
 
 // Privacy options
 const privacyOptions = [
@@ -78,12 +66,6 @@ const stories = [
     { name: 'Trường Đại học Khoa học...', avatar: '/avatar4.jpg' },
     { name: 'VTV24', avatar: '/avatar5.jpg' },
     { name: 'F8 - Học Lập Trình', avatar: '/avatar6.jpg' },
-];
-
-
-const mockComments = [
-    { id: 1, author: 'TD88', avatar: '', content: 'Mùi thơm nam tính khỏi chê', time: '1 tuần', likes: 45, isVerified: true },
-    { id: 2, author: 'F88 100 Bà Triều', avatar: '', content: 'Sản phẩm tuyệt vời!', time: '3 ngày', likes: 12 },
 ];
 
 // Mock friends for share modal
@@ -141,9 +123,6 @@ export default function Feed() {
     const { data: postsData, isLoading: isLoadingPosts } = useGetNewsFeed({ page: 1, limit: 20 });
     const deletePostMutation = useDeletePost();
 
-    // Local state for reactions (until we implement reaction API)
-    const [localReactions, setLocalReactions] = useState<Record<string, string | null>>({});
-
     // Create Post Modal
     const [openCreatePost, setOpenCreatePost] = useState(false);
 
@@ -164,11 +143,6 @@ export default function Feed() {
     // Comment Modal
     const [openCommentModal, setOpenCommentModal] = useState(false);
     const [commentingPost, setCommentingPost] = useState<PostType | null>(null);
-    const [commentText, setCommentText] = useState('');
-
-    // Reaction hover
-    const [hoveredPostId, setHoveredPostId] = useState<string | null>(null);
-    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Share Modal
     const [openShareModal, setOpenShareModal] = useState(false);
@@ -258,35 +232,8 @@ export default function Feed() {
         setOpenCommentModal(true);
     };
 
-    const handleReaction = (postId: string, reactionId: string) => {
-        setLocalReactions(prev => {
-            const currentReaction = prev[postId];
-            const isSameReaction = currentReaction === reactionId;
-            return {
-                ...prev,
-                [postId]: isSameReaction ? null : reactionId
-            };
-        });
-        setHoveredPostId(null);
-    };
-
-    const handleLikeHover = (postId: string) => {
-        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = setTimeout(() => setHoveredPostId(postId), 500);
-    };
-
-    const handleLikeLeave = () => {
-        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = setTimeout(() => setHoveredPostId(null), 500);
-    };
-
     const handleCloseCreatePost = () => {
         setOpenCreatePost(false);
-    };
-
-    const getReactionDisplay = (reactionId: string | null) => {
-        if (!reactionId) return null;
-        return reactions.find(r => r.id === reactionId);
     };
 
     const handleOpenShare = (post: PostType) => {
@@ -479,7 +426,6 @@ export default function Feed() {
             {/* Posts */}
             {posts.map((post) => {
                 const PrivacyIconComponent = getPrivacyIcon(post.privacy);
-                const currentReaction = localReactions[post._id];
 
                 return (
                     <Card key={post._id} sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
@@ -529,75 +475,8 @@ export default function Feed() {
 
                             {/* Post Actions with Reaction Picker */}
                             <Box sx={{ display: 'flex', justifyContent: 'space-around', position: 'relative' }}>
-                                {/* Like Button with Reactions */}
-                                <Box
-                                    sx={{ position: 'relative', flex: 1 }}
-                                    onMouseEnter={() => handleLikeHover(post._id)}
-                                    onMouseLeave={handleLikeLeave}
-                                >
-                                    {/* Reaction Picker Popup */}
-                                    <Fade in={hoveredPostId === post._id}>
-                                        <Box
-                                            sx={{
-                                                position: 'absolute',
-                                                bottom: '100%',
-                                                left: 0,
-                                                mb: 1,
-                                                bgcolor: 'white',
-                                                borderRadius: '50px',
-                                                boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-                                                display: 'flex',
-                                                gap: 0.5,
-                                                p: 0.5,
-                                                zIndex: 10,
-                                            }}
-                                            onMouseEnter={() => setHoveredPostId(post._id)}
-                                            onMouseLeave={handleLikeLeave}
-                                        >
-                                            {reactions.map((reaction) => (
-                                                <Box
-                                                    key={reaction.id}
-                                                    onClick={() => handleReaction(post._id, reaction.id)}
-                                                    sx={{
-                                                        fontSize: 32,
-                                                        cursor: 'pointer',
-                                                        transition: 'transform 0.2s',
-                                                        p: 0.5,
-                                                        '&:hover': {
-                                                            transform: 'scale(1.3) translateY(-5px)',
-                                                        },
-                                                    }}
-                                                    title={reaction.label}
-                                                >
-                                                    {reaction.emoji}
-                                                </Box>
-                                            ))}
-                                        </Box>
-                                    </Fade>
-
-                                    <Box
-                                        onClick={() => handleReaction(post._id, 'like')}
-                                        sx={{
-                                            display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2,
-                                            cursor: 'pointer', borderRadius: 2, justifyContent: 'center',
-                                            '&:hover': { bgcolor: '#f0f2f5' },
-                                        }}
-                                    >
-                                        {currentReaction ? (
-                                            <>
-                                                <Typography sx={{ fontSize: 20 }}>{getReactionDisplay(currentReaction)?.emoji}</Typography>
-                                                <Typography sx={{ fontSize: '15px', fontWeight: 600, color: getReactionDisplay(currentReaction)?.color }}>
-                                                    {getReactionDisplay(currentReaction)?.label}
-                                                </Typography>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <ThumbUpOutlinedIcon sx={{ fontSize: '20px', color: '#65676b' }} />
-                                                <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#65676b' }}>Thích</Typography>
-                                            </>
-                                        )}
-                                    </Box>
-                                </Box>
+                                {/* Reaction Button */}
+                                <ReactionButton postId={post._id} />
 
                                 <Box onClick={() => handleOpenComments(post)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, flex: 1, justifyContent: 'center', '&:hover': { bgcolor: '#f0f2f5' } }}>
                                     <CommentIcon sx={{ fontSize: '20px', color: '#65676b' }} />
@@ -694,45 +573,17 @@ export default function Feed() {
                         <Divider sx={{ my: 1 }} />
 
                         <Box sx={{ display: 'flex', justifyContent: 'space-around', mb: 2 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}><ThumbUpOutlinedIcon sx={{ color: '#65676b' }} /><Typography sx={{ color: '#65676b', fontWeight: 600 }}>Thích</Typography></Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}><CommentIcon sx={{ color: '#050505' }} /><Typography sx={{ color: '#050505', fontWeight: 600 }}>Bình luận</Typography></Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}><ShareIcon sx={{ color: '#050505' }} /><Typography sx={{ color: '#050505', fontWeight: 600 }}>Chia sẻ</Typography></Box>
+                            {commentingPost && <ReactionButton postId={commentingPost._id} />}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', flex: 1, justifyContent: 'center', py: 1, borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}><CommentIcon sx={{ fontSize: 20, color: '#65676b' }} /><Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>Bình luận</Typography></Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', flex: 1, justifyContent: 'center', py: 1, borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }} onClick={() => commentingPost && handleOpenShare(commentingPost)}><ShareIcon sx={{ fontSize: 20, color: '#65676b' }} /><Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>Chia sẻ</Typography></Box>
                         </Box>
 
                         <Divider sx={{ mb: 2 }} />
 
-                        <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 2, color: '#050505' }}>Tất cả bình luận ▼</Typography>
-
-                        {mockComments.map((comment) => (
-                            <Box key={comment.id} sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                                <Avatar sx={{ width: 32, height: 32 }} src={comment.avatar} />
-                                <Box sx={{ flex: 1 }}>
-                                    <Box sx={{ bgcolor: '#f0f2f5', borderRadius: 2, px: 1.5, py: 1, display: 'inline-block' }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <Typography sx={{ fontWeight: 600, fontSize: 13, color: '#050505' }}>{comment.author}</Typography>
-                                            {comment.isVerified && <Box sx={{ width: 14, height: 14, borderRadius: '50%', bgcolor: '#1877f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Typography sx={{ color: 'white', fontSize: 10 }}>✓</Typography></Box>}
-                                            <Typography sx={{ fontSize: 13, color: '#1877f2' }}>· Theo dõi</Typography>
-                                        </Box>
-                                        <Typography sx={{ fontSize: 15, color: '#050505' }}>{comment.content}</Typography>
-                                    </Box>
-                                    <Box sx={{ display: 'flex', gap: 2, mt: 0.5, ml: 1 }}>
-                                        <Typography sx={{ fontSize: 12, color: '#050505' }}>{comment.time}</Typography>
-                                        <Typography sx={{ fontSize: 12, color: '#050505', fontWeight: 600, cursor: 'pointer' }}>Thích</Typography>
-                                        <Typography sx={{ fontSize: 12, color: '#050505', fontWeight: 600, cursor: 'pointer' }}>Trả lời</Typography>
-                                    </Box>
-                                </Box>
-                            </Box>
-                        ))}
-                    </Box>
-
-                    <Box sx={{ p: 2, borderTop: '1px solid #e4e6eb', display: 'flex', gap: 1, alignItems: 'center' }}>
-                        <Avatar sx={{ width: 32, height: 32 }} src={user?.avatar} />
-                        <Box sx={{ flex: 1, bgcolor: '#f0f2f5', borderRadius: '20px', px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <InputBase fullWidth placeholder="Viết bình luận..." value={commentText} onChange={(e) => setCommentText(e.target.value)} sx={{ fontSize: 15, color: '#050505' }} />
-                            <IconButton size="small"><EmojiIcon sx={{ fontSize: 20, color: '#050505' }} /></IconButton>
-                            <IconButton size="small"><GifIcon sx={{ fontSize: 20, color: '#050505' }} /></IconButton>
-                        </Box>
-                        <IconButton disabled={!commentText.trim()}><SendIcon sx={{ color: commentText.trim() ? '#1877f2' : '#bcc0c4' }} /></IconButton>
+                        {/* Comment Section */}
+                        {commentingPost && (
+                            <CommentSection postId={commentingPost._id} />
+                        )}
                     </Box>
                 </Box>
             </Modal>

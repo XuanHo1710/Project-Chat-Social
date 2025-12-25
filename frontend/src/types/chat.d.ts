@@ -1,4 +1,3 @@
-
 export type EmotionType = "LIKE" | "LOVE" | "FUNNY" | "SAD" | "ANGRY";
 
 export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "FILE" | "POST";
@@ -6,47 +5,48 @@ export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "FILE" | "POST";
 export type MessageStatus = "SENT" | "DELIVERED" | "READ";
 
 export interface MessageResponse {
-    conversationId: Types.ObjectId;
+  _id: string;
 
-    senderId: Types.ObjectId;
+  conversationId: Types.ObjectId;
 
-    type: MessageType;
+  senderId: Types.ObjectId;
 
-    content: string;
+  type: MessageType;
 
-    emotions?: {
-        userId: Types.ObjectId;
-        emotionType: EmotionType; // Loại cảm xúc, ví dụ: 'LIKE', 'LOVE', 'FUNNY', 'SAD', 'ANGRY'
-    }
+  content: string;
 
-    attachments?: string[]; // Danh sách file đính kèm
+  emotions?: {
+    userId: Types.ObjectId;
+    emotionType: EmotionType; // Loại cảm xúc, ví dụ: 'LIKE', 'LOVE', 'FUNNY', 'SAD', 'ANGRY'
+  };
 
-    replyTo?: Types.ObjectId; // Tin nhắn được reply
+  attachments?: string[]; // Danh sách file đính kèm
 
-    postId?: Types.ObjectId;
+  replyTo?: Types.ObjectId; // Tin nhắn được reply
 
-    // postData?: any; 
+  postId?: Types.ObjectId;
 
-    status?: MessageStatus;
+  // postData?: any;
 
-    readBy?: Types.ObjectId[];
+  status?: MessageStatus;
 
-    createdAt: Date;
+  readBy?: Types.ObjectId[];
 
+  createdAt: Date;
 }
 
 export interface SendMessagePayload {
-    conversationId: string;
-    senderId: string;
-    type: MessageType;
-    content: string;
-    attachments?: string[];
-    replyTo?: string;
-    postId?: string;
+  conversationId: string;
+  senderId: string;
+  type: MessageType;
+  content: string;
+  attachments?: string[];
+  replyTo?: string;
+  postId?: string;
 }
 
 export interface PaginatedMessagesResponse {
-    messages: MessageResponse[];
-    hasMore: boolean;
-    nextCursor: string | null;
+  messages: MessageResponse[];
+  hasMore: boolean;
+  nextCursor: string | null;
 }

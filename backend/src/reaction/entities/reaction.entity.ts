@@ -3,10 +3,19 @@ import mongoose, { HydratedDocument } from 'mongoose';
 import { Account } from 'src/account/entities/account.entity';
 import { Post } from 'src/post/entities/post.entity';
 
-export type CommentDocument = HydratedDocument<Comment>;
+export type ReactionDocument = HydratedDocument<Reaction>;
+
+export enum ReactionType {
+  LIKE = 'LIKE',
+  LOVE = 'LOVE',
+  HAHA = 'HAHA',
+  WOW = 'WOW',
+  SAD = 'SAD',
+  ANGRY = 'ANGRY',
+}
 
 @Schema({ timestamps: true })
-export class Comment {
+export class Reaction {
   _id: mongoose.Schema.Types.ObjectId;
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Post.name, required: true })
@@ -20,24 +29,8 @@ export class Comment {
   })
   userId: mongoose.Schema.Types.ObjectId;
 
-  @Prop({ required: true })
-  content: string;
-
-  @Prop({ type: String, default: null })
-  image: string | null; // Optional image in comment
-
-  // For reply comments
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Comment.name, default: null })
-  parentId: mongoose.Schema.Types.ObjectId | null;
-
-  @Prop({ type: Number, default: 0 })
-  totalReplies: number;
-
-  @Prop({ type: Number, default: 0 })
-  totalLikes: number;
-
-  @Prop({ type: Boolean, default: true })
-  isActive: boolean;
+  @Prop({ enum: ReactionType, required: true })
+  type: ReactionType;
 
   @Prop()
   createdAt: Date;
@@ -46,4 +39,7 @@ export class Comment {
   updatedAt: Date;
 }
 
-export const CommentSchema = SchemaFactory.createForClass(Comment);
+export const ReactionSchema = SchemaFactory.createForClass(Reaction);
+
+// Compound index to ensure one reaction per user per post
+ReactionSchema.index({ postId: 1, userId: 1 }, { unique: true });

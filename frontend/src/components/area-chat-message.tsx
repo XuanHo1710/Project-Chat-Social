@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
     Box,
     Paper,
@@ -8,6 +8,7 @@ import {
     IconButton,
     TextField,
     Badge,
+    CircularProgress,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import VideocamIcon from "@mui/icons-material/Videocam";
@@ -20,10 +21,10 @@ import { useChatByConversationId } from "@/queries/useChatQueries";
 import { MessageResponse, SendMessagePayload } from "@/types/chat";
 import { formatTime } from "@/utils/formatDate";
 import { useSocket } from "@/contexts/SocketContext";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, InfiniteData } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/constants/query-keys";
-import { APIResponse } from "@/types/common";
-import { Virtuoso } from 'react-virtuoso';
+import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
+import { MessagesResponse } from "@/services/chat.service";
 
 
 interface SelectedConversation {
@@ -39,10 +40,43 @@ interface SelectedConversation {
 export default function AreaChatMessages({ selectedConversation, userId }: { selectedConversation: SelectedConversation, userId: string }) {
     const { socket } = useSocket();
     const queryClient = useQueryClient();
+    const virtuosoRef = useRef<VirtuosoHandle>(null);
 
-    const { data: chatData } = useChatByConversationId(selectedConversation._id);
+    const {
+        data: chatData,
+        fetchPreviousPage,
+        hasPreviousPage,
+        isFetchingPreviousPage,
+        isLoading
+    } = useChatByConversationId(selectedConversation._id);
 
     const [newMessage, setNewMessage] = useState("");
+
+    // Flatten all pages into single array of messages
+    // When fetchPreviousPage is called, new (older) pages are PREPENDED to pages array
+    // So pages[0] = oldest page, pages[last] = initial page (newest)
+    // Each page.data is already sorted oldest->newest from backend
+    const pages = chatData?.pages;
+    const allMessages = useMemo(() => {
+        if (!pages) return [];
+        const messages: MessageResponse[] = [];
+        // pages are already in correct order: [oldest_page, ..., newest_page]
+        // Just concat them directly
+        pages.forEach(page => {
+            messages.push(...page.data);
+        });
+        return messages;
+    }, [pages]);
+
+    // Calculate firstItemIndex based on total older messages
+    const firstItemIndex = useMemo(() => {
+        if (!pages || pages.length <= 1) return 10000;
+        // pages[0..n-1] are older pages, pages[n] is the initial (newest) page
+        const totalOlderMessages = pages
+            .slice(0, -1) // All except the last (initial) page
+            .reduce((sum, page) => sum + page.data.length, 0);
+        return 10000 - totalOlderMessages;
+    }, [pages]);
 
     // Join conversation room
     useEffect(() => {
@@ -60,17 +94,34 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         if (!socket) return;
 
         const handleNewMessage = (msg: MessageResponse) => {
-            queryClient.setQueryData<APIResponse<MessageResponse[]>>(
+            queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                 [QUERY_KEYS.CHATS, selectedConversation._id],
                 (oldData) => {
                     if (!oldData) {
-                        // nếu chưa có dữ liệu, tạo mới
-                        return { data: [msg] };
+                        return {
+                            pages: [{ data: [msg], pagination: { page: 1, limit: 15, total: 1, hasMore: false } }],
+                            pageParams: [undefined],
+                        };
                     }
-                    // trả về object mới, data là mảng mới
-                    return { ...oldData, data: [...oldData.data, msg] };
+                    // Thêm message mới vào page đầu tiên (page mới nhất)
+                    const newPages = [...oldData.pages];
+                    newPages[0] = {
+                        ...newPages[0],
+                        data: [...newPages[0].data, msg],
+                    };
+                    return {
+                        ...oldData,
+                        pages: newPages,
+                    };
                 }
             );
+            // Scroll to bottom khi có tin nhắn mới
+            setTimeout(() => {
+                virtuosoRef.current?.scrollToIndex({
+                    index: 'LAST',
+                    behavior: 'smooth',
+                });
+            }, 100);
         };
 
         socket.on("message:new", handleNewMessage);
@@ -80,6 +131,12 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         };
     }, [socket, selectedConversation._id, queryClient]);
 
+    // Load more messages when scrolling to top
+    const handleStartReached = useCallback(() => {
+        if (hasPreviousPage && !isFetchingPreviousPage) {
+            fetchPreviousPage();
+        }
+    }, [hasPreviousPage, isFetchingPreviousPage, fetchPreviousPage]);
 
     const handleSendMessage = () => {
         if (newMessage.trim() && socket) {
@@ -99,6 +156,27 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             e.preventDefault();
             handleSendMessage();
         }
+    };
+
+    // Header component showing loading when fetching older messages
+    const Header = () => {
+        if (isFetchingPreviousPage) {
+            return (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                    <CircularProgress size={24} />
+                </Box>
+            );
+        }
+        if (!hasPreviousPage && allMessages.length > 0) {
+            return (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                        Đã hiển thị tất cả tin nhắn
+                    </Typography>
+                </Box>
+            );
+        }
+        return null;
     };
 
 
@@ -184,82 +262,96 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
             {/* Messages Area with Virtuoso */}
             <Box sx={{ flex: 1, overflow: "hidden", bgcolor: "white" }}>
-                <Virtuoso
-                    style={{ height: '100%' }}
-                    data={chatData?.data || []}
-                    alignToBottom
-                    initialTopMostItemIndex={(chatData?.data || []).length - 1}
-                    itemContent={(index, message) => {
-                        const isOwn = message.senderId === userId;
-                        const showAvatar = index === 0 || (chatData?.data[index - 1]?.senderId !== message.senderId);
+                {isLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                        <CircularProgress />
+                    </Box>
+                ) : (
+                    <Virtuoso
+                        key={selectedConversation._id}
+                        ref={virtuosoRef}
+                        style={{ height: '100%' }}
+                        data={allMessages}
+                        firstItemIndex={firstItemIndex}
+                        initialTopMostItemIndex={allMessages.length - 1}
+                        followOutput="smooth"
+                        startReached={handleStartReached}
+                        components={{
+                            Header,
+                        }}
+                        itemContent={(index, message) => {
+                            const actualIndex = index - firstItemIndex;
+                            const isOwn = message.senderId === userId;
+                            const showAvatar = actualIndex === 0 || (allMessages[actualIndex - 1]?.senderId !== message.senderId);
 
-                        return (
-                            <Box
-                                key={message.senderId}
-                                sx={{
-                                    display: "flex",
-                                    justifyContent: isOwn ? "flex-end" : "flex-start",
-                                    alignItems: "center",
-                                    px: 2,
-                                    py: 0.5,
-                                    gap: 1,
-                                }}
-                            >
-                                {!isOwn && (
-                                    <Avatar
-                                        src={selectedConversation.avatar}
-                                        sx={{
-                                            width: 28,
-                                            height: 28,
-                                            visibility: showAvatar ? "visible" : "hidden",
-                                        }}
-                                    />
-                                )}
+                            return (
                                 <Box
+                                    key={message._id}
                                     sx={{
-                                        maxWidth: "60%",
                                         display: "flex",
-                                        flexDirection: "row",
+                                        justifyContent: isOwn ? "flex-end" : "flex-start",
                                         alignItems: "center",
+                                        px: 2,
+                                        py: 0.5,
+                                        gap: 1,
                                     }}
                                 >
-                                    {isOwn &&
-                                        <Typography
-                                            variant="caption"
-                                            color="#65676b"
-                                            fontSize={11}
-                                            sx={{ mt: 0.5, px: 1 }}
-                                        >
-                                            {formatTime(message.createdAt)}
-                                        </Typography>
-                                    }
-                                    <Paper
+                                    {!isOwn && (
+                                        <Avatar
+                                            src={selectedConversation.avatar}
+                                            sx={{
+                                                width: 28,
+                                                height: 28,
+                                                visibility: showAvatar ? "visible" : "hidden",
+                                            }}
+                                        />
+                                    )}
+                                    <Box
                                         sx={{
-                                            p: 1.5,
-                                            bgcolor: isOwn ? "#1877f2" : "#f0f2f5",
-                                            color: isOwn ? "white" : "#050505",
-                                            borderRadius: 4,
-                                            wordBreak: "break-word",
-                                            boxShadow: "none",
+                                            maxWidth: "60%",
+                                            display: "flex",
+                                            flexDirection: "row",
+                                            alignItems: "center",
                                         }}
                                     >
-                                        <Typography fontSize={15}>{message.content}</Typography>
-                                    </Paper>
-                                    {!isOwn &&
-                                        <Typography
-                                            variant="caption"
-                                            color="#65676b"
-                                            fontSize={11}
-                                            sx={{ mt: 0.5, px: 1 }}
+                                        {isOwn &&
+                                            <Typography
+                                                variant="caption"
+                                                color="#65676b"
+                                                fontSize={11}
+                                                sx={{ mt: 0.5, px: 1 }}
+                                            >
+                                                {formatTime(message.createdAt)}
+                                            </Typography>
+                                        }
+                                        <Paper
+                                            sx={{
+                                                p: 1.5,
+                                                bgcolor: isOwn ? "#1877f2" : "#f0f2f5",
+                                                color: isOwn ? "white" : "#050505",
+                                                borderRadius: 4,
+                                                wordBreak: "break-word",
+                                                boxShadow: "none",
+                                            }}
                                         >
-                                            {formatTime(message.createdAt)}
-                                        </Typography>
-                                    }
+                                            <Typography fontSize={15}>{message.content}</Typography>
+                                        </Paper>
+                                        {!isOwn &&
+                                            <Typography
+                                                variant="caption"
+                                                color="#65676b"
+                                                fontSize={11}
+                                                sx={{ mt: 0.5, px: 1 }}
+                                            >
+                                                {formatTime(message.createdAt)}
+                                            </Typography>
+                                        }
+                                    </Box>
                                 </Box>
-                            </Box>
-                        );
-                    }}
-                />
+                            );
+                        }}
+                    />
+                )}
             </Box>
 
             {/* Input Area */}

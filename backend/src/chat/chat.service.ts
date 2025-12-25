@@ -11,8 +11,7 @@ export class ChatService {
   constructor(
     @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
     @InjectModel(Message.name) private readonly messageModel: Model<Message>
-  ) { }
-
+  ) {}
 
   async sendMessage(createMessageDto: CreateMessageDto) {
     const message = await this.messageModel.create(createMessageDto);
@@ -23,8 +22,43 @@ export class ChatService {
     return `This action returns all chat`;
   }
 
-  async findAllMessagesByConversationId(conversationId: string) {
-    return await this.messageModel.find({ conversationId: conversationId }).sort({ createdAt: 1 }).exec();
+  async findAllMessagesByConversationId(
+    conversationId: string,
+    page: number = 1,
+    limit: number = 15,
+    before?: string // cursor: load messages before this messageId
+  ) {
+    const query: any = { conversationId };
+
+    // If cursor provided, get messages before that message
+    if (before) {
+      const cursorMessage = await this.messageModel.findById(before);
+      if (cursorMessage) {
+        query.createdAt = { $lt: cursorMessage.createdAt };
+      }
+    }
+
+    const [messages, total] = await Promise.all([
+      this.messageModel
+        .find(query)
+        .sort({ createdAt: -1 }) // Newest first for pagination
+        .limit(limit)
+        .lean(),
+      this.messageModel.countDocuments({ conversationId }),
+    ]);
+
+    // Reverse to show oldest first in UI
+    const sortedMessages = messages.reverse();
+
+    return {
+      data: sortedMessages,
+      pagination: {
+        page,
+        limit,
+        total,
+        hasMore: messages.length === limit,
+      },
+    };
   }
 
   async findOne(id: string) {

@@ -5,6 +5,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Relationship, RelationshipSchema } from 'src/relationship/entities/relationship.entity';
 import { Account, AccountSchema } from 'src/account/entities/account.entity';
 import { Conversation, ConversationSchema } from 'src/conversation/entities/conversation.entity';
+import { RelationshipGateway } from 'src/relationship/relationship.gateway';
+import { AccountModule } from 'src/account/account.module';
 
 @Module({
   imports: [
@@ -12,9 +14,10 @@ import { Conversation, ConversationSchema } from 'src/conversation/entities/conv
       { name: Relationship.name, schema: RelationshipSchema },
       { name: Account.name, schema: AccountSchema },
       { name: Conversation.name, schema: ConversationSchema },
-    ])
+    ]),
+    AccountModule,
   ],
   controllers: [RelationshipController],
-  providers: [RelationshipService],
+  providers: [RelationshipGateway, RelationshipService],
 })
-export class RelationshipModule { }
+export class RelationshipModule {}

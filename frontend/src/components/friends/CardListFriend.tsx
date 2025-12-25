@@ -1,21 +1,15 @@
 'use client';
 import { Box, Card, CardContent, Typography, Avatar, Button } from '@mui/material';
 import { FriendType } from '@/types/account';
-import { timeAgo } from '@/utils/formatDate';
-import { useUpdateStatusRelationshipMutation } from '@/queries/useRelationshipQueries';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useSocket } from '@/contexts/SocketContext';
 
 
 export default function CardListFriendComponent({ friend }: { friend: FriendType }) {
     const { user } = useAuthStore();
-    const cancelMutation = useUpdateStatusRelationshipMutation(user?.id || "");
-
+    const { socketRelationship } = useSocket();
     const handleCancel = (friendId: string) => {
-        cancelMutation.mutate({
-            userId: user?.id || "",
-            friendId: friendId,
-            status: 'CANCELED'
-        })
+        socketRelationship?.emit("friend:cancel", { userId: user?.id, friendId, status: 'CANCELED' });
     }
 
 

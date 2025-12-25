@@ -2,30 +2,22 @@
 import { Box, Card, CardContent, Typography, Avatar, Button } from '@mui/material';
 import { FriendType } from '@/types/account';
 import { timeAgo } from '@/utils/formatDate';
-import { useAceeptFriendMutation, useUpdateStatusRelationshipMutation } from '@/queries/useRelationshipQueries';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useState } from 'react';
+import { useSocket } from '@/contexts/SocketContext';
 
 
 export default function CardFriendReceivedComponent({ friend }: { friend: FriendType }) {
     const { user } = useAuthStore();
+    const { socketRelationship } = useSocket();
     const [isFriend, setIsFriend] = useState(false);
-    const cancelMutation = useUpdateStatusRelationshipMutation(user?.id || "");
-    const acceptMutation = useAceeptFriendMutation(user?.id || "");
 
     const handleReject = (friendId: string) => {
-        cancelMutation.mutate({
-            userId: user?.id || "",
-            friendId: friendId,
-            status: 'REJECTED'
-        })
+        socketRelationship?.emit("friend:cancel", { userId: user?.id, friendId, status: 'REJECTED' });
     }
 
     const handleAcceptFriend = (friendId: string) => {
-        acceptMutation.mutate({
-            userId: user?.id || "",
-            friendId: friendId
-        })
+        socketRelationship?.emit("friend:accept", { userId: user?.id, friendId });
         setIsFriend(true);
     }
 

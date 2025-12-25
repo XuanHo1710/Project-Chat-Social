@@ -46,6 +46,8 @@ export class RelationshipService {
           .findByIdAndUpdate(isExistingRelationship._id, {
             status: RelationshipStatus.PENDING,
             sendRequestAt: new Date(),
+            userId: createRelationshipDto.userId,
+            friendId: createRelationshipDto.friendId,
           })
           .exec();
       }

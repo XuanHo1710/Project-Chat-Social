@@ -8,17 +8,21 @@ import { io, Socket } from 'socket.io-client';
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
+  socketRelationship?: Socket | null;
 }
 
 const SocketContext = createContext<SocketContextType>({
   socket: null,
   isConnected: false,
+  socketRelationship: null,
 });
 
 export const useSocket = () => useContext(SocketContext);
 
 export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [socketRelationship, setSocketRelationship] = useState<Socket | null>(null);
+
   const [isConnected, setIsConnected] = useState(false);
   const { user } = useAuthStore();
 
@@ -37,8 +41,20 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       reconnection: true,
     });
 
+    const socketRelationshipIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/relationship", {
+      query: { userId },
+      transports: ["websocket"],
+      reconnection: true,
+    });
+
     const initSocket = () => {
       const socketIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/chat", {
+        query: { userId },
+        transports: ["websocket"],
+        reconnection: true,
+      });
+
+      const socketRelationshipIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/relationship", {
         query: { userId },
         transports: ["websocket"],
         reconnection: true,
@@ -54,7 +70,18 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         setIsConnected(false);
       });
 
+      socketRelationshipIo.on("connect", () => {
+        console.log("SOCKET CONNECTED:", socketRelationshipIo.id);
+        setIsConnected(true);
+      });
+
+      socketRelationshipIo.on("disconnect", () => {
+        console.log("SOCKET DISCONNECTED");
+        setIsConnected(false);
+      });
+
       setSocket(socketIo);
+      setSocketRelationship(socketRelationshipIo);
     }
 
     initSocket();
@@ -62,12 +89,13 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       console.log("🧹 Cleanup socket");
       socketIo.disconnect();
+      socketRelationshipIo.disconnect();
     };
   }, [user?.id]);
 
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected }}>
+    <SocketContext.Provider value={{ socket, isConnected, socketRelationship }}>
       {children}
     </SocketContext.Provider>
   );

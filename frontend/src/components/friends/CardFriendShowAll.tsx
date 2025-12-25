@@ -6,22 +6,24 @@ import {
 } from '@mui/icons-material';
 import { AccountCardFriendType } from '@/types/account';
 import { useState } from 'react';
-import { useAddFriendMutation } from '@/queries/useRelationshipQueries';
+// import { useAddFriendMutation } from '@/queries/useRelationshipQueries';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useSocket } from '@/contexts/SocketContext';
 
 
 
 export default function CardFriendShowAllComponent({ friend }: { friend: AccountCardFriendType }) {
     const { user } = useAuthStore();
-    const addFriendMutation = useAddFriendMutation(user?.id || "");
     const [addFriend, setAddFriend] = useState<boolean>(false);
+    const { socketRelationship } = useSocket();
+
     const handleAddFriend = (friendId: string) => {
-        addFriendMutation.mutate({ userId: user?.id || "", friendId: friendId });
+        socketRelationship?.emit("friend:request", { userId: user?.id, friendId });
         setAddFriend(true);
     };
 
     const handleCancelAddFriend = (friendId: string) => {
-        console.log(`Hủy kết bạn với ID: ${friendId}`);
+        socketRelationship?.emit("friend:cancel", { userId: user?.id, friendId, status: 'CANCELED' });
         setAddFriend(false);
     }
 

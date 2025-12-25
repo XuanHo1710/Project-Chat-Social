@@ -5,7 +5,6 @@ import { Box, Card, CardContent, Typography, Avatar, Button, IconButton } from '
 import {
     PersonAdd as PersonAddIcon,
     Close as CloseIcon,
-    MoreHoriz as MoreIcon,
 } from '@mui/icons-material';
 import Header from '@/components/Header';
 import CardFriendShowAllComponent from '@/components/friends/CardFriendShowAll';
@@ -17,6 +16,9 @@ import { QUERY_KEYS } from '@/constants/query-keys';
 import { useQueryClient } from '@tanstack/react-query';
 import CardListFriendComponent from '@/components/friends/CardListFriend';
 import CardFriendReceivedComponent from '@/components/friends/CardFriendReceived';
+import { useSocket } from '@/contexts/SocketContext';
+import { FriendType } from '@/types/account';
+import { APIResponse } from '@/types/common';
 
 // Mock data
 const friendRequests = [
@@ -58,49 +60,13 @@ const pendingRequests = [
     },
 ];
 
-const currentFriends = [
-    {
-        id: 1,
-        name: 'Đức Khoa Quach',
-        mutualFriends: 15,
-        avatar: '/avatar1.jpg',
-    },
-    {
-        id: 2,
-        name: 'Trường Giang',
-        mutualFriends: 8,
-        avatar: '/avatar2.jpg',
-    },
-    {
-        id: 3,
-        name: 'Nghiêm Chí Thiên',
-        mutualFriends: 20,
-        avatar: '/avatar3.jpg',
-    },
-    {
-        id: 4,
-        name: 'Nguyễn Huy Hoàng',
-        mutualFriends: 6,
-        avatar: '/avatar4.jpg',
-    },
-    {
-        id: 5,
-        name: 'Hồ Minh Quân',
-        mutualFriends: 11,
-        avatar: '/avatar5.jpg',
-    },
-    {
-        id: 6,
-        name: 'Nam Nguyeen',
-        mutualFriends: 4,
-        avatar: '/avatar6.jpg',
-    },
-];
 
 export default function FriendsPage() {
     const [tabValue, setTabValue] = useState(0);
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
+    const { socketRelationship } = useSocket();
+
 
 
     const { data: allAccounts, isLoading: isLoadingAccounts } = useAccountsByPage(user?.id || "", { page: 1, size: 12 });
@@ -113,6 +79,50 @@ export default function FriendsPage() {
             queryKey: [QUERY_KEYS.ACCOUNTS_PAGINATED],
         });
     }, [tabValue, queryClient]);
+
+
+    // Listen for new received friend requests via socket
+    useEffect(() => {
+        if (!socketRelationship) return;
+
+        const handleNewReceivedRequest = (data: FriendType[]) => {
+            queryClient.setQueryData<APIResponse<FriendType[]>>(
+                [QUERY_KEYS.RECEIVED_REQUEST_FRIENDS, user?.id || ""],
+                () => {
+                    return { ...data, data: [...data] };
+                }
+            );
+        };
+
+        const handleNewSentRequest = (data: FriendType[]) => {
+            queryClient.setQueryData<APIResponse<FriendType[]>>(
+                [QUERY_KEYS.SENT_REQUEST_FRIENDS, user?.id || ""],
+                () => {
+                    return { ...data, data: [...data] };
+                }
+            );
+        }
+
+        const handleListFriendsUpdate = (data: FriendType[]) => {
+            queryClient.setQueryData<APIResponse<FriendType[]>>(
+                [QUERY_KEYS.FRIENDS, user?.id || ""],
+                () => {
+                    return { ...data, data: [...data] };
+                }
+            );
+        }
+
+        socketRelationship.on("friend:received", handleNewReceivedRequest);
+        socketRelationship.on("friend:sent", handleNewSentRequest);
+        socketRelationship.on("friend:friends", handleListFriendsUpdate);
+
+
+        return () => {
+            socketRelationship.off("friend:received", handleNewReceivedRequest);
+            socketRelationship.off("friend:sent", handleNewSentRequest);
+            socketRelationship.off("friend:friends", handleListFriendsUpdate);
+        };
+    }, [socketRelationship, user, queryClient]);
 
     return (
         <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>

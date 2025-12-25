@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Box, IconButton, Typography, Modal, Fade } from "@mui/material";
 import {
     Close as CloseIcon,
@@ -9,8 +9,10 @@ import {
     ZoomIn as ZoomInIcon,
     ZoomOut as ZoomOutIcon,
     Download as DownloadIcon,
+    RestartAlt as ResetIcon,
 } from "@mui/icons-material";
 import { MediaItem } from "@/types/post";
+import Panzoom, { PanzoomObject } from "@panzoom/panzoom";
 
 interface ImageViewerProps {
     open: boolean;
@@ -22,34 +24,98 @@ interface ImageViewerProps {
 export default function ImageViewer({ open, onClose, media, initialIndex = 0 }: ImageViewerProps) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const [zoom, setZoom] = useState(1);
-    const [prevOpen, setPrevOpen] = useState(open);
+    const imageRef = useRef<HTMLImageElement>(null);
+    const panzoomRef = useRef<PanzoomObject | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    // Reset state when modal opens (using previous state comparison instead of effect)
-    if (open && !prevOpen) {
-        setCurrentIndex(initialIndex);
+    // Initialize Panzoom when modal opens or image changes
+    useEffect(() => {
+        if (open && imageRef.current && media[currentIndex]?.mediaType !== "VIDEO") {
+            // Clean up previous instance
+            if (panzoomRef.current) {
+                panzoomRef.current.destroy();
+            }
+
+            const panzoom = Panzoom(imageRef.current, {
+                maxScale: 5,
+                minScale: 0.5,
+                contain: 'outside',
+                cursor: 'grab',
+            });
+
+            panzoomRef.current = panzoom;
+
+            // Listen for scale changes
+            const handlePanzoomChange = (e: Event) => {
+                const customEvent = e as CustomEvent;
+                setZoom(customEvent.detail.scale);
+            };
+            imageRef.current.addEventListener('panzoomchange', handlePanzoomChange);
+
+            // Enable mouse wheel zoom
+            const parent = imageRef.current.parentElement;
+            const handleWheel = (e: WheelEvent) => {
+                panzoom.zoomWithWheel(e);
+            };
+            if (parent) {
+                parent.addEventListener('wheel', handleWheel);
+            }
+
+            return () => {
+                panzoom.destroy();
+                panzoomRef.current = null;
+                if (parent) {
+                    parent.removeEventListener('wheel', handleWheel);
+                }
+            };
+        }
+    }, [open, currentIndex, media]);
+
+    // Reset when modal opens
+    useEffect(() => {
+        if (open) {
+            setCurrentIndex(initialIndex);
+            setZoom(1);
+            if (panzoomRef.current) {
+                panzoomRef.current.reset();
+            }
+        }
+    }, [open, initialIndex]);
+
+    // Reset zoom when changing images
+    useEffect(() => {
         setZoom(1);
-    }
-    if (open !== prevOpen) {
-        setPrevOpen(open);
-    }
+        if (panzoomRef.current) {
+            panzoomRef.current.reset();
+        }
+    }, [currentIndex]);
 
-    // Navigation handlers (defined first for useEffect dependency)
+    // Navigation handlers
     const handlePrev = useCallback(() => {
         setCurrentIndex((prev) => (prev > 0 ? prev - 1 : media.length - 1));
-        setZoom(1);
     }, [media.length]);
 
     const handleNext = useCallback(() => {
         setCurrentIndex((prev) => (prev < media.length - 1 ? prev + 1 : 0));
-        setZoom(1);
     }, [media.length]);
 
     const handleZoomIn = useCallback(() => {
-        setZoom((prev) => Math.min(prev + 0.25, 3));
+        if (panzoomRef.current) {
+            panzoomRef.current.zoomIn();
+        }
     }, []);
 
     const handleZoomOut = useCallback(() => {
-        setZoom((prev) => Math.max(prev - 0.25, 0.5));
+        if (panzoomRef.current) {
+            panzoomRef.current.zoomOut();
+        }
+    }, []);
+
+    const handleReset = useCallback(() => {
+        if (panzoomRef.current) {
+            panzoomRef.current.reset();
+        }
+        setZoom(1);
     }, []);
 
     // Keyboard navigation
@@ -74,12 +140,15 @@ export default function ImageViewer({ open, onClose, media, initialIndex = 0 }: 
                 case "-":
                     handleZoomOut();
                     break;
+                case "0":
+                    handleReset();
+                    break;
             }
         };
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [open, handlePrev, handleNext, handleZoomIn, handleZoomOut, onClose]);
+    }, [open, handlePrev, handleNext, handleZoomIn, handleZoomOut, handleReset, onClose]);
 
     const handleDownload = async () => {
         const currentMedia = media[currentIndex];
@@ -150,14 +219,17 @@ export default function ImageViewer({ open, onClose, media, initialIndex = 0 }: 
                         </Box>
 
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                            <IconButton onClick={handleZoomOut} sx={{ color: "white" }} disabled={zoom <= 0.5}>
+                            <IconButton onClick={handleZoomOut} sx={{ color: "white" }}>
                                 <ZoomOutIcon />
                             </IconButton>
                             <Typography sx={{ fontSize: 14, minWidth: 50, textAlign: "center" }}>
                                 {Math.round(zoom * 100)}%
                             </Typography>
-                            <IconButton onClick={handleZoomIn} sx={{ color: "white" }} disabled={zoom >= 3}>
+                            <IconButton onClick={handleZoomIn} sx={{ color: "white" }}>
                                 <ZoomInIcon />
+                            </IconButton>
+                            <IconButton onClick={handleReset} sx={{ color: "white" }} title="Reset (0)">
+                                <ResetIcon />
                             </IconButton>
                             <IconButton onClick={handleDownload} sx={{ color: "white" }}>
                                 <DownloadIcon />
@@ -165,8 +237,24 @@ export default function ImageViewer({ open, onClose, media, initialIndex = 0 }: 
                         </Box>
                     </Box>
 
+                    {/* Zoom hint */}
+                    <Typography
+                        sx={{
+                            position: 'absolute',
+                            top: 70,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            color: 'rgba(255,255,255,0.5)',
+                            fontSize: 12,
+                            pointerEvents: 'none',
+                        }}
+                    >
+                        Lăn chuột để phóng to/thu nhỏ • Kéo để di chuyển • Bấm 0 để reset
+                    </Typography>
+
                     {/* Main Content */}
                     <Box
+                        ref={containerRef}
                         sx={{
                             flex: 1,
                             display: "flex",
@@ -203,8 +291,6 @@ export default function ImageViewer({ open, onClose, media, initialIndex = 0 }: 
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                transform: `scale(${zoom})`,
-                                transition: "transform 0.2s ease",
                             }}
                         >
                             {currentMedia.mediaType === "VIDEO" ? (
@@ -219,7 +305,9 @@ export default function ImageViewer({ open, onClose, media, initialIndex = 0 }: 
                                     }}
                                 />
                             ) : (
+                                /* eslint-disable-next-line @next/next/no-img-element */
                                 <img
+                                    ref={imageRef}
                                     src={currentMedia.url}
                                     alt={`Media ${currentIndex + 1}`}
                                     style={{
@@ -227,6 +315,7 @@ export default function ImageViewer({ open, onClose, media, initialIndex = 0 }: 
                                         maxHeight: "80vh",
                                         objectFit: "contain",
                                         userSelect: "none",
+                                        cursor: "grab",
                                     }}
                                     draggable={false}
                                 />
@@ -269,7 +358,6 @@ export default function ImageViewer({ open, onClose, media, initialIndex = 0 }: 
                                     key={index}
                                     onClick={() => {
                                         setCurrentIndex(index);
-                                        setZoom(1);
                                     }}
                                     sx={{
                                         width: 60,

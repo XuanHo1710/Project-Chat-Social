@@ -26,10 +26,8 @@ import {
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useUpdatePost } from "@/queries/usePostQueries";
-import {
-    UploadMediaFiles,
-    DeleteMedia,
-} from "@/utils/uploadImage";
+import { UploadMediaFiles } from "@/utils/uploadImage";
+import { deleteCloudinaryMedia } from "@/services/cloudinary.service";
 import { PostType, PendingMediaItem, PostPrivacy, MediaItem } from "@/types/post";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
@@ -86,7 +84,6 @@ export default function EditPostModal({ open, onClose, post }: EditPostModalProp
     const [selectedBackground, setSelectedBackground] = useState(
         backgroundColors.find(b => b.color === post.background)?.id || "none"
     );
-    const [showBackgrounds, setShowBackgrounds] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
     // Media state
@@ -110,7 +107,6 @@ export default function EditPostModal({ open, onClose, post }: EditPostModalProp
             setDeletedMediaIds([]);
             setModalView("edit");
             setShowEmojiPicker(false);
-            setShowBackgrounds(false);
         }
     }, [open, post]);
 
@@ -192,10 +188,15 @@ export default function EditPostModal({ open, onClose, post }: EditPostModalProp
     // Handle save
     const handleSave = async () => {
         try {
-            // 1. Delete removed media from Cloudinary
+            // 1. Delete removed media from Cloudinary via backend API
             if (deletedMediaIds.length > 0) {
-                for (const publicId of deletedMediaIds) {
-                    await DeleteMedia(publicId);
+                const deletedMedia = post.media?.filter(m => deletedMediaIds.includes(m.publicId)) || [];
+                const mediaToDelete = deletedMedia.map(m => ({
+                    publicId: m.publicId,
+                    mediaType: m.mediaType
+                }));
+                if (mediaToDelete.length > 0) {
+                    await deleteCloudinaryMedia(mediaToDelete);
                 }
             }
 
@@ -518,27 +519,46 @@ export default function EditPostModal({ open, onClose, post }: EditPostModalProp
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "space-between",
+                                position: 'relative',
                             }}
                         >
                             <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
                                 Thêm vào bài viết của bạn
                             </Typography>
-                            <Box sx={{ display: "flex", gap: 0.5 }}>
+                            <Box sx={{ display: "flex", gap: 0.5, position: 'relative' }}>
                                 <IconButton onClick={() => fileInputRef.current?.click()} sx={{ color: "#45bd62" }}>
                                     <PhotoIcon />
                                 </IconButton>
                                 <IconButton onClick={() => setShowEmojiPicker(!showEmojiPicker)} sx={{ color: "#f7b928" }}>
                                     <MoodIcon />
                                 </IconButton>
+
+                                {/* Emoji Picker - Floating */}
+                                {showEmojiPicker && (
+                                    <Box
+                                        sx={{
+                                            position: 'absolute',
+                                            bottom: '100%',
+                                            right: 0,
+                                            mb: 1,
+                                            zIndex: 1300,
+                                            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                                            borderRadius: 2,
+                                            overflow: 'hidden',
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <Picker
+                                            data={data}
+                                            onEmojiSelect={handleEmojiSelect}
+                                            theme="light"
+                                            locale="vi"
+                                            previewPosition="none"
+                                        />
+                                    </Box>
+                                )}
                             </Box>
                         </Box>
-
-                        {/* Emoji Picker */}
-                        {showEmojiPicker && (
-                            <Box sx={{ px: 2, pb: 2 }}>
-                                <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="light" locale="vi" />
-                            </Box>
-                        )}
                     </Box>
                 ) : (
                     /* Privacy Selection View */

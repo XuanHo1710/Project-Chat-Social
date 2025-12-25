@@ -285,10 +285,10 @@ export default function CreatePostModal({
         onClose,
     ]);
 
-    // Handle emoji select
+    // Handle emoji select - DON'T close picker to allow continuous selection
     const handleEmojiSelect = (emoji: { native: string }) => {
         setPostContent((prev) => prev + emoji.native);
-        setShowEmojiPicker(false);
+        // Don't close picker - user can click away or click icon again to close
     };
 
     // Get selected background
@@ -672,12 +672,13 @@ export default function CreatePostModal({
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "space-between",
+                                position: 'relative',
                             }}
                         >
                             <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
                                 Thêm vào bài viết của bạn
                             </Typography>
-                            <Box sx={{ display: "flex", gap: 0.5 }}>
+                            <Box sx={{ display: "flex", gap: 0.5, position: 'relative' }}>
                                 <IconButton
                                     onClick={() => fileInputRef.current?.click()}
                                     sx={{ color: "#45bd62" }}
@@ -690,20 +691,33 @@ export default function CreatePostModal({
                                 >
                                     <MoodIcon />
                                 </IconButton>
+
+                                {/* Emoji Picker - Floating */}
+                                {showEmojiPicker && (
+                                    <Box
+                                        sx={{
+                                            position: 'absolute',
+                                            bottom: '100%',
+                                            right: 0,
+                                            mb: 1,
+                                            zIndex: 1300,
+                                            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                                            borderRadius: 2,
+                                            overflow: 'hidden',
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <Picker
+                                            data={data}
+                                            onEmojiSelect={handleEmojiSelect}
+                                            theme="light"
+                                            locale="vi"
+                                            previewPosition="none"
+                                        />
+                                    </Box>
+                                )}
                             </Box>
                         </Box>
-
-                        {/* Emoji Picker */}
-                        {showEmojiPicker && (
-                            <Box sx={{ px: 2, pb: 2 }}>
-                                <Picker
-                                    data={data}
-                                    onEmojiSelect={handleEmojiSelect}
-                                    theme="light"
-                                    locale="vi"
-                                />
-                            </Box>
-                        )}
                     </Box>
                 ) : (
                     /* Privacy Selection View */

@@ -49,7 +49,7 @@ import { PostType, PostPrivacy, MediaItem } from '@/types/post';
 import CreatePostModal from './CreatePostModal';
 import EditPostModal from './EditPostModal';
 import ImageViewer from './ImageViewer';
-import { DeleteMediaFiles } from '@/utils/uploadImage';
+import { deleteCloudinaryMedia } from '@/services/cloudinary.service';
 import { timeAgo } from '@/utils/formatDate';
 
 // Reactions data
@@ -214,7 +214,7 @@ export default function Feed() {
 
         setIsDeleting(true);
         try {
-            // 1. Delete media from Cloudinary first
+            // 1. Delete media from Cloudinary first (via backend API)
             if (menuPost.media && menuPost.media.length > 0) {
                 const mediaItems = menuPost.media
                     .filter(m => m.publicId)
@@ -223,7 +223,7 @@ export default function Feed() {
                         mediaType: m.mediaType
                     }));
                 if (mediaItems.length > 0) {
-                    await DeleteMediaFiles(mediaItems);
+                    await deleteCloudinaryMedia(mediaItems);
                 }
             }
 

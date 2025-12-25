@@ -17,6 +17,7 @@ import { RelationshipModule } from './relationship/relationship.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { ChatModule } from './chat/chat.module';
 import { PostModule } from './post/post.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 @Module({
   imports: [
@@ -28,16 +29,17 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
         connectionFactory: (connection: Connection) => {
           connection.plugin(mongooseAutoPopulate);
           return connection;
-        }
+        },
       }),
-      inject: [ConfigService]
+      inject: [ConfigService],
     }),
     AccountModule,
     AuthModule,
     RelationshipModule,
     ConversationModule,
     ChatModule,
-    PostModule
+    PostModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [
@@ -48,7 +50,7 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     },
     JwtStrategy,
     LocalStrategy,
-    GoogleStrategy
-  ]
+    GoogleStrategy,
+  ],
 })
-export class AppModule { }
+export class AppModule {}

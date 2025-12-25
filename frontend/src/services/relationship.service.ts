@@ -25,6 +25,14 @@ class RelationshipService {
     return response.data;
   }
 
+  // Get all friends
+  async getFriends(): Promise<APIResponse<FriendType[]>> {
+    const response = await axios.get<APIResponse<FriendType[]>>(
+      "/relationship/friends"
+    );
+    return response.data;
+  }
+
   async updateStatusRelationship(
     userId: string,
     friendId: string,

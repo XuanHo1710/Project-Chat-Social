@@ -6,15 +6,15 @@ import { useUpdateStatusRelationshipMutation } from '@/queries/useRelationshipQu
 import { useAuthStore } from '@/stores/useAuthStore';
 
 
-export default function CardFriendReceivedComponent({ friend }: { friend: FriendType }) {
+export default function CardListFriendComponent({ friend }: { friend: FriendType }) {
     const { user } = useAuthStore();
     const cancelMutation = useUpdateStatusRelationshipMutation(user?.id || "");
 
-    const handleReject = (friendId: string) => {
+    const handleCancel = (friendId: string) => {
         cancelMutation.mutate({
             userId: user?.id || "",
             friendId: friendId,
-            status: 'REJECTED'
+            status: 'CANCELED'
         })
     }
 
@@ -43,9 +43,6 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                     <Typography variant="body2" color="#65676b" fontSize={13} sx={{ mb: 1.5 }}>
                         0 bạn chung
                     </Typography>
-                    <Typography variant="caption" color="#65676b" fontSize={12} sx={{ mb: 2, display: 'block' }}>
-                        Đã gửi {timeAgo(friend.time)}
-                    </Typography>
 
                     <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button
@@ -61,12 +58,12 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                                 },
                             }}
                         >
-                            Chấp nhận
+                            Xem chi tiết
                         </Button>
                         <Button
                             fullWidth
+                            onClick={() => handleCancel(friend._id)}
                             variant="contained"
-                            onClick={() => handleReject(friend._id)}
                             sx={{
                                 bgcolor: '#e4e6eb',
                                 color: '#050505',
@@ -78,7 +75,7 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                                 },
                             }}
                         >
-                            Từ chối
+                            Hủy kết bạn
                         </Button>
                     </Box>
                 </Box>

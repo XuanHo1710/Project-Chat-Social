@@ -7,6 +7,7 @@ export const QUERY_KEYS = {
   ACCOUNT_BY_ID: "account-by-id",
 
   // RELATIONSHIPS
+  FRIENDS: "friends",
   ADD_FRIEND: "add-friend",
   RECEIVED_REQUEST_FRIENDS: "received-request-friends",
   SENT_REQUEST_FRIENDS: "sent-request-friends",

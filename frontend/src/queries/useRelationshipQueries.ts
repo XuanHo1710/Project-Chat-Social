@@ -19,6 +19,14 @@ export function useSentRequestFriends(userId: string) {
   });
 }
 
+export function useDisplayListFriends(userId: string) {
+  return useQuery({
+    queryKey: [QUERY_KEYS.FRIENDS, userId],
+    queryFn: () => relationshipService.getFriends(),
+    enabled: !!userId,
+  });
+}
+
 export function useAddFriendMutation(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({

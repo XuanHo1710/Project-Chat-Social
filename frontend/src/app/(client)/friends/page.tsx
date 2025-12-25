@@ -11,10 +11,12 @@ import Header from '@/components/Header';
 import CardFriendShowAllComponent from '@/components/friends/CardFriendShowAll';
 import { useAccountsByPage } from '@/queries/useAccountQueries';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useSentRequestFriends } from '@/queries/useRelationshipQueries';
+import { useDisplayListFriends, useReceivedRequestFriends, useSentRequestFriends } from '@/queries/useRelationshipQueries';
 import CardFriendSentRequestComponent from '@/components/friends/CardFriendSentRequest';
 import { QUERY_KEYS } from '@/constants/query-keys';
 import { useQueryClient } from '@tanstack/react-query';
+import CardListFriendComponent from '@/components/friends/CardListFriend';
+import CardFriendReceivedComponent from '@/components/friends/CardFriendReceived';
 
 // Mock data
 const friendRequests = [
@@ -103,6 +105,8 @@ export default function FriendsPage() {
 
     const { data: allAccounts, isLoading: isLoadingAccounts } = useAccountsByPage(user?.id || "", { page: 1, size: 12 });
     const { data: sentRequests, isLoading: isLoadingSentRequests } = useSentRequestFriends(user?.id || "");
+    const { data: listFriends, isLoading: isLoadingListFriends } = useDisplayListFriends(user?.id || "");
+    const { data: receivedRequests, isLoading: isLoadingReceivedRequests } = useReceivedRequestFriends(user?.id || "");
 
     useEffect(() => {
         queryClient.invalidateQueries({
@@ -269,127 +273,29 @@ export default function FriendsPage() {
                         {tabValue === 1 && (
                             <Box>
                                 {/* Friend Requests Section */}
-                                {friendRequests.length > 0 && (
-                                    <Box sx={{ mb: 4 }}>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                            <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
-                                                Lời mời kết bạn
-                                            </Typography>
-                                            <Button
-                                                sx={{
-                                                    color: '#1877f2',
-                                                    textTransform: 'none',
-                                                    fontSize: '15px',
-                                                    fontWeight: 500,
-                                                }}
-                                            >
-                                                Xem tất cả
-                                            </Button>
-                                        </Box>
-
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                                            {friendRequests.map((request) => (
-                                                <Card key={request.id} sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', bgcolor: 'white' }}>
-                                                    <CardContent sx={{ p: 0 }}>
-                                                        <Box sx={{ position: 'relative', pb: '100%', bgcolor: '#e4e6eb', borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
-                                                            <Avatar
-                                                                src={`https://ui-avatars.com/api/?name=${request.name}&background=1877f2&color=fff&size=200`}
-                                                                sx={{
-                                                                    position: 'absolute',
-                                                                    top: 0,
-                                                                    left: 0,
-                                                                    width: '100%',
-                                                                    height: '100%',
-                                                                    borderRadius: '8px 8px 0 0',
-                                                                }}
-                                                            />
-                                                        </Box>
-                                                        <Box sx={{ p: 2 }}>
-                                                            <Typography fontWeight={600} fontSize={15} color="#050505" sx={{ mb: 0.5 }}>
-                                                                {request.name}
-                                                            </Typography>
-                                                            <Typography variant="body2" color="#65676b" fontSize={13} sx={{ mb: 1.5 }}>
-                                                                {request.mutualFriends} bạn chung
-                                                            </Typography>
-                                                            <Typography variant="caption" color="#65676b" fontSize={12} sx={{ mb: 2, display: 'block' }}>
-                                                                {request.time}
-                                                            </Typography>
-
-                                                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                                                <Button
-                                                                    fullWidth
-                                                                    variant="contained"
-                                                                    sx={{
-                                                                        bgcolor: '#1877f2',
-                                                                        textTransform: 'none',
-                                                                        fontWeight: 600,
-                                                                        py: 1,
-                                                                        '&:hover': {
-                                                                            bgcolor: '#166fe5',
-                                                                        },
-                                                                    }}
-                                                                >
-                                                                    Xác nhận
-                                                                </Button>
-                                                                <Button
-                                                                    fullWidth
-                                                                    variant="contained"
-                                                                    sx={{
-                                                                        bgcolor: '#e4e6eb',
-                                                                        color: '#050505',
-                                                                        textTransform: 'none',
-                                                                        fontWeight: 600,
-                                                                        py: 1,
-                                                                        '&:hover': {
-                                                                            bgcolor: '#d8dadf',
-                                                                        },
-                                                                    }}
-                                                                >
-                                                                    Xóa
-                                                                </Button>
-                                                            </Box>
-                                                        </Box>
-                                                    </CardContent>
-                                                </Card>
-                                            ))}
-                                        </Box>
+                                <Box sx={{ mb: 4 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                        <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
+                                            Lời mời kết bạn
+                                        </Typography>
+                                        <Button
+                                            sx={{
+                                                color: '#1877f2',
+                                                textTransform: 'none',
+                                                fontSize: '15px',
+                                                fontWeight: 500,
+                                            }}
+                                        >
+                                            Xem tất cả
+                                        </Button>
                                     </Box>
-                                )}
-
-                                {/* All Friends Section */}
-                                <Box>
-                                    <Typography variant="h6" fontWeight={700} color="#050505" sx={{ mb: 2 }}>
-                                        Bạn bè ({currentFriends.length})
-                                    </Typography>
 
                                     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                                        {currentFriends.map((friend) => (
-                                            <Card key={friend.id} sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', bgcolor: 'white' }}>
-                                                <CardContent sx={{ p: 0 }}>
-                                                    <Box sx={{ position: 'relative', pb: '100%', bgcolor: '#e4e6eb', borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
-                                                        <Avatar
-                                                            src={`https://ui-avatars.com/api/?name=${friend.name}&background=1877f2&color=fff&size=200`}
-                                                            sx={{
-                                                                position: 'absolute',
-                                                                top: 0,
-                                                                left: 0,
-                                                                width: '100%',
-                                                                height: '100%',
-                                                                borderRadius: '8px 8px 0 0',
-                                                            }}
-                                                        />
-                                                    </Box>
-                                                    <Box sx={{ p: 2 }}>
-                                                        <Typography fontWeight={600} fontSize={15} color="#050505" sx={{ mb: 0.5 }}>
-                                                            {friend.name}
-                                                        </Typography>
-                                                        <Typography variant="body2" color="#65676b" fontSize={13}>
-                                                            {friend.mutualFriends} bạn chung
-                                                        </Typography>
-                                                    </Box>
-                                                </CardContent>
-                                            </Card>
-                                        ))}
+                                        {!isLoadingReceivedRequests && receivedRequests && receivedRequests?.data.length > 0
+                                            &&
+                                            receivedRequests.data.map((request) => (
+                                                <CardFriendReceivedComponent friend={request} key={request._id} />
+                                            ))}
                                     </Box>
                                 </Box>
                             </Box>
@@ -469,48 +375,13 @@ export default function FriendsPage() {
                         {tabValue === 3 && (
                             <Box>
                                 <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
-                                    Tất cả bạn bè ({currentFriends.length})
+                                    Tất cả bạn bè ({listFriends?.data.length || 0})
                                 </Typography>
 
                                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                                    {currentFriends.map((friend) => (
-                                        <Card key={friend.id} sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                                            <CardContent sx={{ p: 0 }}>
-                                                <Box sx={{ position: 'relative', pb: '100%', bgcolor: '#f0f2f5' }}>
-                                                    <Avatar
-                                                        src={`https://ui-avatars.com/api/?name=${friend.name}&background=1877f2&color=fff`}
-                                                        sx={{
-                                                            position: 'absolute',
-                                                            top: 0,
-                                                            left: 0,
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            borderRadius: 0,
-                                                        }}
-                                                    />
-                                                    <IconButton
-                                                        sx={{
-                                                            position: 'absolute',
-                                                            top: 8,
-                                                            right: 8,
-                                                            bgcolor: 'white',
-                                                            '&:hover': { bgcolor: '#f0f2f5' },
-                                                        }}
-                                                    >
-                                                        <MoreIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Box>
-                                                <Box sx={{ p: 2 }}>
-                                                    <Typography fontWeight={600} fontSize={15} color="#050505" sx={{ mb: 0.5 }}>
-                                                        {friend.name}
-                                                    </Typography>
-                                                    <Typography variant="body2" color="#65676b" fontSize={13}>
-                                                        {friend.mutualFriends} bạn chung
-                                                    </Typography>
-                                                </Box>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
+                                    {!isLoadingListFriends && listFriends && listFriends.data.length > 0 &&
+                                        listFriends.data.map(friend => <CardListFriendComponent key={friend._id} friend={friend} />)
+                                    }
                                 </Box>
                             </Box>
                         )}

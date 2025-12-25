@@ -199,6 +199,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 sx={{
                                     display: "flex",
                                     justifyContent: isOwn ? "flex-end" : "flex-start",
+                                    alignItems: "center",
                                     px: 2,
                                     py: 0.5,
                                     gap: 1,
@@ -218,10 +219,20 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                     sx={{
                                         maxWidth: "60%",
                                         display: "flex",
-                                        flexDirection: "column",
-                                        alignItems: isOwn ? "flex-end" : "flex-start",
+                                        flexDirection: "row",
+                                        alignItems: "center",
                                     }}
                                 >
+                                    {isOwn &&
+                                        <Typography
+                                            variant="caption"
+                                            color="#65676b"
+                                            fontSize={11}
+                                            sx={{ mt: 0.5, px: 1 }}
+                                        >
+                                            {formatTime(message.createdAt)}
+                                        </Typography>
+                                    }
                                     <Paper
                                         sx={{
                                             p: 1.5,
@@ -234,14 +245,16 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                     >
                                         <Typography fontSize={15}>{message.content}</Typography>
                                     </Paper>
-                                    <Typography
-                                        variant="caption"
-                                        color="#65676b"
-                                        fontSize={11}
-                                        sx={{ mt: 0.5, px: 1 }}
-                                    >
-                                        {formatTime(message.createdAt)}
-                                    </Typography>
+                                    {!isOwn &&
+                                        <Typography
+                                            variant="caption"
+                                            color="#65676b"
+                                            fontSize={11}
+                                            sx={{ mt: 0.5, px: 1 }}
+                                        >
+                                            {formatTime(message.createdAt)}
+                                        </Typography>
+                                    }
                                 </Box>
                             </Box>
                         );
@@ -260,7 +273,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                 <Box
                     sx={{
                         display: "flex",
-                        alignItems: "flex-end",
+                        alignItems: "center",
                         gap: 1,
                         bgcolor: "#f0f2f5",
                         borderRadius: 5,

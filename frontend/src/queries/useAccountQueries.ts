@@ -1,13 +1,8 @@
+import { QUERY_KEYS } from "@/constants/query-keys";
 import { accountService } from "@/services/account.service";
-import { AccountCardFriendType, AccountType } from "@/types/account";
+import { AccountCardFriendType } from "@/types/account";
 import { PageResponse } from "@/types/common";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-
-export const QUERY_KEYS = {
-  ACCOUNTS_PAGINATED: "accounts-paginated",
-  ACCOUNT_BY_ID: "account-by-id",
-};
+import { useQuery } from "@tanstack/react-query";
 
 interface AccountFilterParams {
   page?: number;
@@ -17,29 +12,23 @@ interface AccountFilterParams {
   active?: boolean;
 }
 
-
 // All accounts to test add Friends
-export function useAccountsByPage(userId: string, params: AccountFilterParams = {}) {
+export function useAccountsByPage(
+  userId: string,
+  params: AccountFilterParams = {}
+) {
   const { page = 1, size = 12, sort, search } = params;
   const queryParams: Record<string, string | number | boolean> = { page, size };
-//   if (sort) queryParams.sort = sort;
-//   else queryParams.sort = "createdAt,desc";
+  //   if (sort) queryParams.sort = sort;
+  //   else queryParams.sort = "createdAt,desc";
 
   if (search) queryParams.search = search;
 
   return useQuery<PageResponse<AccountCardFriendType>, Error>({
-    queryKey: [
-      QUERY_KEYS.ACCOUNTS_PAGINATED,
-      page,
-      size,
-      sort,
-      search,
-      userId
-    ],
+    queryKey: [QUERY_KEYS.ACCOUNTS_PAGINATED, page, size, sort, search, userId],
     queryFn: () => accountService.getAccountsByPage(queryParams),
   });
 }
-
 
 // export function useCustomerAccountsByPage(params: AccountFilterParams = {}) {
 //   const { page = 0, size = 12, sort, search, active, membership } = params;
@@ -124,7 +113,6 @@ export function useAccountsByPage(userId: string, params: AccountFilterParams = 
 //     },
 //   });
 // }
-
 
 // export function useChangePasswordAccountMutation() {
 //   const queryClient = useQueryClient();

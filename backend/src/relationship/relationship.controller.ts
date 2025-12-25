@@ -1,38 +1,79 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  NotFoundException,
+} from '@nestjs/common';
 import { RelationshipService } from './relationship.service';
 import { CreateRelationshipDto } from './dto/create-relationship.dto';
 import { UpdateRelationshipDto } from './dto/update-relationship.dto';
 import { RelationshipStatus } from 'src/relationship/entities/relationship.entity';
+import { UserInfo } from 'decorators/customize';
 
 @Controller('relationship')
 export class RelationshipController {
-  constructor(
-    private readonly relationshipService: RelationshipService,
-  ) { }
+  constructor(private readonly relationshipService: RelationshipService) {}
 
-  @Post()
-  create(@Body() createRelationshipDto: CreateRelationshipDto) {
-    createRelationshipDto.status = RelationshipStatus.ACCEPTED;
-    return this.relationshipService.create(createRelationshipDto);
+  // Add friend with PENDING status by default
+  @Post('/add-friend')
+  addFriend(@Body() createRelationshipDto: CreateRelationshipDto) {
+    createRelationshipDto.status = RelationshipStatus.PENDING;
+    return this.relationshipService.addFriend(createRelationshipDto);
   }
 
-  @Get()
-  findAll() {
-    return this.relationshipService.findAll();
+  // Cancel friend request or unfriend or rejected friend request
+  @Patch('/update-status')
+  updateStatusRelationship(@Body() updateRelationshipDto: UpdateRelationshipDto) {
+    if (
+      !updateRelationshipDto ||
+      !updateRelationshipDto.status ||
+      !updateRelationshipDto.userId ||
+      !updateRelationshipDto.friendId
+    ) {
+      throw new NotFoundException('Invalid data provided');
+    }
+    return this.relationshipService.updateStatusRelationship(
+      updateRelationshipDto?.userId.toString(),
+      updateRelationshipDto?.friendId.toString(),
+      updateRelationshipDto?.status.toString()
+    );
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.relationshipService.findOne(id);
+  // Chấp nhận kết bạn
+  @Patch('/accept-friend')
+  acceptFriend(@Body() updateRelationshipDto: UpdateRelationshipDto) {
+    if (
+      !updateRelationshipDto ||
+      !updateRelationshipDto.userId ||
+      !updateRelationshipDto.friendId
+    ) {
+      throw new NotFoundException('Invalid data provided');
+    }
+    return this.relationshipService.acceptFriend(
+      updateRelationshipDto?.userId.toString(),
+      updateRelationshipDto?.friendId.toString()
+    );
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateRelationshipDto: UpdateRelationshipDto) {
-    return this.relationshipService.update(id, updateRelationshipDto);
+  // Lấy danh sách mà người dùng nhận được lời mời kết bạn
+  @Get('/received-requests')
+  getReceivedFriendRequests(@UserInfo() user: any) {
+    return this.relationshipService.getReceivedFriendRequests(user._id);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.relationshipService.remove(id);
+  // Lấy danh sách mà người dùng gửi lời mời kết bạn
+  @Get('/sent-requests')
+  getSentFriendRequests(@UserInfo() user: any) {
+    return this.relationshipService.getSentFriendRequests(user._id);
+  }
+
+  // Lấy danh sách bạn bè hiện tại của người dùng
+  @Get('/friends')
+  getFriends(@UserInfo() user: any) {
+    return this.relationshipService.getFriendsList(user._id);
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Card, CardContent, Typography, Avatar, Button, IconButton } from '@mui/material';
 import {
     PersonAdd as PersonAddIcon,
@@ -11,6 +11,10 @@ import Header from '@/components/Header';
 import CardFriendShowAllComponent from '@/components/friends/CardFriendShowAll';
 import { useAccountsByPage } from '@/queries/useAccountQueries';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useSentRequestFriends } from '@/queries/useRelationshipQueries';
+import CardFriendSentRequestComponent from '@/components/friends/CardFriendSentRequest';
+import { QUERY_KEYS } from '@/constants/query-keys';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Mock data
 const friendRequests = [
@@ -94,8 +98,17 @@ const currentFriends = [
 export default function FriendsPage() {
     const [tabValue, setTabValue] = useState(0);
     const { user } = useAuthStore();
+    const queryClient = useQueryClient();
+
 
     const { data: allAccounts, isLoading: isLoadingAccounts } = useAccountsByPage(user?.id || "", { page: 1, size: 12 });
+    const { data: sentRequests, isLoading: isLoadingSentRequests } = useSentRequestFriends(user?.id || "");
+
+    useEffect(() => {
+        queryClient.invalidateQueries({
+            queryKey: [QUERY_KEYS.ACCOUNTS_PAGINATED],
+        });
+    }, [tabValue, queryClient]);
 
     return (
         <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
@@ -510,53 +523,11 @@ export default function FriendsPage() {
                                 </Typography>
 
                                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                                    {pendingRequests.map((request) => (
-                                        <Card key={request.id} sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                                            <CardContent sx={{ p: 0 }}>
-                                                <Box sx={{ position: 'relative', pb: '100%', bgcolor: '#f0f2f5' }}>
-                                                    <Avatar
-                                                        src={`https://ui-avatars.com/api/?name=${request.name}&background=1877f2&color=fff`}
-                                                        sx={{
-                                                            position: 'absolute',
-                                                            top: 0,
-                                                            left: 0,
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            borderRadius: 0,
-                                                        }}
-                                                    />
-                                                </Box>
-                                                <Box sx={{ p: 2 }}>
-                                                    <Typography fontWeight={600} fontSize={15} color="#050505" sx={{ mb: 0.5 }}>
-                                                        {request.name}
-                                                    </Typography>
-                                                    <Typography variant="caption" color="#65676b" fontSize={12} sx={{ mb: 2, display: 'block' }}>
-                                                        Đã gửi {request.time} trước
-                                                    </Typography>
-
-                                                    <Button
-                                                        fullWidth
-                                                        variant="contained"
-                                                        sx={{
-                                                            bgcolor: '#e4e6eb',
-                                                            color: '#050505',
-                                                            textTransform: 'none',
-                                                            fontWeight: 600,
-                                                            fontSize: 15,
-                                                            py: 1,
-                                                            boxShadow: 'none',
-                                                            '&:hover': {
-                                                                bgcolor: '#d8dadf',
-                                                                boxShadow: 'none',
-                                                            },
-                                                        }}
-                                                    >
-                                                        Hủy lời mời
-                                                    </Button>
-                                                </Box>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
+                                    {!isLoadingSentRequests && sentRequests && sentRequests.data.length > 0 &&
+                                        sentRequests.data.map((request) => (
+                                            <CardFriendSentRequestComponent key={request._id} friend={request} />
+                                        ))
+                                    }
                                 </Box>
                             </Box>
                         )}

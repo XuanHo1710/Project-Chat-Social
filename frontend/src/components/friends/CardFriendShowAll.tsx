@@ -5,10 +5,25 @@ import {
     PersonAdd as PersonAddIcon,
 } from '@mui/icons-material';
 import { AccountCardFriendType } from '@/types/account';
+import { useState } from 'react';
+import { useAddFriendMutation } from '@/queries/useRelationshipQueries';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 
 
 export default function CardFriendShowAllComponent({ friend }: { friend: AccountCardFriendType }) {
+    const { user } = useAuthStore();
+    const addFriendMutation = useAddFriendMutation(user?.id || "");
+    const [addFriend, setAddFriend] = useState<boolean>(false);
+    const handleAddFriend = (friendId: string) => {
+        addFriendMutation.mutate({ userId: user?.id || "", friendId: friendId });
+        setAddFriend(true);
+    };
+
+    const handleCancelAddFriend = (friendId: string) => {
+        console.log(`Hủy kết bạn với ID: ${friendId}`);
+        setAddFriend(false);
+    }
 
 
     return (
@@ -34,25 +49,53 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                     <Typography variant="body2" color="#65676b" fontSize={13} sx={{ mb: 1.5 }}>
                         {friend.mutualFriends} bạn chung
                     </Typography>
-                    <Button
-                        fullWidth
-                        variant="contained"
-                        startIcon={<PersonAddIcon />}
-                        sx={{
-                            bgcolor: '#1877f2',
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            fontSize: 15,
-                            py: 1,
-                            boxShadow: 'none',
-                            '&:hover': {
-                                bgcolor: '#166fe5',
+
+
+                    {!addFriend ?
+                        // Chưa kết bạn
+                        <Button
+                            fullWidth
+                            onClick={() => handleAddFriend(friend.id)}
+                            variant="contained"
+                            startIcon={<PersonAddIcon />}
+                            sx={{
+                                bgcolor: '#1877f2',
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                fontSize: 15,
+                                py: 1,
                                 boxShadow: 'none',
-                            },
-                        }}
-                    >
-                        Thêm bạn bè
-                    </Button>
+                                '&:hover': {
+                                    bgcolor: '#166fe5',
+                                    boxShadow: 'none',
+                                },
+                            }}
+                        >
+                            Thêm bạn bè
+                        </Button>
+                        :
+                        // Đã kết bạn
+                        <Button
+                            fullWidth
+                            onClick={() => handleCancelAddFriend(friend.id)}
+                            variant="contained"
+                            sx={{
+                                bgcolor: '#e4e6eb',
+                                color: '#050505',
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                py: 1,
+                                '&:hover': {
+                                    bgcolor: '#d8dadf',
+                                },
+                            }}
+                        >
+                            Hủy
+                        </Button>
+                    }
+
+
+
                 </Box>
             </CardContent>
         </Card>

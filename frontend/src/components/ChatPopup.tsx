@@ -205,6 +205,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                         '&:hover': {
                                             bgcolor: '#f0f2f5',
                                         },
+                                        gap: 1,
                                     }}
                                 >
                                     <ListItemAvatar>
@@ -237,7 +238,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                             </Typography>
                                         }
                                         secondary={
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                                 <Typography
                                                     noWrap
                                                     variant="body2"
@@ -248,7 +249,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                                 >
                                                     {conversation.lastMessage
                                                         ? conversation.lastMessage.content
-                                                        : 'Bạn đã gửi một nhắn tin'}
+                                                        : 'Bắt đầu cuộc trò chuyện mới'}
                                                 </Typography>
                                                 <Typography variant="caption" color="#65676b" fontSize={12}>
                                                     · {conversation.lastMessageAt ? formatTime(conversation.lastMessageAt) : ''}

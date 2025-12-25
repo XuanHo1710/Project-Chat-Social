@@ -44,6 +44,13 @@ class RelationshipService {
       status,
     });
   }
+
+  async acceptFriendRequest(userId: string, friendId: string): Promise<void> {
+    await axios.patch<void>("/relationship/accept-friend", {
+      userId,
+      friendId,
+    });
+  }
 }
 
 export const relationshipService = new RelationshipService();

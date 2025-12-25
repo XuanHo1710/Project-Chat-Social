@@ -301,6 +301,7 @@ export default function ChatSidebar({
                                     sx={{
                                         py: 1.5,
                                         px: 2,
+                                        gap: 1,
                                         bgcolor: isSelected ? '#e7f3ff' : 'transparent',
                                         '&:hover': {
                                             bgcolor: isSelected ? '#e7f3ff' : '#f0f2f5',
@@ -343,7 +344,7 @@ export default function ChatSidebar({
                                             </Typography>
                                         }
                                         secondary={
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                                 <Typography
                                                     noWrap
                                                     variant="body2"
@@ -354,7 +355,7 @@ export default function ChatSidebar({
                                                 >
                                                     {conversation.lastMessage
                                                         ? conversation.lastMessage.content
-                                                        : 'Bạn đã gửi một nhắn tin'}
+                                                        : 'Bắt đầu cuộc trò chuyện mới'}
                                                 </Typography>
                                                 <Typography variant="caption" color="#65676b" fontSize={12}>
                                                     · {conversation.lastMessageAt ? formatTime(conversation.lastMessageAt) : ''}

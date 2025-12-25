@@ -75,3 +75,25 @@ export function useUpdateStatusRelationshipMutation(userId: string) {
     },
   });
 }
+
+export function useAceeptFriendMutation(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { userId: string; friendId: string }) =>
+      relationshipService.acceptFriendRequest(data.userId, data.friendId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.RECEIVED_REQUEST_FRIENDS, userId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.ACCOUNTS_PAGINATED],
+          exact: false,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [QUERY_KEYS.FRIENDS, userId],
+        }),
+      ]);
+    },
+  });
+}

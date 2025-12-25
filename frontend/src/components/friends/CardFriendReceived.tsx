@@ -2,13 +2,16 @@
 import { Box, Card, CardContent, Typography, Avatar, Button } from '@mui/material';
 import { FriendType } from '@/types/account';
 import { timeAgo } from '@/utils/formatDate';
-import { useUpdateStatusRelationshipMutation } from '@/queries/useRelationshipQueries';
+import { useAceeptFriendMutation, useUpdateStatusRelationshipMutation } from '@/queries/useRelationshipQueries';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useState } from 'react';
 
 
 export default function CardFriendReceivedComponent({ friend }: { friend: FriendType }) {
     const { user } = useAuthStore();
+    const [isFriend, setIsFriend] = useState(false);
     const cancelMutation = useUpdateStatusRelationshipMutation(user?.id || "");
+    const acceptMutation = useAceeptFriendMutation(user?.id || "");
 
     const handleReject = (friendId: string) => {
         cancelMutation.mutate({
@@ -16,6 +19,14 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
             friendId: friendId,
             status: 'REJECTED'
         })
+    }
+
+    const handleAcceptFriend = (friendId: string) => {
+        acceptMutation.mutate({
+            userId: user?.id || "",
+            friendId: friendId
+        })
+        setIsFriend(true);
     }
 
 
@@ -48,38 +59,48 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                     </Typography>
 
                     <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            sx={{
-                                bgcolor: '#1877f2',
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                py: 1,
-                                '&:hover': {
-                                    bgcolor: '#166fe5',
-                                },
-                            }}
-                        >
-                            Chấp nhận
-                        </Button>
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            onClick={() => handleReject(friend._id)}
-                            sx={{
-                                bgcolor: '#e4e6eb',
-                                color: '#050505',
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                py: 1,
-                                '&:hover': {
-                                    bgcolor: '#d8dadf',
-                                },
-                            }}
-                        >
-                            Từ chối
-                        </Button>
+                        {!isFriend ? (
+                            <>
+                                <Button
+                                    onClick={() => handleAcceptFriend(friend._id)}
+                                    fullWidth
+                                    variant="contained"
+                                    sx={{
+                                        bgcolor: '#1877f2',
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        py: 1,
+                                        '&:hover': {
+                                            bgcolor: '#166fe5',
+                                        },
+                                    }}
+                                >
+                                    Chấp nhận
+                                </Button>
+                                <Button
+                                    fullWidth
+                                    variant="contained"
+                                    onClick={() => handleReject(friend._id)}
+                                    sx={{
+                                        bgcolor: '#e4e6eb',
+                                        color: '#050505',
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        py: 1,
+                                        '&:hover': {
+                                            bgcolor: '#d8dadf',
+                                        },
+                                    }}
+                                >
+                                    Từ chối
+                                </Button>
+
+                            </>
+                        ) :
+                            <Typography variant="caption" color="#65676b" fontSize={12} sx={{ mb: 2, display: 'block', textAlign: "center" }}>
+                                Bạn đã là bạn bè
+                            </Typography>
+                        }
                     </Box>
                 </Box>
             </CardContent>

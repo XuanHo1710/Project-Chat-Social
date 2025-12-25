@@ -72,6 +72,11 @@ export class RelationshipService {
       throw new NotFoundException('Không tìm thấy mối quan hệ kết bạn');
     }
 
+    await this.relationshipModel.updateOne(
+      { _id: relationship._id },
+      { status: RelationshipStatus.ACCEPTED }
+    );
+
     const dataConverstation = {
       type: 'DIRECT',
       participants: [

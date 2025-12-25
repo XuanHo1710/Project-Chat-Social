@@ -32,4 +32,11 @@ export const QUERY_KEYS = {
   AUTH_ME: "auth_me",
   AUTH_SESSION: "auth_session",
   AUTH_PERMISSIONS: "auth_permissions",
+
+  // Posts
+  POSTS: "posts",
+  POSTS_PAGINATED: "posts_paginated",
+  POST_DETAIL: "post_detail",
+  NEWS_FEED: "news_feed",
+  USER_POSTS: "user_posts",
 } as const;

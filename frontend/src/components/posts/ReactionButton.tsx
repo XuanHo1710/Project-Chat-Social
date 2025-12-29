@@ -20,8 +20,8 @@ const REACTIONS = [
 interface ReactionButtonProps {
     postId: string;
     initialReaction?: ReactionType | null;
-    onReactionChange: (totalReacts: number) => void;
-    totalReacts: number;
+    onReactionChange?: (totalReacts: number) => void;
+    totalReacts?: number;
 }
 
 export default function ReactionButton({ postId, initialReaction, onReactionChange, totalReacts }: ReactionButtonProps) {
@@ -72,13 +72,13 @@ export default function ReactionButton({ postId, initialReaction, onReactionChan
 
         // UI optimistic update
         if (localReaction === type) {
-            onReactionChange(totalReacts - 1);
+            onReactionChange?.(totalReacts ? totalReacts - 1 : 0);
             setLocalReaction(null);
         } else if (!localReaction) {
-            onReactionChange(totalReacts + 1);
+            onReactionChange?.(totalReacts ? totalReacts + 1 : 1);
             setLocalReaction(type);
         } else {
-            onReactionChange(totalReacts);
+            onReactionChange?.(totalReacts || 0);
             setLocalReaction(type);
         }
 
@@ -94,7 +94,7 @@ export default function ReactionButton({ postId, initialReaction, onReactionChan
             } catch (e) {
                 console.error("rollback needed", e);
             }
-        }, 1200); // 1200ms khi người dùng không tương tác thì mới gửi request
+        }, 1500); // 1500ms khi người dùng không tương tác thì mới gửi request
     };
 
 
@@ -117,17 +117,17 @@ export default function ReactionButton({ postId, initialReaction, onReactionChan
                         sx={{
                             position: "absolute",
                             bottom: "100%",
-                            left: "50%",
+                            left: "0",
                             transform: "translateX(-50%)",
                             mb: 1,
                             display: "flex",
-                            gap: 0.5,
+                            gap: 2,
                             bgcolor: "white",
                             borderRadius: 5,
                             px: 1,
                             py: 0.5,
                             boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
-                            zIndex: 100,
+                            zIndex: 999,
                         }}
                         onMouseEnter={() => {
                             if (leaveTimeout.current) {
@@ -142,7 +142,7 @@ export default function ReactionButton({ postId, initialReaction, onReactionChan
                                 <Box
                                     onClick={() => handleReactionSelect(reaction.type)}
                                     sx={{
-                                        fontSize: 28,
+                                        fontSize: 35,
                                         cursor: "pointer",
                                         transition: "transform 0.2s",
                                         "&:hover": {

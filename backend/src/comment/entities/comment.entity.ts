@@ -5,6 +5,24 @@ import { Post } from 'src/post/entities/post.entity';
 
 export type CommentDocument = HydratedDocument<Comment>;
 
+// Media schema for comments
+class CommentMedia {
+  @Prop({ required: true, enum: ['IMAGE', 'VIDEO'] })
+  mediaType: string;
+
+  @Prop({ required: true })
+  url: string;
+
+  @Prop()
+  publicId: string;
+
+  @Prop()
+  width: number;
+
+  @Prop()
+  height: number;
+}
+
 @Schema({ timestamps: true })
 export class Comment {
   _id: mongoose.Schema.Types.ObjectId;
@@ -16,7 +34,6 @@ export class Comment {
     type: mongoose.Schema.Types.ObjectId,
     ref: Account.name,
     required: true,
-    autopopulate: true,
   })
   userId: mongoose.Schema.Types.ObjectId;
 
@@ -24,7 +41,10 @@ export class Comment {
   content: string;
 
   @Prop({ type: String, default: null })
-  image: string | null; // Optional image in comment
+  image: string | null; // Optional image in comment (legacy)
+
+  @Prop({ type: [CommentMedia], default: [] })
+  media: CommentMedia[]; // New media field for images/videos
 
   // For reply comments
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Comment.name, default: null })

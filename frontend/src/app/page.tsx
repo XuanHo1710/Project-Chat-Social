@@ -46,7 +46,7 @@ export default function Home() {
     <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
       <Header />
 
-      <Box sx={{ display: 'flex', pt: '56px' }}>
+      <Box sx={{ display: 'flex', pt: '56px', justifyContent: 'space-between' }}>
         <Sidebar />
 
         <Box

@@ -189,6 +189,7 @@ export default function CreatePostModal({
     // Wrapper for emoji picker
     const onEmojiSelect = (emoji: { native: string }) => {
         handleEmojiSelect(emoji, setPostContent);
+        console.log(emoji);
     };
 
     // Get selected background
@@ -217,14 +218,14 @@ export default function CreatePostModal({
         >
             <Box
                 sx={{
-                    width: 500,
+                    width: 700,
                     maxHeight: "90vh",
                     bgcolor: "white",
                     borderRadius: 2,
                     boxShadow: 24,
-                    overflow: "hidden",
                     display: "flex",
                     flexDirection: "column",
+                    position: "relative"
                 }}
             >
                 {/* Header */}
@@ -593,31 +594,6 @@ export default function CreatePostModal({
                                 >
                                     <MoodIcon />
                                 </IconButton>
-
-                                {/* Emoji Picker - Floating */}
-                                {showEmojiPicker && (
-                                    <Box
-                                        sx={{
-                                            position: 'absolute',
-                                            bottom: '100%',
-                                            right: 0,
-                                            mb: 1,
-                                            zIndex: 1300,
-                                            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-                                            borderRadius: 2,
-                                            overflow: 'hidden',
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <Picker
-                                            data={data}
-                                            onEmojiSelect={onEmojiSelect}
-                                            theme="light"
-                                            locale="vi"
-                                            previewPosition="none"
-                                        />
-                                    </Box>
-                                )}
                             </Box>
                         </Box>
                     </Box>
@@ -720,7 +696,35 @@ export default function CreatePostModal({
                     onChange={onFileSelect}
                     style={{ display: "none" }}
                 />
+
+                {/* Emoji Picker - Floating */}
+                {showEmojiPicker && (
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            right: "40%",
+                            bottom: "35%",
+                            mb: 1,
+                            zIndex: 1500,
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                            borderRadius: 2,
+                            width: 100,
+                            height: 400,
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Picker
+                            data={data}
+                            onEmojiSelect={onEmojiSelect}
+                            theme="light"
+                            locale="vi"
+                            previewPosition="none"
+                        />
+                    </Box>
+                )}
             </Box>
+
+
         </Modal>
     );
 }

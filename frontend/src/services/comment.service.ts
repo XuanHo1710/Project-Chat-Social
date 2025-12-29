@@ -4,6 +4,10 @@ import {
   CommentsResponse,
   CreateCommentPayload,
   UpdateCommentPayload,
+  CreateCommentReactionPayload,
+  CommentReactionResponse,
+  CommentReaction,
+  CommentReactionType,
 } from "@/types/comment";
 
 // Default empty response
@@ -78,4 +82,48 @@ export const updateComment = async (
 // Delete a comment
 export const deleteComment = async (commentId: string): Promise<void> => {
   await axios.delete(`/comment/${commentId}`);
+};
+
+// ==================== COMMENT REACTIONS ====================
+
+// Toggle reaction on a comment
+export const toggleCommentReaction = async (
+  data: CreateCommentReactionPayload
+): Promise<CommentReactionResponse> => {
+  const response = await axios.post("/comment/reaction", data);
+  return response.data?.data || response.data;
+};
+
+// Get user's reaction on a comment
+export const getUserCommentReaction = async (
+  commentId: string
+): Promise<CommentReaction | null> => {
+  try {
+    const response = await axios.get(`/comment/${commentId}/reaction/me`);
+    return response.data?.data || response.data;
+  } catch {
+    return null;
+  }
+};
+
+// Get all reactions for a comment
+export const getCommentReactions = async (
+  commentId: string,
+  page: number = 1,
+  limit: number = 20
+): Promise<{
+  data: CommentReaction[];
+  counts: Record<CommentReactionType, number>;
+  total: number;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}> => {
+  const response = await axios.get(
+    `/comment/${commentId}/reactions?page=${page}&limit=${limit}`
+  );
+  return response.data?.data || response.data;
 };

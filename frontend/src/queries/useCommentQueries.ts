@@ -2,6 +2,7 @@ import {
   useMutation,
   useQueryClient,
   useInfiniteQuery,
+  useQuery,
 } from "@tanstack/react-query";
 import {
   getCommentsByPost,
@@ -9,8 +10,15 @@ import {
   createComment,
   updateComment,
   deleteComment,
+  toggleCommentReaction,
+  getUserCommentReaction,
+  getCommentReactions,
 } from "@/services/comment.service";
-import { CreateCommentPayload, UpdateCommentPayload } from "@/types/comment";
+import {
+  CreateCommentPayload,
+  UpdateCommentPayload,
+  CreateCommentReactionPayload,
+} from "@/types/comment";
 
 // Query keys
 export const commentKeys = {
@@ -18,6 +26,10 @@ export const commentKeys = {
   byPost: (postId: string) => [...commentKeys.all, "post", postId] as const,
   replies: (commentId: string) =>
     [...commentKeys.all, "replies", commentId] as const,
+  userReaction: (commentId: string) =>
+    [...commentKeys.all, "userReaction", commentId] as const,
+  reactions: (commentId: string) =>
+    [...commentKeys.all, "reactions", commentId] as const,
 };
 
 // Get comments for a post with infinite scroll
@@ -106,6 +118,54 @@ export const useDeleteComment = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: commentKeys.all });
       queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+  });
+};
+
+// ==================== COMMENT REACTIONS ====================
+
+// Get user's reaction on a comment
+export const useGetUserCommentReaction = (
+  commentId: string,
+  enabled: boolean = true
+) => {
+  return useQuery({
+    queryKey: commentKeys.userReaction(commentId),
+    queryFn: () => getUserCommentReaction(commentId),
+    enabled: enabled && !!commentId,
+  });
+};
+
+// Get all reactions for a comment
+export const useGetCommentReactions = (
+  commentId: string,
+  enabled: boolean = true
+) => {
+  return useQuery({
+    queryKey: commentKeys.reactions(commentId),
+    queryFn: () => getCommentReactions(commentId),
+    enabled: enabled && !!commentId,
+  });
+};
+
+// Toggle comment reaction mutation
+export const useToggleCommentReaction = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: CreateCommentReactionPayload) =>
+      toggleCommentReaction(data),
+    onSuccess: (result, variables) => {
+      // Invalidate user's reaction
+      queryClient.invalidateQueries({
+        queryKey: commentKeys.userReaction(variables.commentId),
+      });
+      // Invalidate all reactions for this comment
+      queryClient.invalidateQueries({
+        queryKey: commentKeys.reactions(variables.commentId),
+      });
+      // Invalidate comments to update totalLikes
+      queryClient.invalidateQueries({ queryKey: commentKeys.all });
     },
   });
 };

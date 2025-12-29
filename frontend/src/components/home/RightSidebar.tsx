@@ -27,6 +27,8 @@ export default function RightSidebar() {
                 overflowY: 'auto',
                 pt: 2,
                 px: 2,
+                bgcolor: '#f0f2f5',
+                zIndex: 100,
                 display: { xs: 'none', xl: 'block' },
                 '&::-webkit-scrollbar': {
                     width: '8px',

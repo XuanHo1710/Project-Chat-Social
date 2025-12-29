@@ -30,10 +30,6 @@ export default function PostItem({ post, handleOpenMenu, handleOpenComments, han
     const [totalReacts, setTotalReacts] = useState<number>(post.totalReacts);
 
 
-
-
-
-
     return (
         <Card key={post._id} sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
             <CardContent sx={{ p: 2 }}>

@@ -2,15 +2,24 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Comment, CommentDocument } from './entities/comment.entity';
+import {
+  CommentReaction,
+  CommentReactionDocument,
+  CommentReactionType,
+} from './entities/comment-reaction.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { CreateCommentReactionDto } from './dto/create-comment-reaction.dto';
 import { Post, PostDocument } from 'src/post/entities/post.entity';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Injectable()
 export class CommentService {
   constructor(
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
-    @InjectModel(Post.name) private postModel: Model<PostDocument>
+    @InjectModel(CommentReaction.name) private commentReactionModel: Model<CommentReactionDocument>,
+    @InjectModel(Post.name) private postModel: Model<PostDocument>,
+    private cloudinaryService: CloudinaryService
   ) {}
 
   async create(createCommentDto: CreateCommentDto, userId: string) {
@@ -136,9 +145,35 @@ export class CommentService {
       throw new NotFoundException('Comment not found');
     }
 
-    if (comment.userId.toString() !== userId) {
+    if (comment.userId.toString() !== userId.toString()) {
       throw new BadRequestException('You can only delete your own comments');
     }
+
+    // Delete media from Cloudinary if exists
+    if (comment.media && comment.media.length > 0) {
+      const mediaToDelete = comment.media
+        .filter((m) => m.publicId)
+        .map((m) => ({
+          publicId: m.publicId,
+          mediaType: m.mediaType as 'IMAGE' | 'VIDEO',
+        }));
+
+      if (mediaToDelete.length > 0) {
+        await this.cloudinaryService.deleteMultipleMedia(mediaToDelete);
+      }
+    }
+
+    // Delete legacy image field if exists
+    if (comment.image) {
+      // Extract publicId from URL if possible
+      const publicIdMatch = comment.image.match(/\/upload\/(?:v\d+\/)?(.+)\.\w+$/);
+      if (publicIdMatch) {
+        await this.cloudinaryService.deleteMedia(publicIdMatch[1], 'IMAGE');
+      }
+    }
+
+    // Delete all reactions for this comment
+    await this.commentReactionModel.deleteMany({ commentId: new Types.ObjectId(id) });
 
     // Soft delete
     await this.commentModel.findByIdAndUpdate(id, { isActive: false });
@@ -156,5 +191,130 @@ export class CommentService {
     }
 
     return { message: 'Comment deleted successfully' };
+  }
+
+  // ==================== COMMENT REACTIONS ====================
+
+  /**
+   * Toggle reaction on a comment
+   * - If user hasn't reacted: add reaction
+   * - If user reacted with same type: remove reaction
+   * - If user reacted with different type: update reaction
+   */
+  async toggleReaction(createReactionDto: CreateCommentReactionDto, userId: string) {
+    const { commentId, type } = createReactionDto;
+
+    // Check if comment exists
+    const comment = await this.commentModel.findById(commentId);
+    if (!comment || !comment.isActive) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    // Check if user already reacted
+    const existingReaction = await this.commentReactionModel.findOne({
+      commentId: new Types.ObjectId(commentId),
+      userId: new Types.ObjectId(userId),
+    });
+
+    if (existingReaction) {
+      if (existingReaction.type === type) {
+        // Same reaction type - remove it
+        await this.commentReactionModel.findByIdAndDelete(existingReaction._id);
+        await this.commentModel.findByIdAndUpdate(commentId, {
+          $inc: { totalLikes: -1 },
+        });
+        return {
+          action: 'removed',
+          reaction: null,
+          totalLikes: comment.totalLikes - 1,
+        };
+      } else {
+        // Different reaction type - update it
+        existingReaction.type = type;
+        await this.commentReactionModel.updateOne({ _id: existingReaction._id }, { type: type });
+        await existingReaction.populate('userId', 'firstName lastName avatar');
+        return {
+          action: 'updated',
+          reaction: existingReaction,
+          totalLikes: comment.totalLikes,
+        };
+      }
+    } else {
+      // No existing reaction - create new one
+      const reaction = new this.commentReactionModel({
+        commentId: new Types.ObjectId(commentId),
+        userId: new Types.ObjectId(userId),
+        type,
+      });
+      await reaction.save();
+      await reaction.populate('userId', 'firstName lastName avatar');
+
+      await this.commentModel.findByIdAndUpdate(commentId, {
+        $inc: { totalLikes: 1 },
+      });
+
+      return {
+        action: 'added',
+        reaction,
+        totalLikes: comment.totalLikes + 1,
+      };
+    }
+  }
+
+  /**
+   * Get user's reaction on a comment
+   */
+  async getUserReaction(commentId: string, userId: string): Promise<any> {
+    const reaction = await this.commentReactionModel
+      .findOne({
+        commentId: new Types.ObjectId(commentId),
+        userId: new Types.ObjectId(userId),
+      })
+      .lean();
+
+    return reaction;
+  }
+
+  /**
+   * Get all reactions for a comment with counts by type
+   */
+  async getCommentReactions(commentId: string, page: number = 1, limit: number = 20): Promise<any> {
+    const skip = (page - 1) * limit;
+
+    // Get reaction counts by type
+    const reactionCounts = await this.commentReactionModel.aggregate([
+      { $match: { commentId: new Types.ObjectId(commentId) } },
+      { $group: { _id: '$type', count: { $sum: 1 } } },
+    ]);
+
+    // Get paginated reactions with user info
+    const [reactions, total] = await Promise.all([
+      this.commentReactionModel
+        .find({ commentId: new Types.ObjectId(commentId) })
+        .populate('userId', 'firstName lastName avatar')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      this.commentReactionModel.countDocuments({ commentId: new Types.ObjectId(commentId) }),
+    ]);
+
+    // Format counts
+    const counts: Record<string, number> = {};
+    reactionCounts.forEach((rc) => {
+      counts[rc._id] = rc.count;
+    });
+
+    return {
+      data: reactions,
+      counts,
+      total,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 }

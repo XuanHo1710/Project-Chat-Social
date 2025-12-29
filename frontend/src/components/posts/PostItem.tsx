@@ -1,3 +1,4 @@
+'use client';
 import {
     Box, Card, CardContent, Avatar, Typography, IconButton, Divider,
 } from '@mui/material';
@@ -12,6 +13,7 @@ import {
 import { formatPostTime, getAuthorName } from '@/utils/formatPost';
 import ReactionButton from '@/components/posts/ReactionButton';
 import { PostType } from '@/types/post';
+import { useEffect, useState } from 'react';
 
 
 
@@ -24,6 +26,11 @@ export default function PostItem({ post, handleOpenMenu, handleOpenComments, han
         renderPostMedia: (post: PostType) => React.ReactNode,
         PrivacyIconComponent: React.ElementType
     }) {
+
+    const [totalReacts, setTotalReacts] = useState<number>(post.totalReacts);
+
+
+
 
 
 
@@ -63,7 +70,7 @@ export default function PostItem({ post, handleOpenMenu, handleOpenComments, han
                         <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: '#1877f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <ThumbUpIcon sx={{ fontSize: 12, color: 'white' }} />
                         </Box>
-                        <Typography sx={{ fontSize: 15, color: '#65676b' }}>{post.totalReacts}</Typography>
+                        <Typography sx={{ fontSize: 15, color: '#65676b' }}>{totalReacts}</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 2 }}>
                         <Typography sx={{ fontSize: 15, color: '#65676b', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }} onClick={() => handleOpenComments(post)}>{post.totalComments} bình luận</Typography>
@@ -76,7 +83,7 @@ export default function PostItem({ post, handleOpenMenu, handleOpenComments, han
                 {/* Post Actions with Reaction Picker */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-around', position: 'relative' }}>
                     {/* Reaction Button */}
-                    <ReactionButton postId={post._id} />
+                    <ReactionButton totalReacts={totalReacts} onReactionChange={setTotalReacts} postId={post._id} />
 
                     <Box onClick={() => handleOpenComments(post)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, flex: 1, justifyContent: 'center', '&:hover': { bgcolor: '#f0f2f5' } }}>
                         <CommentIcon sx={{ fontSize: '20px', color: '#65676b' }} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
     Box,
     Modal,
@@ -27,15 +27,11 @@ import {
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useCreatePost } from "@/queries/usePostQueries";
-import {
-    UploadMediaFiles,
-    DeleteMedia,
-    MediaUploadResult,
-} from "@/utils/uploadImage";
-import { PendingMediaItem, PostPrivacy, MediaItem } from "@/types/post";
+import { PostPrivacy, MediaItem } from "@/types/post";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import Image from "next/image";
+import { useMediaUpload } from "@/contexts/MediaUploadContext";
 
 // Privacy options
 const privacyOptions = [
@@ -98,7 +94,17 @@ export default function CreatePostModal({
     onClose,
 }: CreatePostModalProps) {
     const { user } = useAuthStore();
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const {
+        pendingMedia,
+        isUploading,
+        uploadProgress,
+        fileInputRef,
+        handleFileSelect,
+        handleRemovePendingMedia,
+        uploadAllMedia,
+        resetMedia,
+        handleEmojiSelect,
+    } = useMediaUpload();
 
     // States
     const [modalView, setModalView] = useState<"create" | "privacy">("create");
@@ -108,12 +114,6 @@ export default function CreatePostModal({
     const [selectedBackground, setSelectedBackground] = useState("none");
     const [showBackgrounds, setShowBackgrounds] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-    // Media states
-    const [pendingMedia, setPendingMedia] = useState<PendingMediaItem[]>([]);
-    const [isUploading, setIsUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [uploadedMedia, setUploadedMedia] = useState<MediaUploadResult[]>([]);
 
     // Post mutation
     const createPostMutation = useCreatePost();
@@ -126,118 +126,16 @@ export default function CreatePostModal({
             setSelectedBackground("none");
             setShowBackgrounds(false);
             setShowEmojiPicker(false);
-            setPendingMedia([]);
-            setUploadedMedia([]);
-            setUploadProgress(0);
+            resetMedia();
             setModalView("create");
         }
-    }, [open]);
+    }, [open, resetMedia]);
 
-    // Handle file selection
-    const handleFileSelect = useCallback(
-        (event: React.ChangeEvent<HTMLInputElement>) => {
-            const files = event.target.files;
-            if (!files) return;
-
-            const newMedia: PendingMediaItem[] = Array.from(files).map((file) => ({
-                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                file,
-                preview: URL.createObjectURL(file),
-                mediaType: file.type.startsWith("video/") ? "VIDEO" : "IMAGE",
-                uploadStatus: "pending" as const,
-            }));
-
-            setPendingMedia((prev) => [...prev, ...newMedia]);
-            setSelectedBackground("none"); // Disable background when adding media
-
-            // Reset file input
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
-        },
-        []
-    );
-
-    // Handle remove pending media
-    const handleRemovePendingMedia = useCallback(
-        async (mediaId: string) => {
-            const mediaItem = pendingMedia.find((m) => m.id === mediaId);
-            if (!mediaItem) return;
-
-            // Revoke object URL to free memory
-            URL.revokeObjectURL(mediaItem.preview);
-
-            // If already uploaded, delete from Cloudinary
-            if (mediaItem.uploadStatus === "uploaded" && mediaItem.publicId) {
-                await DeleteMedia(mediaItem.publicId, mediaItem.mediaType);
-                setUploadedMedia((prev) =>
-                    prev.filter((m) => m.publicId !== mediaItem.publicId)
-                );
-            }
-
-            setPendingMedia((prev) => prev.filter((m) => m.id !== mediaId));
-        },
-        [pendingMedia]
-    );
-
-    // Upload all pending media
-    const uploadAllMedia = useCallback(async () => {
-        const pendingFiles = pendingMedia.filter(
-            (m) => m.uploadStatus === "pending"
-        );
-        if (pendingFiles.length === 0) return uploadedMedia;
-
-        setIsUploading(true);
-        setUploadProgress(0);
-
-        try {
-            // Update status to uploading
-            setPendingMedia((prev) =>
-                prev.map((m) =>
-                    m.uploadStatus === "pending" ? { ...m, uploadStatus: "uploading" } : m
-                )
-            );
-
-            const results = await UploadMediaFiles(
-                pendingFiles.map((m) => m.file),
-                (progress) => setUploadProgress(progress)
-            );
-
-            // Update pending media with upload results
-            setPendingMedia((prev) =>
-                prev.map((m) => {
-                    const pendingIndex = pendingFiles.findIndex((p) => p.id === m.id);
-                    if (pendingIndex !== -1 && results[pendingIndex]) {
-                        const result = results[pendingIndex];
-                        return {
-                            ...m,
-                            uploadStatus: "uploaded" as const,
-                            url: result.url,
-                            publicId: result.publicId,
-                            width: result.width,
-                            height: result.height,
-                            duration: result.duration,
-                        };
-                    }
-                    return m;
-                })
-            );
-
-            const allUploaded = [...uploadedMedia, ...results];
-            setUploadedMedia(allUploaded);
-            return allUploaded;
-        } catch (error) {
-            // Mark as error
-            setPendingMedia((prev) =>
-                prev.map((m) =>
-                    m.uploadStatus === "uploading" ? { ...m, uploadStatus: "error" } : m
-                )
-            );
-            throw error;
-        } finally {
-            setIsUploading(false);
-        }
-    }, [pendingMedia, uploadedMedia]);
+    // Wrapper for file select to disable background
+    const onFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        handleFileSelect(event);
+        setSelectedBackground("none"); // Disable background when adding media
+    };
 
     // Handle post submission
     const handlePost = useCallback(async () => {
@@ -272,6 +170,8 @@ export default function CreatePostModal({
             });
 
             onClose();
+            // Reset states
+
         } catch (error) {
             console.error("Failed to create post:", error);
         }
@@ -286,10 +186,9 @@ export default function CreatePostModal({
         onClose,
     ]);
 
-    // Handle emoji select - DON'T close picker to allow continuous selection
-    const handleEmojiSelect = (emoji: { native: string }) => {
-        setPostContent((prev) => prev + emoji.native);
-        // Don't close picker - user can click away or click icon again to close
+    // Wrapper for emoji picker
+    const onEmojiSelect = (emoji: { native: string }) => {
+        handleEmojiSelect(emoji, setPostContent);
     };
 
     // Get selected background
@@ -712,7 +611,7 @@ export default function CreatePostModal({
                                     >
                                         <Picker
                                             data={data}
-                                            onEmojiSelect={handleEmojiSelect}
+                                            onEmojiSelect={onEmojiSelect}
                                             theme="light"
                                             locale="vi"
                                             previewPosition="none"
@@ -818,7 +717,7 @@ export default function CreatePostModal({
                     type="file"
                     accept="image/*,video/*"
                     multiple
-                    onChange={handleFileSelect}
+                    onChange={onFileSelect}
                     style={{ display: "none" }}
                 />
             </Box>

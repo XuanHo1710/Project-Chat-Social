@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Box, Typography, Tooltip, Grow, ClickAwayListener } from "@mui/material";
 import { ThumbUpOutlined as ThumbUpOutlinedIcon } from "@mui/icons-material";
 import { useToggleReaction, useGetUserReaction } from "@/queries/useReactionQueries";
 import { ReactionType } from "@/types/reaction";
+import { on } from "events";
 
 // Reaction data with emoji, label, and color
 const REACTIONS = [
@@ -19,21 +20,30 @@ const REACTIONS = [
 interface ReactionButtonProps {
     postId: string;
     initialReaction?: ReactionType | null;
-    onReactionChange?: (reaction: ReactionType | null, totalReacts: number) => void;
+    onReactionChange: (totalReacts: number) => void;
+    totalReacts: number;
 }
 
-export default function ReactionButton({ postId, initialReaction, onReactionChange }: ReactionButtonProps) {
+export default function ReactionButton({ postId, initialReaction, onReactionChange, totalReacts }: ReactionButtonProps) {
     const [showReactions, setShowReactions] = useState(false);
     const [localReaction, setLocalReaction] = useState<ReactionType | null>(initialReaction || null);
 
     // Fetch user's reaction for this post
-    const { data: userReactionData } = useGetUserReaction(postId);
+    const { data: userReactionData, isLoading } = useGetUserReaction(postId);
     const toggleReaction = useToggleReaction();
     const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
     const leaveTimeout = useRef<NodeJS.Timeout | null>(null);
 
-    // Use server data if available, otherwise use local state for optimistic update
-    const currentReaction = userReactionData?.type ?? localReaction;
+
+    useEffect(() => {
+        const fetchLocalReaction = () => {
+            if (!isLoading && userReactionData) {
+                setLocalReaction(userReactionData.type);
+            }
+        }
+        fetchLocalReaction();
+    }, [userReactionData, isLoading]);
+
 
     const handleMouseEnter = () => {
         if (leaveTimeout.current) {
@@ -55,32 +65,44 @@ export default function ReactionButton({ postId, initialReaction, onReactionChan
         }, 300);
     };
 
-    const handleReactionSelect = async (type: ReactionType) => {
+    const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleReactionSelect = (type: ReactionType) => {
         setShowReactions(false);
 
-        // Optimistic update - immediately update UI
-        const previousReaction = currentReaction;
-        const newReaction = previousReaction === type ? null : type;
-        setLocalReaction(newReaction);
-
-        try {
-            const result = await toggleReaction.mutateAsync({ postId, type });
-            // Sync with server response
-            setLocalReaction(result.reaction?.type || null);
-            onReactionChange?.(result.reaction?.type || null, result.totalReacts);
-        } catch (error) {
-            // Rollback on error
-            setLocalReaction(previousReaction);
-            console.error("Failed to toggle reaction:", error);
+        // UI optimistic update
+        if (localReaction === type) {
+            onReactionChange(totalReacts - 1);
+            setLocalReaction(null);
+        } else if (!localReaction) {
+            onReactionChange(totalReacts + 1);
+            setLocalReaction(type);
+        } else {
+            onReactionChange(totalReacts);
+            setLocalReaction(type);
         }
+
+
+        if (debounceRef.current) {
+            clearTimeout(debounceRef.current);
+        }
+
+
+        debounceRef.current = setTimeout(async () => {
+            try {
+                await toggleReaction.mutateAsync({ postId, type });
+            } catch (e) {
+                console.error("rollback needed", e);
+            }
+        }, 1200); // 1200ms khi người dùng không tương tác thì mới gửi request
     };
 
+
     const handleClick = () => {
-        // Quick click = toggle LIKE
         handleReactionSelect("LIKE");
     };
 
-    const currentReactionData = REACTIONS.find((r) => r.type === currentReaction);
+    const currentReactionData = REACTIONS.find((r) => r.type === localReaction);
 
     return (
         <ClickAwayListener onClickAway={() => setShowReactions(false)}>
@@ -152,7 +174,7 @@ export default function ReactionButton({ postId, initialReaction, onReactionChan
                         userSelect: "none",
                     }}
                 >
-                    {currentReaction ? (
+                    {localReaction ? (
                         <Typography sx={{ fontSize: 20 }}>{currentReactionData?.emoji}</Typography>
                     ) : (
                         <ThumbUpOutlinedIcon sx={{ fontSize: 20 }} />

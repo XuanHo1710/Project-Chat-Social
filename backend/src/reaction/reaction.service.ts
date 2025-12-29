@@ -48,7 +48,8 @@ export class ReactionService {
       } else {
         // Different reaction type - update it
         existingReaction.type = type;
-        await existingReaction.save();
+
+        await this.reactionModel.updateOne({ _id: existingReaction._id }, { type: type });
         await existingReaction.populate('userId', 'firstName lastName avatar');
         return {
           action: 'updated',

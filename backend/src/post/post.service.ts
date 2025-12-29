@@ -100,7 +100,6 @@ export class PostService {
         .exec(),
       this.postModel.countDocuments(filter),
     ]);
-
     return {
       data,
       total,

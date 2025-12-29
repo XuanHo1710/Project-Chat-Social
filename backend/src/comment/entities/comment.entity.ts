@@ -59,6 +59,9 @@ export class Comment {
   @Prop({ type: Boolean, default: true })
   isActive: boolean;
 
+  @Prop({ type: Boolean, default: false })
+  isEdited: boolean;
+
   @Prop()
   createdAt: Date;
 

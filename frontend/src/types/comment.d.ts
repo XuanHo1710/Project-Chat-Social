@@ -45,6 +45,7 @@ export interface Comment {
   totalReplies: number;
   totalLikes: number;
   isActive: boolean;
+  isEdited?: boolean;
   createdAt: string;
   updatedAt: string;
   // Client-side fields for reaction display

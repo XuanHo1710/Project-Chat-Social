@@ -20,7 +20,7 @@ export class CommentService {
     @InjectModel(CommentReaction.name) private commentReactionModel: Model<CommentReactionDocument>,
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
     private cloudinaryService: CloudinaryService
-  ) {}
+  ) { }
 
   async create(createCommentDto: CreateCommentDto, userId: string) {
     const { postId, parentId, ...rest } = createCommentDto;
@@ -133,7 +133,11 @@ export class CommentService {
     }
 
     const updated = await this.commentModel
-      .findByIdAndUpdate(id, updateCommentDto, { new: true })
+      .findByIdAndUpdate(
+        id,
+        { ...updateCommentDto, isEdited: true },
+        { new: true }
+      )
       .populate('userId', 'firstName lastName avatar');
 
     return updated;

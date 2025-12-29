@@ -33,7 +33,7 @@ export default function Home() {
           bgcolor: '#f0f2f5',
         }}
       >
-        <CircularProgress size={60} sx={{ color: '#1877f2' }} />
+        <CircularProgress sx={{ fontSize: 60, color: '#1877f2' }} />
       </Box>
     );
   }

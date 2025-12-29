@@ -17,8 +17,8 @@ import Link from 'next/link';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useConversationByUserId } from '@/queries/useConversationQueries';
 
-import AvatarMenu from './AvatarMenu';
-import ChatPopup from '@/components/ChatPopup';
+import AvatarMenu from '../AvatarMenu';
+import ChatPopup from '@/components/chats/ChatPopup';
 import NotificationPopup from '@/components/NotificationPopup';
 import { usePathname } from 'next/navigation';
 

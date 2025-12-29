@@ -6,7 +6,7 @@ import {
     PersonAdd as PersonAddIcon,
     Close as CloseIcon,
 } from '@mui/icons-material';
-import Header from '@/components/Header';
+import Header from '@/components/home/Header';
 import CardFriendShowAllComponent from '@/components/friends/CardFriendShowAll';
 import { useAccountsByPage } from '@/queries/useAccountQueries';
 import { useAuthStore } from '@/stores/useAuthStore';

@@ -35,6 +35,7 @@ import {
 import { PendingMediaItem, PostPrivacy, MediaItem } from "@/types/post";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
+import Image from "next/image";
 
 // Privacy options
 const privacyOptions = [
@@ -499,7 +500,7 @@ export default function CreatePostModal({
                                                         }}
                                                     />
                                                 ) : (
-                                                    <img
+                                                    <Image
                                                         src={media.preview}
                                                         alt="Preview"
                                                         style={{
@@ -508,6 +509,8 @@ export default function CreatePostModal({
                                                             objectFit: "cover",
                                                             borderRadius: 8,
                                                         }}
+                                                        width={200}
+                                                        height={200}
                                                     />
                                                 )}
 

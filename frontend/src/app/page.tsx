@@ -1,15 +1,15 @@
 'use client';
 
-import Header from '@/components/Header';
-import Sidebar from '@/components/Sidebar';
+import Header from '@/components/home/Header';
+import Sidebar from '@/components/home/Sidebar';
 
-import RightSidebar from '@/components/RightSidebar';
+import RightSidebar from '@/components/home/RightSidebar';
 import { Box, CircularProgress } from '@mui/material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { CLIENT_PATH } from '@/constants/paths';
-import Feed from '@/components/Feed';
+import HomeFeed from '@/components/home/HomeFeed';
 
 
 export default function Home() {
@@ -56,7 +56,7 @@ export default function Home() {
             mr: { xs: 0, xl: '280px' },
           }}
         >
-          <Feed />
+          <HomeFeed />
         </Box>
 
         <RightSidebar />

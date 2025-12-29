@@ -3,8 +3,8 @@ import React, { useState } from "react";
 import { Box } from "@mui/material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId } from "@/queries/useConversationQueries";
-import AreaChatMessages from "@/components/area-chat-message";
-import ChatSidebar from "@/components/ChatSidebar";
+import AreaChatMessages from "@/components/chats/AreaChatMessage";
+import ChatSidebar from "@/components/chats/ChatSidebar";
 
 interface SelectedConversation {
     _id: string;

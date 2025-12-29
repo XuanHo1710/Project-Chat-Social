@@ -21,7 +21,6 @@ export class PostController {
   constructor(private readonly postService: PostService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard)
   create(@Body() createPostDto: CreatePostDto) {
     return this.postService.create(createPostDto);
   }
@@ -40,7 +39,6 @@ export class PostController {
   }
 
   @Get('news-feed')
-  @UseGuards(JwtAuthGuard)
   getNewsFeed(
     @UserInfo() user: any,
     @Query('page') page?: string,

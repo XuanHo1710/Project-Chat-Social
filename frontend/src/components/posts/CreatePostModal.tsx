@@ -218,7 +218,7 @@ export default function CreatePostModal({
         >
             <Box
                 sx={{
-                    width: 700,
+                    width: 800,
                     maxHeight: "90vh",
                     bgcolor: "white",
                     borderRadius: 2,

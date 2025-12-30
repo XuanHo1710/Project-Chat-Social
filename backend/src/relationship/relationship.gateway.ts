@@ -9,9 +9,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { AccountService } from 'src/account/account.service';
 import { CreateRelationshipDto } from 'src/relationship/dto/create-relationship.dto';
-import { UpdateRelationshipDto } from 'src/relationship/dto/update-relationship.dto';
 import { RelationshipService } from 'src/relationship/relationship.service';
 
 // Map để lưu userId -> Set<socketId> (support multiple connections per user)
@@ -29,7 +27,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
   server: Server;
   private logger = new Logger('RelationshipGateway');
 
-  constructor(private readonly relationshipService: RelationshipService) {}
+  constructor(private readonly relationshipService: RelationshipService) { }
 
   async handleConnection(client: Socket) {
     try {
@@ -53,7 +51,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
         userSockets.set(userId, new Set());
       }
       userSockets.get(userId)!.add(client.id);
-    } catch {}
+    } catch { }
   }
 
   async handleDisconnect(client: Socket) {

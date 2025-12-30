@@ -46,42 +46,97 @@ import ImageViewer from "./ImageViewer";
 import MentionInput from "./MentionInput";
 import { MediaItem } from "@/types/post";
 
-// Helper function to render content with @mentions as links
+// Helper function to render content with @mentions and #hashtags as styled elements
 function renderContentWithMentions(content: string) {
     if (!content) return null;
 
+    // Combined regex for mentions and hashtags
     const mentionRegex = /@\[([a-f0-9]+):([^\]]+)\]/gi;
-    const parts: (string | React.ReactNode)[] = [];
-    let lastIndex = 0;
+    const hashtagRegex = /#([\w\u00C0-\u024F\u1E00-\u1EFF]+)/gi;
+
+    // First, collect all matches with their positions
+    const matches: Array<{
+        index: number;
+        length: number;
+        type: 'mention' | 'hashtag';
+        content: React.ReactNode;
+    }> = [];
+
+    // Find all mentions
     let match;
-    let keyIndex = 0;
-
     while ((match = mentionRegex.exec(content)) !== null) {
-        if (match.index > lastIndex) {
-            parts.push(content.slice(lastIndex, match.index));
-        }
-
         const userId = match[1];
         const displayName = match[2];
-
-        parts.push(
-            <Link
-                key={keyIndex++}
-                href={`/profile/${userId}`}
-                style={{
-                    color: '#1877f2',
-                    textDecoration: 'none',
-                    fontWeight: 600,
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                @{displayName}
-            </Link>
-        );
-
-        lastIndex = match.index + match[0].length;
+        matches.push({
+            index: match.index,
+            length: match[0].length,
+            type: 'mention',
+            content: (
+                <Link
+                    key={`mention-${match.index}`}
+                    href={`/profile/${userId}`}
+                    style={{
+                        color: '#1877f2',
+                        textDecoration: 'none',
+                        fontWeight: 600,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    @{displayName}
+                </Link>
+            ),
+        });
     }
 
+    // Find all hashtags
+    while ((match = hashtagRegex.exec(content)) !== null) {
+        const hashtag = match[1];
+        const fullMatch = match[0];
+        matches.push({
+            index: match.index,
+            length: fullMatch.length,
+            type: 'hashtag',
+            content: (
+                <span
+                    key={`hashtag-${match.index}`}
+                    style={{
+                        color: '#1877f2',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // TODO: Navigate to hashtag search
+                        console.log('Clicked hashtag:', hashtag);
+                    }}
+                >
+                    {fullMatch}
+                </span>
+            ),
+        });
+    }
+
+    // Sort matches by index
+    matches.sort((a, b) => a.index - b.index);
+
+    // Build result array
+    const parts: (string | React.ReactNode)[] = [];
+    let lastIndex = 0;
+
+    for (const m of matches) {
+        // Skip if this match overlaps with previous (shouldn't happen normally)
+        if (m.index < lastIndex) continue;
+
+        // Add text before this match
+        if (m.index > lastIndex) {
+            parts.push(content.slice(lastIndex, m.index));
+        }
+
+        parts.push(m.content);
+        lastIndex = m.index + m.length;
+    }
+
+    // Add remaining text
     if (lastIndex < content.length) {
         parts.push(content.slice(lastIndex));
     }
@@ -1168,7 +1223,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
             )}
 
             {/* Main Comment Input */}
-            <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start", position: "relative" }}>
+            <Box sx={{ display: "flex", gap: 1, alignItems: "center", position: "relative" }}>
                 <Avatar src={user?.avatar} sx={{ width: 32, height: 32 }}>
                     {user?.fullName?.[0]}
                 </Avatar>

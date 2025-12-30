@@ -10,7 +10,7 @@ export class ReactionService {
   constructor(
     @InjectModel(Reaction.name) private reactionModel: Model<ReactionDocument>,
     @InjectModel(Post.name) private postModel: Model<PostDocument>
-  ) {}
+  ) { }
 
   /**
    * Toggle reaction on a post
@@ -27,7 +27,7 @@ export class ReactionService {
       throw new NotFoundException('Post not found');
     }
 
-    // Check if user already reacted
+    // Use findOneAndUpdate for atomic operation to prevent race conditions
     const existingReaction = await this.reactionModel.findOne({
       postId: new Types.ObjectId(postId),
       userId: new Types.ObjectId(userId),
@@ -37,45 +37,74 @@ export class ReactionService {
       if (existingReaction.type === type) {
         // Same reaction type - remove it
         await this.reactionModel.findByIdAndDelete(existingReaction._id);
-        await this.postModel.findByIdAndUpdate(postId, {
-          $inc: { totalReacts: -1 },
-        });
+        const updatedPost = await this.postModel.findByIdAndUpdate(
+          postId,
+          { $inc: { totalReacts: -1 } },
+          { new: true }
+        );
         return {
           action: 'removed',
           reaction: null,
-          totalReacts: post.totalReacts - 1,
+          totalReacts: Math.max(0, updatedPost?.totalReacts ?? 0),
         };
       } else {
         // Different reaction type - update it
-        existingReaction.type = type;
-
         await this.reactionModel.updateOne({ _id: existingReaction._id }, { type: type });
-        await existingReaction.populate('userId', 'firstName lastName avatar');
         return {
           action: 'updated',
-          reaction: existingReaction,
+          reaction: { ...existingReaction.toObject(), type },
           totalReacts: post.totalReacts,
         };
       }
     } else {
-      // No existing reaction - create new one
-      const reaction = new this.reactionModel({
-        postId: new Types.ObjectId(postId),
-        userId: new Types.ObjectId(userId),
-        type,
-      });
-      await reaction.save();
-      await reaction.populate('userId', 'firstName lastName avatar');
+      // No existing reaction - try to create new one
+      try {
+        const reaction = new this.reactionModel({
+          postId: new Types.ObjectId(postId),
+          userId: new Types.ObjectId(userId),
+          type,
+        });
+        await reaction.save();
 
-      await this.postModel.findByIdAndUpdate(postId, {
-        $inc: { totalReacts: 1 },
-      });
+        const updatedPost = await this.postModel.findByIdAndUpdate(
+          postId,
+          { $inc: { totalReacts: 1 } },
+          { new: true }
+        );
 
-      return {
-        action: 'added',
-        reaction,
-        totalReacts: post.totalReacts + 1,
-      };
+        return {
+          action: 'added',
+          reaction,
+          totalReacts: updatedPost?.totalReacts ?? post.totalReacts + 1,
+        };
+      } catch (error: any) {
+        // Handle duplicate key error (race condition - reaction was created by another request)
+        if (error.code === 11000) {
+          // Reaction already exists, fetch current state and return
+          const currentReaction = await this.reactionModel.findOne({
+            postId: new Types.ObjectId(postId),
+            userId: new Types.ObjectId(userId),
+          });
+          const currentPost = await this.postModel.findById(postId);
+
+          if (currentReaction && currentReaction.type !== type) {
+            // Update to the new type
+            await this.reactionModel.updateOne({ _id: currentReaction._id }, { type });
+            return {
+              action: 'updated',
+              reaction: { ...currentReaction.toObject(), type },
+              totalReacts: currentPost?.totalReacts ?? post.totalReacts,
+            };
+          }
+
+          return {
+            action: 'exists',
+            reaction: currentReaction,
+            totalReacts: currentPost?.totalReacts ?? post.totalReacts,
+          };
+        }
+        throw error;
+      }
     }
   }
 

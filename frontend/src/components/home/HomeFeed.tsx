@@ -38,7 +38,6 @@ const stories = [
 ];
 
 
-
 export default function HomeFeed() {
     const { user } = useAuthStore();
     const storiesRef = useRef<HTMLDivElement>(null);

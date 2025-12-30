@@ -20,6 +20,7 @@ import { PostModule } from './post/post.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { CommentModule } from './comment/comment.module';
 import { ReactionModule } from './reaction/reaction.module';
+import { HashtagModule } from './hashtag/hashtag.module';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 @Module({
   imports: [
@@ -44,6 +45,7 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     CloudinaryModule,
     CommentModule,
     ReactionModule,
+    HashtagModule,
   ],
   controllers: [AppController],
   providers: [
@@ -57,4 +59,4 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     GoogleStrategy,
   ],
 })
-export class AppModule {}
+export class AppModule { }

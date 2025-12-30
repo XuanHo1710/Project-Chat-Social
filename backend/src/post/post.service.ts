@@ -4,13 +4,16 @@ import { Model, Types } from 'mongoose';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { Post, PostDocument, PostPrivacy } from './entities/post.entity';
+import { HashtagService } from 'src/hashtag/hashtag.service';
+import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 
 @Injectable()
 export class PostService {
   constructor(
     @InjectModel(Post.name)
-    private postModel: Model<PostDocument>
-  ) {}
+    private postModel: Model<PostDocument>,
+    private hashtagService: HashtagService,
+  ) { }
 
   async create(createPostDto: CreatePostDto): Promise<Post> {
     // Validate: phải có content hoặc media
@@ -25,7 +28,19 @@ export class PostService {
       isActive: true,
     });
 
-    return newPost.save();
+    const savedPost = await newPost.save();
+
+    // Process hashtags from content (if any)
+    if (createPostDto.content) {
+      await this.hashtagService.processHashtags(
+        createPostDto.content,
+        savedPost._id.toString(),
+        HashtagEntityType.POST,
+        createPostDto.userId,
+      );
+    }
+
+    return savedPost;
   }
 
   async findAll(
@@ -178,6 +193,16 @@ export class PostService {
       .populate('userId', 'firstName lastName avatar username')
       .exec();
 
+    // Update hashtags if content changed
+    if (updatePostDto.content !== undefined) {
+      await this.hashtagService.updateHashtags(
+        updatePostDto.content || '',
+        id,
+        HashtagEntityType.POST,
+        currentUserId,
+      );
+    }
+
     return updatedPost!;
   }
 
@@ -194,6 +219,9 @@ export class PostService {
     if (post.userId.toString() !== currentUserId) {
       throw new BadRequestException('You can only delete your own posts');
     }
+
+    // Remove hashtag mappings
+    await this.hashtagService.removeHashtagMappings(id, HashtagEntityType.POST);
 
     // Soft delete
     await this.postModel.findByIdAndUpdate(id, {

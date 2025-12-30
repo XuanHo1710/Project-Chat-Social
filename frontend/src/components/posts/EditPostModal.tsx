@@ -259,7 +259,7 @@ export default function EditPostModal({ open, onClose, post }: EditPostModalProp
         >
             <Box
                 sx={{
-                    width: 500,
+                    width: 800,
                     maxHeight: "90vh",
                     bgcolor: "white",
                     borderRadius: 2,

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Box, Typography, Tooltip, Grow, ClickAwayListener } from "@mui/material";
-import { ThumbUpOutlined as ThumbUpOutlinedIcon } from "@mui/icons-material";
-import { useToggleCommentReaction, useGetUserCommentReaction } from "@/queries/useCommentQueries";
+import { useGetUserCommentReaction } from "@/queries/useCommentQueries";
 import { CommentReactionType } from "@/types/comment";
+import { useSocket } from "@/contexts/SocketContext";
 
 // Reaction data with emoji, label, and color
 const REACTIONS = [
@@ -31,21 +31,63 @@ export default function CommentReactionButton({
     const [localReaction, setLocalReaction] = useState<CommentReactionType | null>(null);
     const [localTotalLikes, setLocalTotalLikes] = useState(totalLikes);
 
+    const { socketReaction } = useSocket();
+
     // Fetch user's reaction for this comment
     const { data: userReactionData, isLoading } = useGetUserCommentReaction(commentId);
-    const toggleReaction = useToggleCommentReaction();
     const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
     const leaveTimeout = useRef<NodeJS.Timeout | null>(null);
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
+    // USE REFS to track actual current state (avoid stale closure issues when spamming)
+    const currentReactionRef = useRef<CommentReactionType | null>(null);
+    const currentTotalRef = useRef<number>(totalLikes);
+
+    // Sync refs with state
+    useEffect(() => {
+        currentReactionRef.current = localReaction;
+    }, [localReaction]);
+
+    useEffect(() => {
+        currentTotalRef.current = localTotalLikes;
+    }, [localTotalLikes]);
+
     // Update localTotalLikes when prop changes
     useEffect(() => {
         setLocalTotalLikes(totalLikes);
+        currentTotalRef.current = totalLikes;
     }, [totalLikes]);
+
+    // Subscribe to comment reaction updates
+    useEffect(() => {
+        if (!socketReaction || !commentId) return;
+
+        // Listen for own reaction result
+        const handleCommentReactionResult = (data: {
+            success: boolean;
+            commentId: string;
+            action: string;
+            totalLikes: number;
+        }) => {
+            if (data.commentId === commentId && data.success) {
+                // Server is authoritative
+                setLocalTotalLikes(data.totalLikes);
+                currentTotalRef.current = data.totalLikes;
+                onReactionChange?.(data.totalLikes);
+            }
+        };
+
+        socketReaction.on('comment:reaction:result', handleCommentReactionResult);
+
+        return () => {
+            socketReaction.off('comment:reaction:result', handleCommentReactionResult);
+        };
+    }, [socketReaction, commentId, onReactionChange]);
 
     useEffect(() => {
         if (!isLoading && userReactionData) {
             setLocalReaction(userReactionData.type);
+            currentReactionRef.current = userReactionData.type;
         }
     }, [userReactionData, isLoading]);
 
@@ -69,40 +111,55 @@ export default function CommentReactionButton({
         }, 300);
     };
 
-    const handleReactionSelect = (type: CommentReactionType) => {
+    const handleReactionSelect = useCallback((type: CommentReactionType) => {
         setShowReactions(false);
 
-        // UI optimistic update
-        if (localReaction === type) {
+        // Use REFS for current state (accurate even when spamming fast)
+        const currentReaction = currentReactionRef.current;
+        const currentTotal = currentTotalRef.current;
+
+        // Calculate new state based on CURRENT ref values
+        let newReaction: CommentReactionType | null;
+        let newTotal: number;
+
+        if (currentReaction === type) {
             // Remove reaction
-            const newTotal = Math.max(0, localTotalLikes - 1);
-            setLocalTotalLikes(newTotal);
-            onReactionChange?.(newTotal);
-            setLocalReaction(null);
-        } else if (!localReaction) {
+            newReaction = null;
+            newTotal = Math.max(0, currentTotal - 1);
+        } else if (!currentReaction) {
             // Add new reaction
-            const newTotal = localTotalLikes + 1;
-            setLocalTotalLikes(newTotal);
-            onReactionChange?.(newTotal);
-            setLocalReaction(type);
+            newReaction = type;
+            newTotal = currentTotal + 1;
         } else {
             // Change reaction type (total stays same)
-            setLocalReaction(type);
+            newReaction = type;
+            newTotal = currentTotal;
         }
 
-        // Debounce API call
+        // Update state AND refs immediately
+        setLocalReaction(newReaction);
+        setLocalTotalLikes(newTotal);
+        currentReactionRef.current = newReaction;
+        currentTotalRef.current = newTotal;
+
+        // Notify parent immediately for optimistic UI
+        onReactionChange?.(newTotal);
+
+        // Cancel previous debounce
         if (debounceRef.current) {
             clearTimeout(debounceRef.current);
         }
 
-        debounceRef.current = setTimeout(async () => {
-            try {
-                await toggleReaction.mutateAsync({ commentId, type });
-            } catch (e) {
-                console.error("Comment reaction error:", e);
+        // Debounce - only send the FINAL state after user stops clicking
+        debounceRef.current = setTimeout(() => {
+            if (socketReaction?.connected) {
+                socketReaction.emit('comment:reaction:toggle', {
+                    commentId,
+                    type
+                });
             }
-        }, 1500);
-    };
+        }, 400);
+    }, [commentId, socketReaction, onReactionChange]);
 
     const handleClick = () => {
         handleReactionSelect("LIKE");
@@ -170,7 +227,7 @@ export default function CommentReactionButton({
                 <Box
                     onClick={handleClick}
                     sx={{
-                        display: "inline-flex",
+                        display: localReaction ? "inline-flex" : "block",
                         alignItems: "center",
                         gap: 0.5,
                         cursor: "pointer",
@@ -178,7 +235,9 @@ export default function CommentReactionButton({
                     }}
                 >
                     {localReaction ? (
-                        <Typography sx={{ fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center' }}>{currentReactionData?.emoji}</Typography>
+                        <Typography sx={{ fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center' }}>
+                            {currentReactionData?.emoji}
+                        </Typography>
                     ) : null}
                     <Typography
                         sx={{
@@ -192,7 +251,7 @@ export default function CommentReactionButton({
                         {currentReactionData?.label || "Thích"}
                     </Typography>
                     {localTotalLikes > 0 && (
-                        <Typography sx={{ fontSize: 11, color: "#65676b", lineHeight: 1 }}>
+                        <Typography sx={{ fontSize: 11, color: "#65676b", lineHeight: 1, ml: 0.5 }}>
                             ({localTotalLikes})
                         </Typography>
                     )}

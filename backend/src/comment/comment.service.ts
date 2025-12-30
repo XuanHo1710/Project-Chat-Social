@@ -12,6 +12,8 @@ import { UpdateCommentDto } from './dto/update-comment.dto';
 import { CreateCommentReactionDto } from './dto/create-comment-reaction.dto';
 import { Post, PostDocument } from 'src/post/entities/post.entity';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { HashtagService } from 'src/hashtag/hashtag.service';
+import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 
 @Injectable()
 export class CommentService {
@@ -19,7 +21,8 @@ export class CommentService {
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
     @InjectModel(CommentReaction.name) private commentReactionModel: Model<CommentReactionDocument>,
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
-    private cloudinaryService: CloudinaryService
+    private cloudinaryService: CloudinaryService,
+    private hashtagService: HashtagService,
   ) { }
 
   async create(createCommentDto: CreateCommentDto, userId: string) {
@@ -52,6 +55,16 @@ export class CommentService {
     });
 
     await comment.save();
+
+    // Process hashtags from content (if any)
+    if (createCommentDto.content) {
+      await this.hashtagService.processHashtags(
+        createCommentDto.content,
+        comment._id.toString(),
+        HashtagEntityType.COMMENT,
+        userId,
+      );
+    }
 
     // Increment post's comment count
     await this.postModel.findByIdAndUpdate(postId, {
@@ -140,6 +153,16 @@ export class CommentService {
       )
       .populate('userId', 'firstName lastName avatar');
 
+    // Update hashtags if content changed
+    if (updateCommentDto.content !== undefined) {
+      await this.hashtagService.updateHashtags(
+        updateCommentDto.content || '',
+        id,
+        HashtagEntityType.COMMENT,
+        userId,
+      );
+    }
+
     return updated;
   }
 
@@ -178,6 +201,9 @@ export class CommentService {
 
     // Delete all reactions for this comment
     await this.commentReactionModel.deleteMany({ commentId: new Types.ObjectId(id) });
+
+    // Remove hashtag mappings
+    await this.hashtagService.removeHashtagMappings(id, HashtagEntityType.COMMENT);
 
     // Soft delete
     await this.commentModel.findByIdAndUpdate(id, { isActive: false });

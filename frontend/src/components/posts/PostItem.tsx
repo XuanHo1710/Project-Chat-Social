@@ -13,7 +13,9 @@ import {
 import { formatPostTime, getAuthorName } from '@/utils/formatPost';
 import ReactionButton from '@/components/posts/ReactionButton';
 import { PostType } from '@/types/post';
-import { useEffect, useState } from 'react';
+import { HashtagContent } from '@/utils/hashtagParser';
+import { useReactionStore } from '@/stores/useReactionStore';
+import { useEffect } from 'react';
 
 
 
@@ -27,8 +29,23 @@ export default function PostItem({ post, handleOpenMenu, handleOpenComments, han
         PrivacyIconComponent: React.ElementType
     }) {
 
-    const [totalReacts, setTotalReacts] = useState<number>(post.totalReacts);
+    // Use global store for reaction state
+    const { postReactions, initPostReaction } = useReactionStore();
+    const reactionState = postReactions[post._id];
 
+    // Get totalReacts from global store, fallback to post data
+    const displayTotalReacts = reactionState?.totalReacts ?? post.totalReacts;
+
+    // Initialize store with post data on mount
+    useEffect(() => {
+        initPostReaction(post._id, post.totalReacts);
+    }, [post._id, post.totalReacts, initPostReaction]);
+
+    const handleHashtagClick = (hashtag: string) => {
+        // TODO: Navigate to hashtag search page
+        console.log('Clicked hashtag:', hashtag);
+        // router.push(`/search?q=%23${hashtag}`);
+    };
 
     return (
         <Card key={post._id} sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
@@ -48,13 +65,17 @@ export default function PostItem({ post, handleOpenMenu, handleOpenComments, han
                     <IconButton><CloseIcon /></IconButton>
                 </Box>
 
-                {/* Post Content */}
+                {/* Post Content with Hashtag Highlighting */}
                 {post.background ? (
                     <Box sx={{ background: post.background, borderRadius: 2, p: 4, minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-                        <Typography sx={{ fontSize: 24, fontWeight: 700, color: 'white', textAlign: 'center' }}>{post.content}</Typography>
+                        <Typography sx={{ fontSize: 24, fontWeight: 700, color: 'white', textAlign: 'center' }}>
+                            <HashtagContent content={post.content || ''} onHashtagClick={handleHashtagClick} />
+                        </Typography>
                     </Box>
                 ) : (
-                    <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#050505' }}>{post.content}</Typography>
+                    <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#050505' }}>
+                        <HashtagContent content={post.content || ''} onHashtagClick={handleHashtagClick} />
+                    </Typography>
                 )}
 
                 {/* Render media */}
@@ -66,7 +87,7 @@ export default function PostItem({ post, handleOpenMenu, handleOpenComments, han
                         <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: '#1877f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <ThumbUpIcon sx={{ fontSize: 12, color: 'white' }} />
                         </Box>
-                        <Typography sx={{ fontSize: 15, color: '#65676b' }}>{totalReacts}</Typography>
+                        <Typography sx={{ fontSize: 15, color: '#65676b' }}>{displayTotalReacts}</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 2 }}>
                         <Typography sx={{ fontSize: 15, color: '#65676b', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }} onClick={() => handleOpenComments(post)}>{post.totalComments} bình luận</Typography>
@@ -78,8 +99,11 @@ export default function PostItem({ post, handleOpenMenu, handleOpenComments, han
 
                 {/* Post Actions with Reaction Picker */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-around', position: 'relative' }}>
-                    {/* Reaction Button */}
-                    <ReactionButton totalReacts={totalReacts} onReactionChange={setTotalReacts} postId={post._id} />
+                    {/* Reaction Button - uses global store automatically */}
+                    <ReactionButton
+                        postId={post._id}
+                        initialTotalReacts={post.totalReacts}
+                    />
 
                     <Box onClick={() => handleOpenComments(post)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, flex: 1, justifyContent: 'center', '&:hover': { bgcolor: '#f0f2f5' } }}>
                         <CommentIcon sx={{ fontSize: '20px', color: '#65676b' }} />

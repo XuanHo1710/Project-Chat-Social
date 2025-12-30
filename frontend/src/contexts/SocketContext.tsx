@@ -8,13 +8,15 @@ import { io, Socket } from 'socket.io-client';
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
-  socketRelationship?: Socket | null;
+  socketRelationship: Socket | null;
+  socketReaction: Socket | null;
 }
 
 const SocketContext = createContext<SocketContextType>({
   socket: null,
   isConnected: false,
   socketRelationship: null,
+  socketReaction: null,
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -22,7 +24,7 @@ export const useSocket = () => useContext(SocketContext);
 export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [socketRelationship, setSocketRelationship] = useState<Socket | null>(null);
-
+  const [socketReaction, setSocketReaction] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { user } = useAuthStore();
 
@@ -34,68 +36,71 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    console.log("🔌 Creating socket with userId:", userId);
+    console.log("🔌 Creating sockets with userId:", userId);
+
+    // Chat socket
     const socketIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/chat", {
       query: { userId },
       transports: ["websocket"],
       reconnection: true,
     });
 
+    // Relationship socket
     const socketRelationshipIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/relationship", {
       query: { userId },
       transports: ["websocket"],
       reconnection: true,
     });
 
-    const initSocket = () => {
-      const socketIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/chat", {
-        query: { userId },
-        transports: ["websocket"],
-        reconnection: true,
-      });
+    // Reaction socket (NEW)
+    const socketReactionIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/reaction", {
+      query: { userId },
+      transports: ["websocket"],
+      reconnection: true,
+    });
 
-      const socketRelationshipIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/relationship", {
-        query: { userId },
-        transports: ["websocket"],
-        reconnection: true,
-      });
+    // Event handlers
+    socketIo.on("connect", () => {
+      console.log("💬 Chat socket connected:", socketIo.id);
+      setIsConnected(true);
+    });
 
-      socketIo.on("connect", () => {
-        console.log("SOCKET CONNECTED:", socketIo.id);
-        setIsConnected(true);
-      });
+    socketIo.on("disconnect", () => {
+      console.log("💬 Chat socket disconnected");
+      setIsConnected(false);
+    });
 
-      socketIo.on("disconnect", () => {
-        console.log("SOCKET DISCONNECTED");
-        setIsConnected(false);
-      });
+    socketRelationshipIo.on("connect", () => {
+      console.log("👥 Relationship socket connected:", socketRelationshipIo.id);
+    });
 
-      socketRelationshipIo.on("connect", () => {
-        console.log("SOCKET CONNECTED:", socketRelationshipIo.id);
-        setIsConnected(true);
-      });
+    socketRelationshipIo.on("disconnect", () => {
+      console.log("👥 Relationship socket disconnected");
+    });
 
-      socketRelationshipIo.on("disconnect", () => {
-        console.log("SOCKET DISCONNECTED");
-        setIsConnected(false);
-      });
+    socketReactionIo.on("connect", () => {
+      console.log("❤️ Reaction socket connected:", socketReactionIo.id);
+    });
 
-      setSocket(socketIo);
-      setSocketRelationship(socketRelationshipIo);
-    }
+    socketReactionIo.on("disconnect", () => {
+      console.log("❤️ Reaction socket disconnected");
+    });
 
-    initSocket();
+    setSocket(socketIo);
+    setSocketRelationship(socketRelationshipIo);
+    setSocketReaction(socketReactionIo);
 
     return () => {
-      console.log("🧹 Cleanup socket");
+      console.log("🧹 Cleanup sockets");
       socketIo.disconnect();
       socketRelationshipIo.disconnect();
+      socketReactionIo.disconnect();
     };
   }, [user?.id]);
 
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, socketRelationship }}>
+    <SocketContext.Provider value={{ socket, isConnected, socketRelationship, socketReaction }}>
       {children}
     </SocketContext.Provider>
   );

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Box, Typography, Tooltip, Grow, ClickAwayListener } from "@mui/material";
 import { ThumbUpOutlined as ThumbUpOutlinedIcon } from "@mui/icons-material";
-import { useToggleReaction, useGetUserReaction } from "@/queries/useReactionQueries";
+import { useGetUserReaction } from "@/queries/useReactionQueries";
 import { ReactionType } from "@/types/reaction";
-import { on } from "events";
+import { useSocket } from "@/contexts/SocketContext";
+import { useReactionStore, ReactionType as StoreReactionType } from "@/stores/useReactionStore";
 
 // Reaction data with emoji, label, and color
 const REACTIONS = [
@@ -19,31 +20,83 @@ const REACTIONS = [
 
 interface ReactionButtonProps {
     postId: string;
-    initialReaction?: ReactionType | null;
-    onReactionChange?: (totalReacts: number) => void;
-    totalReacts?: number;
+    initialTotalReacts?: number;
 }
 
-export default function ReactionButton({ postId, initialReaction, onReactionChange, totalReacts }: ReactionButtonProps) {
+export default function ReactionButton({ postId, initialTotalReacts = 0 }: ReactionButtonProps) {
     const [showReactions, setShowReactions] = useState(false);
-    const [localReaction, setLocalReaction] = useState<ReactionType | null>(initialReaction || null);
 
-    // Fetch user's reaction for this post
+    const { socketReaction } = useSocket();
+
+    // Use global store for reaction state
+    const { postReactions, setPostReaction, initPostReaction, setFromApi, setFromServer } = useReactionStore();
+    const reactionState = postReactions[postId];
+
+    // Local state derived from global store
+    const localReaction = reactionState?.userReaction ?? null;
+    const localTotalReacts = reactionState?.totalReacts ?? initialTotalReacts;
+
+    // Fetch user's reaction for this post (initial load)
     const { data: userReactionData, isLoading } = useGetUserReaction(postId);
-    const toggleReaction = useToggleReaction();
     const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
     const leaveTimeout = useRef<NodeJS.Timeout | null>(null);
+    const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
-
+    // Initialize store with post data
     useEffect(() => {
-        const fetchLocalReaction = () => {
-            if (!isLoading && userReactionData) {
-                setLocalReaction(userReactionData.type);
-            }
-        }
-        fetchLocalReaction();
-    }, [userReactionData, isLoading]);
+        initPostReaction(postId, initialTotalReacts);
+    }, [postId, initialTotalReacts, initPostReaction]);
 
+    // Subscribe to post updates when component mounts
+    useEffect(() => {
+        if (!socketReaction || !postId) return;
+
+        socketReaction.emit('post:subscribe', { postId });
+
+        // Listen for reaction updates from server (authoritative)
+        const handleReactionUpdated = (data: {
+            postId: string;
+            userId: string;
+            action: string;
+            type: ReactionType;
+            totalReacts: number;
+        }) => {
+            if (data.postId === postId) {
+                // Server is authoritative for totalReacts
+                setFromServer(postId, data.totalReacts);
+            }
+        };
+
+        // Listen for own reaction result
+        const handleReactionResult = (data: {
+            success: boolean;
+            postId: string;
+            action: string;
+            totalReacts: number;
+        }) => {
+            if (data.postId === postId && data.success) {
+                // Server confirmed - use authoritative count
+                setFromServer(postId, data.totalReacts);
+            }
+        };
+
+        socketReaction.on('reaction:updated', handleReactionUpdated);
+        socketReaction.on('reaction:result', handleReactionResult);
+
+        return () => {
+            socketReaction.emit('post:unsubscribe', { postId });
+            socketReaction.off('reaction:updated', handleReactionUpdated);
+            socketReaction.off('reaction:result', handleReactionResult);
+        };
+    }, [socketReaction, postId, setFromServer]);
+
+    // Set initial reaction from API (ONLY if no local updates)
+    useEffect(() => {
+        if (!isLoading && userReactionData) {
+            // Use setFromApi which won't overwrite if hasLocalUpdate is true
+            setFromApi(postId, userReactionData.type as StoreReactionType);
+        }
+    }, [userReactionData, isLoading, postId, setFromApi]);
 
     const handleMouseEnter = () => {
         if (leaveTimeout.current) {
@@ -65,38 +118,50 @@ export default function ReactionButton({ postId, initialReaction, onReactionChan
         }, 300);
     };
 
-    const debounceRef = useRef<NodeJS.Timeout | null>(null);
-
-    const handleReactionSelect = (type: ReactionType) => {
+    const handleReactionSelect = useCallback((type: ReactionType) => {
         setShowReactions(false);
 
-        // UI optimistic update
-        if (localReaction === type) {
-            onReactionChange?.(totalReacts ? totalReacts - 1 : 0);
-            setLocalReaction(null);
-        } else if (!localReaction) {
-            onReactionChange?.(totalReacts ? totalReacts + 1 : 1);
-            setLocalReaction(type);
+        // Get current state from store (always up to date)
+        const currentState = useReactionStore.getState().postReactions[postId];
+        const currentReaction = currentState?.userReaction;
+        const currentTotal = currentState?.totalReacts ?? initialTotalReacts;
+
+        // Calculate new state
+        let newReaction: StoreReactionType | null;
+        let newTotal: number;
+
+        if (currentReaction === type) {
+            // Remove reaction
+            newReaction = null;
+            newTotal = Math.max(0, currentTotal - 1);
+        } else if (!currentReaction) {
+            // Add new reaction
+            newReaction = type as StoreReactionType;
+            newTotal = currentTotal + 1;
         } else {
-            onReactionChange?.(totalReacts || 0);
-            setLocalReaction(type);
+            // Change reaction type (total stays same)
+            newReaction = type as StoreReactionType;
+            newTotal = currentTotal;
         }
 
+        // Update global store immediately (optimistic) - marks hasLocalUpdate = true
+        setPostReaction(postId, {
+            userReaction: newReaction,
+            totalReacts: newTotal
+        });
 
+        // Cancel previous debounce
         if (debounceRef.current) {
             clearTimeout(debounceRef.current);
         }
 
-
-        debounceRef.current = setTimeout(async () => {
-            try {
-                await toggleReaction.mutateAsync({ postId, type });
-            } catch (e) {
-                console.error("rollback needed", e);
+        // Debounce - only send the FINAL state after user stops clicking
+        debounceRef.current = setTimeout(() => {
+            if (socketReaction?.connected) {
+                socketReaction.emit('reaction:toggle', { postId, type });
             }
-        }, 1500); // 1500ms khi người dùng không tương tác thì mới gửi request
-    };
-
+        }, 400);
+    }, [postId, socketReaction, setPostReaction, initialTotalReacts]);
 
     const handleClick = () => {
         handleReactionSelect("LIKE");

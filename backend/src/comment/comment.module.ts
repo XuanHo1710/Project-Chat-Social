@@ -6,6 +6,7 @@ import { Comment, CommentSchema } from './entities/comment.entity';
 import { CommentReaction, CommentReactionSchema } from './entities/comment-reaction.entity';
 import { Post, PostSchema } from 'src/post/entities/post.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
+import { HashtagModule } from 'src/hashtag/hashtag.module';
 
 @Module({
   imports: [
@@ -15,9 +16,10 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
       { name: Post.name, schema: PostSchema },
     ]),
     CloudinaryModule,
+    HashtagModule,
   ],
   controllers: [CommentController],
   providers: [CommentService],
   exports: [CommentService],
 })
-export class CommentModule {}
+export class CommentModule { }

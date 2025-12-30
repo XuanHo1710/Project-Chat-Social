@@ -89,6 +89,9 @@ export class Account {
     @Prop()
     lastLogin: Date;
 
+    @Prop()
+    lastActive: Date;  // Thời điểm user offline lần cuối
+
     @Prop({ default: false })
     isBlocked: boolean;
 

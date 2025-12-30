@@ -6,15 +6,15 @@ import { Conversation, ConversationSchema } from 'src/conversation/entities/conv
 import { Message, MessageSchema } from 'src/chat/entities/message.entity';
 import { ChatGateway } from 'src/chat/chat.gateway';
 import { AuthModule } from 'src/auth/auth.module';
-import { ConversationService } from 'src/conversation/conversation.service';
-import { ConditionalModule } from '@nestjs/config';
 import { ConversationModule } from 'src/conversation/conversation.module';
+import { Account, AccountSchema } from 'src/account/entities/account.entity';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Conversation.name, schema: ConversationSchema },
-      { name: Message.name, schema: MessageSchema }
+      { name: Message.name, schema: MessageSchema },
+      { name: Account.name, schema: AccountSchema }
     ]),
     AuthModule,
     ConversationModule
@@ -23,3 +23,4 @@ import { ConversationModule } from 'src/conversation/conversation.module';
   providers: [ChatGateway, ChatService],
 })
 export class ChatModule { }
+

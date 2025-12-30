@@ -4,6 +4,9 @@ import { Server, Socket } from "socket.io";
 import { ChatService } from "src/chat/chat.service";
 import { CreateMessageDto } from "src/chat/dto/create-message.dto";
 import { ConversationService } from "src/conversation/conversation.service";
+import { InjectModel } from "@nestjs/mongoose";
+import { Account, AccountDocument } from "src/account/entities/account.entity";
+import { Model } from "mongoose";
 
 // Map để lưu userId -> Set<socketId> (support multiple connections per user)
 const userSockets = new Map<string, Set<string>>();
@@ -24,6 +27,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     constructor(
         private readonly conversationService: ConversationService,
         private readonly chatService: ChatService,
+        @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
     ) { }
 
 
@@ -42,6 +46,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // Store userId in client data for later use
             client.data.userId = userId;
 
+            // Check if this is the first connection for this user
+            const isFirstConnection = !userSockets.has(userId) || userSockets.get(userId)!.size === 0;
+
             // Lưu mapping userId -> Set<socketId> (support multiple devices)
             if (!userSockets.has(userId)) {
                 userSockets.set(userId, new Set());
@@ -51,6 +58,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // Join user vào room của chính họ
             client.join(`user:${userId}`);
 
+            // If first connection, update status to ACTIVE
+            if (isFirstConnection) {
+                await this.accountModel.findByIdAndUpdate(userId, {
+                    status: 'ACTIVE',
+                    lastLogin: new Date(),
+                });
+
+                // Broadcast to all users that this user is now online
+                this.server.emit('user:online', {
+                    userId,
+                    status: 'ACTIVE',
+                    lastLogin: new Date()
+                });
+
+                this.logger.log(`User ${userId} is now ONLINE`);
+            }
+
             // Join user vào tất cả conversations của họ
             const conversations = await this.conversationService.findConversationByUserId(userId);
             conversations.forEach((conv) => {
@@ -58,8 +82,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 console.log(`User ${userId} joined room: room:${conv._id.toString()}`);
             });
 
-        } catch {
-
+        } catch (error) {
+            this.logger.error('Connection error:', error);
         }
     }
 
@@ -71,16 +95,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 const sockets = userSockets.get(userId)!;
                 sockets.delete(client.id);
 
-                // Only broadcast offline if no more connections for this user
+                // Only update status to offline if no more connections for this user
                 if (sockets.size === 0) {
                     userSockets.delete(userId);
 
-                    // Update lastActive when user goes offline
-                    // const lastActive = new Date();
-                    // await this.userModel.findByIdAndUpdate(userId, {
-                    //     lastActive,
-                    // });
-                    // this.server.emit('user:offline', { userId, lastActive });
+                    // Update status to DEACTIVE and lastActive
+                    const lastActive = new Date();
+                    await this.accountModel.findByIdAndUpdate(userId, {
+                        status: 'DEACTIVE',
+                        lastActive,
+                    });
+
+                    // Broadcast to all users that this user is now offline
+                    this.server.emit('user:offline', {
+                        userId,
+                        status: 'DEACTIVE',
+                        lastActive
+                    });
+
+                    this.logger.log(`User ${userId} is now OFFLINE`);
                 }
             }
         } catch (error) {
@@ -126,7 +159,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
     }
 
+    // Get online status of a specific user
+    @SubscribeMessage('user:status')
+    async handleGetUserStatus(
+        @MessageBody() data: { userId: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const isOnline = userSockets.has(data.userId) && userSockets.get(data.userId)!.size > 0;
+        return {
+            userId: data.userId,
+            isOnline,
+            status: isOnline ? 'ACTIVE' : 'DEACTIVE'
+        };
+    }
 
-
-
+    // Get list of online users
+    @SubscribeMessage('users:online')
+    async handleGetOnlineUsers(
+        @ConnectedSocket() client: Socket
+    ) {
+        const onlineUserIds = Array.from(userSockets.keys());
+        return { onlineUsers: onlineUserIds };
+    }
 }

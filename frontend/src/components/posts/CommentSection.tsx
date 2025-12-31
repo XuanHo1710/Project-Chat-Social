@@ -890,7 +890,7 @@ function CommentItem({
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 0.5, px: 1 }}>
                         <CommentReactionButton
                             commentId={comment._id}
-                            totalLikes={comment.totalLikes || 0}
+                            initialTotalLikes={comment.totalLikes || 0}
                         />
                         <Typography
                             onClick={handleReplyClick}

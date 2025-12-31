@@ -1,19 +1,19 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ReactionService } from './reaction.service';
 import { ReactionController } from './reaction.controller';
 import { ReactionGateway } from './reaction.gateway';
 import { Reaction, ReactionSchema } from './entities/reaction.entity';
 import { Post, PostSchema } from 'src/post/entities/post.entity';
-import { CommentModule } from 'src/comment/comment.module';
+import { Comment, CommentSchema } from 'src/comment/entities/comment.entity';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Reaction.name, schema: ReactionSchema },
       { name: Post.name, schema: PostSchema },
+      { name: Comment.name, schema: CommentSchema },
     ]),
-    CommentModule, // Import để sử dụng CommentService trong gateway
   ],
   controllers: [ReactionController],
   providers: [ReactionService, ReactionGateway],

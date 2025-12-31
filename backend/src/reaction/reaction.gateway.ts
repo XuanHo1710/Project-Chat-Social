@@ -10,18 +10,16 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ReactionService } from './reaction.service';
-import { CommentService } from 'src/comment/comment.service';
-import { ReactionType } from './entities/reaction.entity';
+import { ReactionType, TypeFactor } from './entities/reaction.entity';
 
 // Map để lưu userId -> Set<socketId> (support multiple connections per user)
 const userSockets = new Map<string, Set<string>>();
-// Map để lưu postId -> Set<socketId> (users đang xem post này)
-const postViewers = new Map<string, Set<string>>();
+// Map để lưu factorId -> Set<socketId> (users đang xem factor này)
+const factorViewers = new Map<string, Set<string>>();
 
 /**
- * Server-side rate limiting per user per entity
- * Key: `${userId}:${entityType}:${entityId}`
- * Value: { lastType, timestamp, pending }
+ * Server-side rate limiting per user per factor
+ * Key: `${userId}:${typeFactor}:${factorId}`
  */
 interface PendingReaction {
     type: string;
@@ -34,13 +32,20 @@ const pendingReactions = new Map<string, PendingReaction>();
 const RATE_LIMIT_WINDOW_MS = 300; // 300ms debounce window
 
 interface ToggleReactionDto {
+    factorId: string;
+    typeFactor: TypeFactor;
+    type: ReactionType;
+}
+
+// Legacy DTOs for backward compatibility
+interface LegacyPostReactionDto {
     postId: string;
     type: ReactionType;
 }
 
-interface ToggleCommentReactionDto {
+interface LegacyCommentReactionDto {
     commentId: string;
-    type: string; // CommentReactionType
+    type: ReactionType;
 }
 
 @WebSocketGateway({
@@ -57,7 +62,6 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     constructor(
         private readonly reactionService: ReactionService,
-        private readonly commentService: CommentService,
     ) { }
 
     async handleConnection(client: Socket) {
@@ -70,14 +74,10 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
                 return;
             }
 
-            // Store userId in client data for later use
             client.data.userId = userId;
-
-            // Join user's personal room
             client.join(`user:${userId}`);
             this.logger.log(`Client ${client.id} connected as user ${userId}`);
 
-            // Lưu mapping userId -> Set<socketId>
             if (!userSockets.has(userId)) {
                 userSockets.set(userId, new Set());
             }
@@ -95,22 +95,23 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
             if (userId && userSockets.has(userId)) {
                 const sockets = userSockets.get(userId)!;
                 sockets.delete(client.id);
-
                 if (sockets.size === 0) {
                     userSockets.delete(userId);
                 }
             }
 
-            // Remove from all post viewer rooms
-            postViewers.forEach((viewers, postId) => {
+            // Remove from all factor viewer rooms
+            factorViewers.forEach((viewers, factorId) => {
                 if (viewers.has(client.id)) {
                     viewers.delete(client.id);
                     if (viewers.size === 0) {
-                        postViewers.delete(postId);
+                        factorViewers.delete(factorId);
                     }
                 }
             });
 
+            // Cleanup pending reactions
+            this.cleanupUserPendingReactions(userId);
             this.logger.log(`Client ${client.id} disconnected`);
         } catch (error) {
             this.logger.error('Disconnect error:', error);
@@ -118,43 +119,53 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     /**
-     * Subscribe to reaction updates for a post
+     * Subscribe to reaction updates for a factor (post/comment/message)
+     */
+    @SubscribeMessage('factor:subscribe')
+    handleSubscribeFactor(
+        @MessageBody() data: { factorId: string; typeFactor: TypeFactor },
+        @ConnectedSocket() client: Socket
+    ) {
+        const roomKey = `${data.typeFactor}:${data.factorId}`;
+        client.join(roomKey);
+
+        if (!factorViewers.has(roomKey)) {
+            factorViewers.set(roomKey, new Set());
+        }
+        factorViewers.get(roomKey)!.add(client.id);
+
+        return { success: true };
+    }
+
+    /**
+     * Legacy: Subscribe to post updates
      */
     @SubscribeMessage('post:subscribe')
     handleSubscribePost(
         @MessageBody() data: { postId: string },
         @ConnectedSocket() client: Socket
     ) {
-        const { postId } = data;
-
-        // Join room for this post
-        client.join(`post:${postId}`);
-
-        // Track viewers
-        if (!postViewers.has(postId)) {
-            postViewers.set(postId, new Set());
-        }
-        postViewers.get(postId)!.add(client.id);
-
-        return { success: true };
+        return this.handleSubscribeFactor(
+            { factorId: data.postId, typeFactor: TypeFactor.POST },
+            client
+        );
     }
 
     /**
-     * Unsubscribe from post updates
+     * Unsubscribe from factor updates
      */
-    @SubscribeMessage('post:unsubscribe')
-    handleUnsubscribePost(
-        @MessageBody() data: { postId: string },
+    @SubscribeMessage('factor:unsubscribe')
+    handleUnsubscribeFactor(
+        @MessageBody() data: { factorId: string; typeFactor: TypeFactor },
         @ConnectedSocket() client: Socket
     ) {
-        const { postId } = data;
+        const roomKey = `${data.typeFactor}:${data.factorId}`;
+        client.leave(roomKey);
 
-        client.leave(`post:${postId}`);
-
-        if (postViewers.has(postId)) {
-            postViewers.get(postId)!.delete(client.id);
-            if (postViewers.get(postId)!.size === 0) {
-                postViewers.delete(postId);
+        if (factorViewers.has(roomKey)) {
+            factorViewers.get(roomKey)!.delete(client.id);
+            if (factorViewers.get(roomKey)!.size === 0) {
+                factorViewers.delete(roomKey);
             }
         }
 
@@ -162,13 +173,25 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     /**
-     * Toggle reaction trên post qua WebSocket
-     * Server-side debounce để xử lý spam từ user
-     * Chỉ xử lý reaction CUỐI CÙNG trong window
+     * Legacy: Unsubscribe from post updates
+     */
+    @SubscribeMessage('post:unsubscribe')
+    handleUnsubscribePost(
+        @MessageBody() data: { postId: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        return this.handleUnsubscribeFactor(
+            { factorId: data.postId, typeFactor: TypeFactor.POST },
+            client
+        );
+    }
+
+    /**
+     * Generic toggle reaction handler
      */
     @SubscribeMessage('reaction:toggle')
     async handleToggleReaction(
-        @MessageBody() data: ToggleReactionDto,
+        @MessageBody() data: ToggleReactionDto | LegacyPostReactionDto,
         @ConnectedSocket() client: Socket
     ) {
         const userId = client.data.userId;
@@ -177,17 +200,30 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
             return { success: false, error: 'User not authenticated' };
         }
 
-        const key = `${userId}:post:${data.postId}`;
+        // Handle legacy format (postId instead of factorId)
+        let factorId: string;
+        let typeFactor: TypeFactor;
+        let type: ReactionType;
+
+        if ('postId' in data) {
+            // Legacy format
+            factorId = data.postId;
+            typeFactor = TypeFactor.POST;
+            type = data.type;
+        } else {
+            factorId = data.factorId;
+            typeFactor = data.typeFactor;
+            type = data.type;
+        }
+
+        const key = `${userId}:${typeFactor}:${factorId}`;
+        const roomKey = `${typeFactor}:${factorId}`;
         const now = Date.now();
 
-        // Check if there's a pending reaction
+        // Cancel existing pending reaction
         const existing = pendingReactions.get(key);
-
-        if (existing) {
-            // Cancel the existing timeout
-            if (existing.timeout) {
-                clearTimeout(existing.timeout);
-            }
+        if (existing?.timeout) {
+            clearTimeout(existing.timeout);
         }
 
         // Set new pending reaction with debounce
@@ -198,25 +234,30 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
 
                 pendingReactions.delete(key);
 
-                // Actually process the reaction
                 const result = await this.reactionService.toggleReaction(
-                    { postId: data.postId, type: pending.type as ReactionType },
+                    { factorId, typeFactor, type: pending.type as ReactionType },
                     userId
                 );
 
-                // Emit to all users watching this post
-                this.server.to(`post:${data.postId}`).emit('reaction:updated', {
-                    postId: data.postId,
+                // Emit to all users watching this factor
+                this.server.to(roomKey).emit('reaction:updated', {
+                    factorId,
+                    typeFactor,
+                    postId: typeFactor === TypeFactor.POST ? factorId : undefined, // Legacy
+                    commentId: typeFactor === TypeFactor.COMMENT ? factorId : undefined, // Legacy
                     userId,
                     action: result.action,
                     type: pending.type,
                     totalReacts: result.totalReacts,
                 });
 
-                // Emit specifically to the sender
+                // Emit specifically to sender
                 client.emit('reaction:result', {
                     success: true,
-                    postId: data.postId,
+                    factorId,
+                    typeFactor,
+                    postId: typeFactor === TypeFactor.POST ? factorId : undefined,
+                    commentId: typeFactor === TypeFactor.COMMENT ? factorId : undefined,
                     ...result,
                 });
 
@@ -224,29 +265,23 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
                 this.logger.error('Toggle reaction error:', error);
                 client.emit('reaction:result', {
                     success: false,
-                    postId: data.postId,
+                    factorId,
+                    typeFactor,
                     error: error.message,
                 });
             }
         }, RATE_LIMIT_WINDOW_MS);
 
-        pendingReactions.set(key, {
-            type: data.type,
-            timestamp: now,
-            timeout,
-        });
-
-        // Return immediately để UI responsive
+        pendingReactions.set(key, { type, timestamp: now, timeout });
         return { success: true, queued: true };
     }
 
     /**
-     * Toggle reaction trên comment qua WebSocket
-     * Server-side debounce tương tự post
+     * Legacy: Toggle comment reaction
      */
     @SubscribeMessage('comment:reaction:toggle')
     async handleToggleCommentReaction(
-        @MessageBody() data: ToggleCommentReactionDto,
+        @MessageBody() data: LegacyCommentReactionDto,
         @ConnectedSocket() client: Socket
     ) {
         const userId = client.data.userId;
@@ -255,20 +290,16 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
             return { success: false, error: 'User not authenticated' };
         }
 
-        const key = `${userId}:comment:${data.commentId}`;
+        const factorId = data.commentId;
+        const typeFactor = TypeFactor.COMMENT;
+        const key = `${userId}:${typeFactor}:${factorId}`;
         const now = Date.now();
 
-        // Check if there's a pending reaction
         const existing = pendingReactions.get(key);
-
-        if (existing) {
-            // Cancel the existing timeout
-            if (existing.timeout) {
-                clearTimeout(existing.timeout);
-            }
+        if (existing?.timeout) {
+            clearTimeout(existing.timeout);
         }
 
-        // Set new pending reaction with debounce
         const timeout = setTimeout(async () => {
             try {
                 const pending = pendingReactions.get(key);
@@ -276,16 +307,14 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
 
                 pendingReactions.delete(key);
 
-                // Actually process the reaction
-                const result = await this.commentService.toggleReaction(
-                    { commentId: data.commentId, type: pending.type as any },
+                const result = await this.reactionService.toggleCommentReaction(
+                    { commentId: factorId, type: pending.type as ReactionType },
                     userId
                 );
 
-                // Emit to the sender
                 client.emit('comment:reaction:result', {
                     success: true,
-                    commentId: data.commentId,
+                    commentId: factorId,
                     ...result,
                 });
 
@@ -293,28 +322,22 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
                 this.logger.error('Toggle comment reaction error:', error);
                 client.emit('comment:reaction:result', {
                     success: false,
-                    commentId: data.commentId,
+                    commentId: factorId,
                     error: error.message,
                 });
             }
         }, RATE_LIMIT_WINDOW_MS);
 
-        pendingReactions.set(key, {
-            type: data.type,
-            timestamp: now,
-            timeout,
-        });
-
-        // Return immediately để UI responsive
+        pendingReactions.set(key, { type: data.type, timestamp: now, timeout });
         return { success: true, queued: true };
     }
 
     /**
-     * Get user's current reaction on a post
+     * Get user's current reaction on a factor
      */
     @SubscribeMessage('reaction:get')
     async handleGetReaction(
-        @MessageBody() data: { postId: string },
+        @MessageBody() data: { factorId: string; typeFactor: TypeFactor } | { postId: string },
         @ConnectedSocket() client: Socket
     ) {
         const userId = client.data.userId;
@@ -324,7 +347,18 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
         }
 
         try {
-            const reaction = await this.reactionService.getUserReaction(data.postId, userId);
+            let factorId: string;
+            let typeFactor: TypeFactor;
+
+            if ('postId' in data) {
+                factorId = data.postId;
+                typeFactor = TypeFactor.POST;
+            } else {
+                factorId = data.factorId;
+                typeFactor = data.typeFactor;
+            }
+
+            const reaction = await this.reactionService.getUserReaction(factorId, typeFactor, userId);
             return { success: true, reaction };
         } catch (error: any) {
             return { success: false, error: error.message };
@@ -333,7 +367,6 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     /**
      * Cleanup pending reactions for a user when they disconnect
-     * Prevents memory leaks
      */
     private cleanupUserPendingReactions(userId: string) {
         const keysToDelete: string[] = [];

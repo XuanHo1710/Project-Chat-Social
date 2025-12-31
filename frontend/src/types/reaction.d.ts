@@ -1,9 +1,14 @@
 // Reaction types
 export type ReactionType = "LIKE" | "LOVE" | "HAHA" | "WOW" | "SAD" | "ANGRY";
+export type TypeFactor = "POST" | "COMMENT" | "MESSAGE";
 
 export interface Reaction {
   _id: string;
-  postId: string;
+  factorId: string;
+  typeFactor: TypeFactor;
+  // Legacy fields for backward compatibility
+  postId?: string;
+  commentId?: string;
   userId: {
     _id: string;
     firstName: string;
@@ -15,13 +20,26 @@ export interface Reaction {
   updatedAt: string;
 }
 
+// Generic payload for new API
 export interface CreateReactionPayload {
+  factorId: string;
+  typeFactor: TypeFactor;
+  type: ReactionType;
+}
+
+// Legacy payloads for backward compatibility
+export interface CreatePostReactionPayload {
   postId: string;
   type: ReactionType;
 }
 
+export interface CreateCommentReactionPayload {
+  commentId: string;
+  type: ReactionType;
+}
+
 export interface ToggleReactionResponse {
-  action: "added" | "updated" | "removed";
+  action: "added" | "updated" | "removed" | "exists";
   reaction: Reaction | null;
   totalReacts: number;
 }

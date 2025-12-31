@@ -1,20 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   toggleReaction,
+  togglePostReaction,
+  toggleCommentReaction,
   getPostReactions,
+  getCommentReactions,
   getUserReaction,
+  getUserCommentReaction,
   getReactionsSummary,
 } from "@/services/reaction.service";
-import { CreateReactionPayload } from "@/types/reaction";
+import {
+  CreateReactionPayload,
+  CreatePostReactionPayload,
+  CreateCommentReactionPayload
+} from "@/types/reaction";
 
 // Query keys
 export const reactionKeys = {
   all: ["reactions"] as const,
   byPost: (postId: string) => [...reactionKeys.all, "post", postId] as const,
-  userReaction: (postId: string) =>
-    [...reactionKeys.all, "user", postId] as const,
-  summary: (postIds: string[]) =>
-    [...reactionKeys.all, "summary", postIds.join(",")] as const,
+  byComment: (commentId: string) => [...reactionKeys.all, "comment", commentId] as const,
+  userReaction: (postId: string) => [...reactionKeys.all, "user", postId] as const,
+  userCommentReaction: (commentId: string) => [...reactionKeys.all, "user", "comment", commentId] as const,
+  summary: (postIds: string[]) => [...reactionKeys.all, "summary", postIds.join(",")] as const,
 };
 
 // Get reactions for a post
@@ -29,12 +37,33 @@ export const useGetPostReactions = (
   });
 };
 
+// Get reactions for a comment
+export const useGetCommentReactions = (
+  commentId: string,
+  enabled: boolean = false
+) => {
+  return useQuery({
+    queryKey: reactionKeys.byComment(commentId),
+    queryFn: () => getCommentReactions(commentId),
+    enabled: enabled && !!commentId,
+  });
+};
+
 // Get user's reaction on a post
 export const useGetUserReaction = (postId: string) => {
   return useQuery({
     queryKey: reactionKeys.userReaction(postId),
     queryFn: () => getUserReaction(postId),
     enabled: !!postId,
+  });
+};
+
+// Get user's reaction on a comment
+export const useGetUserCommentReaction = (commentId: string) => {
+  return useQuery({
+    queryKey: reactionKeys.userCommentReaction(commentId),
+    queryFn: () => getUserCommentReaction(commentId),
+    enabled: !!commentId,
   });
 };
 
@@ -47,20 +76,45 @@ export const useGetReactionsSummary = (postIds: string[]) => {
   });
 };
 
-// Toggle reaction mutation
+// Generic toggle reaction mutation
 export const useToggleReaction = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: CreateReactionPayload) => toggleReaction(data),
     onSuccess: (result, variables) => {
-      // Immediately update user reaction in cache
+      // Invalidate related queries based on typeFactor
+      if (variables.typeFactor === 'POST') {
+        queryClient.invalidateQueries({
+          queryKey: reactionKeys.userReaction(variables.factorId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: reactionKeys.byPost(variables.factorId),
+        });
+      } else if (variables.typeFactor === 'COMMENT') {
+        queryClient.invalidateQueries({
+          queryKey: reactionKeys.userCommentReaction(variables.factorId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: reactionKeys.byComment(variables.factorId),
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+  });
+};
+
+// Legacy: Toggle reaction on a post
+export const useTogglePostReaction = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: CreatePostReactionPayload) => togglePostReaction(data),
+    onSuccess: (result, variables) => {
       queryClient.setQueryData(
         reactionKeys.userReaction(variables.postId),
         result.reaction || null
       );
-
-      // Invalidate and refetch related queries
       queryClient.invalidateQueries({
         queryKey: reactionKeys.userReaction(variables.postId),
       });
@@ -68,6 +122,27 @@ export const useToggleReaction = () => {
         queryKey: reactionKeys.byPost(variables.postId),
       });
       queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+  });
+};
+
+// Legacy: Toggle reaction on a comment
+export const useToggleCommentReaction = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: CreateCommentReactionPayload) => toggleCommentReaction(data),
+    onSuccess: (result, variables) => {
+      queryClient.setQueryData(
+        reactionKeys.userCommentReaction(variables.commentId),
+        result.reaction || null
+      );
+      queryClient.invalidateQueries({
+        queryKey: reactionKeys.userCommentReaction(variables.commentId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: reactionKeys.byComment(variables.commentId),
+      });
     },
   });
 };

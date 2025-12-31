@@ -1,35 +1,72 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Reaction, ReactionDocument, ReactionType } from './entities/reaction.entity';
-import { CreateReactionDto } from './dto/create-reaction.dto';
+import { Reaction, ReactionDocument, ReactionType, TypeFactor } from './entities/reaction.entity';
+import { CreateReactionDto, CreatePostReactionDto, CreateCommentReactionDto } from './dto/create-reaction.dto';
 import { Post, PostDocument } from 'src/post/entities/post.entity';
+import { Comment, CommentDocument } from 'src/comment/entities/comment.entity';
 
 @Injectable()
-export class ReactionService {
+export class ReactionService implements OnModuleInit {
+  private readonly logger = new Logger(ReactionService.name);
+
   constructor(
     @InjectModel(Reaction.name) private reactionModel: Model<ReactionDocument>,
-    @InjectModel(Post.name) private postModel: Model<PostDocument>
+    @InjectModel(Post.name) private postModel: Model<PostDocument>,
+    @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
   ) { }
 
+  async onModuleInit() {
+    // Auto-run migration on startup
+    this.logger.log('Checking reactions schema and indexes...');
+    await this.ensureIndexes();
+  }
+
+  private async ensureIndexes() {
+    try {
+      // Drop old index if exists
+      try {
+        await this.reactionModel.collection.dropIndex('postId_1_userId_1');
+        this.logger.log('Dropped old index: postId_1_userId_1');
+      } catch (e: any) {
+        // Index doesn't exist, that's ok
+      }
+
+      // Ensure new index exists
+      const indexes = await this.reactionModel.collection.indexes();
+      const hasNewIndex = indexes.some((idx: any) =>
+        idx.key?.factorId && idx.key?.typeFactor && idx.key?.userId
+      );
+
+      if (!hasNewIndex) {
+        await this.reactionModel.collection.createIndex(
+          { factorId: 1, typeFactor: 1, userId: 1 },
+          { unique: true }
+        );
+        this.logger.log('Created new index: factorId_1_typeFactor_1_userId_1');
+      }
+    } catch (e: any) {
+      this.logger.error('Error ensuring indexes:', e.message);
+    }
+  }
+
+
   /**
-   * Toggle reaction on a post
+   * Toggle reaction on any factor (post/comment/message)
    * - If user hasn't reacted: add reaction
    * - If user reacted with same type: remove reaction
    * - If user reacted with different type: update reaction
    */
   async toggleReaction(createReactionDto: CreateReactionDto, userId: string) {
-    const { postId, type } = createReactionDto;
+    const { factorId, typeFactor, type } = createReactionDto;
 
-    // Check if post exists
-    const post = await this.postModel.findById(postId);
-    if (!post) {
-      throw new NotFoundException('Post not found');
-    }
+    // Validate the factor exists
+    await this.validateFactor(factorId, typeFactor);
 
-    // Use findOneAndUpdate for atomic operation to prevent race conditions
+    // Find existing reaction
     const existingReaction = await this.reactionModel.findOne({
-      postId: new Types.ObjectId(postId),
+      factorId: new Types.ObjectId(factorId),
+      typeFactor,
       userId: new Types.ObjectId(userId),
     });
 
@@ -37,70 +74,60 @@ export class ReactionService {
       if (existingReaction.type === type) {
         // Same reaction type - remove it
         await this.reactionModel.findByIdAndDelete(existingReaction._id);
-        const updatedPost = await this.postModel.findByIdAndUpdate(
-          postId,
-          { $inc: { totalReacts: -1 } },
-          { new: true }
-        );
+        const totalReacts = await this.updateFactorReactCount(factorId, typeFactor, -1);
         return {
           action: 'removed',
           reaction: null,
-          totalReacts: Math.max(0, updatedPost?.totalReacts ?? 0),
+          totalReacts: Math.max(0, totalReacts),
         };
       } else {
         // Different reaction type - update it
-        await this.reactionModel.updateOne({ _id: existingReaction._id }, { type: type });
+        await this.reactionModel.updateOne({ _id: existingReaction._id }, { type });
+        const currentTotal = await this.getFactorReactCount(factorId, typeFactor);
         return {
           action: 'updated',
           reaction: { ...existingReaction.toObject(), type },
-          totalReacts: post.totalReacts,
+          totalReacts: currentTotal,
         };
       }
     } else {
-      // No existing reaction - try to create new one
+      // No existing reaction - create new one
       try {
         const reaction = new this.reactionModel({
-          postId: new Types.ObjectId(postId),
+          factorId: new Types.ObjectId(factorId),
+          typeFactor,
           userId: new Types.ObjectId(userId),
           type,
         });
         await reaction.save();
-
-        const updatedPost = await this.postModel.findByIdAndUpdate(
-          postId,
-          { $inc: { totalReacts: 1 } },
-          { new: true }
-        );
-
+        const totalReacts = await this.updateFactorReactCount(factorId, typeFactor, 1);
         return {
           action: 'added',
           reaction,
-          totalReacts: updatedPost?.totalReacts ?? post.totalReacts + 1,
+          totalReacts,
         };
       } catch (error: any) {
-        // Handle duplicate key error (race condition - reaction was created by another request)
+        // Handle duplicate key error (race condition)
         if (error.code === 11000) {
-          // Reaction already exists, fetch current state and return
           const currentReaction = await this.reactionModel.findOne({
-            postId: new Types.ObjectId(postId),
+            factorId: new Types.ObjectId(factorId),
+            typeFactor,
             userId: new Types.ObjectId(userId),
           });
-          const currentPost = await this.postModel.findById(postId);
+          const currentTotal = await this.getFactorReactCount(factorId, typeFactor);
 
           if (currentReaction && currentReaction.type !== type) {
-            // Update to the new type
             await this.reactionModel.updateOne({ _id: currentReaction._id }, { type });
             return {
               action: 'updated',
               reaction: { ...currentReaction.toObject(), type },
-              totalReacts: currentPost?.totalReacts ?? post.totalReacts,
+              totalReacts: currentTotal,
             };
           }
-
           return {
             action: 'exists',
             reaction: currentReaction,
-            totalReacts: currentPost?.totalReacts ?? post.totalReacts,
+            totalReacts: currentTotal,
           };
         }
         throw error;
@@ -109,48 +136,149 @@ export class ReactionService {
   }
 
   /**
-   * Get user's reaction on a post
+   * Legacy method for post reactions (backward compatibility)
    */
-  async getUserReaction(postId: string, userId: string): Promise<any> {
+  async togglePostReaction(dto: CreatePostReactionDto, userId: string) {
+    return this.toggleReaction({
+      factorId: dto.postId,
+      typeFactor: TypeFactor.POST,
+      type: dto.type,
+    }, userId);
+  }
+
+  /**
+   * Legacy method for comment reactions (backward compatibility)
+   */
+  async toggleCommentReaction(dto: CreateCommentReactionDto, userId: string) {
+    return this.toggleReaction({
+      factorId: dto.commentId,
+      typeFactor: TypeFactor.COMMENT,
+      type: dto.type,
+    }, userId);
+  }
+
+  /**
+   * Validate that the factor (post/comment/message) exists
+   */
+  private async validateFactor(factorId: string, typeFactor: TypeFactor): Promise<void> {
+    const id = new Types.ObjectId(factorId);
+
+    switch (typeFactor) {
+      case TypeFactor.POST:
+        const post = await this.postModel.findById(id);
+        if (!post) throw new NotFoundException('Post not found');
+        break;
+      case TypeFactor.COMMENT:
+        const comment = await this.commentModel.findById(id);
+        if (!comment) throw new NotFoundException('Comment not found');
+        break;
+      case TypeFactor.MESSAGE:
+        // TODO: Add message validation when Message model is available
+        break;
+    }
+  }
+
+  /**
+   * Update the reaction count on the factor
+   */
+  private async updateFactorReactCount(factorId: string, typeFactor: TypeFactor, delta: number): Promise<number> {
+    const id = new Types.ObjectId(factorId);
+
+    switch (typeFactor) {
+      case TypeFactor.POST:
+        const post = await this.postModel.findByIdAndUpdate(
+          id,
+          { $inc: { totalReacts: delta } },
+          { new: true }
+        );
+        return Math.max(0, post?.totalReacts ?? 0);
+      case TypeFactor.COMMENT:
+        const comment = await this.commentModel.findByIdAndUpdate(
+          id,
+          { $inc: { totalLikes: delta } },
+          { new: true }
+        );
+        return Math.max(0, comment?.totalLikes ?? 0);
+      case TypeFactor.MESSAGE:
+        // TODO: Add message handling when available
+        return 0;
+      default:
+        return 0;
+    }
+  }
+
+  /**
+   * Get current reaction count for a factor
+   */
+  private async getFactorReactCount(factorId: string, typeFactor: TypeFactor): Promise<number> {
+    const id = new Types.ObjectId(factorId);
+
+    switch (typeFactor) {
+      case TypeFactor.POST:
+        const post = await this.postModel.findById(id);
+        return post?.totalReacts ?? 0;
+      case TypeFactor.COMMENT:
+        const comment = await this.commentModel.findById(id);
+        return comment?.totalLikes ?? 0;
+      case TypeFactor.MESSAGE:
+        return 0;
+      default:
+        return 0;
+    }
+  }
+
+  /**
+   * Get user's reaction on a factor
+   */
+  async getUserReaction(factorId: string, typeFactor: TypeFactor, userId: string): Promise<any> {
     const reaction = await this.reactionModel
       .findOne({
-        postId: new Types.ObjectId(postId),
+        factorId: new Types.ObjectId(factorId),
+        typeFactor,
         userId: new Types.ObjectId(userId),
       })
       .lean();
-
     return reaction;
   }
 
   /**
-   * Get all reactions for a post with counts by type
+   * Legacy: Get user's reaction on a post
    */
-  async getPostReactions(postId: string, page: number = 1, limit: number = 20): Promise<any> {
+  async getPostUserReaction(postId: string, userId: string): Promise<any> {
+    return this.getUserReaction(postId, TypeFactor.POST, userId);
+  }
+
+  /**
+   * Legacy: Get user's reaction on a comment
+   */
+  async getCommentUserReaction(commentId: string, userId: string): Promise<any> {
+    return this.getUserReaction(commentId, TypeFactor.COMMENT, userId);
+  }
+
+  /**
+   * Get all reactions for a factor with counts by type
+   */
+  async getFactorReactions(factorId: string, typeFactor: TypeFactor, page: number = 1, limit: number = 20): Promise<any> {
     const skip = (page - 1) * limit;
+    const factorObjId = new Types.ObjectId(factorId);
 
     const [reactions, total, reactionCounts] = await Promise.all([
       this.reactionModel
-        .find({ postId: new Types.ObjectId(postId) })
+        .find({ factorId: factorObjId, typeFactor })
         .populate('userId', 'firstName lastName avatar')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      this.reactionModel.countDocuments({ postId: new Types.ObjectId(postId) }),
+      this.reactionModel.countDocuments({ factorId: factorObjId, typeFactor }),
       this.reactionModel.aggregate([
-        { $match: { postId: new Types.ObjectId(postId) } },
+        { $match: { factorId: factorObjId, typeFactor } },
         { $group: { _id: '$type', count: { $sum: 1 } } },
       ]),
     ]);
 
-    // Convert aggregation result to object
     const counts: Record<ReactionType, number> = {
-      LIKE: 0,
-      LOVE: 0,
-      HAHA: 0,
-      WOW: 0,
-      SAD: 0,
-      ANGRY: 0,
+      LIKE: 0, LOVE: 0, HAHA: 0, WOW: 0, SAD: 0, ANGRY: 0,
     };
     reactionCounts.forEach((item) => {
       counts[item._id as ReactionType] = item.count;
@@ -159,60 +287,57 @@ export class ReactionService {
     return {
       data: reactions,
       counts,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
   /**
-   * Get reaction summary for multiple posts (for feed)
+   * Legacy: Get all reactions for a post
    */
-  async getReactionsSummary(postIds: string[], userId: string) {
-    const objectIds = postIds.map((id) => new Types.ObjectId(id));
+  async getPostReactions(postId: string, page: number = 1, limit: number = 20): Promise<any> {
+    return this.getFactorReactions(postId, TypeFactor.POST, page, limit);
+  }
 
-    // Get user's reactions for these posts
+  /**
+   * Legacy: Get all reactions for a comment
+   */
+  async getCommentReactions(commentId: string, page: number = 1, limit: number = 20): Promise<any> {
+    return this.getFactorReactions(commentId, TypeFactor.COMMENT, page, limit);
+  }
+
+  /**
+   * Get reaction summary for multiple factors (for feed)
+   */
+  async getReactionsSummary(factorIds: string[], typeFactor: TypeFactor, userId: string) {
+    const objectIds = factorIds.map((id) => new Types.ObjectId(id));
+
     const userReactions = await this.reactionModel
       .find({
-        postId: { $in: objectIds },
+        factorId: { $in: objectIds },
+        typeFactor,
         userId: new Types.ObjectId(userId),
       })
       .lean();
 
-    // Get top 3 reaction types for each post
     const reactionSummaries = await this.reactionModel.aggregate([
-      { $match: { postId: { $in: objectIds } } },
-      { $group: { _id: { postId: '$postId', type: '$type' }, count: { $sum: 1 } } },
+      { $match: { factorId: { $in: objectIds }, typeFactor } },
+      { $group: { _id: { factorId: '$factorId', type: '$type' }, count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       {
         $group: {
-          _id: '$_id.postId',
-          reactions: {
-            $push: { type: '$_id.type', count: '$count' },
-          },
+          _id: '$_id.factorId',
+          reactions: { $push: { type: '$_id.type', count: '$count' } },
         },
       },
-      {
-        $project: {
-          reactions: { $slice: ['$reactions', 3] },
-        },
-      },
+      { $project: { reactions: { $slice: ['$reactions', 3] } } },
     ]);
 
-    // Build result map
-    const result: Record<
-      string,
-      { userReaction: ReactionType | null; topReactions: { type: ReactionType; count: number }[] }
-    > = {};
+    const result: Record<string, { userReaction: ReactionType | null; topReactions: { type: ReactionType; count: number }[] }> = {};
 
-    postIds.forEach((postId) => {
-      const userReaction = userReactions.find((r) => r.postId.toString() === postId);
-      const summary = reactionSummaries.find((s) => s._id.toString() === postId);
-
-      result[postId] = {
+    factorIds.forEach((factorId) => {
+      const userReaction = userReactions.find((r) => r.factorId.toString() === factorId);
+      const summary = reactionSummaries.find((s) => s._id.toString() === factorId);
+      result[factorId] = {
         userReaction: userReaction?.type || null,
         topReactions: summary?.reactions || [],
       };
@@ -220,4 +345,79 @@ export class ReactionService {
 
     return result;
   }
+
+  /**
+   * Legacy: Get reaction summary for posts
+   */
+  async getPostsReactionsSummary(postIds: string[], userId: string) {
+    return this.getReactionsSummary(postIds, TypeFactor.POST, userId);
+  }
+
+  /**
+   * Migrate old reactions (postId-based) to new schema (factorId-based)
+   */
+  async migrateOldReactions() {
+    try {
+      // Find reactions that have postId but no factorId
+      const oldReactions = await this.reactionModel.find({
+        $or: [
+          { factorId: { $exists: false } },
+          { typeFactor: { $exists: false } }
+        ]
+      });
+
+      console.log(`Found ${oldReactions.length} old reactions to migrate`);
+
+      let migratedCount = 0;
+      for (const reaction of oldReactions) {
+        const reactionObj = reaction.toObject() as any;
+
+        // If it has postId, use that as factorId
+        if (reactionObj.postId && !reactionObj.factorId) {
+          await this.reactionModel.updateOne(
+            { _id: reaction._id },
+            {
+              $set: {
+                factorId: reactionObj.postId,
+                typeFactor: TypeFactor.POST
+              }
+            }
+          );
+          migratedCount++;
+        }
+      }
+
+      // Drop old index and create new one
+      try {
+        await this.reactionModel.collection.dropIndex('postId_1_userId_1');
+        console.log('Dropped old index: postId_1_userId_1');
+      } catch (e: any) {
+        console.log('Old index may not exist:', e.message);
+      }
+
+      // Create new index
+      try {
+        await this.reactionModel.collection.createIndex(
+          { factorId: 1, typeFactor: 1, userId: 1 },
+          { unique: true }
+        );
+        console.log('Created new index: factorId_1_typeFactor_1_userId_1');
+      } catch (e: any) {
+        console.log('New index may already exist:', e.message);
+      }
+
+      return {
+        success: true,
+        migratedCount,
+        message: `Migrated ${migratedCount} reactions to new schema`
+      };
+    } catch (error: any) {
+      console.error('Migration error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
 }
+

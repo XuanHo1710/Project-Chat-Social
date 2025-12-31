@@ -12,14 +12,13 @@ import {
 import { CommentService } from './comment.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
-import { CreateCommentReactionDto } from './dto/create-comment-reaction.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserInfo } from 'decorators/customize';
 
 @Controller('comment')
 @UseGuards(JwtAuthGuard)
 export class CommentController {
-  constructor(private readonly commentService: CommentService) {}
+  constructor(private readonly commentService: CommentService) { }
 
   @Post()
   create(@Body() createCommentDto: CreateCommentDto, @UserInfo() user: any) {
@@ -67,27 +66,8 @@ export class CommentController {
   }
 
   // ==================== COMMENT REACTIONS ====================
-
-  @Post('reaction')
-  toggleReaction(@Body() createReactionDto: CreateCommentReactionDto, @UserInfo() user: any) {
-    return this.commentService.toggleReaction(createReactionDto, user._id);
-  }
-
-  @Get(':commentId/reaction/me')
-  getUserReaction(@Param('commentId') commentId: string, @UserInfo() user: any) {
-    return this.commentService.getUserReaction(commentId, user._id);
-  }
-
-  @Get(':commentId/reactions')
-  getCommentReactions(
-    @Param('commentId') commentId: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string
-  ) {
-    return this.commentService.getCommentReactions(
-      commentId,
-      page ? parseInt(page) : 1,
-      limit ? parseInt(limit) : 20
-    );
-  }
+  // Note: Comment reactions are now handled via ReactionController
+  // Use POST /reaction/comment with { commentId, type } body
+  // Use GET /reaction/comment/:commentId/user to get user's reaction
+  // Use GET /reaction/comment/:commentId to get all reactions
 }

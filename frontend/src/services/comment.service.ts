@@ -84,13 +84,14 @@ export const deleteComment = async (commentId: string): Promise<void> => {
   await axios.delete(`/comment/${commentId}`);
 };
 
-// ==================== COMMENT REACTIONS ====================
+// ==================== COMMENT REACTIONS (via unified Reaction API) ====================
 
 // Toggle reaction on a comment
 export const toggleCommentReaction = async (
   data: CreateCommentReactionPayload
 ): Promise<CommentReactionResponse> => {
-  const response = await axios.post("/comment/reaction", data);
+  // Use new unified reaction endpoint
+  const response = await axios.post("/reaction/comment", data);
   return response.data?.data || response.data;
 };
 
@@ -99,7 +100,8 @@ export const getUserCommentReaction = async (
   commentId: string
 ): Promise<CommentReaction | null> => {
   try {
-    const response = await axios.get(`/comment/${commentId}/reaction/me`);
+    // Use new unified reaction endpoint
+    const response = await axios.get(`/reaction/comment/${commentId}/user`);
     return response.data?.data || response.data;
   } catch {
     return null;
@@ -122,8 +124,9 @@ export const getCommentReactions = async (
     totalPages: number;
   };
 }> => {
+  // Use new unified reaction endpoint
   const response = await axios.get(
-    `/comment/${commentId}/reactions?page=${page}&limit=${limit}`
+    `/reaction/comment/${commentId}?page=${page}&limit=${limit}`
   );
   return response.data?.data || response.data;
 };

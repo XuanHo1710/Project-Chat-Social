@@ -25,6 +25,7 @@ import { useQueryClient, InfiniteData } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/constants/query-keys";
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { MessagesResponse } from "@/services/chat.service";
+import { useOnlineStatusStore, formatLastActiveDetailed } from "@/stores/useOnlineStatusStore";
 
 
 interface SelectedConversation {
@@ -33,14 +34,18 @@ interface SelectedConversation {
     avatar: string;
     status: "online" | "offline";
     otherId: string;
+    lastActive?: string;
 }
 
 
 
 export default function AreaChatMessages({ selectedConversation, userId }: { selectedConversation: SelectedConversation, userId: string }) {
-    const { socket } = useSocket();
+    const { socketChat } = useSocket();
     const queryClient = useQueryClient();
     const virtuosoRef = useRef<VirtuosoHandle>(null);
+
+    // Get real-time online status - just read from store
+    const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
 
     const {
         data: chatData,
@@ -52,16 +57,34 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
     const [newMessage, setNewMessage] = useState("");
 
+    // Real-time status from store
+    const otherUserStatus = useMemo(() => {
+        const storeStatus = onlineUsers[selectedConversation.otherId];
+        if (storeStatus) {
+            return {
+                isOnline: storeStatus.isOnline,
+                lastActive: storeStatus.lastActive
+            };
+        }
+        return {
+            isOnline: selectedConversation.status === 'online',
+            lastActive: selectedConversation.lastActive
+        };
+    }, [onlineUsers, selectedConversation.otherId, selectedConversation.status, selectedConversation.lastActive]);
+
+    // Status display text
+    const statusText = useMemo(() => {
+        if (otherUserStatus.isOnline) {
+            return 'Đang hoạt động';
+        }
+        return formatLastActiveDetailed(otherUserStatus.lastActive);
+    }, [otherUserStatus]);
+
     // Flatten all pages into single array of messages
-    // When fetchPreviousPage is called, new (older) pages are PREPENDED to pages array
-    // So pages[0] = oldest page, pages[last] = initial page (newest)
-    // Each page.data is already sorted oldest->newest from backend
     const pages = chatData?.pages;
     const allMessages = useMemo(() => {
         if (!pages) return [];
         const messages: MessageResponse[] = [];
-        // pages are already in correct order: [oldest_page, ..., newest_page]
-        // Just concat them directly
         pages.forEach(page => {
             messages.push(...page.data);
         });
@@ -71,27 +94,26 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     // Calculate firstItemIndex based on total older messages
     const firstItemIndex = useMemo(() => {
         if (!pages || pages.length <= 1) return 10000;
-        // pages[0..n-1] are older pages, pages[n] is the initial (newest) page
         const totalOlderMessages = pages
-            .slice(0, -1) // All except the last (initial) page
+            .slice(0, -1)
             .reduce((sum, page) => sum + page.data.length, 0);
         return 10000 - totalOlderMessages;
     }, [pages]);
 
     // Join conversation room
     useEffect(() => {
-        if (!socket || !selectedConversation._id) return;
+        if (!socketChat || !selectedConversation._id) return;
 
-        socket.emit("room", { conversationId: selectedConversation._id });
+        socketChat.emit("room", { conversationId: selectedConversation._id });
 
         return () => {
             // No leave event in backend, just clean up
         };
-    }, [socket, selectedConversation._id]);
+    }, [socketChat, selectedConversation._id]);
 
     // Listen for new messages
     useEffect(() => {
-        if (!socket) return;
+        if (!socketChat) return;
 
         const handleNewMessage = (msg: MessageResponse) => {
             queryClient.setQueryData<InfiniteData<MessagesResponse>>(
@@ -103,7 +125,6 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                             pageParams: [undefined],
                         };
                     }
-                    // Thêm message mới vào page đầu tiên (page mới nhất)
                     const newPages = [...oldData.pages];
                     newPages[0] = {
                         ...newPages[0],
@@ -115,7 +136,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                     };
                 }
             );
-            // Scroll to bottom khi có tin nhắn mới
+            // Scroll to bottom when new message
             setTimeout(() => {
                 virtuosoRef.current?.scrollToIndex({
                     index: 'LAST',
@@ -124,12 +145,12 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             }, 100);
         };
 
-        socket.on("message:new", handleNewMessage);
+        socketChat.on("message:new", handleNewMessage);
 
         return () => {
-            socket.off("message:new", handleNewMessage);
+            socketChat.off("message:new", handleNewMessage);
         };
-    }, [socket, selectedConversation._id, queryClient]);
+    }, [socketChat, selectedConversation._id, queryClient]);
 
     // Load more messages when scrolling to top
     const handleStartReached = useCallback(() => {
@@ -139,14 +160,14 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     }, [hasPreviousPage, isFetchingPreviousPage, fetchPreviousPage]);
 
     const handleSendMessage = () => {
-        if (newMessage.trim() && socket) {
+        if (newMessage.trim() && socketChat) {
             const payload: SendMessagePayload = {
                 conversationId: selectedConversation._id,
                 senderId: userId,
                 type: 'TEXT',
                 content: newMessage,
             };
-            socket.emit("message", payload);
+            socketChat.emit("message", payload);
             setNewMessage("");
         }
     };
@@ -208,10 +229,12 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                         variant="dot"
                         sx={{
                             "& .MuiBadge-badge": {
-                                backgroundColor: selectedConversation.status === "online" ? "#31a24c" : "#8a8d91",
+                                backgroundColor: otherUserStatus.isOnline ? "#31a24c" : "none",
                                 border: "2px solid white",
-                                width: 12,
-                                height: 12,
+                                display: otherUserStatus.isOnline ? "block" : "none",
+                                width: 15,
+                                borderRadius: '50%',
+                                height: 15,
                             },
                         }}
                     >
@@ -221,8 +244,12 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                         <Typography fontWeight={600} fontSize={15} color="#050505">
                             {selectedConversation.fullName}
                         </Typography>
-                        <Typography variant="body2" fontSize={12} color="#65676b">
-                            {selectedConversation.status === "online" ? "Đang hoạt động" : "Offline"}
+                        <Typography
+                            variant="body2"
+                            fontSize={12}
+                            color={otherUserStatus.isOnline ? "#31a24c" : "#65676b"}
+                        >
+                            {statusText}
                         </Typography>
                     </Box>
                 </Box>

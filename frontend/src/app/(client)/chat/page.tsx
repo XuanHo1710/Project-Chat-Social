@@ -12,6 +12,7 @@ interface SelectedConversation {
     avatar: string;
     status: "online" | "offline";
     otherId: string;
+    lastActive?: string;
 }
 
 export default function ChatPage() {

@@ -34,6 +34,8 @@ export interface FriendType {
   isBlocked: boolean;
   isActive: boolean;
   time: Date;
+  avatar?: string;
+  lastActive?: string;
 }
 
 export interface AccountType {

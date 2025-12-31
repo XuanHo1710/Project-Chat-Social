@@ -21,7 +21,10 @@ export class ConversationService {
   async findConversationByUserId(userId: string) {
     const conversation = await this.conversationModel.find({
       "participants.user": userId
-    }).populate('participants.user', '-password').populate('lastMessage', 'content type createdAt').exec();
+    })
+      .populate('participants.user', 'firstName lastName username avatar status lastActive')
+      .populate('lastMessage', 'content type createdAt')
+      .exec();
     return conversation;
   }
 

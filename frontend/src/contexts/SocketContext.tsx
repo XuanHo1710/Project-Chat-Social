@@ -2,11 +2,13 @@
 'use client';
 
 import { useAuthStore } from '@/stores/useAuthStore';
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
+import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 
 interface SocketContextType {
   socket: Socket | null;
+  socketChat: Socket | null; // Alias for socket (for clarity)
   isConnected: boolean;
   socketRelationship: Socket | null;
   socketReaction: Socket | null;
@@ -14,6 +16,7 @@ interface SocketContextType {
 
 const SocketContext = createContext<SocketContextType>({
   socket: null,
+  socketChat: null,
   isConnected: false,
   socketRelationship: null,
   socketReaction: null,
@@ -28,11 +31,13 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const [isConnected, setIsConnected] = useState(false);
   const { user } = useAuthStore();
 
+  // Track if online status listener is already setup
+  const onlineListenerSetup = useRef(false);
+
   useEffect(() => {
     const userId = user?.id;
 
     if (!userId) {
-      // Không làm gì cả, chỉ đợi userId xuất hiện
       return;
     }
 
@@ -52,7 +57,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       reconnection: true,
     });
 
-    // Reaction socket (NEW)
+    // Reaction socket
     const socketReactionIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/reaction", {
       query: { userId },
       transports: ["websocket"],
@@ -63,6 +68,12 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     socketIo.on("connect", () => {
       console.log("💬 Chat socket connected:", socketIo.id);
       setIsConnected(true);
+
+      // Setup online status listener ONCE when connected
+      if (!onlineListenerSetup.current) {
+        onlineListenerSetup.current = true;
+        setupOnlineStatusListeners(socketIo);
+      }
     });
 
     socketIo.on("disconnect", () => {
@@ -92,6 +103,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       console.log("🧹 Cleanup sockets");
+      onlineListenerSetup.current = false;
       socketIo.disconnect();
       socketRelationshipIo.disconnect();
       socketReactionIo.disconnect();
@@ -100,8 +112,32 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, socketRelationship, socketReaction }}>
+    <SocketContext.Provider value={{ socket, socketChat: socket, isConnected, socketRelationship, socketReaction }}>
       {children}
     </SocketContext.Provider>
   );
 };
+
+// Centralized online status listeners - runs ONCE
+function setupOnlineStatusListeners(socket: Socket) {
+  const store = useOnlineStatusStore.getState();
+
+  console.log("🟢 Setting up online status listeners (once)");
+
+  // Listen for user online
+  socket.on('user:online', (data: { userId: string; status: string }) => {
+    store.updateFromSocket({ userId: data.userId, status: data.status });
+  });
+
+  // Listen for user offline
+  socket.on('user:offline', (data: { userId: string; status: string; lastActive?: Date }) => {
+    store.updateFromSocket({ userId: data.userId, status: data.status, lastActive: data.lastActive });
+  });
+
+  // Request current online users list
+  socket.emit('users:online', {}, (response: { onlineUsers: string[] }) => {
+    if (response?.onlineUsers) {
+      store.setOnlineUsers(response.onlineUsers);
+    }
+  });
+}

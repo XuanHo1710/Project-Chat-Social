@@ -1,9 +1,17 @@
 
-import { AccountType } from "@/schema/account.schema";
 import { MessageType } from "@/types/chat";
 
 export type ConversationTypeEnum = "DIRECT" | "GROUP";
 
+export interface ConversationParticipantUser {
+    _id: string;
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+    avatar?: string;
+    status?: string;
+    lastActive?: string;
+}
 
 export interface ConversationResponseData {
     _id: string,
@@ -13,14 +21,12 @@ export interface ConversationResponseData {
     unreadCount: {
         _id: string;
     },
-    participants: [
-        {
-            user: AccountType,
-            joinedAt: Date,
-            isAdmin: false,
-            nickname: ""
-        }
-    ],
+    participants: Array<{
+        user: ConversationParticipantUser,
+        joinedAt: Date,
+        isAdmin: boolean,
+        nickname: string
+    }>,
     lastMessage?: {
         _id: string,
         type: MessageType,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Avatar,
@@ -32,8 +32,7 @@ import { formatTime } from '@/utils/formatDate';
 import { ConversationResponseData } from '@/types/conversation';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
-
-
+import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 
 interface ChatSidebarProps {
     conversations: ConversationResponseData[];
@@ -45,6 +44,7 @@ interface ChatSidebarProps {
         avatar: string;
         status: 'online' | 'offline';
         otherId: string;
+        lastActive?: string;
     }) => void;
 }
 
@@ -58,8 +58,30 @@ export default function ChatSidebar({
     const logout = useAuthStore((state) => state.logout);
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
-
     const router = useRouter();
+
+    // Online status store - just read, don't subscribe to socket here
+    const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
+    const setUserOnline = useOnlineStatusStore(state => state.setUserOnline);
+    const setUserOffline = useOnlineStatusStore(state => state.setUserOffline);
+
+    // Initialize from conversation participants (only once when conversations load)
+    useEffect(() => {
+        conversations.forEach(conv => {
+            conv.participants.forEach(p => {
+                if (p.user._id !== user?.id) {
+                    const existing = useOnlineStatusStore.getState().onlineUsers[p.user._id];
+                    if (!existing) {
+                        if (p.user.status === 'ACTIVE') {
+                            setUserOnline(p.user._id);
+                        } else if (p.user.lastActive) {
+                            setUserOffline(p.user._id, p.user.lastActive);
+                        }
+                    }
+                }
+            });
+        });
+    }, [conversations, user?.id, setUserOnline, setUserOffline]);
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget);
@@ -87,6 +109,21 @@ export default function ChatSidebar({
         const fullName = `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}`.toLowerCase();
         return fullName.includes(searchQuery.toLowerCase());
     });
+
+    // Get real-time status for a user
+    const getUserStatus = (userId: string, originalStatus?: string, originalLastActive?: string) => {
+        const storeStatus = onlineUsers[userId];
+        if (storeStatus) {
+            return {
+                isOnline: storeStatus.isOnline,
+                lastActive: storeStatus.lastActive
+            };
+        }
+        return {
+            isOnline: originalStatus === 'ACTIVE',
+            lastActive: originalLastActive
+        };
+    };
 
     return (
         <Box
@@ -150,8 +187,9 @@ export default function ChatSidebar({
                             '& .MuiBadge-badge': {
                                 backgroundColor: '#31a24c',
                                 border: '2px solid white',
-                                width: 12,
-                                height: 12,
+                                width: 15,
+                                borderRadius: '50%',
+                                height: 15,
                             },
                         }}
                     >
@@ -282,6 +320,7 @@ export default function ChatSidebar({
                             const chatUser = conversation.participants.find((p) => p.user._id !== user?.id)?.user;
                             const fullName = `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}`;
                             const isSelected = conversation._id === selectedConversationId;
+                            const status = chatUser ? getUserStatus(chatUser._id, chatUser.status, chatUser.lastActive) : { isOnline: false, lastActive: undefined };
 
                             return (
                                 <ListItemButton
@@ -294,8 +333,9 @@ export default function ChatSidebar({
                                             avatar:
                                                 chatUser?.avatar ||
                                                 `https://ui-avatars.com/api/?name=${chatUser?.username?.[0] || 'U'}&background=1877f2&color=fff`,
-                                            status: 'online',
+                                            status: status.isOnline ? 'online' : 'offline',
                                             otherId: chatUser?._id || '',
+                                            lastActive: status.lastActive as string | undefined,
                                         });
                                     }}
                                     sx={{
@@ -321,10 +361,11 @@ export default function ChatSidebar({
                                             variant="dot"
                                             sx={{
                                                 '& .MuiBadge-badge': {
-                                                    backgroundColor: '#31a24c',
-                                                    border: '2px solid white',
-                                                    width: 10,
-                                                    height: 10,
+                                                    backgroundColor: status.isOnline ? '#31a24c' : 'transparent',
+                                                    border: status.isOnline ? '2px solid white' : 'none',
+                                                    width: 15,
+                                                    borderRadius: '50%',
+                                                    height: 15,
                                                 },
                                             }}
                                         >

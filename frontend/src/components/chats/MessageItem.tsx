@@ -44,6 +44,7 @@ interface MessageItemProps {
     socket: Socket | null;
     userId: string;
     onReply?: (message: MessageResponse) => void;
+    themeColor?: string;
 }
 
 export default function MessageItem({
@@ -55,6 +56,7 @@ export default function MessageItem({
     socket,
     userId,
     onReply,
+    themeColor = '#0084ff',
 }: MessageItemProps) {
     const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
     const [reactionAnchor, setReactionAnchor] = useState<HTMLElement | null>(null);
@@ -305,7 +307,7 @@ export default function MessageItem({
                                 <Paper
                                     elevation={0}
                                     sx={{
-                                        bgcolor: message.attachments?.length && !message.content ? 'transparent' : (isOwn ? "#0084ff" : "#e4e6eb"),
+                                        bgcolor: message.attachments?.length && !message.content ? 'transparent' : (isOwn ? themeColor : "#e4e6eb"),
                                         color: isOwn ? "white" : "#050505",
                                         borderRadius: '18px',
                                         overflow: 'hidden',

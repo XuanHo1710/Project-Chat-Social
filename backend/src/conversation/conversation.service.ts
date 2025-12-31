@@ -82,6 +82,20 @@ export class ConversationService {
     ).exec();
   }
 
+  // 1.5. Thay đổi Theme Color
+  async updateTheme(conversationId: string, userId: string, theme: string) {
+    const isInConversation = await this.isUserInConversation(conversationId, userId);
+    if (!isInConversation) {
+      throw new ForbiddenException('Bạn không phải thành viên của cuộc trò chuyện này');
+    }
+
+    return await this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      { $set: { theme: theme } },
+      { new: true }
+    ).exec();
+  }
+
   // 2. Thay đổi Nickname của member trong conversation
   async updateMemberNickname(conversationId: string, userId: string, targetUserId: string, nickname: string) {
     const isInConversation = await this.isUserInConversation(conversationId, userId);

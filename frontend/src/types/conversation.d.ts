@@ -21,6 +21,7 @@ export interface ConversationResponseData {
     name?: string; // Tên nhóm
     avatar?: string; // Avatar nhóm
     quickReaction: string,
+    theme?: string, // Theme color for chat background
     unreadCount: {
         _id: string;
     },

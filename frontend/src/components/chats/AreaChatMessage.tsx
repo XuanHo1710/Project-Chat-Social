@@ -53,6 +53,10 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showInfo, setShowInfo] = useState(false);
 
+    // Get conversation detail for theme
+    const { data: conversationDetail } = useConversationDetail(selectedConversation._id);
+    const themeColor = conversationDetail?.data?.theme || '#0084ff';
+
     // Get real-time online status - just read from store
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
 
@@ -195,6 +199,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
         const handleConversationUpdate = () => {
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
         };
 
         socketChat.on("message:new", handleNewMessage);
@@ -202,6 +207,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         socketChat.on("message:reaction:updated", handleMessageReaction);
         socketChat.on("message:deleted", handleMessageDeleted);
 
+        socketChat.on("conversation:updated", handleConversationUpdate);
         socketChat.on("conversation:nickname:updated", handleConversationUpdate);
         socketChat.on("conversation:name:updated", handleConversationUpdate);
         socketChat.on("conversation:avatar:updated", handleConversationUpdate);
@@ -215,6 +221,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             socketChat.off("message:edited", handleMessageEdited);
             socketChat.off("message:reaction:updated", handleMessageReaction);
             socketChat.off("message:deleted", handleMessageDeleted);
+            socketChat.off("conversation:updated", handleConversationUpdate);
             socketChat.off("conversation:nickname:updated", handleConversationUpdate);
             socketChat.off("conversation:name:updated", handleConversationUpdate);
             socketChat.off("conversation:avatar:updated", handleConversationUpdate);
@@ -228,7 +235,6 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const [showMentions, setShowMentions] = useState(false);
     const [mentionSearch, setMentionSearch] = useState("");
 
-    const { data: conversationDetail } = useConversationDetail(selectedConversation._id);
     const participants = conversationDetail?.data?.participants || [];
 
     const filteredParticipants = useMemo(() => {
@@ -503,6 +509,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                         socket={socketChat}
                                         userId={userId}
                                         onReply={handleReply}
+                                        themeColor={themeColor}
                                     />
                                 );
                             }}

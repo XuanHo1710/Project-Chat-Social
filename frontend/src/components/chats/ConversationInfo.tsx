@@ -46,6 +46,8 @@ import {
 import { useConversationDetail } from '@/queries/useConversationQueries';
 import { useSocket } from '@/contexts/SocketContext';
 import { useAccountsByPage } from '@/queries/useAccountQueries';
+import Picker from '@emoji-mart/react';
+import data from '@emoji-mart/data';
 
 // Quick action buttons data
 const QUICK_ACTIONS = [
@@ -54,10 +56,7 @@ const QUICK_ACTIONS = [
     { icon: SearchIcon, label: 'Tìm kiếm' },
 ];
 
-// Emoji list for quick reaction
-const QUICK_REACTIONS = ['👍', '❤️', '🔥', '😮', '😢', '😆', '✅'];
-
-// Theme colors
+// Theme colors for chat background
 const THEME_COLORS = [
     '#0084ff', '#44bec7', '#ffc300', '#fa3c4c', '#d696bb',
     '#6699cc', '#13cf13', '#ff7e29', '#e68585', '#7646ff'
@@ -128,9 +127,9 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         }
     };
 
-    const handleQuickReaction = (reaction: string) => {
+    const handleQuickReaction = (emoji: { native: string }) => {
         if (socketChat) {
-            socketChat.emit('conversation:quick-reaction', { conversationId, reaction });
+            socketChat.emit('conversation:quick-reaction', { conversationId, emoji: emoji.native });
             setReactionDialogOpen(false);
         }
     };
@@ -393,27 +392,24 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 </DialogContent>
             </Dialog>
 
-            {/* Reaction Dialog */}
-            <Dialog open={reactionDialogOpen} onClose={() => setReactionDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'white', borderRadius: 3 } }}>
-                <DialogTitle sx={{ color: '#050505' }}>Chọn biểu tượng cảm xúc</DialogTitle>
-                <DialogContent>
-                    <Box sx={{ display: 'flex', gap: 1, py: 1 }}>
-                        {QUICK_REACTIONS.map(reaction => (
-                            <IconButton
-                                key={reaction}
-                                onClick={() => handleQuickReaction(reaction)}
-                                sx={{
-                                    fontSize: 28,
-                                    bgcolor: conversation.quickReaction === reaction ? '#e7f3ff' : 'transparent',
-                                    '&:hover': { bgcolor: '#f0f2f5', transform: 'scale(1.2)' },
-                                    transition: 'all 0.15s'
-                                }}
-                            >
-                                {reaction}
-                            </IconButton>
-                        ))}
-                    </Box>
-                </DialogContent>
+            {/* Reaction Dialog with Full Emoji Picker */}
+            <Dialog
+                open={reactionDialogOpen}
+                onClose={() => setReactionDialogOpen(false)}
+                PaperProps={{ sx: { bgcolor: 'transparent', boxShadow: 'none', overflow: 'visible' } }}
+            >
+                <Box sx={{ borderRadius: 3, overflow: 'hidden' }}>
+                    <Picker
+                        data={data}
+                        onEmojiSelect={handleQuickReaction}
+                        theme="light"
+                        locale="vi"
+                        previewPosition="none"
+                        skinTonePosition="none"
+                        perLine={8}
+                        maxFrequentRows={2}
+                    />
+                </Box>
             </Dialog>
 
             {/* Edit Name Dialog */}

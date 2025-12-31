@@ -271,6 +271,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
     }
 
+    // Thay đổi Theme Color
+    @SubscribeMessage('conversation:theme')
+    async handleThemeChange(
+        @MessageBody() data: { conversationId: string; theme: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updated = await this.conversationService.updateTheme(data.conversationId, userId, data.theme);
+            this.server.to(`room:${data.conversationId}`).emit('conversation:updated', updated);
+            return { success: true, conversation: updated };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+
     // Thay đổi nickname của member
     @SubscribeMessage('conversation:nickname')
     async handleNicknameChange(

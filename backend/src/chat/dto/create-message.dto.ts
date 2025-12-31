@@ -8,7 +8,7 @@ export class CreateMessageDto {
 
     type: MessageType;
 
-    content: string; // Nội dung text hoặc URL của file/image (max 5000 chars)
+    content?: string; // Nội dung text hoặc URL của file/image (max 5000 chars)
 
     attachments?: string[]; // Danh sách file đính kèm
 

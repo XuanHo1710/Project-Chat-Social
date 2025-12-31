@@ -7,6 +7,7 @@ import { ConversationService } from "src/conversation/conversation.service";
 import { InjectModel } from "@nestjs/mongoose";
 import { Account, AccountDocument } from "src/account/entities/account.entity";
 import { Model } from "mongoose";
+import { EmotionType } from "./entities/message.entity";
 
 // Map để lưu userId -> Set<socketId> (support multiple connections per user)
 const userSockets = new Map<string, Set<string>>();
@@ -144,6 +145,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         try {
             const savedMessage = await this.chatService.sendMessage(data);
+            if (!savedMessage) {
+                return { success: false, error: 'Failed to save message' };
+            }
 
             this.server.to(`room:${data.conversationId.toString()}`).emit('message:new', savedMessage);
 
@@ -158,6 +162,297 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             return { success: false, error: 'Failed to save message' };
         }
     }
+
+    // ============ MESSAGE FEATURES ============
+
+    // Chỉnh sửa tin nhắn
+    @SubscribeMessage('message:edit')
+    async handleEditMessage(
+        @MessageBody() data: { messageId: string; conversationId: string; content: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updatedMessage = await this.chatService.editMessage(data.messageId, userId, data.content);
+            this.server.to(`room:${data.conversationId}`).emit('message:edited', updatedMessage);
+            return { success: true, message: updatedMessage };
+        } catch (err) {
+            this.logger.error('Failed to edit message', err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Thả cảm xúc tin nhắn
+    @SubscribeMessage('message:reaction')
+    async handleMessageReaction(
+        @MessageBody() data: { messageId: string; conversationId: string; emotionType: EmotionType },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updatedMessage = await this.chatService.addReaction(data.messageId, userId, data.emotionType);
+            this.server.to(`room:${data.conversationId}`).emit('message:reaction:updated', updatedMessage);
+            return { success: true, message: updatedMessage };
+        } catch (err) {
+            this.logger.error('Failed to add reaction', err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Xóa cảm xúc tin nhắn
+    @SubscribeMessage('message:reaction:remove')
+    async handleRemoveReaction(
+        @MessageBody() data: { messageId: string; conversationId: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updatedMessage = await this.chatService.removeReaction(data.messageId, userId);
+            this.server.to(`room:${data.conversationId}`).emit('message:reaction:updated', updatedMessage);
+            return { success: true, message: updatedMessage };
+        } catch (err) {
+            this.logger.error('Failed to remove reaction', err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Xóa tin nhắn
+    @SubscribeMessage('message:delete')
+    async handleDeleteMessage(
+        @MessageBody() data: { messageId: string; conversationId: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const deletedMessage = await this.chatService.deleteMessage(data.messageId, userId);
+            this.server.to(`room:${data.conversationId}`).emit('message:deleted', deletedMessage);
+            return { success: true, message: deletedMessage };
+        } catch (err) {
+            this.logger.error('Failed to delete message', err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    // ============ CONVERSATION FEATURES ============
+
+    // Thay đổi Quick Reaction
+    @SubscribeMessage('conversation:quick-reaction')
+    async handleQuickReaction(
+        @MessageBody() data: { conversationId: string; emoji: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updated = await this.conversationService.updateQuickReaction(data.conversationId, userId, data.emoji);
+            this.server.to(`room:${data.conversationId}`).emit('conversation:updated', updated);
+            return { success: true, conversation: updated };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Thay đổi nickname của member
+    @SubscribeMessage('conversation:nickname')
+    async handleNicknameChange(
+        @MessageBody() data: { conversationId: string; targetUserId: string; nickname: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updated = await this.conversationService.updateMemberNickname(
+                data.conversationId, userId, data.targetUserId, data.nickname
+            );
+            this.server.to(`room:${data.conversationId}`).emit('conversation:updated', updated);
+            return { success: true, conversation: updated };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Thay đổi tên nhóm
+    @SubscribeMessage('conversation:name')
+    async handleGroupNameChange(
+        @MessageBody() data: { conversationId: string; name: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updated = await this.conversationService.updateGroupName(data.conversationId, userId, data.name);
+            this.server.to(`room:${data.conversationId}`).emit('conversation:updated', updated);
+            return { success: true, conversation: updated };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Thay đổi avatar nhóm
+    @SubscribeMessage('conversation:avatar')
+    async handleGroupAvatarChange(
+        @MessageBody() data: { conversationId: string; avatarUrl: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updated = await this.conversationService.updateGroupAvatar(data.conversationId, userId, data.avatarUrl);
+            this.server.to(`room:${data.conversationId}`).emit('conversation:updated', updated);
+            return { success: true, conversation: updated };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Thêm thành viên
+    @SubscribeMessage('conversation:member:add')
+    async handleAddMember(
+        @MessageBody() data: { conversationId: string; newUserId: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updated = await this.conversationService.addMember(data.conversationId, userId, data.newUserId);
+
+            // Gửi cho tất cả members hiện tại
+            this.server.to(`room:${data.conversationId}`).emit('conversation:member:added', {
+                conversation: updated,
+                newUserId: data.newUserId
+            });
+
+            // Join new member vào room
+            const newUserSockets = userSockets.get(data.newUserId);
+            if (newUserSockets) {
+                newUserSockets.forEach(socketId => {
+                    this.server.sockets.sockets.get(socketId)?.join(`room:${data.conversationId}`);
+                });
+            }
+
+            return { success: true, conversation: updated };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Kick thành viên
+    @SubscribeMessage('conversation:member:remove')
+    async handleRemoveMember(
+        @MessageBody() data: { conversationId: string; targetUserId: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updated = await this.conversationService.removeMember(data.conversationId, userId, data.targetUserId);
+
+            // Thông báo cho tất cả
+            this.server.to(`room:${data.conversationId}`).emit('conversation:member:removed', {
+                conversation: updated,
+                removedUserId: data.targetUserId
+            });
+
+            // Remove kicked member khỏi room
+            const kickedUserSockets = userSockets.get(data.targetUserId);
+            if (kickedUserSockets) {
+                kickedUserSockets.forEach(socketId => {
+                    this.server.sockets.sockets.get(socketId)?.leave(`room:${data.conversationId}`);
+                });
+            }
+
+            return { success: true, conversation: updated };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Phân quyền admin
+    @SubscribeMessage('conversation:admin')
+    async handleAdminChange(
+        @MessageBody() data: { conversationId: string; targetUserId: string; isAdmin: boolean },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updated = await this.conversationService.updateAdminStatus(
+                data.conversationId, userId, data.targetUserId, data.isAdmin
+            );
+            this.server.to(`room:${data.conversationId}`).emit('conversation:admin:updated', updated);
+            return { success: true, conversation: updated };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Rời nhóm
+    @SubscribeMessage('conversation:leave')
+    async handleLeaveGroup(
+        @MessageBody() data: { conversationId: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        const userId = client.data.userId;
+        if (!userId) {
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const updated = await this.conversationService.leaveGroup(data.conversationId, userId);
+
+            // Thông báo cho group
+            this.server.to(`room:${data.conversationId}`).emit('conversation:member:left', {
+                conversation: updated,
+                leftUserId: userId
+            });
+
+            // Leave room
+            client.leave(`room:${data.conversationId}`);
+
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+
+    // ============ STATUS ============
 
     // Get online status of a specific user
     @SubscribeMessage('user:status')

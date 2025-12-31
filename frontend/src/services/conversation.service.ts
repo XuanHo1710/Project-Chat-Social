@@ -8,7 +8,10 @@ class ConversationService {
         return response.data;
     }
 
-
+    async getConversationDetail(id: string): Promise<APIResponse<ConversationResponseData>> {
+        const response = await axios.get<APIResponse<ConversationResponseData>>(`/conversation/detail/${id}`);
+        return response.data;
+    }
 }
 
 export const conversationService = new ConversationService();

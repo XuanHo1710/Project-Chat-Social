@@ -1,38 +1,41 @@
-export type EmotionType = "LIKE" | "LOVE" | "FUNNY" | "SAD" | "ANGRY";
+export type EmotionType = "LIKE" | "LOVE" | "FUNNY" | "SAD" | "ANGRY" | "WOW";
 
-export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "FILE" | "POST";
+export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "FILE" | "POST" | "SYSTEM";
 
 export type MessageStatus = "SENT" | "DELIVERED" | "READ";
 
 export interface MessageResponse {
   _id: string;
 
-  conversationId: Types.ObjectId;
+  conversationId: string;
 
-  senderId: Types.ObjectId;
+  senderId: string;
 
   type: MessageType;
 
   content: string;
 
-  emotions?: {
-    userId: Types.ObjectId;
-    emotionType: EmotionType; // Loại cảm xúc, ví dụ: 'LIKE', 'LOVE', 'FUNNY', 'SAD', 'ANGRY'
-  };
+  emotions?: Array<{
+    userId: string;
+    emotionType: EmotionType;
+  }>;
 
-  attachments?: string[]; // Danh sách file đính kèm
+  attachments?: string[];
 
-  replyTo?: Types.ObjectId; // Tin nhắn được reply
+  replyTo?: any;
 
-  postId?: Types.ObjectId;
-
-  // postData?: any;
+  postId?: string;
 
   status?: MessageStatus;
 
-  readBy?: Types.ObjectId[];
+  readBy?: string[];
 
-  createdAt: Date;
+  createdAt: string;
+
+  // Edit/Delete fields
+  isEdited?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
 }
 
 export interface SendMessagePayload {
@@ -41,7 +44,7 @@ export interface SendMessagePayload {
   type: MessageType;
   content: string;
   attachments?: string[];
-  replyTo?: string;
+  replyTo?: any;
   postId?: string;
 }
 

@@ -9,7 +9,7 @@ export interface DeleteMediaDto {
 
 @Injectable()
 export class CloudinaryService implements OnModuleInit {
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   onModuleInit() {
     cloudinary.config({
@@ -33,6 +33,52 @@ export class CloudinaryService implements OnModuleInit {
       console.error(`Failed to delete media ${publicId}:`, error);
       return false;
     }
+  }
+
+  /**
+   * Upload a single media file to Cloudinary
+   */
+  async uploadMedia(
+    fileBuffer: Buffer,
+    filename: string,
+    mediaType: 'IMAGE' | 'VIDEO' = 'IMAGE'
+  ): Promise<{ url: string; publicId: string }> {
+    const resourceType = mediaType === 'VIDEO' ? 'video' : 'image';
+
+    return new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        {
+          resource_type: resourceType,
+          folder: 'chat_attachments',
+          public_id: `${Date.now()}_${filename.replace(/\.[^/.]+$/, '')}`,
+        },
+        (error, result) => {
+          if (error) {
+            reject(error);
+          } else if (result) {
+            resolve({
+              url: result.secure_url,
+              publicId: result.public_id,
+            });
+          }
+        }
+      ).end(fileBuffer);
+    });
+  }
+
+  /**
+   * Upload multiple media files to Cloudinary
+   */
+  async uploadMultipleMedia(
+    files: { buffer: Buffer; originalname: string; mimetype: string }[]
+  ): Promise<{ url: string; publicId: string; mediaType: 'IMAGE' | 'VIDEO' }[]> {
+    const uploadPromises = files.map(async (file) => {
+      const mediaType: 'IMAGE' | 'VIDEO' = file.mimetype.startsWith('video/') ? 'VIDEO' : 'IMAGE';
+      const result = await this.uploadMedia(file.buffer, file.originalname, mediaType);
+      return { ...result, mediaType };
+    });
+
+    return Promise.all(uploadPromises);
   }
 
   /**

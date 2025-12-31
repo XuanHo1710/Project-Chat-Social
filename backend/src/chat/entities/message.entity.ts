@@ -25,6 +25,7 @@ export enum EmotionType {
   FUNNY = 'FUNNY',
   SAD = 'SAD',
   ANGRY = 'ANGRY',
+  WOW = 'WOW',
 }
 
 @Schema({ timestamps: true })
@@ -38,14 +39,14 @@ export class Message {
   @Prop({ type: String, enum: MessageType, default: MessageType.TEXT })
   type: MessageType;
 
-  @Prop({ type: String, required: true, maxlength: 5000 })
+  @Prop({ type: String, required: false, default: '', maxlength: 5000 })
   content: string; // Nội dung text hoặc URL của file/image (max 5000 chars)
 
-  @Prop({ type: { userId: Types.ObjectId, emotionType: String } })
-  emotions?: {
+  @Prop({ type: [{ userId: Types.ObjectId, emotionType: String }] })
+  emotions?: [{
     userId: Types.ObjectId;
     emotionType: EmotionType; // Loại cảm xúc, ví dụ: 'LIKE', 'LOVE', 'FUNNY', 'SAD', 'ANGRY'
-  };
+  }];
 
   @Prop({ type: [String] })
   attachments?: string[]; // Danh sách file đính kèm

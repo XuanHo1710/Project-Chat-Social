@@ -17,6 +17,9 @@ export interface ConversationResponseData {
     _id: string,
     type: ConversationTypeEnum,
     isBlocked: boolean,
+    creator: string; // ID của người tạo nhóm
+    name?: string; // Tên nhóm
+    avatar?: string; // Avatar nhóm
     quickReaction: string,
     unreadCount: {
         _id: string;
@@ -31,7 +34,9 @@ export interface ConversationResponseData {
         _id: string,
         type: MessageType,
         content: string,
-        createdAt: Date
+        createdAt: Date,
+        senderId?: string,
+        attachments?: string[]
     },
     lastMessageAt?: Date,
 }

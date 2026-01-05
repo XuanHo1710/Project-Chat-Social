@@ -844,16 +844,16 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 gap: 1,
                                 mb: 1.5,
                                 p: 1.5,
-                                bgcolor: '#3a3b3c',
-                                borderRadius: 3,
+                                bgcolor: 'white',
+                                borderRadius: 1,
                                 overflowX: 'auto',
                             }}
                         >
                             {/* Add media button */}
                             <Box
                                 sx={{
-                                    width: 56,
-                                    height: 56,
+                                    width: 80,
+                                    height: 80,
                                     borderRadius: 2,
                                     border: '2px dashed #555',
                                     display: 'flex',
@@ -872,8 +872,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                     key={index}
                                     sx={{
                                         position: 'relative',
-                                        width: 56,
-                                        height: 56,
+                                        width: 80,
+                                        height: 80,
                                         borderRadius: 2,
                                         overflow: 'hidden',
                                         flexShrink: 0,
@@ -923,12 +923,12 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                         onClick={() => handleRemoveMedia(index)}
                                         sx={{
                                             position: 'absolute',
-                                            top: -4,
-                                            right: -4,
+                                            top: 4,
+                                            right: 4,
                                             bgcolor: '#242526',
                                             color: 'white',
                                             p: 0.3,
-                                            border: '2px solid #3a3b3c',
+                                            border: '1px solid #3a3b3c',
                                             '&:hover': { bgcolor: '#555' }
                                         }}
                                     >

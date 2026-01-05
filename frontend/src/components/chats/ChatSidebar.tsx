@@ -384,6 +384,7 @@ export default function ChatSidebar({
                                                 {fullName}
                                             </Typography>
                                         }
+                                        secondaryTypographyProps={{ component: 'div' }}
                                         secondary={
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                 <Typography

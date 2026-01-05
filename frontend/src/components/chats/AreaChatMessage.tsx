@@ -56,6 +56,13 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     // Get conversation detail for theme
     const { data: conversationDetail } = useConversationDetail(selectedConversation._id);
     const themeColor = conversationDetail?.data?.theme || '#0084ff';
+    const quickReaction = conversationDetail?.data?.quickReaction || '👍';
+
+    // Generate gradient from theme color
+    const getGradientBg = (color: string) => {
+        // Darken the color slightly for gradient end
+        return `linear-gradient(180deg, ${color}15 0%, ${color}08 50%, #ffffff 100%)`;
+    };
 
     // Get real-time online status - just read from store
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
@@ -363,6 +370,20 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         setEmojiAnchor(null);
     };
 
+    // Send quick reaction as a message
+    const handleSendQuickReaction = () => {
+        if (!socketChat) return;
+
+        const payload: SendMessagePayload = {
+            conversationId: selectedConversation._id,
+            senderId: userId,
+            type: 'TEXT',
+            content: quickReaction,
+        };
+
+        socketChat.emit("message", payload);
+    };
+
     // Header component showing loading when fetching older messages
     const Header = () => {
         if (isFetchingPreviousPage) {
@@ -475,7 +496,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                 </Box>
 
                 {/* Messages Area with Virtuoso */}
-                <Box sx={{ flex: 1, overflow: "hidden", bgcolor: "white" }}>
+                <Box sx={{ flex: 1, overflow: "hidden", background: getGradientBg(themeColor) }}>
                     {isLoading ? (
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                             <CircularProgress />
@@ -584,30 +605,50 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                         </Box>
                     )}
 
-                    {/* Media Preview - Premium Style */}
+                    {/* Media Preview - Messenger Style */}
                     {mediaPreview.length > 0 && (
                         <Box
                             sx={{
-                                display: 'grid',
-                                gridTemplateColumns: mediaPreview.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(100px, 1fr))',
+                                display: 'flex',
+                                alignItems: 'center',
                                 gap: 1,
                                 mb: 1.5,
                                 p: 1.5,
-                                bgcolor: '#f0f2f5',
+                                bgcolor: '#3a3b3c',
                                 borderRadius: 3,
-                                maxHeight: 300,
-                                overflowY: 'auto'
+                                overflowX: 'auto',
                             }}
                         >
+                            {/* Add media button */}
+                            <Box
+                                sx={{
+                                    width: 56,
+                                    height: 56,
+                                    borderRadius: 2,
+                                    border: '2px dashed #555',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    flexShrink: 0,
+                                    '&:hover': { borderColor: '#777' }
+                                }}
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                <AddCircleIcon sx={{ color: '#aaa', fontSize: 28 }} />
+                            </Box>
                             {mediaPreview.map((media, index) => (
                                 <Box
                                     key={index}
                                     sx={{
                                         position: 'relative',
+                                        width: 56,
+                                        height: 56,
                                         borderRadius: 2,
                                         overflow: 'hidden',
-                                        aspectRatio: mediaPreview.length === 1 ? 'auto' : '1',
-                                        bgcolor: '#000',
+                                        flexShrink: 0,
+                                        bgcolor: '#242526',
+                                        border: '1px solid #444',
                                     }}
                                 >
                                     {media.type === 'video' ? (
@@ -616,8 +657,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                                 src={media.url}
                                                 style={{
                                                     width: '100%',
-                                                    height: mediaPreview.length === 1 ? 'auto' : '100%',
-                                                    maxHeight: mediaPreview.length === 1 ? 200 : '100%',
+                                                    height: '100%',
                                                     objectFit: 'cover'
                                                 }}
                                             />
@@ -628,13 +668,13 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                                 transform: 'translate(-50%, -50%)',
                                                 bgcolor: 'rgba(0,0,0,0.6)',
                                                 borderRadius: '50%',
-                                                width: 40,
-                                                height: 40,
+                                                width: 24,
+                                                height: 24,
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center'
                                             }}>
-                                                <Typography color="white" fontSize={20}>▶</Typography>
+                                                <Typography color="white" fontSize={12}>▶</Typography>
                                             </Box>
                                         </>
                                     ) : (
@@ -643,8 +683,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                             src={media.url}
                                             sx={{
                                                 width: '100%',
-                                                height: mediaPreview.length === 1 ? 'auto' : '100%',
-                                                maxHeight: mediaPreview.length === 1 ? 200 : '100%',
+                                                height: '100%',
                                                 objectFit: 'cover'
                                             }}
                                         />
@@ -654,15 +693,16 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                         onClick={() => handleRemoveMedia(index)}
                                         sx={{
                                             position: 'absolute',
-                                            top: 4,
-                                            right: 4,
-                                            bgcolor: 'rgba(0,0,0,0.6)',
+                                            top: -4,
+                                            right: -4,
+                                            bgcolor: '#242526',
                                             color: 'white',
-                                            p: 0.5,
-                                            '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' }
+                                            p: 0.3,
+                                            border: '2px solid #3a3b3c',
+                                            '&:hover': { bgcolor: '#555' }
                                         }}
                                     >
-                                        <CloseIcon sx={{ fontSize: 16 }} />
+                                        <CloseIcon sx={{ fontSize: 12 }} />
                                     </IconButton>
                                 </Box>
                             ))}
@@ -721,9 +761,21 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                         <IconButton size="small" sx={{ color: "#0084ff" }} onClick={(e) => setEmojiAnchor(e.currentTarget)}>
                             <EmojiEmotionsIcon fontSize="small" />
                         </IconButton>
-                        {(newMessage.trim() || mediaPreview.length > 0) && (
-                            <IconButton onClick={handleSendMessage} size="small" sx={{ color: "#0084ff" }} disabled={isUploading}>
+                        {(newMessage.trim() || mediaPreview.length > 0) ? (
+                            <IconButton onClick={handleSendMessage} size="small" sx={{ color: themeColor }} disabled={isUploading}>
                                 {isUploading ? <CircularProgress size={18} /> : <SendIcon fontSize="small" />}
+                            </IconButton>
+                        ) : (
+                            <IconButton
+                                onClick={handleSendQuickReaction}
+                                size="small"
+                                sx={{
+                                    fontSize: 20,
+                                    transition: 'transform 0.15s',
+                                    '&:hover': { transform: 'scale(1.2)', bgcolor: 'transparent' }
+                                }}
+                            >
+                                {quickReaction}
                             </IconButton>
                         )}
                     </Box>

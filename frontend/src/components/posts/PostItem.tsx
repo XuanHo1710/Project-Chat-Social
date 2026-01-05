@@ -12,22 +12,32 @@ import {
 } from '@mui/icons-material';
 import { formatPostTime, getAuthorName } from '@/utils/formatPost';
 import ReactionButton from '@/components/posts/ReactionButton';
+import ReactionListDialog from '@/components/posts/ReactionListDialog';
 import { PostType } from '@/types/post';
 import { HashtagContent } from '@/utils/hashtagParser';
 import { useReactionStore } from '@/stores/useReactionStore';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
+interface PostItemProps {
+    post: PostType;
+    userId: string;
+    handleOpenMenu: (e: React.MouseEvent<HTMLElement>, post: PostType) => void;
+    handleOpenComments: (post: PostType) => void;
+    handleOpenShare: (post: PostType) => void;
+    renderPostMedia: (post: PostType) => React.ReactNode;
+    PrivacyIconComponent: React.ElementType;
+}
 
-
-
-export default function PostItem({ post, handleOpenMenu, handleOpenComments, handleOpenShare, renderPostMedia, PrivacyIconComponent }:
-    {
-        post: PostType, handleOpenMenu: (
-            e: React.MouseEvent<HTMLElement>, post: PostType) => void,
-        handleOpenComments: (post: PostType) => void, handleOpenShare: (post: PostType) => void,
-        renderPostMedia: (post: PostType) => React.ReactNode,
-        PrivacyIconComponent: React.ElementType
-    }) {
+export default function PostItem({
+    post,
+    userId,
+    handleOpenMenu,
+    handleOpenComments,
+    handleOpenShare,
+    renderPostMedia,
+    PrivacyIconComponent
+}: PostItemProps) {
+    const [reactionListOpen, setReactionListOpen] = useState(false);
 
     // Use global store for reaction state
     const { postReactions, initPostReaction } = useReactionStore();
@@ -83,7 +93,16 @@ export default function PostItem({ post, handleOpenMenu, handleOpenComments, han
 
                 {/* Like/Comment Count */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            cursor: displayTotalReacts > 0 ? 'pointer' : 'default',
+                            '&:hover': displayTotalReacts > 0 ? { textDecoration: 'underline' } : {}
+                        }}
+                        onClick={() => displayTotalReacts > 0 && setReactionListOpen(true)}
+                    >
                         <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: '#1877f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <ThumbUpIcon sx={{ fontSize: 12, color: 'white' }} />
                         </Box>
@@ -116,6 +135,14 @@ export default function PostItem({ post, handleOpenMenu, handleOpenComments, han
                     </Box>
                 </Box>
             </CardContent>
+
+            {/* Reaction List Dialog */}
+            <ReactionListDialog
+                open={reactionListOpen}
+                onClose={() => setReactionListOpen(false)}
+                postId={post._id}
+                userId={userId}
+            />
         </Card>
     )
 }

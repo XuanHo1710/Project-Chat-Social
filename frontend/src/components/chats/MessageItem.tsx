@@ -23,8 +23,6 @@ import {
 import { MessageResponse, EmotionType } from '@/types/chat';
 import { formatTime } from '@/utils/formatDate';
 import { Socket } from 'socket.io-client';
-import Picker from '@emoji-mart/react';
-import data from '@emoji-mart/data';
 
 const EMOTIONS: { type: EmotionType; emoji: string; label: string }[] = [
     { type: 'LIKE', emoji: '👍', label: 'Thích' },
@@ -195,6 +193,35 @@ export default function MessageItem({
         );
     };
 
+    // Render SYSTEM message (centered, italic style)
+    if (message.type === 'SYSTEM') {
+        return (
+            <Box
+                sx={{
+                    display: "flex",
+                    justifyContent: "center",
+                    px: 2,
+                    py: 1,
+                }}
+            >
+                <Typography
+                    sx={{
+                        fontSize: 12,
+                        color: '#65676b',
+                        fontStyle: 'italic',
+                        textAlign: 'center',
+                        bgcolor: 'rgba(0,0,0,0.05)',
+                        px: 2,
+                        py: 0.5,
+                        borderRadius: 3,
+                    }}
+                >
+                    {message.content}
+                </Typography>
+            </Box>
+        );
+    }
+
     // Render deleted message (Facebook style)
     if (message.isDeleted) {
         return (
@@ -269,35 +296,64 @@ export default function MessageItem({
                     )}
 
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
-                        {/* Reply Quote */}
+                        {/* Reply Quote - Facebook style */}
                         {message.replyTo && (
                             <Box
                                 sx={{
-                                    bgcolor: '#e4e6eb',
-                                    p: '6px 10px',
-                                    pb: '14px',
-                                    mb: -1.5,
-                                    borderRadius: '14px',
-                                    maxWidth: 280,
-                                    cursor: 'pointer',
-                                    position: 'relative',
-                                    zIndex: 0,
+                                    display: 'flex',
+                                    alignItems: 'flex-end',
+                                    gap: 0.5,
+                                    mb: 0.5,
+                                    flexDirection: isOwn ? 'row-reverse' : 'row',
                                 }}
                             >
-                                <Typography fontSize={12} fontWeight={600} color="#65676b" noWrap>
-                                    {(() => {
-                                        const replyData = message.replyTo as any;
-                                        if (replyData.senderId === userId || replyData.senderId?._id === userId) {
-                                            return 'Bạn';
-                                        }
-                                        if (replyData.senderId?.firstName && replyData.senderId?.lastName) {
-                                            return `${replyData.senderId.firstName} ${replyData.senderId.lastName}`;
-                                        }
-                                        return 'Người dùng';
-                                    })()}
-                                </Typography>
-                                <Typography fontSize={13} color="#65676b" noWrap>
-                                    {(message.replyTo as any).content || '📷 Hình ảnh'}
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.5,
+                                        color: '#65676b',
+                                        fontSize: 12,
+                                    }}
+                                >
+                                    <ReplyIcon sx={{ fontSize: 14, transform: 'scaleX(-1)' }} />
+                                    <Typography fontSize={12} color="#050505" fontWeight={500}>
+                                        {isOwn ? 'Bạn đã trả lời ' : ''}
+                                        {(() => {
+                                            const replyData = message.replyTo as MessageResponse;
+                                            if (replyData.senderId?._id === userId) {
+                                                return isOwn ? 'chính mình' : 'bạn';
+                                            }
+                                            if (replyData.senderId?.firstName && replyData.senderId?.lastName) {
+                                                return `${replyData.senderId.firstName} ${replyData.senderId.lastName}`;
+                                            }
+                                            return 'Người dùng';
+                                        })()}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        )}
+
+                        {/* Reply Content Preview */}
+                        {message.replyTo && (
+                            <Box
+                                sx={{
+                                    bgcolor: isOwn ? '#d8dadf' : '#d8dadf',
+                                    px: 1.5,
+                                    py: 0.8,
+                                    borderRadius: '12px',
+                                    mb: 0.5,
+                                    maxWidth: 250,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <Typography
+                                    fontSize={13}
+                                    color={'#65676b'}
+                                    noWrap
+                                    sx={{ fontStyle: 'italic' }}
+                                >
+                                    {message.replyTo?.content || 'Hình ảnh'}
                                 </Typography>
                             </Box>
                         )}
@@ -373,16 +429,22 @@ export default function MessageItem({
                                     opacity: 0,
                                     transition: 'opacity 0.15s',
                                     flexDirection: isOwn ? 'row-reverse' : 'row',
-                                    gap: 0.2
+                                    gap: 0.2,
+                                    zIndex: 100,
+                                    bgcolor: 'white',
+                                    borderRadius: 3,
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                    px: 0.5,
+                                    py: 0.2,
                                 }}
                             >
-                                <IconButton size="small" onClick={handleReactionOpen} sx={{ p: 0.4 }}>
+                                <IconButton size="small" onClick={handleReactionOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
                                     <SentimentSatisfiedAltIcon sx={{ fontSize: 17, color: '#65676b' }} />
                                 </IconButton>
-                                <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4 }}>
+                                <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
                                     <ReplyIcon sx={{ fontSize: 17, color: '#65676b' }} />
                                 </IconButton>
-                                <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4 }}>
+                                <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
                                     <MoreHorizIcon sx={{ fontSize: 17, color: '#65676b' }} />
                                 </IconButton>
                                 <Typography variant="caption" color="#65676b" sx={{ fontSize: 11, mx: 0.5, whiteSpace: 'nowrap' }}>

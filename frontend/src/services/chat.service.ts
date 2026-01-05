@@ -12,6 +12,17 @@ export interface MessagesResponse {
   };
 }
 
+export interface MediaMessagesResponse {
+  data: MessageResponse[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}
+
 class ChatService {
   async getMessagesByConversationId(
     conversationId: string,
@@ -26,6 +37,19 @@ class ChatService {
       `/chat/messages/${conversationId}?${params.toString()}`
     );
     // Backend wraps response in { data: actualData }
+    const result = response.data?.data || response.data;
+    return result;
+  }
+
+  // Get media messages (images/videos) for a conversation
+  async getMediaMessages(
+    conversationId: string,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<MediaMessagesResponse> {
+    const response = await axios.get(
+      `/chat/messages/${conversationId}/media?page=${page}&limit=${limit}`
+    );
     const result = response.data?.data || response.data;
     return result;
   }

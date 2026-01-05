@@ -60,15 +60,14 @@ export interface ReactionSummary {
   topReactions: { type: ReactionType; count: number }[];
 }
 
-// Reaction emoji map
-export const REACTION_EMOJI: Record<ReactionType, string> = {
-  LIKE: "👍",
-  LOVE: "❤️",
-  HAHA: "😆",
-  WOW: "😮",
-  SAD: "😢",
-  ANGRY: "😡",
-};
+export interface ReactionUser {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  avatar?: string;
+  reactionType: ReactionType;
+  isFriend: boolean;
+}
 
 export const REACTION_COLORS: Record<ReactionType, string> = {
   LIKE: "#1877f2",

@@ -32,6 +32,20 @@ export class ChatController {
     );
   }
 
+  // Get media messages (images/videos) for a conversation
+  @Get('/messages/:id/media')
+  findMediaMessages(
+    @Param('id') conversationId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.chatService.findMediaMessages(
+      conversationId,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 20
+    );
+  }
+
   @Get('/:id')
   findONe(@Param('id') id: string) {
     return this.chatService.findOne(id);

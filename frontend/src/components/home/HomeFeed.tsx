@@ -353,6 +353,7 @@ export default function HomeFeed() {
                     <PostItem
                         key={post._id}
                         post={post}
+                        userId={user?.id || ''}
                         handleOpenMenu={handleOpenMenu}
                         handleOpenComments={handleOpenComments}
                         handleOpenShare={handleOpenShare}

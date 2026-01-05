@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     Box,
     Avatar,
@@ -23,6 +23,8 @@ import {
     MenuItem,
     CircularProgress,
     Collapse,
+    Tabs,
+    Tab,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -37,15 +39,19 @@ import {
     Search as SearchIcon,
     ExpandMore as ExpandMoreIcon,
     ExpandLess as ExpandLessIcon,
-    Palette as PaletteIcon,
-    EmojiEmotions as EmojiEmotionsIcon,
     Photo as PhotoIcon,
     InsertDriveFile as FileIcon,
     Lock as LockIcon,
+    ArrowBack as ArrowBackIcon,
+    PlayCircle as PlayCircleIcon,
 } from '@mui/icons-material';
 import { useConversationDetail } from '@/queries/useConversationQueries';
 import { useSocket } from '@/contexts/SocketContext';
 import { useAccountsByPage } from '@/queries/useAccountQueries';
+import { chatService } from '@/services/chat.service';
+import { MessageResponse } from '@/types/chat';
+import { ConversationParticipant } from '@/types/conversation';
+import { AccountCardFriendType } from '@/types/account';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 
@@ -56,10 +62,18 @@ const QUICK_ACTIONS = [
     { icon: SearchIcon, label: 'Tìm kiếm' },
 ];
 
-// Theme colors for chat background
+// Theme colors for chat background - now with gradients
 const THEME_COLORS = [
-    '#0084ff', '#44bec7', '#ffc300', '#fa3c4c', '#d696bb',
-    '#6699cc', '#13cf13', '#ff7e29', '#e68585', '#7646ff'
+    { color: '#0084ff', gradient: 'linear-gradient(180deg, #0084ff 0%, #0066cc 100%)' },
+    { color: '#44bec7', gradient: 'linear-gradient(180deg, #44bec7 0%, #2da8b0 100%)' },
+    { color: '#ffc300', gradient: 'linear-gradient(180deg, #ffc300 0%, #e6a800 100%)' },
+    { color: '#fa3c4c', gradient: 'linear-gradient(180deg, #fa3c4c 0%, #d6323f 100%)' },
+    { color: '#d696bb', gradient: 'linear-gradient(180deg, #d696bb 0%, #c07aa3 100%)' },
+    { color: '#6699cc', gradient: 'linear-gradient(180deg, #6699cc 0%, #4d80b3 100%)' },
+    { color: '#13cf13', gradient: 'linear-gradient(180deg, #13cf13 0%, #0fb30f 100%)' },
+    { color: '#ff7e29', gradient: 'linear-gradient(180deg, #ff7e29 0%, #e66a1a 100%)' },
+    { color: '#e68585', gradient: 'linear-gradient(180deg, #e68585 0%, #d96c6c 100%)' },
+    { color: '#7646ff', gradient: 'linear-gradient(180deg, #7646ff 0%, #5c33cc 100%)' }
 ];
 
 interface ConversationInfoProps {
@@ -87,14 +101,85 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     const [searchQuery, setSearchQuery] = useState('');
 
     const [memberMenuAnchor, setMemberMenuAnchor] = useState<null | HTMLElement>(null);
-    const [selectedMember, setSelectedMember] = useState<any>(null);
+    const [selectedMember, setSelectedMember] = useState<ConversationParticipant | null>(null);
 
     const [themeDialogOpen, setThemeDialogOpen] = useState(false);
     const [reactionDialogOpen, setReactionDialogOpen] = useState(false);
 
+    // Media Gallery State
+    const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
+    const [mediaTab, setMediaTab] = useState(0);
+    const [mediaMessages, setMediaMessages] = useState<MessageResponse[]>([]);
+    const [mediaPage, setMediaPage] = useState(1);
+    const [mediaHasMore, setMediaHasMore] = useState(true);
+    const [mediaLoading, setMediaLoading] = useState(false);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+
     const conversation = conversationData?.data;
+    const themeColor = conversation?.theme || '#0084ff';
 
     const { data: searchResults, isLoading: isSearching } = useAccountsByPage(userId, { search: searchQuery });
+
+    // Load media messages
+    const loadMediaMessages = useCallback(async (page: number, reset: boolean = false) => {
+        if (mediaLoading) return;
+
+        setMediaLoading(true);
+        try {
+            const result = await chatService.getMediaMessages(conversationId, page, 20);
+            if (reset) {
+                setMediaMessages(result.data);
+            } else {
+                setMediaMessages(prev => [...prev, ...result.data]);
+            }
+            setMediaHasMore(result.pagination.hasMore);
+            setMediaPage(page);
+        } catch (error) {
+            console.error('Failed to load media:', error);
+        } finally {
+            setMediaLoading(false);
+        }
+    }, [conversationId, mediaLoading]);
+
+    // Open media gallery
+    const handleOpenMediaGallery = () => {
+        setMediaGalleryOpen(true);
+        setMediaMessages([]);
+        setMediaPage(1);
+        setMediaHasMore(true);
+        loadMediaMessages(1, true);
+    };
+
+    // Handle scroll to load more
+    const handleMediaScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const target = e.target as HTMLDivElement;
+        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
+            if (mediaHasMore && !mediaLoading) {
+                loadMediaMessages(mediaPage + 1);
+            }
+        }
+    };
+
+    // Get all media URLs from messages
+    const allMediaUrls = mediaMessages.flatMap(msg => {
+        const urls: { url: string; type: 'image' | 'video'; date: string }[] = [];
+        if (msg.attachments) {
+            msg.attachments.forEach(url => {
+                const isVideo = url.match(/\.(mp4|webm|ogg)$/i) || url.includes('video');
+                urls.push({ url, type: isVideo ? 'video' : 'image', date: msg.createdAt });
+            });
+        }
+        return urls;
+    });
+
+    // Group media by month
+    const groupedMedia = allMediaUrls.reduce((acc, media) => {
+        const date = new Date(media.date);
+        const monthYear = `Tháng ${date.getMonth() + 1} năm ${date.getFullYear()}`;
+        if (!acc[monthYear]) acc[monthYear] = [];
+        acc[monthYear].push(media);
+        return acc;
+    }, {} as Record<string, typeof allMediaUrls>);
 
     if (isLoading || !conversation) return null;
 
@@ -141,7 +226,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         }
     };
 
-    const handleMemberMenuOpen = (event: React.MouseEvent<HTMLElement>, member: any) => {
+    const handleMemberMenuOpen = (event: React.MouseEvent<HTMLElement>, member: ConversationParticipant) => {
         setMemberMenuAnchor(event.currentTarget);
         setSelectedMember(member);
     };
@@ -275,7 +360,13 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <Collapse in={customizeOpen}>
                         <List disablePadding sx={{ pl: 1 }}>
                             <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={() => setThemeDialogOpen(true)}>
-                                <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: conversation.theme || '#0084ff', mr: 2 }} />
+                                <Box sx={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '50%',
+                                    background: THEME_COLORS.find(t => t.color === conversation.theme)?.gradient || THEME_COLORS[0].gradient,
+                                    mr: 2
+                                }} />
                                 <ListItemText primary={<Typography fontSize={14} color="#050505">Đổi chủ đề</Typography>} />
                             </ListItemButton>
                             <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={() => setReactionDialogOpen(true)}>
@@ -304,7 +395,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     </ListItemButton>
                     <Collapse in={mediaOpen}>
                         <List disablePadding sx={{ pl: 1 }}>
-                            <ListItemButton sx={{ borderRadius: 2, py: 1 }}>
+                            <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={handleOpenMediaGallery}>
                                 <PhotoIcon sx={{ mr: 2, color: '#65676b' }} />
                                 <ListItemText primary={<Typography fontSize={14} color="#050505">File phương tiện</Typography>} />
                             </ListItemButton>
@@ -334,7 +425,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         </ListItemButton>
                         <Collapse in={membersOpen}>
                             <List disablePadding>
-                                {conversation.participants.map((member: any) => (
+                                {conversation.participants.map((member) => (
                                     <ListItem key={member.user._id} sx={{ px: 2 }}>
                                         <ListItemAvatar>
                                             <Avatar src={member.user.avatar} sx={{ width: 36, height: 36 }} />
@@ -375,14 +466,14 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 <DialogTitle sx={{ color: '#050505' }}>Đổi chủ đề</DialogTitle>
                 <DialogContent>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, py: 1 }}>
-                        {THEME_COLORS.map(color => (
+                        {THEME_COLORS.map(theme => (
                             <Box
-                                key={color}
-                                onClick={() => handleThemeChange(color)}
+                                key={theme.color}
+                                onClick={() => handleThemeChange(theme.color)}
                                 sx={{
                                     width: 40, height: 40, borderRadius: '50%',
-                                    bgcolor: color, cursor: 'pointer',
-                                    border: conversation.theme === color ? '3px solid #050505' : 'none',
+                                    background: theme.gradient, cursor: 'pointer',
+                                    border: conversation.theme === theme.color ? '3px solid #050505' : 'none',
                                     '&:hover': { transform: 'scale(1.1)' },
                                     transition: 'transform 0.15s'
                                 }}
@@ -455,14 +546,14 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     />
                     <List sx={{ mt: 2, maxHeight: 300, overflowY: 'auto' }}>
                         {isSearching ? <CircularProgress size={24} sx={{ display: 'block', m: 'auto' }} /> :
-                            searchResults?.items.map((account: any) => {
-                                const isAlreadyMember = conversation.participants.some(p => p.user._id === account._id);
+                            searchResults?.items.map((account: AccountCardFriendType) => {
+                                const isAlreadyMember = conversation.participants.some(p => p.user._id === account.id);
                                 return (
-                                    <ListItem key={account._id}>
+                                    <ListItem key={account.id}>
                                         <ListItemAvatar><Avatar src={account.avatar} /></ListItemAvatar>
-                                        <ListItemText primary={`${account.firstName} ${account.lastName}`} secondary={account.username} />
+                                        <ListItemText primary={account.name} secondary={account.name} />
                                         <ListItemSecondaryAction>
-                                            <Button size="small" variant="contained" disabled={isAlreadyMember} onClick={() => handleAddMember(account._id)}>
+                                            <Button size="small" variant="contained" disabled={isAlreadyMember} onClick={() => handleAddMember(account.id)}>
                                                 {isAlreadyMember ? 'Đã tham gia' : 'Thêm'}
                                             </Button>
                                         </ListItemSecondaryAction>
@@ -501,6 +592,199 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     </MenuItem>
                 )}
             </Menu>
+
+            {/* Media Gallery Dialog */}
+            <Dialog
+                open={mediaGalleryOpen}
+                onClose={() => setMediaGalleryOpen(false)}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{
+                    sx: {
+                        bgcolor: 'white',
+                        borderRadius: 3,
+                        height: '80vh',
+                        maxHeight: '600px'
+                    }
+                }}
+            >
+                <DialogTitle sx={{
+                    color: '#050505',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    borderBottom: '1px solid #e4e6eb',
+                    pb: 1
+                }}>
+                    <IconButton onClick={() => setMediaGalleryOpen(false)} size="small">
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <Typography variant="h6" fontWeight={600}>File phương tiện và file</Typography>
+                </DialogTitle>
+                <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                    <Tabs
+                        value={mediaTab}
+                        onChange={(_, v) => setMediaTab(v)}
+                        sx={{
+                            '& .MuiTab-root': {
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                color: '#65676b',
+                                '&.Mui-selected': { color: themeColor }
+                            },
+                            '& .MuiTabs-indicator': { backgroundColor: themeColor }
+                        }}
+                    >
+                        <Tab label="File phương tiện" />
+                        <Tab label="File" />
+                    </Tabs>
+                </Box>
+                <DialogContent
+                    sx={{ p: 0, overflowY: 'auto' }}
+                    onScroll={handleMediaScroll}
+                >
+                    {mediaTab === 0 && (
+                        <Box sx={{ p: 2 }}>
+                            {allMediaUrls.length === 0 && !mediaLoading ? (
+                                <Typography color="text.secondary" textAlign="center" py={4}>
+                                    Chưa có file phương tiện nào
+                                </Typography>
+                            ) : (
+                                Object.entries(groupedMedia).map(([monthYear, items]) => (
+                                    <Box key={monthYear} sx={{ mb: 3 }}>
+                                        <Typography
+                                            variant="subtitle2"
+                                            color="text.secondary"
+                                            sx={{ mb: 1, fontWeight: 600 }}
+                                        >
+                                            {monthYear}
+                                        </Typography>
+                                        <Box sx={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(3, 1fr)',
+                                            gap: 0.5
+                                        }}>
+                                            {items.map((media, idx) => (
+                                                <Box
+                                                    key={idx}
+                                                    sx={{
+                                                        position: 'relative',
+                                                        paddingTop: '100%',
+                                                        cursor: 'pointer',
+                                                        borderRadius: 1,
+                                                        overflow: 'hidden',
+                                                        '&:hover': { opacity: 0.9 }
+                                                    }}
+                                                    onClick={() => setImagePreview(media.url)}
+                                                >
+                                                    {media.type === 'video' ? (
+                                                        <>
+                                                            <video
+                                                                src={media.url}
+                                                                style={{
+                                                                    position: 'absolute',
+                                                                    top: 0,
+                                                                    left: 0,
+                                                                    width: '100%',
+                                                                    height: '100%',
+                                                                    objectFit: 'cover'
+                                                                }}
+                                                            />
+                                                            <Box sx={{
+                                                                position: 'absolute',
+                                                                top: '50%',
+                                                                left: '50%',
+                                                                transform: 'translate(-50%, -50%)',
+                                                                color: 'white',
+                                                                bgcolor: 'rgba(0,0,0,0.5)',
+                                                                borderRadius: '50%'
+                                                            }}>
+                                                                <PlayCircleIcon sx={{ fontSize: 40 }} />
+                                                            </Box>
+                                                        </>
+                                                    ) : (
+                                                        <Box
+                                                            component="img"
+                                                            src={media.url}
+                                                            alt=""
+                                                            sx={{
+                                                                position: 'absolute',
+                                                                top: 0,
+                                                                left: 0,
+                                                                width: '100%',
+                                                                height: '100%',
+                                                                objectFit: 'cover'
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    </Box>
+                                ))
+                            )}
+                            {mediaLoading && (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                                    <CircularProgress size={24} />
+                                </Box>
+                            )}
+                        </Box>
+                    )}
+                    {mediaTab === 1 && (
+                        <Box sx={{ p: 2 }}>
+                            <Typography color="text.secondary" textAlign="center" py={4}>
+                                Chưa có file nào
+                            </Typography>
+                        </Box>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Image Preview Dialog */}
+            <Dialog
+                open={!!imagePreview}
+                onClose={() => setImagePreview(null)}
+                maxWidth="lg"
+                PaperProps={{
+                    sx: {
+                        bgcolor: 'transparent',
+                        boxShadow: 'none',
+                        maxWidth: '90vw',
+                        maxHeight: '90vh'
+                    }
+                }}
+            >
+                <IconButton
+                    onClick={() => setImagePreview(null)}
+                    sx={{
+                        position: 'absolute',
+                        top: -40,
+                        right: 0,
+                        color: 'white',
+                        bgcolor: 'rgba(0,0,0,0.5)',
+                        '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
+                    }}
+                >
+                    <CloseIcon />
+                </IconButton>
+                {imagePreview && (
+                    imagePreview.includes('.mp4') || imagePreview.includes('.webm') || imagePreview.includes('.mov') ? (
+                        <video
+                            src={imagePreview}
+                            controls
+                            autoPlay
+                            style={{ maxWidth: '90vw', maxHeight: '85vh' }}
+                        />
+                    ) : (
+                        <Box
+                            component="img"
+                            src={imagePreview}
+                            alt=""
+                            sx={{ maxWidth: '90vw', maxHeight: '85vh', objectFit: 'contain' }}
+                        />
+                    )
+                )}
+            </Dialog>
         </Box>
     );
 }

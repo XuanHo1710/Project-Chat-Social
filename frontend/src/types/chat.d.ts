@@ -1,6 +1,12 @@
 export type EmotionType = "LIKE" | "LOVE" | "FUNNY" | "SAD" | "ANGRY" | "WOW";
 
-export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "FILE" | "POST" | "SYSTEM";
+export type MessageType =
+  | "TEXT"
+  | "IMAGE"
+  | "VIDEO"
+  | "FILE"
+  | "POST"
+  | "SYSTEM";
 
 export type MessageStatus = "SENT" | "DELIVERED" | "READ";
 
@@ -9,7 +15,11 @@ export interface MessageResponse {
 
   conversationId: string;
 
-  senderId: string;
+  senderId: {
+    firstName: string;
+    lastName: string;
+    _id: string;
+  };
 
   type: MessageType;
 
@@ -22,7 +32,7 @@ export interface MessageResponse {
 
   attachments?: string[];
 
-  replyTo?: any;
+  replyTo?: MessageResponse;
 
   postId?: string;
 
@@ -40,11 +50,15 @@ export interface MessageResponse {
 
 export interface SendMessagePayload {
   conversationId: string;
-  senderId: string;
+  senderId: {
+    firstName: string;
+    lastName: string;
+    _id: string;
+  };
   type: MessageType;
   content: string;
   attachments?: string[];
-  replyTo?: any;
+  replyTo?: MessageResponse;
   postId?: string;
 }
 

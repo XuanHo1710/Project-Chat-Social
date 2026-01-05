@@ -1,23 +1,58 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Conversation, ConversationDocument } from 'src/conversation/entities/conversation.entity';
 import { Model, Types } from 'mongoose';
-import { Message, EmotionType } from 'src/chat/entities/message.entity';
+import { Message, EmotionType, MessageType } from 'src/chat/entities/message.entity';
 
 @Injectable()
 export class ChatService {
   constructor(
     @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
     @InjectModel(Message.name) private readonly messageModel: Model<Message>
-  ) { }
+  ) {}
 
   async sendMessage(createMessageDto: CreateMessageDto) {
     const message = await this.messageModel.create(createMessageDto);
-    return await this.messageModel.findById(message._id)
+    return await this.messageModel
+      .findById(message._id)
       .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
       .exec();
+  }
+
+  // Create system message (for notifications like theme change, etc.)
+  async createMessage(data: {
+    conversationId: string;
+    senderId: string;
+    type: string;
+    content: string;
+  }) {
+    // For SYSTEM messages, we use a placeholder senderId or null
+    const messageData: any = {
+      conversationId: new Types.ObjectId(data.conversationId),
+      type: data.type,
+      content: data.content,
+    };
+
+    // For SYSTEM messages, senderId can be 'system' - we handle it specially
+    if (data.senderId === 'system' || data.type === 'SYSTEM') {
+      // Use a dummy ObjectId for system or the first participant
+      const conversation = await this.conversationModel.findById(data.conversationId);
+      if (conversation && conversation.participants.length > 0) {
+        messageData.senderId = conversation.participants[0].user;
+      }
+    } else {
+      messageData.senderId = new Types.ObjectId(data.senderId);
+    }
+
+    const message = await this.messageModel.create(messageData);
+    return message;
   }
 
   findAll() {
@@ -45,7 +80,10 @@ export class ChatService {
         .find(query)
         .sort({ createdAt: -1 }) // Newest first for pagination
         .limit(limit)
-        .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
+        .populate({
+          path: 'replyTo',
+          populate: { path: 'senderId', select: 'firstName lastName _id' },
+        })
         .lean(),
       this.messageModel.countDocuments({ conversationId, isDeleted: { $ne: true } }),
     ]);
@@ -60,6 +98,33 @@ export class ChatService {
         limit,
         total,
         hasMore: messages.length === limit,
+      },
+    };
+  }
+
+  // Get media messages (images/videos) for a conversation with pagination
+  async findMediaMessages(conversationId: string, page: number = 1, limit: number = 20) {
+    const skip = (page - 1) * limit;
+
+    const query = {
+      conversationId,
+      isDeleted: { $ne: true },
+      $or: [{ type: 'IMAGE' }, { type: 'VIDEO' }, { attachments: { $exists: true, $ne: [] } }],
+    };
+
+    const [messages, total] = await Promise.all([
+      this.messageModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      this.messageModel.countDocuments(query),
+    ]);
+
+    return {
+      data: messages,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
       },
     };
   }
@@ -93,16 +158,19 @@ export class ChatService {
       throw new BadRequestException('Tin nhắn đã bị xóa');
     }
 
-    return await this.messageModel.findByIdAndUpdate(
-      messageId,
-      {
-        $set: {
-          content: newContent,
-          isEdited: true
-        }
-      },
-      { new: true }
-    ).populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } }).exec();
+    return await this.messageModel
+      .findByIdAndUpdate(
+        messageId,
+        {
+          $set: {
+            content: newContent,
+            isEdited: true,
+          },
+        },
+        { new: true }
+      )
+      .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
+      .exec();
   }
 
   // 2. Thả cảm xúc tin nhắn
@@ -126,18 +194,21 @@ export class ChatService {
     );
 
     // Then add the new reaction
-    return await this.messageModel.findByIdAndUpdate(
-      messageId,
-      {
-        $push: {
-          emotions: {
-            userId: userObjectId,
-            emotionType
-          }
-        }
-      },
-      { new: true }
-    ).populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } }).exec();
+    return await this.messageModel
+      .findByIdAndUpdate(
+        messageId,
+        {
+          $push: {
+            emotions: {
+              userId: userObjectId,
+              emotionType,
+            },
+          },
+        },
+        { new: true }
+      )
+      .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
+      .exec();
   }
 
   // 3. Xóa cảm xúc tin nhắn
@@ -147,11 +218,14 @@ export class ChatService {
       throw new NotFoundException('Không tìm thấy tin nhắn');
     }
 
-    return await this.messageModel.findByIdAndUpdate(
-      messageId,
-      { $pull: { emotions: { userId: new Types.ObjectId(userId) } } },
-      { new: true }
-    ).populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } }).exec();
+    return await this.messageModel
+      .findByIdAndUpdate(
+        messageId,
+        { $pull: { emotions: { userId: new Types.ObjectId(userId) } } },
+        { new: true }
+      )
+      .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
+      .exec();
   }
 
   // 4. Xóa tin nhắn (soft delete)
@@ -166,21 +240,27 @@ export class ChatService {
       throw new ForbiddenException('Bạn chỉ có thể xóa tin nhắn của mình');
     }
 
-    return await this.messageModel.findByIdAndUpdate(
-      messageId,
-      {
-        $set: {
-          isDeleted: true,
-          deletedAt: new Date(),
-          content: 'Tin nhắn đã bị xóa'
-        }
-      },
-      { new: true }
-    ).populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } }).exec();
+    return await this.messageModel
+      .findByIdAndUpdate(
+        messageId,
+        {
+          $set: {
+            isDeleted: true,
+            deletedAt: new Date(),
+            content: 'Tin nhắn đã bị xóa',
+          },
+        },
+        { new: true }
+      )
+      .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
+      .exec();
   }
 
   // 5. Parse mentions từ content (@userId hoặc @all)
-  parseMentions(content: string, participants: string[]): { mentions: string[], hasMentionAll: boolean } {
+  parseMentions(
+    content: string,
+    participants: string[]
+  ): { mentions: string[]; hasMentionAll: boolean } {
     const mentionRegex = /@([a-fA-F0-9]{24}|all)/g;
     const matches: string[] = content.match(mentionRegex) || [];
 

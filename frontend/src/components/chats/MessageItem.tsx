@@ -19,8 +19,12 @@ import {
     Reply as ReplyIcon,
     SentimentSatisfiedAltOutlined as SentimentSatisfiedAltIcon,
     Block as BlockIcon,
+    InsertDriveFile as InsertDriveFileIcon,
+    PictureAsPdf as PictureAsPdfIcon,
+    Description as DescriptionIcon,
+    Download as DownloadIcon,
 } from '@mui/icons-material';
-import { MessageResponse, EmotionType } from '@/types/chat';
+import { MessageResponse, EmotionType, AttachmentData } from '@/types/chat';
 import { formatTime } from '@/utils/formatDate';
 import { Socket } from 'socket.io-client';
 
@@ -179,56 +183,168 @@ export default function MessageItem({
         );
     };
 
-    // Render attachments (images/videos)
+    // Helper functions for file display
+    const isDocumentAttachment = (attachment: AttachmentData | string) => {
+        if (typeof attachment === 'string') {
+            return attachment.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar)$/i) ||
+                attachment.includes('/raw/') || message.type === 'FILE';
+        }
+        return attachment.mediaType === 'RAW';
+    };
+
+    const getAttachmentUrl = (attachment: AttachmentData | string) => {
+        return typeof attachment === 'string' ? attachment : attachment.url;
+    };
+
+    const formatFileSize = (bytes: number): string => {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    };
+
+    const getFileIcon = (attachment: AttachmentData | string) => {
+        const url = typeof attachment === 'string' ? attachment : attachment.url;
+        const fileName = typeof attachment === 'string' ? url : attachment.fileName;
+
+        if (fileName.match(/\.pdf$/i) || url.includes('.pdf'))
+            return <PictureAsPdfIcon sx={{ color: '#e74c3c', fontSize: 40 }} />;
+        if (fileName.match(/\.(doc|docx)$/i) || url.includes('.doc'))
+            return <DescriptionIcon sx={{ color: '#2b5797', fontSize: 40 }} />;
+        if (fileName.match(/\.(xls|xlsx)$/i) || url.includes('.xls'))
+            return (
+                <Box sx={{
+                    width: 40,
+                    height: 40,
+                    bgcolor: '#1d6f42',
+                    borderRadius: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>X</Typography>
+                </Box>
+            );
+        if (fileName.match(/\.(ppt|pptx)$/i))
+            return <DescriptionIcon sx={{ color: '#d24726', fontSize: 40 }} />;
+        return <InsertDriveFileIcon sx={{ color: '#65676b', fontSize: 40 }} />;
+    };
+
+    // Render attachments (images/videos/files)
     const renderAttachments = () => {
         if (!message.attachments || message.attachments.length === 0) return null;
-        const count = message.attachments.length;
         const hasContent = !!message.content;
 
-        return (
-            <Box sx={{
-                display: 'grid',
-                gridTemplateColumns: count === 1 ? '1fr' : count === 2 ? '1fr 1fr' : 'repeat(2, 1fr)',
-                gap: '2px',
-                mt: hasContent ? 0.5 : 0,
-                maxWidth: 280,
-                borderRadius: '18px',
-                overflow: 'hidden'
-            }}>
-                {message.attachments.map((url, index) => {
-                    const isVideo = url.match(/\.(mp4|webm|ogg)$/i) || url.includes('video');
+        // Separate media and documents
+        const mediaAttachments = message.attachments.filter(att => !isDocumentAttachment(att));
+        const documentAttachments = message.attachments.filter(att => isDocumentAttachment(att));
 
-                    if (isVideo) {
-                        return (
-                            <Box key={index} sx={{ overflow: 'hidden' }}>
-                                <video
+        return (
+            <Box sx={{ mt: hasContent ? 0.5 : 0 }}>
+                {/* Render media (images/videos) */}
+                {mediaAttachments.length > 0 && (
+                    <Box sx={{
+                        display: 'grid',
+                        gridTemplateColumns: mediaAttachments.length === 1 ? '1fr' : mediaAttachments.length === 2 ? '1fr 1fr' : 'repeat(2, 1fr)',
+                        gap: '2px',
+                        maxWidth: 280,
+                        borderRadius: '18px',
+                        overflow: 'hidden',
+                        mb: documentAttachments.length > 0 ? 1 : 0
+                    }}>
+                        {mediaAttachments.map((att, index) => {
+                            const url = getAttachmentUrl(att);
+                            const isVideo = url.match(/\.(mp4|webm|ogg)$/i) || url.includes('video');
+
+                            if (isVideo) {
+                                return (
+                                    <Box key={index} sx={{ overflow: 'hidden' }}>
+                                        <video
+                                            src={url}
+                                            controls
+                                            style={{ width: '100%', maxHeight: 240, objectFit: 'cover', display: 'block' }}
+                                        />
+                                    </Box>
+                                );
+                            }
+
+                            return (
+                                <Box
+                                    key={index}
+                                    component="img"
                                     src={url}
-                                    controls
-                                    style={{ width: '100%', maxHeight: 240, objectFit: 'cover', display: 'block' }}
+                                    alt="attachment"
+                                    sx={{
+                                        width: '100%',
+                                        height: mediaAttachments.length === 1 ? 'auto' : 140,
+                                        maxHeight: mediaAttachments.length === 1 ? 300 : 140,
+                                        minHeight: mediaAttachments.length === 1 ? 100 : 100,
+                                        objectFit: 'cover',
+                                        cursor: 'pointer',
+                                        display: 'block',
+                                        transition: 'transform 0.2s, opacity 0.2s',
+                                        '&:hover': { opacity: 0.95, transform: 'scale(1.02)' }
+                                    }}
+                                    onClick={() => setImagePreview(url)}
                                 />
-                            </Box>
-                        );
-                    }
+                            );
+                        })}
+                    </Box>
+                )}
+
+                {/* Render document files - Facebook Messenger style */}
+                {documentAttachments.map((att, index) => {
+                    const url = getAttachmentUrl(att);
+                    const fileName = typeof att === 'string' ? url.split('/').pop()?.split('?')[0] || 'document' : att.fileName;
+                    const fileSize = typeof att === 'string' ? null : att.fileSize;
 
                     return (
                         <Box
-                            key={index}
-                            component="img"
-                            src={url}
-                            alt="attachment"
+                            key={`doc-${index}`}
+                            component="a"
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={fileName}
                             sx={{
-                                width: '100%',
-                                height: count === 1 ? 'auto' : 140,
-                                maxHeight: count === 1 ? 300 : 140,
-                                minHeight: count === 1 ? 100 : 100,
-                                objectFit: 'cover',
-                                cursor: 'pointer',
-                                display: 'block',
-                                transition: 'transform 0.2s, opacity 0.2s',
-                                '&:hover': { opacity: 0.95, transform: 'scale(1.02)' }
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1.5,
+                                p: 1.5,
+                                bgcolor: isOwn ? 'rgba(255,255,255,0.1)' : '#fff',
+                                borderRadius: 2,
+                                textDecoration: 'none',
+                                maxWidth: 280,
+                                mb: index < documentAttachments.length - 1 ? 0.5 : 0,
+                                border: isOwn ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e4e6eb',
+                                transition: 'all 0.2s',
+                                '&:hover': {
+                                    bgcolor: isOwn ? 'rgba(255,255,255,0.2)' : '#f0f2f5',
+                                }
                             }}
-                            onClick={() => setImagePreview(url)}
-                        />
+                        >
+                            {getFileIcon(att)}
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography
+                                    fontSize={13}
+                                    fontWeight={500}
+                                    noWrap
+                                    sx={{ color: isOwn ? '#fff' : '#050505' }}
+                                >
+                                    {fileName}
+                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    {fileSize && (
+                                        <Typography fontSize={11} sx={{ color: isOwn ? 'rgba(255,255,255,0.7)' : '#65676b' }}>
+                                            {formatFileSize(fileSize)}
+                                        </Typography>
+                                    )}
+                                    <Typography fontSize={11} sx={{ color: isOwn ? 'rgba(255,255,255,0.7)' : '#65676b' }}>
+                                        {fileSize ? ' · ' : ''}Tải về để xem lâu dài
+                                    </Typography>
+                                </Box>
+                            </Box>
+                            <DownloadIcon sx={{ color: isOwn ? '#fff' : '#65676b', fontSize: 24 }} />
+                        </Box>
                     );
                 })}
             </Box>

@@ -43,13 +43,29 @@ export class Message {
   content: string; // Nội dung text hoặc URL của file/image (max 5000 chars)
 
   @Prop({ type: [{ userId: Types.ObjectId, emotionType: String }] })
-  emotions?: [{
-    userId: Types.ObjectId;
-    emotionType: EmotionType; // Loại cảm xúc, ví dụ: 'LIKE', 'LOVE', 'FUNNY', 'SAD', 'ANGRY'
-  }];
+  emotions?: [
+    {
+      userId: Types.ObjectId;
+      emotionType: EmotionType; // Loại cảm xúc, ví dụ: 'LIKE', 'LOVE', 'FUNNY', 'SAD', 'ANGRY'
+    },
+  ];
 
-  @Prop({ type: [String] })
-  attachments?: string[]; // Danh sách file đính kèm
+  @Prop({
+    type: [
+      {
+        url: String,
+        fileName: String,
+        fileSize: Number,
+        mediaType: { type: String, enum: ['IMAGE', 'VIDEO', 'RAW'] },
+      },
+    ],
+  })
+  attachments?: {
+    url: string;
+    fileName: string;
+    fileSize: number;
+    mediaType: 'IMAGE' | 'VIDEO' | 'RAW';
+  }[]; // Danh sách file đính kèm với metadata
 
   @Prop({ type: Types.ObjectId, ref: 'Message' })
   replyTo?: Types.ObjectId; // Tin nhắn được reply

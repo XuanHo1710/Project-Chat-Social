@@ -22,8 +22,11 @@ import InsertPhotoIcon from "@mui/icons-material/InsertPhoto";
 import EmojiEmotionsIcon from "@mui/icons-material/EmojiEmotions";
 import AddCircleIcon from "@mui/icons-material/AddCircle";
 import CloseIcon from "@mui/icons-material/Close";
+import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
+import DescriptionIcon from "@mui/icons-material/Description";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import { useChatByConversationId } from "@/queries/useChatQueries";
-import { MessageResponse, SendMessagePayload } from "@/types/chat";
+import { MessageResponse, SendMessagePayload, AttachmentData } from "@/types/chat";
 import { useSocket } from "@/contexts/SocketContext";
 import { useQueryClient, InfiniteData } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/constants/query-keys";
@@ -80,8 +83,15 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const [newMessage, setNewMessage] = useState("");
     const [replyMsg, setReplyMsg] = useState<MessageResponse | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string; type: 'image' | 'video' }[]>([]);
+    const [filePreview, setFilePreview] = useState<{ file: File; name: string; size: number; type: string }[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
+    const fileDocInputRef = useRef<HTMLInputElement>(null);
+    
+    // Typing indicator states
+    const [isOtherTyping, setIsOtherTyping] = useState(false);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lastTypingEmitRef = useRef<number>(0);
 
     // Real-time status from store
     const otherUserStatus = useMemo(() => {
@@ -461,6 +471,47 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         };
     }, [socketChat, selectedConversation._id, queryClient, updateMessageInCache, userId]);
 
+    // Typing indicator listener
+    useEffect(() => {
+        if (!socketChat) return;
+
+        const handleTypingStart = (data: { conversationId: string; userId: string }) => {
+            if (data.conversationId === selectedConversation._id && data.userId !== userId) {
+                setIsOtherTyping(true);
+                
+                // Clear existing timeout
+                if (typingTimeoutRef.current) {
+                    clearTimeout(typingTimeoutRef.current);
+                }
+                
+                // Auto-hide after 3 seconds
+                typingTimeoutRef.current = setTimeout(() => {
+                    setIsOtherTyping(false);
+                }, 3000);
+            }
+        };
+
+        const handleTypingStop = (data: { conversationId: string; userId: string }) => {
+            if (data.conversationId === selectedConversation._id && data.userId !== userId) {
+                setIsOtherTyping(false);
+                if (typingTimeoutRef.current) {
+                    clearTimeout(typingTimeoutRef.current);
+                }
+            }
+        };
+
+        socketChat.on("typing:start", handleTypingStart);
+        socketChat.on("typing:stop", handleTypingStop);
+
+        return () => {
+            socketChat.off("typing:start", handleTypingStart);
+            socketChat.off("typing:stop", handleTypingStop);
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        };
+    }, [socketChat, selectedConversation._id, userId]);
+
     const [showMentions, setShowMentions] = useState(false);
     const [mentionSearch, setMentionSearch] = useState("");
 
@@ -513,21 +564,85 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         });
     };
 
+    // Handle document file selection
+    const handleDocFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files) return;
+
+        const newFiles: { file: File; name: string; size: number; type: string }[] = [];
+        Array.from(files).forEach(file => {
+            newFiles.push({
+                file,
+                name: file.name,
+                size: file.size,
+                type: file.type || 'application/octet-stream'
+            });
+        });
+        setFilePreview(prev => [...prev, ...newFiles]);
+        e.target.value = '';
+    };
+
+    const handleRemoveFile = (index: number) => {
+        setFilePreview(prev => prev.filter((_, i) => i !== index));
+    };
+
+    // Helper to format file size
+    const formatFileSize = (bytes: number): string => {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    };
+
+    // Get file icon based on type
+    const getFileIcon = (type: string) => {
+        if (type.includes('pdf')) return <PictureAsPdfIcon sx={{ color: '#e74c3c' }} />;
+        if (type.includes('word') || type.includes('document')) return <DescriptionIcon sx={{ color: '#2b5797' }} />;
+        if (type.includes('sheet') || type.includes('excel')) return <DescriptionIcon sx={{ color: '#1d6f42' }} />;
+        return <InsertDriveFileIcon sx={{ color: '#65676b' }} />;
+    };
+
     const handleSendMessage = async () => {
-        if ((!newMessage.trim() && mediaPreview.length === 0) || !socketChat) return;
+        if ((!newMessage.trim() && mediaPreview.length === 0 && filePreview.length === 0) || !socketChat) return;
 
         setIsUploading(true);
         try {
-            let attachments: string[] = [];
+            let attachments: AttachmentData[] = [];
+            let messageType: 'TEXT' | 'IMAGE' | 'FILE' = 'TEXT';
 
             // Upload media if any
             if (mediaPreview.length > 0) {
                 const files = mediaPreview.map(m => m.file);
                 const uploadResult = await uploadChatMedia(files);
                 if (uploadResult.success) {
-                    attachments = uploadResult.results.map(u => u.url);
+                    attachments = uploadResult.results.map(u => ({
+                        url: u.url,
+                        fileName: u.fileName,
+                        fileSize: u.fileSize,
+                        mediaType: u.mediaType
+                    }));
+                    messageType = newMessage.trim() ? 'TEXT' : 'IMAGE';
                 } else {
                     console.error("Upload failed");
+                    setIsUploading(false);
+                    return;
+                }
+            }
+
+            // Upload document files if any
+            if (filePreview.length > 0) {
+                const files = filePreview.map(f => f.file);
+                const uploadResult = await uploadChatMedia(files);
+                if (uploadResult.success) {
+                    const docAttachments = uploadResult.results.map(u => ({
+                        url: u.url,
+                        fileName: u.fileName,
+                        fileSize: u.fileSize,
+                        mediaType: u.mediaType
+                    }));
+                    attachments = [...attachments, ...docAttachments];
+                    messageType = newMessage.trim() ? 'TEXT' : 'FILE';
+                } else {
+                    console.error("File upload failed");
                     setIsUploading(false);
                     return;
                 }
@@ -536,16 +651,20 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             const payload: SendMessagePayload = {
                 conversationId: selectedConversation._id,
                 senderId: userId,
-                type: attachments.length > 0 ? (newMessage.trim() ? 'TEXT' : 'IMAGE') : 'TEXT',
+                type: messageType,
                 content: newMessage || '',
                 attachments: attachments.length > 0 ? attachments : undefined,
                 replyTo: replyMsg?._id,
             };
 
+            // Stop typing indicator before sending
+            socketChat.emit("typing:stop", { conversationId: selectedConversation._id });
+            
             socketChat.emit("message", payload);
             setNewMessage("");
             setReplyMsg(null);
             setMediaPreview([]);
+            setFilePreview([]);
             setShowMentions(false);
         } catch (err) {
             console.error("Failed to send message:", err);
@@ -561,9 +680,29 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         }
     };
 
+    // Emit typing indicator (throttled to avoid spam)
+    const emitTyping = useCallback(() => {
+        if (!socketChat) return;
+        
+        const now = Date.now();
+        // Only emit every 2 seconds to avoid spamming
+        if (now - lastTypingEmitRef.current > 2000) {
+            socketChat.emit("typing:start", { conversationId: selectedConversation._id });
+            lastTypingEmitRef.current = now;
+        }
+    }, [socketChat, selectedConversation._id]);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setNewMessage(value);
+
+        // Emit typing indicator when user types
+        if (value.length > 0) {
+            emitTyping();
+        } else {
+            // Stop typing when input is empty
+            socketChat?.emit("typing:stop", { conversationId: selectedConversation._id });
+        }
 
         const lastAtIndex = value.lastIndexOf('@');
         if (lastAtIndex !== -1) {
@@ -582,7 +721,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const handleSelectMention = (participant: ConversationParticipant) => {
         const lastAtIndex = newMessage.lastIndexOf('@');
         const beforeAt = newMessage.substring(0, lastAtIndex);
-        const inserted = participant.user._id === 'all' ? '@all ' : `@${participant.user._id} `;
+        const displayName = participant.nickname || `${participant.user.firstName} ${participant.user.lastName}`;
+        const inserted = participant.user._id === 'all' ? '@all ' : `@${displayName} `;
         setNewMessage(beforeAt + inserted);
         setShowMentions(false);
     };
@@ -768,6 +908,68 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                     )}
                 </Box>
 
+                {/* Typing Indicator */}
+                {isOtherTyping && (
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            px: 2,
+                            py: 1,
+                            bgcolor: 'white',
+                        }}
+                    >
+                        <Avatar 
+                            src={selectedConversation.avatar} 
+                            sx={{ width: 28, height: 28 }}
+                        />
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                bgcolor: '#e4e6eb',
+                                borderRadius: '18px',
+                                px: 1.5,
+                                py: 1,
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    gap: '4px',
+                                    alignItems: 'center',
+                                }}
+                            >
+                                {[0, 1, 2].map((i) => (
+                                    <Box
+                                        key={i}
+                                        sx={{
+                                            width: 8,
+                                            height: 8,
+                                            borderRadius: '50%',
+                                            bgcolor: '#65676b',
+                                            animation: 'typingBounce 1.4s infinite ease-in-out',
+                                            animationDelay: `${i * 0.2}s`,
+                                            '@keyframes typingBounce': {
+                                                '0%, 80%, 100%': {
+                                                    transform: 'scale(0.6)',
+                                                    opacity: 0.5,
+                                                },
+                                                '40%': {
+                                                    transform: 'scale(1)',
+                                                    opacity: 1,
+                                                },
+                                            },
+                                        }}
+                                    />
+                                ))}
+                            </Box>
+                        </Box>
+                    </Box>
+                )}
+
                 {/* Input Area */}
                 <Box
                     sx={{
@@ -939,6 +1141,44 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                         </Box>
                     )}
 
+                    {/* File Preview */}
+                    {filePreview.length > 0 && (
+                        <Box sx={{ mb: 1.5 }}>
+                            {filePreview.map((file, index) => (
+                                <Box
+                                    key={index}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1.5,
+                                        p: 1.5,
+                                        bgcolor: '#f0f2f5',
+                                        borderRadius: 2,
+                                        mb: 0.5,
+                                    }}
+                                >
+                                    {getFileIcon(file.type)}
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                        <Typography
+                                            fontSize={13}
+                                            fontWeight={500}
+                                            noWrap
+                                            sx={{ color: '#050505' }}
+                                        >
+                                            {file.name}
+                                        </Typography>
+                                        <Typography fontSize={12} color="#65676b">
+                                            {formatFileSize(file.size)}
+                                        </Typography>
+                                    </Box>
+                                    <IconButton size="small" onClick={() => handleRemoveFile(index)}>
+                                        <CloseIcon fontSize="small" />
+                                    </IconButton>
+                                </Box>
+                            ))}
+                        </Box>
+                    )}
+
                     <Box
                         sx={{
                             display: "flex",
@@ -950,9 +1190,22 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                             py: 1,
                         }}
                     >
-                        <IconButton size="small" sx={{ color: "#0084ff" }}>
+                        <IconButton 
+                            size="small" 
+                            sx={{ color: "#0084ff" }}
+                            onClick={() => fileDocInputRef.current?.click()}
+                            title="Đính kèm file"
+                        >
                             <AddCircleIcon fontSize="small" />
                         </IconButton>
+                        <input
+                            type="file"
+                            ref={fileDocInputRef}
+                            hidden
+                            multiple
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
+                            onChange={handleDocFileSelect}
+                        />
                         <IconButton size="small" sx={{ color: "#0084ff" }} onClick={() => fileInputRef.current?.click()}>
                             <InsertPhotoIcon fontSize="small" />
                         </IconButton>

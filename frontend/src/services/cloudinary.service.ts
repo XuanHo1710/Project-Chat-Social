@@ -2,7 +2,7 @@ import axios from "@/config/axios";
 
 export interface DeleteMediaItem {
   publicId: string;
-  mediaType: "IMAGE" | "VIDEO";
+  mediaType: "IMAGE" | "VIDEO" | "RAW";
 }
 
 export interface DeleteMediaResponse {
@@ -17,7 +17,9 @@ export interface DeleteMediaResponse {
 export interface UploadMediaResult {
   url: string;
   publicId: string;
-  mediaType: "IMAGE" | "VIDEO";
+  mediaType: "IMAGE" | "VIDEO" | "RAW";
+  fileName: string;
+  fileSize: number;
 }
 
 export interface UploadMediaResponse {
@@ -44,15 +46,11 @@ export const uploadChatMedia = async (
       formData.append("files", file);
     });
 
-    const response = await axios.post(
-      "/cloudinary/upload",
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      }
-    );
+    const response = await axios.post("/cloudinary/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
 
     // Handle wrapped response: { data: { success, results } }
     const result = response.data?.data || response.data;

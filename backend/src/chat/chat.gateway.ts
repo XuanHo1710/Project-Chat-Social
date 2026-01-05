@@ -136,6 +136,36 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { success: true };
   }
 
+  // ============ TYPING INDICATOR ============
+  @SubscribeMessage('typing:start')
+  async handleTypingStart(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!userId) return;
+
+    // Emit typing event to all users in the conversation except sender
+    client.to(`room:${data.conversationId}`).emit('typing:start', {
+      conversationId: data.conversationId,
+      userId,
+    });
+  }
+
+  @SubscribeMessage('typing:stop')
+  async handleTypingStop(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!userId) return;
+
+    client.to(`room:${data.conversationId}`).emit('typing:stop', {
+      conversationId: data.conversationId,
+      userId,
+    });
+  }
+
   @SubscribeMessage('message')
   async handleSendMessage(
     @MessageBody() data: CreateMessageDto,

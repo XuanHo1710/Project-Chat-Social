@@ -4,12 +4,12 @@ import { v2 as cloudinary } from 'cloudinary';
 
 export interface DeleteMediaDto {
   publicId: string;
-  mediaType: 'IMAGE' | 'VIDEO';
+  mediaType: 'IMAGE' | 'VIDEO' | 'RAW';
 }
 
 @Injectable()
 export class CloudinaryService implements OnModuleInit {
-  constructor(private configService: ConfigService) { }
+  constructor(private configService: ConfigService) {}
 
   onModuleInit() {
     cloudinary.config({
@@ -22,9 +22,12 @@ export class CloudinaryService implements OnModuleInit {
   /**
    * Delete a single media file from Cloudinary
    */
-  async deleteMedia(publicId: string, mediaType: 'IMAGE' | 'VIDEO' = 'IMAGE'): Promise<boolean> {
+  async deleteMedia(
+    publicId: string,
+    mediaType: 'IMAGE' | 'VIDEO' | 'RAW' = 'IMAGE'
+  ): Promise<boolean> {
     try {
-      const resourceType = mediaType === 'VIDEO' ? 'video' : 'image';
+      const resourceType = mediaType === 'VIDEO' ? 'video' : mediaType === 'RAW' ? 'raw' : 'image';
       const result = await cloudinary.uploader.destroy(publicId, {
         resource_type: resourceType,
       });
@@ -41,28 +44,33 @@ export class CloudinaryService implements OnModuleInit {
   async uploadMedia(
     fileBuffer: Buffer,
     filename: string,
-    mediaType: 'IMAGE' | 'VIDEO' = 'IMAGE'
+    mediaType: 'IMAGE' | 'VIDEO' | 'RAW' = 'IMAGE'
   ): Promise<{ url: string; publicId: string }> {
-    const resourceType = mediaType === 'VIDEO' ? 'video' : 'image';
+    const resourceType = mediaType === 'VIDEO' ? 'video' : mediaType === 'RAW' ? 'raw' : 'image';
+
+    // Generate a safe public_id without special characters
+    const safeFilename = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
     return new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          resource_type: resourceType,
-          folder: 'chat_attachments',
-          public_id: `${Date.now()}_${filename.replace(/\.[^/.]+$/, '')}`,
-        },
-        (error, result) => {
-          if (error) {
-            reject(error);
-          } else if (result) {
-            resolve({
-              url: result.secure_url,
-              publicId: result.public_id,
-            });
+      cloudinary.uploader
+        .upload_stream(
+          {
+            resource_type: resourceType,
+            folder: 'chat_attachments',
+            public_id: safeFilename,
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else if (result) {
+              resolve({
+                url: result.secure_url,
+                publicId: result.public_id,
+              });
+            }
           }
-        }
-      ).end(fileBuffer);
+        )
+        .end(fileBuffer);
     });
   }
 
@@ -70,12 +78,40 @@ export class CloudinaryService implements OnModuleInit {
    * Upload multiple media files to Cloudinary
    */
   async uploadMultipleMedia(
-    files: { buffer: Buffer; originalname: string; mimetype: string }[]
-  ): Promise<{ url: string; publicId: string; mediaType: 'IMAGE' | 'VIDEO' }[]> {
+    files: { buffer: Buffer; originalname: string; mimetype: string; size: number }[]
+  ): Promise<
+    {
+      url: string;
+      publicId: string;
+      mediaType: 'IMAGE' | 'VIDEO' | 'RAW';
+      fileName: string;
+      fileSize: number;
+    }[]
+  > {
     const uploadPromises = files.map(async (file) => {
-      const mediaType: 'IMAGE' | 'VIDEO' = file.mimetype.startsWith('video/') ? 'VIDEO' : 'IMAGE';
+      let mediaType: 'IMAGE' | 'VIDEO' | 'RAW' = 'IMAGE';
+
+      if (file.mimetype.startsWith('video/')) {
+        mediaType = 'VIDEO';
+      } else if (
+        file.mimetype.startsWith('application/') ||
+        file.mimetype.startsWith('text/') ||
+        file.mimetype.includes('pdf') ||
+        file.mimetype.includes('document') ||
+        file.mimetype.includes('sheet') ||
+        file.mimetype.includes('presentation') ||
+        file.originalname.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar)$/i)
+      ) {
+        mediaType = 'RAW';
+      }
+
       const result = await this.uploadMedia(file.buffer, file.originalname, mediaType);
-      return { ...result, mediaType };
+      return {
+        ...result,
+        mediaType,
+        fileName: file.originalname,
+        fileSize: file.size,
+      };
     });
 
     return Promise.all(uploadPromises);

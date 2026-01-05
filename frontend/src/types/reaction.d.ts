@@ -67,6 +67,7 @@ export interface ReactionUser {
   avatar?: string;
   reactionType: ReactionType;
   isFriend: boolean;
+  hasSentRequest?: boolean;
 }
 
 export const REACTION_COLORS: Record<ReactionType, string> = {

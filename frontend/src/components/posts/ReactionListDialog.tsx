@@ -44,9 +44,10 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
         LIKE: 0, LOVE: 0, HAHA: 0, WOW: 0, SAD: 0, ANGRY: 0
     });
     const [friends, setFriends] = useState<string[]>([]);
+    const [sentRequests, setSentRequests] = useState<string[]>([]);
     const [selectedTab, setSelectedTab] = useState<'ALL' | ReactionType>('ALL');
     const [pendingRequests, setPendingRequests] = useState<Set<string>>(new Set());
-    const { socketRelationship } = useSocket();
+    const { socketRelationship, socketReaction } = useSocket();
 
     // Fetch reactions and friends list
     const fetchData = useCallback(async () => {
@@ -54,9 +55,10 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
 
         setLoading(true);
         try {
-            const [reactionsData, friendsData] = await Promise.all([
+            const [reactionsData, friendsData, sentData] = await Promise.all([
                 getPostReactions(postId, 1, 100),
-                relationshipService.getFriends()
+                relationshipService.getFriends(),
+                relationshipService.getSentFriendRequests()
             ]);
 
             setReactions(reactionsData.data);
@@ -65,6 +67,10 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
             // Extract friend IDs
             const friendIds = (friendsData.data || []).map((f: FriendType) => f._id);
             setFriends(friendIds);
+
+            // Extract sent request IDs
+            const sentIds = (sentData.data || []).map((f: FriendType) => f._id);
+            setSentRequests(sentIds);
         } catch (error) {
             console.error('Failed to fetch reactions:', error);
         } finally {
@@ -76,6 +82,52 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
         fetchData();
     }, [fetchData]);
 
+    // Subscribe to reaction updates when dialog opens
+    useEffect(() => {
+        if (!open || !socketReaction || !postId) return;
+
+        // Subscribe to post reaction updates
+        socketReaction.emit('post:subscribe', { postId });
+
+        // Listen for reaction updates
+        const handleReactionUpdated = (data: { postId: string; userId: string; action: string; type: ReactionType }) => {
+            if (data.postId === postId) {
+                // Refetch reactions when there's an update
+                fetchData();
+            }
+        };
+
+        socketReaction.on('reaction:updated', handleReactionUpdated);
+
+        return () => {
+            socketReaction.emit('post:unsubscribe', { postId });
+            socketReaction.off('reaction:updated', handleReactionUpdated);
+        };
+    }, [open, socketReaction, postId, fetchData]);
+
+    // Listen for friend request updates
+    useEffect(() => {
+        if (!socketRelationship) return;
+
+        const handleFriendSent = (data: FriendType[]) => {
+            const sentIds = data.map(f => f._id);
+            setSentRequests(sentIds);
+        };
+
+        const handleFriendsList = (data: FriendType[]) => {
+            const friendIds = data.map(f => f._id);
+            setFriends(friendIds);
+        };
+
+        socketRelationship.on('friend:sent', handleFriendSent);
+        socketRelationship.on('friend:friends', handleFriendsList);
+
+        return () => {
+            socketRelationship.off('friend:sent', handleFriendSent);
+            socketRelationship.off('friend:friends', handleFriendsList);
+        };
+    }, [socketRelationship]);
+
     // Transform reactions to user list with friend status
     const reactionUsers: ReactionUser[] = useMemo(() => {
         const users = reactions.map(r => ({
@@ -84,10 +136,11 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
             lastName: r.userId.lastName,
             avatar: r.userId.avatar,
             reactionType: r.type,
-            isFriend: friends.includes(r.userId._id) || r.userId._id === userId
+            isFriend: friends.includes(r.userId._id) || r.userId._id === userId,
+            hasSentRequest: sentRequests.includes(r.userId._id)
         }));
 
-        // Sort: friends first, then non-friends
+        // Sort: current user first, then friends, then non-friends
         return users.sort((a, b) => {
             if (a._id === userId) return -1; // Current user first
             if (b._id === userId) return 1;
@@ -95,7 +148,7 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
             if (!a.isFriend && b.isFriend) return 1;
             return 0;
         });
-    }, [reactions, friends, userId]);
+    }, [reactions, friends, sentRequests, userId]);
 
     // Filter by selected tab
     const filteredUsers = useMemo(() => {
@@ -103,26 +156,27 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
         return reactionUsers.filter(u => u.reactionType === selectedTab);
     }, [reactionUsers, selectedTab]);
 
-    // Handle add friend
-    const handleAddFriend = async (friendId: string) => {
-        if (pendingRequests.has(friendId)) return;
+    // Handle add friend - send via socket
+    const handleAddFriend = async (targetUserId: string) => {
+        if (pendingRequests.has(targetUserId) || sentRequests.includes(targetUserId)) return;
 
-        setPendingRequests(prev => new Set(prev).add(friendId));
+        setPendingRequests(prev => new Set(prev).add(targetUserId));
 
         try {
             if (socketRelationship) {
-                socketRelationship.emit('relationship:add', {
-                    userId,
-                    friendId
+                // Emit friend request: current user (userId) sends to target user (targetUserId)
+                socketRelationship.emit('friend:request', {
+                    userId: userId,       // người gửi lời mời (current user)
+                    friendId: targetUserId // người nhận lời mời
                 });
             } else {
-                await relationshipService.addFriend(userId, friendId);
+                await relationshipService.addFriend(userId, targetUserId);
             }
         } catch (error) {
             console.error('Failed to add friend:', error);
             setPendingRequests(prev => {
                 const newSet = new Set(prev);
-                newSet.delete(friendId);
+                newSet.delete(targetUserId);
                 return newSet;
             });
         }
@@ -232,7 +286,7 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                                     alignItems: 'center',
                                     gap: 1.5,
                                     p: 2,
-                                    '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' }
+                                    '&:hover': { bgcolor: 'rgba(0,0,0,0.03)' }
                                 }}
                             >
                                 {/* Avatar with reaction badge */}
@@ -266,23 +320,27 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                                     <Button
                                         variant="contained"
                                         size="small"
-                                        startIcon={<PersonAddIcon />}
-                                        disabled={pendingRequests.has(user._id)}
+                                        startIcon={!user.hasSentRequest && !pendingRequests.has(user._id) ? <PersonAddIcon /> : undefined}
+                                        disabled={user.hasSentRequest || pendingRequests.has(user._id)}
                                         onClick={() => handleAddFriend(user._id)}
                                         sx={{
-                                            bgcolor: '#3a3b3c',
-                                            color: 'white',
+                                            bgcolor: user.hasSentRequest || pendingRequests.has(user._id) ? '#e4e6eb' : '#e7f3ff',
+                                            color: user.hasSentRequest || pendingRequests.has(user._id) ? '#65676b' : '#1877f2',
                                             textTransform: 'none',
                                             fontWeight: 600,
                                             fontSize: 13,
-                                            '&:hover': { bgcolor: '#4e4f50' },
+                                            boxShadow: 'none',
+                                            '&:hover': {
+                                                bgcolor: user.hasSentRequest || pendingRequests.has(user._id) ? '#e4e6eb' : '#d0e8ff',
+                                                boxShadow: 'none'
+                                            },
                                             '&.Mui-disabled': {
-                                                bgcolor: '#3a3b3c',
+                                                bgcolor: '#e4e6eb',
                                                 color: '#65676b'
                                             }
                                         }}
                                     >
-                                        {pendingRequests.has(user._id) ? 'Đã gửi' : 'Thêm bạn bè'}
+                                        {user.hasSentRequest || pendingRequests.has(user._id) ? 'Đã gửi lời mời' : 'Thêm bạn bè'}
                                     </Button>
                                 )}
                             </Box>

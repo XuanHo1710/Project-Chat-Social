@@ -153,12 +153,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return { success: false, error: 'Failed to save message' };
       }
 
-      this.server.to(`room:${data.conversationId.toString()}`).emit('message:new', savedMessage);
+      // Convert to plain object and ensure conversationId is string
+      const messageToEmit = {
+        ...savedMessage.toObject(),
+        conversationId: data.conversationId.toString(),
+      };
+
+      this.server.to(`room:${data.conversationId.toString()}`).emit('message:new', messageToEmit);
 
       await this.conversationService.updateLastMessage(
         data.conversationId.toString(),
         savedMessage._id.toString()
       );
+
+      // Increment unread count for all participants except sender
+      await this.conversationService.incrementUnreadCount(data.conversationId.toString(), userId);
+
+      // Emit unread update to conversation list
+      this.server.to(`room:${data.conversationId.toString()}`).emit('conversation:unread:updated', {
+        conversationId: data.conversationId.toString(),
+        senderId: userId,
+      });
 
       return { success: true, message: savedMessage };
     } catch (err) {
@@ -589,10 +604,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket
   ) {
     const isOnline = userSockets.has(data.userId) && userSockets.get(data.userId)!.size > 0;
+
+    // If offline, get lastActive from database
+    let lastActive: Date | null = null;
+    if (!isOnline) {
+      try {
+        const user = await this.accountModel.findById(data.userId).select('lastActive').lean();
+        lastActive = user?.lastActive || null;
+      } catch (e) {
+        this.logger.error('Failed to get lastActive', e);
+      }
+    }
+
     return {
       userId: data.userId,
       isOnline,
       status: isOnline ? 'ACTIVE' : 'DEACTIVE',
+      lastActive,
     };
   }
 
@@ -600,6 +628,66 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('users:online')
   async handleGetOnlineUsers(@ConnectedSocket() client: Socket) {
     const onlineUserIds = Array.from(userSockets.keys());
+    console.log('📋 Online users requested:', onlineUserIds);
     return { onlineUsers: onlineUserIds };
+  }
+
+  // ============ MESSAGE READ STATUS ============
+
+  // Mark messages as read when user views conversation
+  @SubscribeMessage('message:read')
+  async handleMarkAsRead(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      // Mark messages as read
+      const result = await this.chatService.markAsRead(data.conversationId, userId);
+
+      // Reset unread count for this user
+      await this.conversationService.resetUnreadCount(data.conversationId, userId);
+
+      // Notify all users in conversation that messages have been read
+      this.server.to(`room:${data.conversationId}`).emit('message:read:updated', {
+        conversationId: data.conversationId,
+        readBy: userId,
+        modifiedCount: result.modifiedCount,
+      });
+
+      // Also emit unread reset for conversation list update
+      this.server.to(`room:${data.conversationId}`).emit('conversation:unread:reset', {
+        conversationId: data.conversationId,
+        userId: userId,
+      });
+
+      return { success: true, ...result };
+    } catch (err) {
+      this.logger.error('Failed to mark as read', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  // Get read status for conversation
+  @SubscribeMessage('message:read:status')
+  async handleGetReadStatus(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      const result = await this.chatService.getReadStatus(data.conversationId);
+      return { success: true, lastMessage: result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   }
 }

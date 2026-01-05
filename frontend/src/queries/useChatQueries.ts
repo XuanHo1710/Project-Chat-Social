@@ -30,8 +30,6 @@ export function useChatByConversationId(conversationId: string) {
       return messages[0]._id; // First message in oldest page = oldest message overall
     },
     enabled: !!conversationId,
-    staleTime: Infinity,
-    gcTime: Infinity,
   });
 }
 

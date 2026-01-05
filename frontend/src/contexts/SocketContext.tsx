@@ -3,6 +3,7 @@
 
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
+import { useMessageCacheStore } from '@/stores/useMessageCacheStore';
 import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 
@@ -69,10 +70,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       console.log("💬 Chat socket connected:", socketIo.id);
       setIsConnected(true);
 
-      // Setup online status listener ONCE when connected
+      // Setup global listeners ONCE when connected
       if (!onlineListenerSetup.current) {
         onlineListenerSetup.current = true;
-        setupOnlineStatusListeners(socketIo);
+        setupOnlineStatusListeners(socketIo, userId);
       }
     });
 
@@ -119,25 +120,68 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 };
 
 // Centralized online status listeners - runs ONCE
-function setupOnlineStatusListeners(socket: Socket) {
-  const store = useOnlineStatusStore.getState();
+function setupOnlineStatusListeners(socket: Socket, userId: string) {
+  const onlineStore = useOnlineStatusStore.getState();
+  const messageStore = useMessageCacheStore.getState();
 
-  console.log("🟢 Setting up online status listeners (once)");
+  console.log("🟢 Setting up global socket listeners (once)");
 
   // Listen for user online
   socket.on('user:online', (data: { userId: string; status: string }) => {
-    store.updateFromSocket({ userId: data.userId, status: data.status });
+    console.log("🟢 User online:", data.userId);
+    onlineStore.updateFromSocket({ userId: data.userId, status: data.status });
   });
 
   // Listen for user offline
   socket.on('user:offline', (data: { userId: string; status: string; lastActive?: Date }) => {
-    store.updateFromSocket({ userId: data.userId, status: data.status, lastActive: data.lastActive });
+    console.log("🔴 User offline:", data.userId);
+    onlineStore.updateFromSocket({ userId: data.userId, status: data.status, lastActive: data.lastActive });
   });
 
-  // Request current online users list
+  // GLOBAL: Listen for new messages and store in pending cache
+  socket.on('message:new', (msg: any) => {
+    console.log("📨 Global message:new received:", msg.conversationId, msg._id);
+    // Store in pending cache - AreaChatMessage will consume this when it opens
+    messageStore.addPendingMessage(msg.conversationId, msg);
+  });
+
+  // GLOBAL: Listen for message edits
+  socket.on('message:edited', (msg: any) => {
+    console.log("✏️ Global message:edited received:", msg.conversationId, msg._id);
+    messageStore.updatePendingMessage(msg.conversationId, msg);
+  });
+
+  // GLOBAL: Listen for message reactions
+  socket.on('message:reaction:updated', (msg: any) => {
+    console.log("😀 Global message:reaction received:", msg.conversationId, msg._id);
+    messageStore.updatePendingMessage(msg.conversationId, msg);
+  });
+
+  // GLOBAL: Listen for message deletes
+  socket.on('message:deleted', (msg: any) => {
+    console.log("🗑️ Global message:deleted received:", msg.conversationId, msg._id);
+    messageStore.updatePendingMessage(msg.conversationId, msg);
+  });
+
+  // GLOBAL: Listen for message read status updates
+  socket.on('message:read:updated', (data: { conversationId: string; readBy: string }) => {
+    console.log("👁️ Global message:read:updated received:", data);
+    messageStore.markPendingMessagesAsRead(data.conversationId, data.readBy, userId);
+  });
+
+  // Request current online users list - using emit with callback
   socket.emit('users:online', {}, (response: { onlineUsers: string[] }) => {
+    console.log("📋 Online users list:", response);
     if (response?.onlineUsers) {
-      store.setOnlineUsers(response.onlineUsers);
+      onlineStore.setOnlineUsers(response.onlineUsers);
+    }
+  });
+
+  // Also listen for a direct response event (backup)
+  socket.on('users:online:response', (data: { onlineUsers: string[] }) => {
+    console.log("📋 Online users response event:", data);
+    if (data?.onlineUsers) {
+      onlineStore.setOnlineUsers(data.onlineUsers);
     }
   });
 }

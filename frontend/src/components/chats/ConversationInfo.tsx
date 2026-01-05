@@ -105,6 +105,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
     const [themeDialogOpen, setThemeDialogOpen] = useState(false);
     const [reactionDialogOpen, setReactionDialogOpen] = useState(false);
+    const [nicknameListDialogOpen, setNicknameListDialogOpen] = useState(false);
 
     // Media Gallery State
     const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
@@ -373,7 +374,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                 <Typography fontSize={24} sx={{ mr: 2 }}>{conversation.quickReaction || '👍'}</Typography>
                                 <ListItemText primary={<Typography fontSize={14} color="#050505">Thay đổi biểu tượng cảm xúc</Typography>} />
                             </ListItemButton>
-                            <ListItemButton sx={{ borderRadius: 2, py: 1 }}>
+                            <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={() => setNicknameListDialogOpen(true)}>
                                 <Box sx={{ width: 32, display: 'flex', justifyContent: 'center', mr: 2 }}>
                                     <Typography fontSize={16} fontWeight={700} color="#050505">Aa</Typography>
                                 </Box>
@@ -516,6 +517,72 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <Button onClick={() => setEditNameDialogOpen(false)}>Hủy</Button>
                     <Button onClick={handleUpdateName} variant="contained" disabled={!newName.trim()}>Lưu</Button>
                 </DialogActions>
+            </Dialog>
+
+            {/* Nickname List Dialog */}
+            <Dialog
+                open={nicknameListDialogOpen}
+                onClose={() => setNicknameListDialogOpen(false)}
+                fullWidth
+                maxWidth="xs"
+                PaperProps={{ sx: { bgcolor: 'white', borderRadius: 3 } }}
+            >
+                <DialogTitle sx={{ color: '#050505', display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
+                    <IconButton onClick={() => setNicknameListDialogOpen(false)} size="small">
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <Typography variant="h6" fontWeight={600}>Biệt danh</Typography>
+                </DialogTitle>
+                <DialogContent sx={{ px: 0 }}>
+                    <List>
+                        {conversation?.participants.map((participant) => {
+                            const fullName = `${participant.user.firstName || ''} ${participant.user.lastName || ''}`.trim();
+                            const isCurrentUser = participant.user._id === userId;
+
+                            return (
+                                <ListItem
+                                    key={participant.user._id}
+                                    sx={{
+                                        cursor: 'pointer',
+                                        '&:hover': { bgcolor: '#f0f2f5' },
+                                        borderRadius: 2,
+                                        mx: 1,
+                                        width: 'auto'
+                                    }}
+                                    onClick={() => {
+                                        setSelectedMember(participant);
+                                        setNewNickname(participant.nickname || '');
+                                        setEditNicknameDialogOpen(true);
+                                    }}
+                                >
+                                    <ListItemAvatar>
+                                        <Avatar src={participant.user.avatar} sx={{ width: 40, height: 40 }} />
+                                    </ListItemAvatar>
+                                    <ListItemText
+                                        primary={
+                                            <Typography fontWeight={500} color="#050505">
+                                                {participant.nickname || fullName}
+                                                {isCurrentUser && ' (Bạn)'}
+                                            </Typography>
+                                        }
+                                        secondary={
+                                            participant.nickname ? (
+                                                <Typography fontSize={13} color="#65676b">
+                                                    {fullName}
+                                                </Typography>
+                                            ) : (
+                                                <Typography fontSize={13} color="#65676b">
+                                                    Đặt biệt danh
+                                                </Typography>
+                                            )
+                                        }
+                                    />
+                                    <EditIcon sx={{ color: '#65676b', fontSize: 20 }} />
+                                </ListItem>
+                            );
+                        })}
+                    </List>
+                </DialogContent>
             </Dialog>
 
             {/* Edit Nickname Dialog */}

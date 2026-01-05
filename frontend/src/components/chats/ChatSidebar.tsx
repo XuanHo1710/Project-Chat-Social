@@ -65,6 +65,7 @@ export default function ChatSidebar({
     const setUserOnline = useOnlineStatusStore(state => state.setUserOnline);
     const setUserOffline = useOnlineStatusStore(state => state.setUserOffline);
 
+
     // Initialize from conversation participants (only once when conversations load)
     useEffect(() => {
         conversations.forEach(conv => {
@@ -104,9 +105,11 @@ export default function ChatSidebar({
     };
 
     const filteredConversations = conversations.filter((conversation) => {
+        console.log('Filtering conversation:', conversation);
         if (conversation.type !== 'DIRECT') return false;
         const chatUser = conversation.participants.find((p) => p.user._id !== user?.id)?.user;
-        const fullName = `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}`.toLowerCase();
+        const nickname = conversation.participants.find((p) => p.user._id !== user?.id)?.nickname;
+        const fullName = (!nickname || nickname === "") ? `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}`.toLowerCase() : nickname;
         return fullName.includes(searchQuery.toLowerCase());
     });
 
@@ -318,7 +321,8 @@ export default function ChatSidebar({
                     {!isLoading &&
                         filteredConversations.map((conversation) => {
                             const chatUser = conversation.participants.find((p) => p.user._id !== user?.id)?.user;
-                            const fullName = `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}`;
+                            const nickname = conversation.participants.find((p) => p.user._id !== user?.id)?.nickname;
+                            const fullName = (!nickname || nickname === "") ? `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}` : nickname;
                             const isSelected = conversation._id === selectedConversationId;
                             const status = chatUser ? getUserStatus(chatUser._id, chatUser.status, chatUser.lastActive) : { isOnline: false, lastActive: undefined };
 
@@ -428,20 +432,29 @@ export default function ChatSidebar({
                                             </Box>
                                         }
                                     />
-                                    {conversation.lastMessage && (
-                                        <Badge
-                                            badgeContent=" "
-                                            sx={{
-                                                '& .MuiBadge-badge': {
-                                                    backgroundColor: '#1877f2',
-                                                    width: 12,
-                                                    height: 12,
-                                                    borderRadius: '50%',
-                                                    minWidth: 12,
-                                                },
-                                            }}
-                                        />
-                                    )}
+                                    {/* Unread Count Badge */}
+                                    {(() => {
+                                        const unreadCount = conversation.unreadCount?.[user?.id || ''] || 0;
+                                        if (unreadCount > 0 && !isSelected) {
+                                            return (
+                                                <Badge
+                                                    badgeContent={unreadCount > 9 ? '9+' : unreadCount}
+                                                    sx={{
+                                                        '& .MuiBadge-badge': {
+                                                            backgroundColor: '#1877f2',
+                                                            color: 'white',
+                                                            fontSize: 11,
+                                                            fontWeight: 700,
+                                                            minWidth: 20,
+                                                            height: 20,
+                                                            borderRadius: '10px',
+                                                        },
+                                                    }}
+                                                />
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </ListItemButton>
                             );
                         })}

@@ -28,9 +28,7 @@ export interface ConversationResponseData {
   avatar?: string; // Avatar nhóm
   quickReaction: string;
   theme?: string; // Theme color for chat background
-  unreadCount: {
-    _id: string;
-  };
+  unreadCount?: Record<string, number>; // Map userId -> unread count
   participants: ConversationParticipant[];
   lastMessage?: {
     _id: string;

@@ -43,6 +43,8 @@ interface MessageItemProps {
     userId: string;
     onReply?: (message: MessageResponse) => void;
     themeColor?: string;
+    isLastOwnMessage?: boolean;
+    otherUserAvatar?: string;
 }
 
 export default function MessageItem({
@@ -55,6 +57,8 @@ export default function MessageItem({
     userId,
     onReply,
     themeColor = '#0084ff',
+    isLastOwnMessage = false,
+    otherUserAvatar,
 }: MessageItemProps) {
     const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
     const [reactionAnchor, setReactionAnchor] = useState<HTMLElement | null>(null);
@@ -90,6 +94,44 @@ export default function MessageItem({
                 socket.emit('message:reaction', { messageId: message._id, conversationId, emotionType });
             }
         }
+    };
+
+    // Render message status indicator (SENT, DELIVERED, READ) - Messenger style
+    const renderMessageStatus = () => {
+        if (!isOwn || message.isDeleted || !isLastOwnMessage) return null;
+
+        const status = message.status || 'SENT';
+
+        // Show avatar of reader for READ status (đã xem)
+        if (status === 'READ' && otherUserAvatar) {
+            return (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Avatar
+                        src={otherUserAvatar}
+                        sx={{
+                            width: 14,
+                            height: 14,
+                        }}
+                    />
+                </Box>
+            );
+        }
+
+        // DELIVERED status - "Đã gửi"
+        if (status === 'DELIVERED') {
+            return (
+                <Typography fontSize={11} color="#65676b">
+                    Đã gửi
+                </Typography>
+            );
+        }
+
+        // SENT status - "Đã gửi" (chưa được nhận)
+        return (
+            <Typography fontSize={11} color="#65676b">
+                Đã gửi
+            </Typography>
+        );
     };
 
     const renderEmotionsSummary = () => {
@@ -454,6 +496,13 @@ export default function MessageItem({
                         </Box>
                     </Box>
                 </Box>
+
+                {/* Message Status Indicator - only show on last own message */}
+                {isOwn && isLastOwnMessage && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 2, mt: 0.3 }}>
+                        {renderMessageStatus()}
+                    </Box>
+                )}
 
                 {/* Context Menu */}
                 <Menu

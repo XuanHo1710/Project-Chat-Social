@@ -22,7 +22,11 @@ export class ChatService {
     const message = await this.messageModel.create(createMessageDto);
     return await this.messageModel
       .findById(message._id)
-      .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
+      .populate('senderId', 'firstName lastName _id avatar')
+      .populate({
+        path: 'replyTo',
+        populate: { path: 'senderId', select: 'firstName lastName _id' },
+      })
       .exec();
   }
 
@@ -80,6 +84,7 @@ export class ChatService {
         .find(query)
         .sort({ createdAt: -1 }) // Newest first for pagination
         .limit(limit)
+        .populate('senderId', 'firstName lastName _id avatar')
         .populate({
           path: 'replyTo',
           populate: { path: 'senderId', select: 'firstName lastName _id' },
@@ -277,6 +282,60 @@ export class ChatService {
     }
 
     return { mentions, hasMentionAll };
+  }
+
+  // 6. Mark message as read
+  async markAsRead(conversationId: string, userId: string) {
+    const userObjectId = new Types.ObjectId(userId);
+
+    // Update all unread messages in this conversation (not sent by this user)
+    const result = await this.messageModel.updateMany(
+      {
+        conversationId: new Types.ObjectId(conversationId),
+        senderId: { $ne: userObjectId },
+        readBy: { $ne: userObjectId },
+        isDeleted: { $ne: true },
+      },
+      {
+        $addToSet: { readBy: userObjectId },
+        $set: { status: 'READ' },
+      }
+    );
+
+    return {
+      modifiedCount: result.modifiedCount,
+      conversationId,
+      readBy: userId,
+    };
+  }
+
+  // 7. Update message status to delivered when user connects
+  async markAsDelivered(conversationId: string, userId: string) {
+    const userObjectId = new Types.ObjectId(userId);
+
+    await this.messageModel.updateMany(
+      {
+        conversationId: new Types.ObjectId(conversationId),
+        senderId: { $ne: userObjectId },
+        status: 'SENT',
+        isDeleted: { $ne: true },
+      },
+      {
+        $set: { status: 'DELIVERED' },
+      }
+    );
+  }
+
+  // Get latest read status for conversation (who read what)
+  async getReadStatus(conversationId: string) {
+    // Get the last message read by each participant
+    const lastMessage = await this.messageModel
+      .findOne({ conversationId, isDeleted: { $ne: true } })
+      .sort({ createdAt: -1 })
+      .select('_id status readBy senderId')
+      .lean();
+
+    return lastMessage;
   }
 
   // Legacy methods

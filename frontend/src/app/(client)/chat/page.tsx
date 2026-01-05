@@ -1,10 +1,15 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Box } from "@mui/material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId } from "@/queries/useConversationQueries";
 import AreaChatMessages from "@/components/chats/AreaChatMessage";
 import ChatSidebar from "@/components/chats/ChatSidebar";
+import { useSocket } from "@/contexts/SocketContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { QUERY_KEYS } from "@/constants/query-keys";
+import { ConversationResponseData } from "@/types/conversation";
+import { MessageResponse } from "@/types/chat";
 
 interface SelectedConversation {
     _id: string;
@@ -18,8 +23,57 @@ interface SelectedConversation {
 export default function ChatPage() {
     const user = useAuthStore((state) => state.user);
     const [selectedConversation, setSelectConversation] = useState<SelectedConversation | null>(null);
+    const { socketChat } = useSocket();
+    const queryClient = useQueryClient();
 
     const { data: listConversation, isLoading: isLoadingConversations } = useConversationByUserId(user?.id || "");
+
+    // Listen for global message events - OPTIMISTIC UPDATE for lastMessage
+    useEffect(() => {
+        if (!socketChat || !user?.id) return;
+
+        const handleGlobalMessageNew = (msg: MessageResponse) => {
+            // OPTIMISTIC UPDATE: Update lastMessage immediately in cache
+            queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
+                (oldData) => {
+                    if (!oldData?.data) return oldData;
+
+                    return {
+                        ...oldData,
+                        data: oldData.data.map(conv => {
+                            if (conv._id === msg.conversationId) {
+                                return {
+                                    ...conv,
+                                    lastMessage: {
+                                        _id: msg._id,
+                                        type: msg.type,
+                                        content: msg.content || '',
+                                        createdAt: new Date(msg.createdAt),
+                                        senderId: typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId,
+                                        attachments: msg.attachments,
+                                    },
+                                    lastMessageAt: new Date(msg.createdAt),
+                                };
+                            }
+                            return conv;
+                        }).sort((a, b) => {
+                            // Sort by lastMessageAt descending
+                            const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+                            const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+                            return timeB - timeA;
+                        })
+                    };
+                }
+            );
+        };
+
+        socketChat.on("message:new", handleGlobalMessageNew);
+
+        return () => {
+            socketChat.off("message:new", handleGlobalMessageNew);
+        };
+    }, [socketChat, queryClient, user?.id]);
 
     return (
         <Box
@@ -41,7 +95,7 @@ export default function ChatPage() {
 
             {/* Main Chat Area */}
             {selectedConversation ? (
-                <AreaChatMessages selectedConversation={selectedConversation} userId={user?.id || ""} />
+                <AreaChatMessages key={selectedConversation._id} selectedConversation={selectedConversation} userId={user?.id || ""} />
             ) : (
                 <Box
                     sx={{

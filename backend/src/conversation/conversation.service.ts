@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { Model, Types } from 'mongoose';
@@ -7,7 +12,9 @@ import { InjectModel } from '@nestjs/mongoose';
 
 @Injectable()
 export class ConversationService {
-  constructor(@InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>) { }
+  constructor(
+    @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>
+  ) {}
 
   async create(createConversationDto: CreateConversationDto) {
     const converstation = await this.conversationModel.create(createConversationDto);
@@ -18,29 +25,87 @@ export class ConversationService {
     return await this.conversationModel.find().exec();
   }
 
-  async findById(id: string) {
-    return await this.conversationModel.findById(id)
+  async findById(id: string): Promise<any> {
+    const conv = await this.conversationModel
+      .findById(id)
       .populate('participants.user', 'firstName lastName username avatar status lastActive')
+      .lean()
       .exec();
+
+    if (!conv) return null;
+
+    return {
+      ...conv,
+      unreadCount:
+        conv.unreadCount instanceof Map
+          ? Object.fromEntries(conv.unreadCount)
+          : conv.unreadCount || {},
+    };
   }
 
-  async findConversationByUserId(userId: string) {
-    const conversation = await this.conversationModel.find({
-      "participants.user": userId
-    })
+  async findConversationByUserId(userId: string): Promise<any> {
+    const conversations = await this.conversationModel
+      .find({
+        'participants.user': userId,
+      })
       .populate('participants.user', 'firstName lastName username avatar status lastActive')
-      .populate('lastMessage', 'content type createdAt')
+      .populate('lastMessage', 'content type createdAt senderId attachments')
+      .sort({ lastMessageAt: -1 })
+      .lean()
       .exec();
-    return conversation;
-  }
 
+    // Transform Map to plain object for unreadCount
+    return conversations.map((conv) => ({
+      ...conv,
+      unreadCount:
+        conv.unreadCount instanceof Map
+          ? Object.fromEntries(conv.unreadCount)
+          : conv.unreadCount || {},
+    }));
+  }
 
   async updateLastMessage(id: string, lastMessage: string) {
-    return await this.conversationModel.updateOne({ _id: id }, { $set: { lastMessage: lastMessage, lastMessageAt: new Date() } }).exec();
+    return await this.conversationModel
+      .updateOne({ _id: id }, { $set: { lastMessage: lastMessage, lastMessageAt: new Date() } })
+      .exec();
+  }
+
+  // Increment unread count for all participants except sender
+  async incrementUnreadCount(conversationId: string, senderId: string) {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) return;
+
+    const updateObj: Record<string, number> = {};
+    conversation.participants.forEach((p) => {
+      const participantId = p.user.toString();
+      if (participantId !== senderId) {
+        updateObj[`unreadCount.${participantId}`] = 1;
+      }
+    });
+
+    if (Object.keys(updateObj).length > 0) {
+      await this.conversationModel.updateOne({ _id: conversationId }, { $inc: updateObj }).exec();
+    }
+  }
+
+  // Reset unread count for a specific user
+  async resetUnreadCount(conversationId: string, userId: string) {
+    await this.conversationModel
+      .updateOne({ _id: conversationId }, { $set: { [`unreadCount.${userId}`]: 0 } })
+      .exec();
+  }
+
+  // Get unread count for a specific user
+  async getUnreadCount(conversationId: string, userId: string): Promise<number> {
+    const conversation = await this.conversationModel.findById(conversationId).lean();
+    if (!conversation || !conversation.unreadCount) return 0;
+    return (conversation.unreadCount as any)[userId] || 0;
   }
 
   async update(id: string, updateConversationDto: UpdateConversationDto) {
-    return await this.conversationModel.findByIdAndUpdate(id, updateConversationDto, { new: true }).exec();
+    return await this.conversationModel
+      .findByIdAndUpdate(id, updateConversationDto, { new: true })
+      .exec();
   }
 
   async remove(id: string) {
@@ -54,9 +119,7 @@ export class ConversationService {
     const conversation = await this.conversationModel.findById(conversationId);
     if (!conversation) return false;
 
-    const participant = conversation.participants.find(
-      p => p.user.toString() === userId
-    );
+    const participant = conversation.participants.find((p) => p.user.toString() === userId);
     return participant?.isAdmin ?? false;
   }
 
@@ -65,7 +128,7 @@ export class ConversationService {
     const conversation = await this.conversationModel.findById(conversationId);
     if (!conversation) return false;
 
-    return conversation.participants.some(p => p.user.toString() === userId);
+    return conversation.participants.some((p) => p.user.toString() === userId);
   }
 
   // 1. Thay đổi Quick Reaction
@@ -75,11 +138,9 @@ export class ConversationService {
       throw new ForbiddenException('Bạn không phải thành viên của cuộc trò chuyện này');
     }
 
-    return await this.conversationModel.findByIdAndUpdate(
-      conversationId,
-      { $set: { quickReaction: emoji } },
-      { new: true }
-    ).exec();
+    return await this.conversationModel
+      .findByIdAndUpdate(conversationId, { $set: { quickReaction: emoji } }, { new: true })
+      .exec();
   }
 
   // 1.5. Thay đổi Theme Color
@@ -89,25 +150,31 @@ export class ConversationService {
       throw new ForbiddenException('Bạn không phải thành viên của cuộc trò chuyện này');
     }
 
-    return await this.conversationModel.findByIdAndUpdate(
-      conversationId,
-      { $set: { theme: theme } },
-      { new: true }
-    ).exec();
+    return await this.conversationModel
+      .findByIdAndUpdate(conversationId, { $set: { theme: theme } }, { new: true })
+      .exec();
   }
 
   // 2. Thay đổi Nickname của member trong conversation
-  async updateMemberNickname(conversationId: string, userId: string, targetUserId: string, nickname: string) {
+  async updateMemberNickname(
+    conversationId: string,
+    userId: string,
+    targetUserId: string,
+    nickname: string
+  ) {
     const isInConversation = await this.isUserInConversation(conversationId, userId);
     if (!isInConversation) {
       throw new ForbiddenException('Bạn không phải thành viên của cuộc trò chuyện này');
     }
 
-    return await this.conversationModel.findOneAndUpdate(
-      { _id: conversationId, 'participants.user': targetUserId },
-      { $set: { 'participants.$.nickname': nickname } },
-      { new: true }
-    ).populate('participants.user', 'firstName lastName username avatar').exec();
+    return await this.conversationModel
+      .findOneAndUpdate(
+        { _id: conversationId, 'participants.user': targetUserId },
+        { $set: { 'participants.$.nickname': nickname } },
+        { new: true }
+      )
+      .populate('participants.user', 'firstName lastName username avatar')
+      .exec();
   }
 
   // 3. Thay đổi tên nhóm (nickname của conversation)
@@ -126,11 +193,9 @@ export class ConversationService {
       throw new ForbiddenException('Bạn không phải thành viên của nhóm này');
     }
 
-    return await this.conversationModel.findByIdAndUpdate(
-      conversationId,
-      { $set: { nickname: name } },
-      { new: true }
-    ).exec();
+    return await this.conversationModel
+      .findByIdAndUpdate(conversationId, { $set: { nickname: name } }, { new: true })
+      .exec();
   }
 
   // 4. Thay đổi avatar nhóm
@@ -149,11 +214,9 @@ export class ConversationService {
       throw new ForbiddenException('Bạn không phải thành viên của nhóm này');
     }
 
-    return await this.conversationModel.findByIdAndUpdate(
-      conversationId,
-      { $set: { avatar: avatarUrl } },
-      { new: true }
-    ).exec();
+    return await this.conversationModel
+      .findByIdAndUpdate(conversationId, { $set: { avatar: avatarUrl } }, { new: true })
+      .exec();
   }
 
   // 5. Thêm thành viên vào nhóm
@@ -173,27 +236,28 @@ export class ConversationService {
     }
 
     // Kiểm tra user đã trong nhóm chưa
-    const alreadyExists = conversation.participants.some(
-      p => p.user.toString() === newUserId
-    );
+    const alreadyExists = conversation.participants.some((p) => p.user.toString() === newUserId);
     if (alreadyExists) {
       throw new BadRequestException('Người dùng đã là thành viên của nhóm');
     }
 
-    return await this.conversationModel.findByIdAndUpdate(
-      conversationId,
-      {
-        $push: {
-          participants: {
-            user: new Types.ObjectId(newUserId),
-            joinedAt: new Date(),
-            isAdmin: false,
-            nickname: ''
-          }
-        }
-      },
-      { new: true }
-    ).populate('participants.user', 'firstName lastName username avatar').exec();
+    return await this.conversationModel
+      .findByIdAndUpdate(
+        conversationId,
+        {
+          $push: {
+            participants: {
+              user: new Types.ObjectId(newUserId),
+              joinedAt: new Date(),
+              isAdmin: false,
+              nickname: '',
+            },
+          },
+        },
+        { new: true }
+      )
+      .populate('participants.user', 'firstName lastName username avatar')
+      .exec();
   }
 
   // 6. Kick thành viên khỏi nhóm
@@ -217,15 +281,23 @@ export class ConversationService {
       throw new ForbiddenException('Không thể kick người tạo nhóm');
     }
 
-    return await this.conversationModel.findByIdAndUpdate(
-      conversationId,
-      { $pull: { participants: { user: new Types.ObjectId(targetUserId) } } },
-      { new: true }
-    ).populate('participants.user', 'firstName lastName username avatar').exec();
+    return await this.conversationModel
+      .findByIdAndUpdate(
+        conversationId,
+        { $pull: { participants: { user: new Types.ObjectId(targetUserId) } } },
+        { new: true }
+      )
+      .populate('participants.user', 'firstName lastName username avatar')
+      .exec();
   }
 
   // 7. Phân quyền admin (tối đa 3 người)
-  async updateAdminStatus(conversationId: string, adminUserId: string, targetUserId: string, isAdmin: boolean) {
+  async updateAdminStatus(
+    conversationId: string,
+    adminUserId: string,
+    targetUserId: string,
+    isAdmin: boolean
+  ) {
     const conversation = await this.conversationModel.findById(conversationId);
     if (!conversation) {
       throw new NotFoundException('Không tìm thấy cuộc trò chuyện');
@@ -242,7 +314,7 @@ export class ConversationService {
 
     // Đếm số admin hiện tại
     if (isAdmin) {
-      const currentAdminCount = conversation.participants.filter(p => p.isAdmin).length;
+      const currentAdminCount = conversation.participants.filter((p) => p.isAdmin).length;
       if (currentAdminCount >= 3) {
         throw new BadRequestException('Đã đạt giới hạn tối đa 3 admin');
       }
@@ -253,11 +325,14 @@ export class ConversationService {
       throw new ForbiddenException('Không thể bỏ quyền admin của người tạo nhóm');
     }
 
-    return await this.conversationModel.findOneAndUpdate(
-      { _id: conversationId, 'participants.user': targetUserId },
-      { $set: { 'participants.$.isAdmin': isAdmin } },
-      { new: true }
-    ).populate('participants.user', 'firstName lastName username avatar').exec();
+    return await this.conversationModel
+      .findOneAndUpdate(
+        { _id: conversationId, 'participants.user': targetUserId },
+        { $set: { 'participants.$.isAdmin': isAdmin } },
+        { new: true }
+      )
+      .populate('participants.user', 'firstName lastName username avatar')
+      .exec();
   }
 
   // 8. Rời nhóm
@@ -274,34 +349,38 @@ export class ConversationService {
     // Nếu là creator và còn thành viên, chuyển quyền creator cho admin khác
     if (conversation.creator?.toString() === userId) {
       const otherAdmins = conversation.participants.filter(
-        p => p.isAdmin && p.user.toString() !== userId
+        (p) => p.isAdmin && p.user.toString() !== userId
       );
 
       if (otherAdmins.length > 0) {
         // Chuyển creator cho admin đầu tiên
         await this.conversationModel.findByIdAndUpdate(conversationId, {
-          $set: { creator: otherAdmins[0].user }
+          $set: { creator: otherAdmins[0].user },
         });
       } else if (conversation.participants.length > 1) {
         // Nếu không có admin khác, chuyển cho thành viên đầu tiên
-        const otherMembers = conversation.participants.filter(
-          p => p.user.toString() !== userId
-        );
+        const otherMembers = conversation.participants.filter((p) => p.user.toString() !== userId);
         if (otherMembers.length > 0) {
-          await this.conversationModel.findByIdAndUpdate(conversationId, {
-            $set: { creator: otherMembers[0].user },
-            $addToSet: { 'participants.$[elem].isAdmin': true }
-          }, {
-            arrayFilters: [{ 'elem.user': otherMembers[0].user }]
-          });
+          await this.conversationModel.findByIdAndUpdate(
+            conversationId,
+            {
+              $set: { creator: otherMembers[0].user },
+              $addToSet: { 'participants.$[elem].isAdmin': true },
+            },
+            {
+              arrayFilters: [{ 'elem.user': otherMembers[0].user }],
+            }
+          );
         }
       }
     }
 
-    return await this.conversationModel.findByIdAndUpdate(
-      conversationId,
-      { $pull: { participants: { user: new Types.ObjectId(userId) } } },
-      { new: true }
-    ).exec();
+    return await this.conversationModel
+      .findByIdAndUpdate(
+        conversationId,
+        { $pull: { participants: { user: new Types.ObjectId(userId) } } },
+        { new: true }
+      )
+      .exec();
   }
 }

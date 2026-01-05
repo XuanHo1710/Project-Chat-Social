@@ -50,15 +50,11 @@ export interface MessageResponse {
 
 export interface SendMessagePayload {
   conversationId: string;
-  senderId: {
-    firstName: string;
-    lastName: string;
-    _id: string;
-  };
+  senderId: string;
   type: MessageType;
   content: string;
   attachments?: string[];
-  replyTo?: MessageResponse;
+  replyTo?: string;
   postId?: string;
 }
 

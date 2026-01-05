@@ -30,12 +30,14 @@ import { QUERY_KEYS } from "@/constants/query-keys";
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { MessagesResponse } from "@/services/chat.service";
 import { useOnlineStatusStore, formatLastActiveDetailed } from "@/stores/useOnlineStatusStore";
+import { useMessageCacheStore } from "@/stores/useMessageCacheStore";
 import MessageItem from "./MessageItem";
 import ConversationInfo from "./ConversationInfo";
 import { useConversationDetail } from "@/queries/useConversationQueries";
 import { uploadChatMedia } from "@/services/cloudinary.service";
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
+import { ConversationParticipant, ConversationResponseData } from "@/types/conversation";
 
 interface SelectedConversation {
     _id: string;
@@ -72,7 +74,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         fetchPreviousPage,
         hasPreviousPage,
         isFetchingPreviousPage,
-        isLoading
+        isLoading,
     } = useChatByConversationId(selectedConversation._id);
 
     const [newMessage, setNewMessage] = useState("");
@@ -124,16 +126,100 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         return 10000 - totalOlderMessages;
     }, [pages]);
 
-    // Join conversation room
+    // Consume pending messages when opening conversation
+    useEffect(() => {
+        const pendingMessages = useMessageCacheStore.getState().consumePendingMessages(selectedConversation._id);
+
+        if (pendingMessages.length > 0) {
+            console.log("📥 Consuming pending messages:", pendingMessages.length);
+
+            queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                [QUERY_KEYS.CHATS, selectedConversation._id],
+                (oldData) => {
+                    if (!oldData) {
+                        return {
+                            pages: [{ data: pendingMessages, pagination: { page: 1, limit: 15, total: pendingMessages.length, hasMore: false } }],
+                            pageParams: [undefined],
+                        };
+                    }
+
+                    // Merge pending messages into cache, avoiding duplicates
+                    const existingIds = new Set(oldData.pages.flatMap(p => p.data.map(m => m._id)));
+                    const newMessages = pendingMessages.filter(m => !existingIds.has(m._id));
+
+                    if (newMessages.length === 0) {
+                        // Just update existing messages (for edits, reactions, read status)
+                        const newPages = oldData.pages.map(page => ({
+                            ...page,
+                            data: page.data.map(msg => {
+                                const updated = pendingMessages.find(p => p._id === msg._id);
+                                return updated || msg;
+                            })
+                        }));
+                        return { ...oldData, pages: newPages };
+                    }
+
+                    // Add new messages to the last page
+                    const newPages = [...oldData.pages];
+                    const lastPageIndex = newPages.length - 1;
+                    newPages[lastPageIndex] = {
+                        ...newPages[lastPageIndex],
+                        data: [...newPages[lastPageIndex].data, ...newMessages],
+                    };
+                    return { ...oldData, pages: newPages };
+                }
+            );
+        }
+    }, [selectedConversation._id, queryClient]);
+
+    // Join conversation room and mark as read
     useEffect(() => {
         if (!socketChat || !selectedConversation._id) return;
-
         socketChat.emit("room", { conversationId: selectedConversation._id });
+
+        // OPTIMISTIC UPDATE: Reset unread count immediately in local cache
+        queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+            [QUERY_KEYS.CONVERSATION_BY_USER, userId],
+            (oldData) => {
+                if (!oldData?.data) return oldData;
+                return {
+                    ...oldData,
+                    data: oldData.data.map(conv => {
+                        if (conv._id === selectedConversation._id && conv.unreadCount) {
+                            return {
+                                ...conv,
+                                unreadCount: {
+                                    ...conv.unreadCount,
+                                    [userId]: 0
+                                }
+                            };
+                        }
+                        return conv;
+                    })
+                };
+            }
+        );
+
+        // Then emit to server (background sync)
+        socketChat.emit("message:read", { conversationId: selectedConversation._id });
+
+        // Query online status of the other user when opening chat
+        socketChat.emit("user:status", { userId: selectedConversation.otherId }, (response: { userId: string; isOnline: boolean; status: string; lastActive?: string }) => {
+            console.log("📊 User status response:", response);
+            if (response) {
+                const store = useOnlineStatusStore.getState();
+                if (response.isOnline) {
+                    store.setUserOnline(response.userId);
+                } else {
+                    store.setUserOffline(response.userId, response.lastActive);
+                }
+            }
+        });
 
         return () => {
             // No leave event in backend, just clean up
-        };
-    }, [socketChat, selectedConversation._id]);
+        }
+    }, [socketChat, selectedConversation._id, userId, selectedConversation.otherId, queryClient]);
 
     // Update message in cache helper
     const updateMessageInCache = useCallback((updatedMsg: MessageResponse) => {
@@ -162,6 +248,14 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         if (!socketChat) return;
 
         const handleNewMessage = (msg: MessageResponse) => {
+            // IMPORTANT: Only add message if it belongs to current conversation
+            if (msg.conversationId !== selectedConversation._id) {
+                return;
+            }
+
+            // Clear this message from pending cache since we're handling it here
+            useMessageCacheStore.getState().clearPending(selectedConversation._id);
+
             queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                 [QUERY_KEYS.CHATS, selectedConversation._id],
                 (oldData) => {
@@ -171,6 +265,13 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                             pageParams: [undefined],
                         };
                     }
+
+                    // Check if message already exists (avoid duplicates)
+                    const exists = oldData.pages.some(p => p.data.some(m => m._id === msg._id));
+                    if (exists) {
+                        return oldData;
+                    }
+
                     const newPages = [...oldData.pages];
                     const lastPageIndex = newPages.length - 1;
                     newPages[lastPageIndex] = {
@@ -183,6 +284,12 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                     };
                 }
             );
+
+            // If message is from other user and we're viewing this conversation, mark as read immediately
+            if (msg.senderId?._id !== userId) {
+                socketChat.emit("message:read", { conversationId: selectedConversation._id });
+            }
+
             // Scroll to bottom when new message
             setTimeout(() => {
                 virtuosoRef.current?.scrollToIndex({
@@ -193,14 +300,23 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         };
 
         const handleMessageEdited = (msg: MessageResponse) => {
+            if (msg.conversationId !== selectedConversation._id) {
+                return;
+            }
             updateMessageInCache(msg);
         };
 
         const handleMessageReaction = (msg: MessageResponse) => {
+            if (msg.conversationId !== selectedConversation._id) {
+                return;
+            }
             updateMessageInCache(msg);
         };
 
         const handleMessageDeleted = (msg: MessageResponse) => {
+            if (msg.conversationId !== selectedConversation._id) {
+                return;
+            }
             updateMessageInCache(msg);
         };
 
@@ -223,6 +339,109 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         socketChat.on("conversation:member:removed", handleConversationUpdate);
         socketChat.on("conversation:admin:updated", handleConversationUpdate);
 
+        // Handle message read updates
+        const handleMessageReadUpdate = (data: { conversationId: string; readBy: string }) => {
+            console.log("👁️ Message read event received:", data, "Current conversation:", selectedConversation._id);
+
+            if (data.conversationId === selectedConversation._id) {
+                // Mark all my messages as read in cache
+                queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                    [QUERY_KEYS.CHATS, selectedConversation._id],
+                    (oldData) => {
+                        if (!oldData) return oldData;
+                        const newPages = oldData.pages.map(page => ({
+                            ...page,
+                            data: page.data.map(msg => {
+                                // Check if this is my message (handle both object and string senderId)
+                                const senderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
+                                const isMyMessage = senderId === userId || senderId?.toString() === userId;
+
+                                if (isMyMessage && msg.status !== 'READ' && data.readBy !== userId) {
+                                    console.log("👁️ Marking message as READ:", msg._id);
+                                    return {
+                                        ...msg,
+                                        status: 'READ' as const,
+                                        readBy: [...(msg.readBy || []), data.readBy]
+                                    };
+                                }
+                                return msg;
+                            })
+                        }));
+                        return { ...oldData, pages: newPages };
+                    }
+                );
+            }
+        };
+
+        socketChat.on("message:read:updated", handleMessageReadUpdate);
+
+        // Handle unread count updates - OPTIMISTIC UPDATE in local cache
+        const handleUnreadUpdate = (data?: { conversationId?: string; userId?: string }) => {
+            console.log("🔄 Unread update event received:", data);
+
+            // If it's a reset for current user viewing this conversation, update cache immediately
+            if (data?.conversationId && data?.userId) {
+                queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                    [QUERY_KEYS.CONVERSATION_BY_USER, userId],
+                    (oldData) => {
+                        if (!oldData?.data) return oldData;
+                        return {
+                            ...oldData,
+                            data: oldData.data.map(conv => {
+                                if (conv._id === data.conversationId && conv.unreadCount) {
+                                    return {
+                                        ...conv,
+                                        unreadCount: {
+                                            ...conv.unreadCount,
+                                            [data.userId!]: 0
+                                        }
+                                    };
+                                }
+                                return conv;
+                            })
+                        };
+                    }
+                );
+            }
+        };
+
+        // Handle unread increment when someone sends a message
+        const handleUnreadIncrement = (data?: { conversationId?: string; senderId?: string }) => {
+            console.log("📬 Unread increment event received:", data);
+
+            // If message is NOT from current user, increment unread for current user
+            if (data?.conversationId && data?.senderId !== userId) {
+                // Only increment if NOT viewing this conversation
+                if (data.conversationId !== selectedConversation._id) {
+                    queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                        [QUERY_KEYS.CONVERSATION_BY_USER, userId],
+                        (oldData) => {
+                            if (!oldData?.data) return oldData;
+                            return {
+                                ...oldData,
+                                data: oldData.data.map(conv => {
+                                    if (conv._id === data.conversationId) {
+                                        const currentCount = conv.unreadCount?.[userId] || 0;
+                                        return {
+                                            ...conv,
+                                            unreadCount: {
+                                                ...conv.unreadCount,
+                                                [userId]: currentCount + 1
+                                            }
+                                        };
+                                    }
+                                    return conv;
+                                })
+                            };
+                        }
+                    );
+                }
+            }
+        };
+
+        socketChat.on("conversation:unread:updated", handleUnreadIncrement);
+        socketChat.on("conversation:unread:reset", handleUnreadUpdate);
+
         return () => {
             socketChat.off("message:new", handleNewMessage);
             socketChat.off("message:edited", handleMessageEdited);
@@ -236,8 +455,11 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             socketChat.off("conversation:member:added", handleConversationUpdate);
             socketChat.off("conversation:member:removed", handleConversationUpdate);
             socketChat.off("conversation:admin:updated", handleConversationUpdate);
+            socketChat.off("message:read:updated", handleMessageReadUpdate);
+            socketChat.off("conversation:unread:updated", handleUnreadIncrement);
+            socketChat.off("conversation:unread:reset", handleUnreadUpdate);
         };
-    }, [socketChat, selectedConversation._id, queryClient, updateMessageInCache]);
+    }, [socketChat, selectedConversation._id, queryClient, updateMessageInCache, userId]);
 
     const [showMentions, setShowMentions] = useState(false);
     const [mentionSearch, setMentionSearch] = useState("");
@@ -357,7 +579,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         }
     };
 
-    const handleSelectMention = (participant: any) => {
+    const handleSelectMention = (participant: ConversationParticipant) => {
         const lastAtIndex = newMessage.lastIndexOf('@');
         const beforeAt = newMessage.substring(0, lastAtIndex);
         const inserted = participant.user._id === 'all' ? '@all ' : `@${participant.user._id} `;
@@ -516,8 +738,14 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                             }}
                             itemContent={(index, message) => {
                                 const actualIndex = index - firstItemIndex;
-                                const isOwn = message.senderId.toString() === userId;
+                                const isOwn = message.senderId._id?.toString() === userId || message.senderId.toString() === userId;
                                 const showAvatar = actualIndex === 0 || (allMessages[actualIndex - 1]?.senderId !== message.senderId);
+
+                                // Find last own message for showing read avatar
+                                const lastOwnMessageIndex = allMessages.map((m, i) =>
+                                    (m.senderId._id?.toString() === userId || m.senderId.toString() === userId) ? i : -1
+                                ).filter(i => i !== -1).pop();
+                                const isLastOwnMessage = actualIndex === lastOwnMessageIndex;
 
                                 return (
                                     <MessageItem
@@ -531,6 +759,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                         userId={userId}
                                         onReply={handleReply}
                                         themeColor={themeColor}
+                                        isLastOwnMessage={isLastOwnMessage}
+                                        otherUserAvatar={selectedConversation.avatar}
                                     />
                                 );
                             }}
@@ -565,7 +795,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                             }}
                         >
                             <List dense>
-                                {filteredParticipants.map((p: any) => (
+                                {filteredParticipants.map((p: ConversationParticipant) => (
                                     <MenuItem key={p.user._id} onClick={() => handleSelectMention(p)}>
                                         <ListItemAvatar>
                                             <Avatar src={p.user.avatar} sx={{ width: 24, height: 24 }} />
@@ -593,7 +823,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                         >
                             <Box sx={{ minWidth: 0 }}>
                                 <Typography fontSize={12} color="#65676b">
-                                    Đang trả lời <strong>{replyMsg.senderId === userId ? "chính mình" : "một tin nhắn"}</strong>
+                                    Đang trả lời <strong>{replyMsg?.senderId._id === userId ? "chính mình" : "một tin nhắn"}</strong>
                                 </Typography>
                                 <Typography fontSize={13} color="#050505" noWrap sx={{ opacity: 0.8 }}>
                                     {replyMsg.content}

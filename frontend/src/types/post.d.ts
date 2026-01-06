@@ -23,6 +23,7 @@ export interface PostType {
   content: string;
   privacy: PostPrivacy;
   userId: PostAuthor;
+  sharedPostId?: PostType | null; // Reference to shared post
   media: MediaItem[];
   background: string | null;
   totalReacts: number;
@@ -42,6 +43,7 @@ export interface CreatePostRequest {
   privacy?: PostPrivacy;
   media?: MediaItem[];
   background?: string | null;
+  sharedPostId?: string | null;
 }
 
 export interface UpdatePostRequest {

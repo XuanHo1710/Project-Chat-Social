@@ -37,6 +37,10 @@ export class Post {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Account.name, required: true })
   userId: mongoose.Schema.Types.ObjectId;
 
+  // Shared post reference
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Post', default: null })
+  sharedPostId: mongoose.Schema.Types.ObjectId | null;
+
   @Prop({
     type: [
       {

@@ -25,10 +25,26 @@ class RelationshipService {
     return response.data;
   }
 
-  // Get all friends
+  // Get all friends of logged in user
   async getFriends(): Promise<APIResponse<FriendType[]>> {
     const response = await axios.get<APIResponse<FriendType[]>>(
       "/relationship/friends"
+    );
+    return response.data;
+  }
+
+  // Get friends of a specific user by userId
+  async getFriendsByUserId(userId: string): Promise<APIResponse<FriendType[]>> {
+    const response = await axios.get<APIResponse<FriendType[]>>(
+      `/relationship/friends/${userId}`
+    );
+    return response.data;
+  }
+
+  // Check friendship status between logged in user and target user
+  async checkFriendship(targetUserId: string): Promise<APIResponse<{ isFriend: boolean; status: string | null }>> {
+    const response = await axios.get<APIResponse<{ isFriend: boolean; status: string | null }>>(
+      `/relationship/check-friendship/${targetUserId}`
     );
     return response.data;
   }

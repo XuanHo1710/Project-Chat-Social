@@ -9,24 +9,20 @@ import * as bcrypt from 'bcrypt';
 import { Relationship } from 'src/relationship/entities/relationship.entity';
 import { FindAllResponse } from 'src/account/dto/filter-account-dto';
 
-
 @Injectable()
 export class AccountService {
   constructor(
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
-    @InjectModel(Relationship.name) private relationshipModel: Model<Relationship>,
-  ) { }
-
-
+    @InjectModel(Relationship.name) private relationshipModel: Model<Relationship>
+  ) {}
 
   async create(createAccountDto: CreateAccountDto) {
     const usernameExist = await this.accountModel.findOne({ username: createAccountDto.username });
     if (usernameExist) {
-      throw new BadRequestException("User name này đã tồn tại trong hệ thống");
+      throw new BadRequestException('User name này đã tồn tại trong hệ thống');
     }
 
-
-    let hashedPassword: string = "";
+    let hashedPassword: string = '';
     if (createAccountDto.password) {
       hashedPassword = await bcrypt.hash(createAccountDto.password, 10);
     }
@@ -37,31 +33,41 @@ export class AccountService {
     return account.save();
   }
 
-  
-
   // Get all accounts to test add friends
-  async findAll(user, currentPage: number = 1) : Promise<FindAllResponse> {
+  async findAll(user, currentPage: number = 1): Promise<FindAllResponse> {
     const limit = 5;
     const skip = limit * (currentPage - 1);
 
     const me = new Types.ObjectId(user._id);
     // 1. Lấy tất cả relationship liên quan đến mình
-    const relationships = await this.relationshipModel.find(
-      {
-        $or: [
-          {$and: [{ userId: me }, {$or: [ {status: 'ACCEPTED'}, {status: 'PENDING' }, {status: 'BLOCKED' } ]}]},
-          {$and: [{ friendId: me }, {$or: [ {status: 'ACCEPTED'}, {status: 'PENDING' }, {status: 'BLOCKED' } ]}]},
-        ],
-      },
-      { userId: 1, friendId: 1 } // chỉ lấy field cần
-    ).lean();
+    const relationships = await this.relationshipModel
+      .find(
+        {
+          $or: [
+            {
+              $and: [
+                { userId: me },
+                { $or: [{ status: 'ACCEPTED' }, { status: 'PENDING' }, { status: 'BLOCKED' }] },
+              ],
+            },
+            {
+              $and: [
+                { friendId: me },
+                { $or: [{ status: 'ACCEPTED' }, { status: 'PENDING' }, { status: 'BLOCKED' }] },
+              ],
+            },
+          ],
+        },
+        { userId: 1, friendId: 1 } // chỉ lấy field cần
+      )
+      .lean();
 
     // 2. Loại bỏ những userId, friendId đã có trong mối quan hệ với mình
     const excludedUserIds = new Set<string>();
 
     excludedUserIds.add(me.toString()); // loại chính mình
 
-    relationships.forEach(r => {
+    relationships.forEach((r) => {
       if (r.userId.toString() === me.toString()) {
         excludedUserIds.add(r.friendId.toString());
       } else {
@@ -69,11 +75,7 @@ export class AccountService {
       }
     });
 
-    const excludedIdsArray = Array.from(excludedUserIds).map(
-      id => new Types.ObjectId(id)
-    );
-
-
+    const excludedIdsArray = Array.from(excludedUserIds).map((id) => new Types.ObjectId(id));
 
     const [items, totalItems] = await Promise.all([
       this.accountModel
@@ -88,17 +90,16 @@ export class AccountService {
         .lean(),
 
       this.accountModel.countDocuments({
-          _id: { $nin: excludedIdsArray },
-          isDeleted: false,
-          isActive: true,
-        }),
+        _id: { $nin: excludedIdsArray },
+        isDeleted: false,
+        isActive: true,
+      }),
     ]);
 
-    
     const totalPages = Math.ceil(totalItems / limit);
 
     return {
-      items: items.map(item => ({
+      items: items.map((item) => ({
         id: item._id,
         name: item.firstName + ' ' + item.lastName,
         mutualFriends: 0,
@@ -112,18 +113,74 @@ export class AccountService {
   }
 
   async findOne(id: string) {
-    return await this.accountModel.findById(id);
+    return await this.accountModel
+      .findById(id)
+      .select('-password -accessToken -resetPasswordToken -resetPasswordExpires');
   }
 
   async findByUsername(username: string) {
-    return await this.accountModel.findOne({ username: username });
+    return await this.accountModel
+      .findOne({ username: username })
+      .select('-password -accessToken -resetPasswordToken -resetPasswordExpires');
   }
 
-  update(id: string, updateAccountDto: UpdateAccountDto) {
-    return `This action updates a #${id} account`;
+  // Get profile by ID (for viewing other users)
+  async getProfile(id: string) {
+    const account = await this.accountModel
+      .findById(id)
+      .select(
+        'firstName lastName email phone avatar background gender birthday username status lastActive addresses bio createdAt'
+      );
+    if (!account) {
+      throw new BadRequestException('Không tìm thấy người dùng');
+    }
+    return account;
   }
 
-  remove(id: string) {
-    return `This action removes a #${id} account`;
+  // Get profile by username
+  async getProfileByUsername(username: string) {
+    const account = await this.accountModel
+      .findOne({ username })
+      .select(
+        'firstName lastName email phone avatar background gender birthday username status lastActive addresses bio createdAt'
+      );
+    if (!account) {
+      throw new BadRequestException('Không tìm thấy người dùng');
+    }
+    return account;
+  }
+
+  // Update profile
+  async updateProfile(id: string, updateData: UpdateAccountDto) {
+    // Prevent updating sensitive fields
+    const allowedFields = [
+      'firstName',
+      'lastName',
+      'email',
+      'phone',
+      'avatar',
+      'background',
+      'gender',
+      'birthday',
+      'addresses',
+      'bio',
+    ];
+
+    const filteredData: any = {};
+    for (const key of allowedFields) {
+      if (updateData[key] !== undefined) {
+        filteredData[key] = updateData[key];
+      }
+    }
+
+    const account = await this.accountModel
+      .findByIdAndUpdate(id, { $set: filteredData }, { new: true })
+      .select('-password -accessToken -resetPasswordToken -resetPasswordExpires');
+
+    if (!account) {
+      throw new BadRequestException('Không tìm thấy người dùng');
+    }
+
+    return account;
   }
 }

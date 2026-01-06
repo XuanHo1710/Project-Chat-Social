@@ -47,4 +47,8 @@ export class CreatePostDto {
   @IsOptional()
   @IsString()
   background?: string | null;
+
+  @IsOptional()
+  @IsString()
+  sharedPostId?: string | null;
 }

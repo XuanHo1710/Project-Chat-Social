@@ -46,6 +46,13 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
         }
     };
 
+    const handleViewProfile = () => {
+        onClose();
+        if (user?.username) {
+            router.push(CLIENT_PATH.PROFILE_BY_USERNAME(user.username));
+        }
+    };
+
     return (
         <Paper
             elevation={8}
@@ -69,6 +76,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                 }}
             >
                 <Box
+                    onClick={handleViewProfile}
                     sx={{
                         display: 'flex',
                         alignItems: 'center',

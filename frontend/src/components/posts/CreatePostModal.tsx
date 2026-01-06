@@ -27,7 +27,7 @@ import {
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useCreatePost } from "@/queries/usePostQueries";
-import { PostPrivacy, MediaItem } from "@/types/post";
+import { PostPrivacy, MediaItem, PostType } from "@/types/post";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import Image from "next/image";
@@ -87,11 +87,13 @@ const backgroundColors = [
 interface CreatePostModalProps {
     open: boolean;
     onClose: () => void;
+    onPostCreated?: (post: PostType) => void;
 }
 
 export default function CreatePostModal({
     open,
     onClose,
+    onPostCreated,
 }: CreatePostModalProps) {
     const { user } = useAuthStore();
     const {
@@ -120,15 +122,18 @@ export default function CreatePostModal({
 
     // Reset states when modal closes
     useEffect(() => {
-        if (!open) {
-            setPostContent("");
-            setSelectedPrivacy("PUBLIC");
-            setSelectedBackground("none");
-            setShowBackgrounds(false);
-            setShowEmojiPicker(false);
-            resetMedia();
-            setModalView("create");
+        const initSetup = () => {
+            if (!open) {
+                setPostContent("");
+                setSelectedPrivacy("PUBLIC");
+                setSelectedBackground("none");
+                setShowBackgrounds(false);
+                setShowEmojiPicker(false);
+                resetMedia();
+                setModalView("create");
+            }
         }
+        initSetup();
     }, [open, resetMedia]);
 
     // Wrapper for file select to disable background
@@ -158,7 +163,7 @@ export default function CreatePostModal({
             }
 
             // Create post with all data ready
-            await createPostMutation.mutateAsync({
+            const result = await createPostMutation.mutateAsync({
                 userId: user.id,
                 content: postContent.trim() || undefined,
                 privacy: selectedPrivacy,
@@ -168,6 +173,11 @@ export default function CreatePostModal({
                         ? backgroundColors.find((b) => b.id === selectedBackground)?.color
                         : null,
             });
+
+            // Call callback with new post if provided
+            if (onPostCreated && result?.data) {
+                onPostCreated(result.data);
+            }
 
             onClose();
             // Reset states
@@ -184,6 +194,7 @@ export default function CreatePostModal({
         uploadAllMedia,
         createPostMutation,
         onClose,
+        onPostCreated,
     ]);
 
     // Wrapper for emoji picker

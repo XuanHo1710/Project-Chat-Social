@@ -170,4 +170,26 @@ export class RelationshipService {
         : { ...rel.userId, time: rel.sendRequestAt }
     );
   }
+
+  // Kiểm tra xem 2 người dùng có phải là bạn bè không
+  async checkFriendship(userId: string, targetUserId: string): Promise<{ isFriend: boolean; status: string | null }> {
+    const relationship = await this.relationshipModel
+      .findOne({
+        $or: [
+          { userId: userId, friendId: targetUserId },
+          { userId: targetUserId, friendId: userId },
+        ],
+      })
+      .lean()
+      .exec();
+
+    if (!relationship) {
+      return { isFriend: false, status: null };
+    }
+
+    return {
+      isFriend: relationship.status === RelationshipStatus.ACCEPTED,
+      status: relationship.status,
+    };
+  }
 }

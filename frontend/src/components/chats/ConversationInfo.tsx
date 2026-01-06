@@ -52,19 +52,14 @@ import { useConversationDetail } from '@/queries/useConversationQueries';
 import { useSocket } from '@/contexts/SocketContext';
 import { useAccountsByPage } from '@/queries/useAccountQueries';
 import { chatService } from '@/services/chat.service';
-import { AttachmentData, MessageResponse } from '@/types/chat';
+import { MessageResponse } from '@/types/chat';
 import { ConversationParticipant } from '@/types/conversation';
 import { AccountCardFriendType } from '@/types/account';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
+import { useRouter } from 'next/navigation';
+import { CLIENT_PATH } from '@/constants/paths';
 
-
-// Quick action buttons data
-const QUICK_ACTIONS = [
-    { icon: PersonIcon, label: 'Trang cá nhân' },
-    { icon: NotificationsIcon, label: 'Tắt thông báo' },
-    { icon: SearchIcon, label: 'Tìm kiếm' },
-];
 
 // Theme colors for chat background - now with gradients
 const THEME_COLORS = [
@@ -87,6 +82,7 @@ interface ConversationInfoProps {
 }
 
 export default function ConversationInfo({ conversationId, userId, onClose }: ConversationInfoProps) {
+    const router = useRouter();
     const { data: conversationData, isLoading } = useConversationDetail(conversationId);
     const { socketChat } = useSocket();
 
@@ -435,16 +431,38 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
                     {/* Quick Actions */}
                     <Box sx={{ display: 'flex', gap: 3, mt: 2 }}>
-                        {QUICK_ACTIONS.map((action, index) => (
-                            <Box key={index} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
+                        {/* Profile Action */}
+                        {!isGroup && otherUser?.username && (
+                            <Box
+                                sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
+                                onClick={() => router.push(CLIENT_PATH.PROFILE_BY_USERNAME(otherUser.username!))}
+                            >
                                 <IconButton sx={{ bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}>
-                                    <action.icon sx={{ color: '#050505' }} />
+                                    <PersonIcon sx={{ color: '#050505' }} />
                                 </IconButton>
                                 <Typography fontSize={12} color="#050505" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
-                                    {action.label}
+                                    Trang cá nhân
                                 </Typography>
                             </Box>
-                        ))}
+                        )}
+                        {/* Notification Action */}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
+                            <IconButton sx={{ bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}>
+                                <NotificationsIcon sx={{ color: '#050505' }} />
+                            </IconButton>
+                            <Typography fontSize={12} color="#050505" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
+                                Tắt thông báo
+                            </Typography>
+                        </Box>
+                        {/* Search Action */}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
+                            <IconButton sx={{ bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}>
+                                <SearchIcon sx={{ color: '#050505' }} />
+                            </IconButton>
+                            <Typography fontSize={12} color="#050505" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
+                                Tìm kiếm
+                            </Typography>
+                        </Box>
                     </Box>
                 </Box>
 

@@ -18,14 +18,28 @@ export class PostService {
   ) {}
 
   async create(createPostDto: CreatePostDto): Promise<Post> {
-    // Validate: phải có content hoặc media
-    if (!createPostDto.content && (!createPostDto.media || createPostDto.media.length === 0)) {
-      throw new BadRequestException('Post must have content or media');
+    // Validate: phải có content hoặc media hoặc sharedPostId
+    if (
+      !createPostDto.content &&
+      (!createPostDto.media || createPostDto.media.length === 0) &&
+      !createPostDto.sharedPostId
+    ) {
+      throw new BadRequestException('Post must have content, media, or be a shared post');
+    }
+
+    // If sharing a post, increment the original post's share count
+    if (createPostDto.sharedPostId) {
+      await this.postModel.findByIdAndUpdate(createPostDto.sharedPostId, {
+        $inc: { totalShares: 1 },
+      });
     }
 
     const newPost = new this.postModel({
       ...createPostDto,
       userId: new Types.ObjectId(createPostDto.userId),
+      sharedPostId: createPostDto.sharedPostId
+        ? new Types.ObjectId(createPostDto.sharedPostId)
+        : null,
       privacy: createPostDto.privacy || PostPrivacy.PUBLIC,
       isActive: true,
     });
@@ -67,6 +81,10 @@ export class PostService {
       this.postModel
         .find(filter)
         .populate('userId', 'firstName lastName avatar username')
+        .populate({
+          path: 'sharedPostId',
+          populate: { path: 'userId', select: 'firstName lastName avatar username' },
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -111,6 +129,10 @@ export class PostService {
       this.postModel
         .find(filter)
         .populate('userId', 'firstName lastName avatar username')
+        .populate({
+          path: 'sharedPostId',
+          populate: { path: 'userId', select: 'firstName lastName avatar username' },
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -129,6 +151,10 @@ export class PostService {
     const post = await this.postModel
       .findOne({ _id: new Types.ObjectId(id), isDeleted: false })
       .populate('userId', 'firstName lastName avatar username')
+      .populate({
+        path: 'sharedPostId',
+        populate: { path: 'userId', select: 'firstName lastName avatar username' },
+      })
       .exec();
 
     if (!post) {
@@ -155,6 +181,10 @@ export class PostService {
       this.postModel
         .find(filter)
         .populate('userId', 'firstName lastName avatar username')
+        .populate({
+          path: 'sharedPostId',
+          populate: { path: 'userId', select: 'firstName lastName avatar username' },
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)

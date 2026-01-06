@@ -4,6 +4,16 @@ export type GenderEnum = "MALE" | "FEMALE" | "OTHER";
 
 export type StatusEnum = "ACTIVE" | "DEACTIVE";
 
+export interface AddressType {
+  _id?: string;
+  label: string;
+  province: { code: number; name: string };
+  district: { code: number; name: string };
+  ward: { code: number; name: string };
+  detailAddress: string;
+  isDefault: boolean;
+}
+
 export interface UserLoginType {
   id: string;
   username: string;
@@ -53,4 +63,35 @@ export interface AccountType {
   isDeleted: boolean;
   loginCount: number;
   addresses: string[];
+}
+
+export interface ProfileType {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  background?: string;
+  bio?: string;
+  gender: GenderEnum;
+  birthday?: string;
+  username: string;
+  status: StatusEnum;
+  lastActive?: string;
+  addresses?: AddressType[];
+  createdAt?: string;
+}
+
+export interface UpdateProfileType {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  background?: string;
+  bio?: string;
+  gender?: GenderEnum;
+  birthday?: string;
+  addresses?: AddressType[];
 }

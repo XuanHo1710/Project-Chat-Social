@@ -19,11 +19,9 @@ export const ADMIN_PATH = {
   ACCOUNT_ADD: "/admin/accounts/add",
   ACCOUNT_EDIT: (id: string) => `/admin/accounts/edit/${id}`,
   ACCOUNT_DETAIL: (id: string) => `/admin/accounts/${id}`,
-
 } as const;
 
 export const CLIENT_PATH = {
-
   CHAT: "/chat",
 
   // Auth
@@ -48,6 +46,7 @@ export const CLIENT_PATH = {
 
   // Profile
   PROFILE: "/profile",
+  PROFILE_BY_USERNAME: (username: string) => `/profile/${username}`,
   PROFILE_EDIT: "/profile/edit",
 
   // My Insurance

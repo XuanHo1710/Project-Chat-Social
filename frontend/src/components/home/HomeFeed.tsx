@@ -10,6 +10,7 @@ import {
     PlayCircle as PlayIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { usePostStore } from '@/stores/usePostStore';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useGetNewsFeed, useDeletePost } from '@/queries/usePostQueries';
@@ -28,6 +29,7 @@ import StoriesBar from '@/components/story/StoriesBar';
 
 export default function HomeFeed() {
     const { user } = useAuthStore();
+    const { posts: storePosts, setPosts: setStorePosts } = usePostStore();
     const searchParams = useSearchParams();
     const router = useRouter();
     const highlightedPostRef = useRef<HTMLDivElement>(null);
@@ -82,9 +84,32 @@ export default function HomeFeed() {
     // Emoji Picker
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-    // Get posts from API data - sort to put highlighted post first (use persisted ID)
+    // Sync API data with store
+    useEffect(() => {
+        if (postsData?.data) {
+            setStorePosts(postsData.data);
+        }
+    }, [postsData, setStorePosts]);
+
+    // Get posts from store - sort to put highlighted post first (use persisted ID)
     const posts = useMemo(() => {
-        const allPosts = postsData?.data || [];
+        // Merge store posts with API data (store posts take precedence for new posts)
+        const apiPosts = postsData?.data || [];
+        const storePostIds = new Set(storePosts.map(p => p._id));
+        const apiPostIds = new Set(apiPosts.map(p => p._id));
+
+        // Get new posts from store that aren't in API yet
+        const newStorePosts = storePosts.filter(p => !apiPostIds.has(p._id));
+
+        // Merge: new store posts + API posts (using store version if exists)
+        const allPosts = [
+            ...newStorePosts,
+            ...apiPosts.map(apiPost => {
+                const storePost = storePosts.find(sp => sp._id === apiPost._id);
+                return storePost || apiPost;
+            })
+        ];
+
         if (!highlightedPostId) return allPosts;
 
         // Move highlighted post to the top
@@ -93,7 +118,7 @@ export default function HomeFeed() {
 
         const otherPosts = allPosts.filter(p => p._id !== highlightedPostId);
         return [highlightedPost, ...otherPosts];
-    }, [postsData, highlightedPostId]);
+    }, [postsData, storePosts, highlightedPostId]);
 
     // Scroll to highlighted post and clear URL after viewing
     useEffect(() => {

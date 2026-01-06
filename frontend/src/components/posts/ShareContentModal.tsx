@@ -1,5 +1,5 @@
 import {
-    Box, Avatar, Typography, IconButton, Button, InputBase
+    Box, Avatar, Typography, IconButton, Button, InputBase, Menu, MenuItem, ListItemIcon, ListItemText, CircularProgress
 } from '@mui/material';
 import {
     MoreHoriz as MoreIcon,
@@ -15,6 +15,7 @@ import {
     Person as PersonIcon,
     WhatsApp as WhatsAppIcon,
     Message as MessageIcon,
+    Check as CheckIcon,
 } from '@mui/icons-material';
 import { PostPrivacy, PostType } from '@/types/post';
 import Picker from '@emoji-mart/react';
@@ -23,6 +24,9 @@ import { UserLoginType } from '@/types/account';
 import { useState } from 'react';
 import SharePostModal from './SharePostModal';
 import { useDisplayListFriends } from '@/queries/useRelationshipQueries';
+import { postService } from '@/services/post.service';
+import { toast } from 'sonner';
+import { usePostStore } from '@/stores/usePostStore';
 
 // Privacy options
 const privacyOptions = [
@@ -41,12 +45,66 @@ const shareOptions = [
 ];
 
 
-export default function ShareContentModal({ handleCloseShare, user, sharePrivacy, shareCaption, setShareCaption, showEmojiPicker, setShowEmojiPicker, handleEmojiSelect, sharingPost }: { handleCloseShare: () => void, user: UserLoginType | null, sharePrivacy: string, shareCaption: string, setShareCaption: React.Dispatch<React.SetStateAction<string>>, showEmojiPicker: boolean, setShowEmojiPicker: React.Dispatch<React.SetStateAction<boolean>>, handleEmojiSelect: (emoji: { native: string }) => void, sharingPost: PostType | null }) {
+export default function ShareContentModal({ handleCloseShare, user, sharePrivacy: initialSharePrivacy, shareCaption, setShareCaption, showEmojiPicker, setShowEmojiPicker, handleEmojiSelect, sharingPost }: { handleCloseShare: () => void, user: UserLoginType | null, sharePrivacy: string, shareCaption: string, setShareCaption: React.Dispatch<React.SetStateAction<string>>, showEmojiPicker: boolean, setShowEmojiPicker: React.Dispatch<React.SetStateAction<boolean>>, handleEmojiSelect: (emoji: { native: string }) => void, sharingPost: PostType | null }) {
+    // Local state for privacy selection
+    const [sharePrivacy, setSharePrivacy] = useState<PostPrivacy>(initialSharePrivacy as PostPrivacy || 'PUBLIC');
+    const [privacyAnchor, setPrivacyAnchor] = useState<null | HTMLElement>(null);
+    const [isSharing, setIsSharing] = useState(false);
+
+    const { addPost, incrementShareCount } = usePostStore();
+
     const getSharePrivacyLabel = () => privacyOptions.find(p => p.id === sharePrivacy)?.label || 'Công khai';
+    const getSharePrivacyIcon = () => {
+        const option = privacyOptions.find(p => p.id === sharePrivacy);
+        return option ? option.icon : PublicIcon;
+    };
+    const PrivacyIcon = getSharePrivacyIcon();
 
     // State for messenger share modal
     const [openMessengerShare, setOpenMessengerShare] = useState(false);
     const { data: friendsData, isLoading: friendsLoading } = useDisplayListFriends(user?.id || "");
+
+    // Handle privacy menu
+    const handleOpenPrivacyMenu = (event: React.MouseEvent<HTMLElement>) => {
+        setPrivacyAnchor(event.currentTarget);
+    };
+
+    const handleClosePrivacyMenu = () => {
+        setPrivacyAnchor(null);
+    };
+
+    const handleSelectPrivacy = (privacy: PostPrivacy) => {
+        setSharePrivacy(privacy);
+        handleClosePrivacyMenu();
+    };
+
+    // Handle share post
+    const handleSharePost = async () => {
+        if (!sharingPost || !user) return;
+
+        setIsSharing(true);
+        try {
+            const response = await postService.createPost({
+                userId: user.id,
+                content: shareCaption || '',
+                privacy: sharePrivacy,
+                sharedPostId: sharingPost._id,
+            });
+
+            if (response.data) {
+                addPost(response.data);
+                // Increment share count on original post
+                incrementShareCount(sharingPost._id);
+                toast.success('Chia sẻ bài viết thành công!');
+                handleCloseShare();
+            }
+        } catch (error) {
+            console.error('Error sharing post:', error);
+            toast.error('Lỗi khi chia sẻ bài viết');
+        } finally {
+            setIsSharing(false);
+        }
+    };
 
 
     return (
@@ -75,12 +133,58 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                             </Button>
                             <Button
                                 size="small"
-                                startIcon={sharePrivacy === 'PUBLIC' ? <PublicIcon sx={{ fontSize: 12 }} /> : sharePrivacy === 'FRIEND' ? <PeopleIcon sx={{ fontSize: 12 }} /> : <LockIcon sx={{ fontSize: 12 }} />}
+                                startIcon={<PrivacyIcon sx={{ fontSize: 12 }} />}
                                 endIcon={<ArrowDownIcon />}
+                                onClick={handleOpenPrivacyMenu}
                                 sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontSize: 12, fontWeight: 600, px: 1, py: 0.25, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}
                             >
                                 {getSharePrivacyLabel()}
                             </Button>
+                            <Menu
+                                anchorEl={privacyAnchor}
+                                open={Boolean(privacyAnchor)}
+                                onClose={handleClosePrivacyMenu}
+                                PaperProps={{
+                                    sx: { width: 300, borderRadius: 2, mt: 1 }
+                                }}
+                            >
+                                <Typography sx={{ px: 2, py: 1, fontWeight: 700, fontSize: 16, color: '#050505' }}>
+                                    Ai có thể xem bài viết này?
+                                </Typography>
+                                {privacyOptions.map((option) => (
+                                    <MenuItem
+                                        key={option.id}
+                                        onClick={() => handleSelectPrivacy(option.id)}
+                                        sx={{
+                                            py: 1.5,
+                                            '&:hover': { bgcolor: '#f0f2f5' }
+                                        }}
+                                    >
+                                        <ListItemIcon>
+                                            <Box sx={{
+                                                width: 40,
+                                                height: 40,
+                                                borderRadius: '50%',
+                                                bgcolor: '#e4e6eb',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                <option.icon sx={{ color: '#050505' }} />
+                                            </Box>
+                                        </ListItemIcon>
+                                        <ListItemText
+                                            primary={option.label}
+                                            secondary={option.description}
+                                            primaryTypographyProps={{ fontWeight: 600, fontSize: 15, color: '#050505' }}
+                                            secondaryTypographyProps={{ fontSize: 13, color: '#65676b' }}
+                                        />
+                                        {sharePrivacy === option.id && (
+                                            <CheckIcon sx={{ color: '#1877f2' }} />
+                                        )}
+                                    </MenuItem>
+                                ))}
+                            </Menu>
                         </Box>
                     </Box>
                 </Box>
@@ -120,6 +224,8 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                 <Button
                     fullWidth
                     variant="contained"
+                    onClick={handleSharePost}
+                    disabled={isSharing}
                     sx={{
                         bgcolor: '#1877f2',
                         color: 'white',
@@ -129,9 +235,10 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                         py: 1,
                         borderRadius: 2,
                         '&:hover': { bgcolor: '#166fe5' },
+                        '&:disabled': { bgcolor: '#e4e6eb', color: '#bcc0c4' }
                     }}
                 >
-                    Chia sẻ ngay
+                    {isSharing ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Chia sẻ ngay'}
                 </Button>
             </Box>
 

@@ -8,15 +8,19 @@ import {
     ChatBubbleOutline as CommentIcon,
     Share as ShareIcon,
     Close as CloseIcon,
+    Repeat as RepeatIcon,
 
 } from '@mui/icons-material';
 import { formatPostTime, getAuthorName } from '@/utils/formatPost';
 import ReactionButton from '@/components/posts/ReactionButton';
 import ReactionListDialog from '@/components/posts/ReactionListDialog';
+import SharedPostPreview from '@/components/posts/SharedPostPreview';
 import { PostType } from '@/types/post';
 import { HashtagContent } from '@/utils/hashtagParser';
 import { useReactionStore } from '@/stores/useReactionStore';
 import { useEffect, useState, forwardRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { CLIENT_PATH } from '@/constants/paths';
 
 // Highlight animation
 const highlightPulse = keyframes`
@@ -45,6 +49,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
     PrivacyIconComponent,
     isHighlighted = false
 }, ref) {
+    const router = useRouter();
     const [reactionListOpen, setReactionListOpen] = useState(false);
 
     // Use global store for reaction state
@@ -65,12 +70,19 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
         // router.push(`/search?q=%23${hashtag}`);
     };
 
+    const handleProfileClick = () => {
+        if (post.userId?.username) {
+            router.push(CLIENT_PATH.PROFILE_BY_USERNAME(post.userId.username));
+        }
+    };
+
     return (
         <Card
             ref={ref}
             sx={{
                 mb: 2,
                 borderRadius: 2,
+                bgcolor: 'white',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
                 ...(isHighlighted && {
                     border: '2px solid #1877f2',
@@ -81,9 +93,36 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
             <CardContent sx={{ p: 2 }}>
                 {/* Post Header */}
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Avatar sx={{ width: 40, height: 40, mr: 1.5 }} src={post.userId?.avatar} />
+                    <Avatar
+                        sx={{
+                            width: 40,
+                            height: 40,
+                            mr: 1.5,
+                            cursor: 'pointer',
+                            '&:hover': { opacity: 0.8 }
+                        }}
+                        src={post.userId?.avatar}
+                        onClick={handleProfileClick}
+                    />
                     <Box sx={{ flex: 1 }}>
-                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#050505' }}>{getAuthorName(post)}</Typography>
+                        <Typography
+                            sx={{
+                                fontSize: '15px',
+                                fontWeight: 600,
+                                color: '#050505',
+                                cursor: 'pointer',
+                                '&:hover': { textDecoration: 'underline' }
+                            }}
+                            onClick={handleProfileClick}
+                        >
+                            {getAuthorName(post)}
+                            {/* Show shared indicator */}
+                            {post.sharedPostId && (
+                                <Typography component="span" sx={{ fontWeight: 400, color: '#65676b', fontSize: '14px' }}>
+                                    {' đã chia sẻ một bài viết'}
+                                </Typography>
+                            )}
+                        </Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Typography sx={{ fontSize: '13px', color: '#65676b' }}>{formatPostTime(post.createdAt)}</Typography>
                             <Typography sx={{ fontSize: '13px', color: '#65676b' }}> · </Typography>
@@ -94,21 +133,40 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                     <IconButton><CloseIcon /></IconButton>
                 </Box>
 
-                {/* Post Content with Hashtag Highlighting */}
-                {post.background ? (
-                    <Box sx={{ background: post.background, borderRadius: 2, p: 4, minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-                        <Typography sx={{ fontSize: 24, fontWeight: 700, color: 'white', textAlign: 'center' }}>
+                {/* Post Content with Hashtag Highlighting - Only show if not a share or has caption */}
+                {!post.sharedPostId ? (
+                    // Normal post content
+                    post.background ? (
+                        <Box sx={{ background: post.background, borderRadius: 2, p: 4, minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+                            <Typography sx={{ fontSize: 24, fontWeight: 700, color: 'white', textAlign: 'center' }}>
+                                <HashtagContent content={post.content || ''} onHashtagClick={handleHashtagClick} />
+                            </Typography>
+                        </Box>
+                    ) : (
+                        <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#050505' }}>
                             <HashtagContent content={post.content || ''} onHashtagClick={handleHashtagClick} />
                         </Typography>
-                    </Box>
+                    )
                 ) : (
-                    <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#050505' }}>
-                        <HashtagContent content={post.content || ''} onHashtagClick={handleHashtagClick} />
-                    </Typography>
+                    // Shared post - show caption if exists, then shared content
+                    <>
+                        {post.content && (
+                            <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#050505' }}>
+                                <HashtagContent content={post.content} onHashtagClick={handleHashtagClick} />
+                            </Typography>
+                        )}
+                        <Box sx={{ mb: 2 }}>
+                            <SharedPostPreview
+                                sharedPost={post.sharedPostId}
+                                onHashtagClick={handleHashtagClick}
+                                renderPostMedia={renderPostMedia}
+                            />
+                        </Box>
+                    </>
                 )}
 
-                {/* Render media */}
-                {renderPostMedia(post)}
+                {/* Render media - only for non-shared posts */}
+                {!post.sharedPostId && renderPostMedia(post)}
 
                 {/* Like/Comment Count */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>

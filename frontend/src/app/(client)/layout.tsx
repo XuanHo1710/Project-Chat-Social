@@ -6,8 +6,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     const theme = createTheme({
         palette: {
             mode: "light",
-            primary: { main: "#2E89FF" },
-            background: { default: "#18191A", paper: "#242526" },
+            primary: { main: "#1877f2" },
+            background: { default: "#f0f2f5", paper: "#ffffff" },
         },
         shape: { borderRadius: 12 },
         typography: { fontFamily: "var(--font-roboto), Roboto, Arial, sans-serif" },

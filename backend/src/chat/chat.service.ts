@@ -29,6 +29,10 @@ export class ChatService {
         path: 'replyTo',
         populate: { path: 'senderId', select: 'firstName lastName _id' },
       })
+      .populate({
+        path: 'postId',
+        populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+      })
       .exec();
   }
 

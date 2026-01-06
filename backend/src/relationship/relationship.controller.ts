@@ -85,10 +85,7 @@ export class RelationshipController {
 
   // Kiểm tra xem 2 người dùng có phải là bạn bè không
   @Get('/check-friendship/:targetUserId')
-  checkFriendship(
-    @UserInfo() user: any,
-    @Param('targetUserId') targetUserId: string,
-  ) {
+  checkFriendship(@UserInfo() user: any, @Param('targetUserId') targetUserId: string) {
     return this.relationshipService.checkFriendship(user._id, targetUserId);
   }
 }

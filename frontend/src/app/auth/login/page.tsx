@@ -64,8 +64,8 @@ export default function LoginPage() {
           fullName: response.data.payload.fullname,
           role: response.data.payload.role,
           gender: response.data.payload.gender,
-          email: undefined, // Backend doesn't provide email in login response
-          avatar: undefined, // Backend doesn't provide avatar in login response
+          email: response.data.payload.email,
+          avatar: response.data.payload.avatar,
         };
 
 

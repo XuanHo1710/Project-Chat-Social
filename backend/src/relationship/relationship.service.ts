@@ -172,7 +172,10 @@ export class RelationshipService {
   }
 
   // Kiểm tra xem 2 người dùng có phải là bạn bè không
-  async checkFriendship(userId: string, targetUserId: string): Promise<{ isFriend: boolean; status: string | null }> {
+  async checkFriendship(
+    userId: string,
+    targetUserId: string
+  ): Promise<{ isFriend: boolean; status: string | null }> {
     const relationship = await this.relationshipModel
       .findOne({
         $or: [

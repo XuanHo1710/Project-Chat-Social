@@ -167,19 +167,50 @@ export class PostService {
   async findByUserId(
     userId: string,
     page = 1,
-    limit = 10
+    limit = 10,
+    currentUserId?: string,
+    friendIds: string[] = []
   ): Promise<{ data: Post[]; total: number; page: number; totalPages: number }> {
     const skip = (page - 1) * limit;
+    const targetUserObjId = new Types.ObjectId(userId);
 
-    const filter = {
-      userId: new Types.ObjectId(userId),
-      isDeleted: false,
-      isActive: true,
-    };
+    // Build privacy filter based on viewer:
+    // 1. Own profile: see all posts
+    // 2. Friend viewing: see PUBLIC + FRIEND posts
+    // 3. Non-friend viewing: see PUBLIC posts only
+    let privacyFilter: Record<string, unknown>;
+
+    const isOwnProfile = currentUserId === userId;
+    const isFriend = currentUserId && friendIds.includes(userId);
+
+    if (isOwnProfile) {
+      // Own profile - see all posts
+      privacyFilter = {
+        userId: targetUserObjId,
+        isDeleted: false,
+        isActive: true,
+      };
+    } else if (isFriend) {
+      // Friend - see PUBLIC and FRIEND posts
+      privacyFilter = {
+        userId: targetUserObjId,
+        isDeleted: false,
+        isActive: true,
+        privacy: { $in: [PostPrivacy.PUBLIC, PostPrivacy.FRIEND] },
+      };
+    } else {
+      // Non-friend/Guest - see PUBLIC posts only
+      privacyFilter = {
+        userId: targetUserObjId,
+        isDeleted: false,
+        isActive: true,
+        privacy: PostPrivacy.PUBLIC,
+      };
+    }
 
     const [data, total] = await Promise.all([
       this.postModel
-        .find(filter)
+        .find(privacyFilter)
         .populate('userId', 'firstName lastName avatar username')
         .populate({
           path: 'sharedPostId',
@@ -189,7 +220,7 @@ export class PostService {
         .skip(skip)
         .limit(limit)
         .exec(),
-      this.postModel.countDocuments(filter),
+      this.postModel.countDocuments(privacyFilter),
     ]);
 
     return {

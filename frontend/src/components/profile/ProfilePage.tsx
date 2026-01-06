@@ -23,6 +23,10 @@ import {
     MenuItem,
     ListItemIcon,
     ListItemText,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from '@mui/material';
 import {
     PhotoCamera as PhotoCameraIcon,
@@ -47,7 +51,12 @@ import {
     PersonRemove as PersonRemoveIcon,
     Block as BlockIcon,
     Check as CheckIcon,
-    HourglassEmpty as HourglassEmptyIcon,
+    Cancel as CancelIcon,
+    Settings as SettingsIcon,
+    PauseCircle as PauseCircleIcon,
+    Visibility as VisibilityIcon,
+    CloudUpload as CloudUploadIcon,
+    Close as CloseIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { accountService } from '@/services/account.service';
@@ -65,6 +74,7 @@ import ImageViewer from '@/components/posts/ImageViewer';
 import CommentContentModal from '@/components/posts/CommentContentModal';
 import ShareContentModal from '@/components/posts/ShareContentModal';
 import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
+import Header from '@/components/home/Header';
 import { CLIENT_PATH } from '@/constants/paths';
 import { toast } from 'sonner';
 import { usePostStore } from '@/stores/usePostStore';
@@ -126,6 +136,23 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     const [sharingPost, setSharingPost] = useState<PostType | null>(null);
     const [shareCaption, setShareCaption] = useState('');
     const sharePrivacy: PostPrivacy = 'PUBLIC'; // Initial privacy for share modal
+
+
+    // Profile Settings Menu (3-dot menu)
+    const [profileSettingsAnchor, setProfileSettingsAnchor] = useState<null | HTMLElement>(null);
+
+    // Avatar Menu (view/upload options)
+    const [avatarMenuAnchor, setAvatarMenuAnchor] = useState<null | HTMLElement>(null);
+
+    // Cover Menu (view/upload options)
+    const [coverMenuAnchor, setCoverMenuAnchor] = useState<null | HTMLElement>(null);
+
+    // Cover Photo Edit Modal
+    const [openCoverEditModal, setOpenCoverEditModal] = useState(false);
+    const [coverPreviewUrl, setCoverPreviewUrl] = useState<string>('');
+    const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
+
+
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -188,13 +215,15 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         checkFriendshipStatus();
     }, [profile?._id, isOwnProfile]);
 
-    // Fetch user posts
+    // Fetch user posts with privacy filtering
     useEffect(() => {
         const fetchPosts = async () => {
             if (!profile?._id) return;
             try {
                 setPostsLoading(true);
-                const response = await postService.getPostsByUserId(profile._id);
+                // Pass friendIds if the current user is a friend of the profile owner
+                const friendIds = isFriend ? [user?.id || ''] : [];
+                const response = await postService.getPostsByUserId(profile._id, { friendIds });
                 setPosts(response.data || []);
             } catch (error) {
                 console.error('Error fetching posts:', error);
@@ -206,7 +235,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         if (profile?._id) {
             fetchPosts();
         }
-    }, [profile?._id]);
+    }, [profile?._id, isFriend, user?.id]);
 
     const handlePostCreated = useCallback((newPost: PostType) => {
         setPosts(prev => [newPost, ...prev]);
@@ -216,6 +245,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     const handleProfileUpdate = (updatedProfile: ProfileType) => {
         setProfile(updatedProfile);
+        // Sync avatar to auth store for Header and other components
+        if (isOwnProfile && updatedProfile.avatar) {
+            useAuthStore.getState().updateUser({ avatar: updatedProfile.avatar });
+        }
     };
 
     const handleMessage = () => {
@@ -233,6 +266,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                 const avatarUrl = result.results[0].url;
                 const updatedProfile = await accountService.updateProfile({ avatar: avatarUrl });
                 setProfile(updatedProfile);
+                // Sync avatar to auth store for Header and other components
+                useAuthStore.getState().updateUser({ avatar: avatarUrl });
                 toast.success('Cập nhật ảnh đại diện thành công!');
             }
         } catch (error) {
@@ -415,7 +450,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         const friendId = targetUserId || profile?._id;
         if (!user?.id || !friendId) return;
         try {
-            await relationshipService.updateStatusRelationship(user.id, friendId, 'REJECTED' as any);
+            await relationshipService.updateStatusRelationship(user.id, friendId, 'REJECTED');
             if (!targetUserId) {
                 setIsFriend(false);
                 setFriendshipStatus(null);
@@ -428,6 +463,134 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
             console.error('Error unfriending:', error);
             toast.error('Lỗi khi hủy kết bạn');
         }
+    };
+
+    // Cancel friend request handler
+    const handleCancelFriendRequest = async () => {
+        if (!user?.id || !profile?._id) return;
+        try {
+            await relationshipService.updateStatusRelationship(user.id, profile._id, 'CANCELED');
+            setFriendshipStatus(null);
+            toast.success('Đã hủy lời mời kết bạn!');
+        } catch (error) {
+            console.error('Error canceling friend request:', error);
+            toast.error('Lỗi khi hủy lời mời kết bạn');
+        }
+    };
+
+    // Profile settings menu handlers
+    const handleOpenProfileSettings = (event: React.MouseEvent<HTMLElement>) => {
+        setProfileSettingsAnchor(event.currentTarget);
+    };
+
+    const handleCloseProfileSettings = () => {
+        setProfileSettingsAnchor(null);
+    };
+
+    // Avatar menu handlers
+    const handleOpenAvatarMenu = (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        setAvatarMenuAnchor(event.currentTarget);
+    };
+
+    const handleCloseAvatarMenu = () => {
+        setAvatarMenuAnchor(null);
+    };
+
+    const handleViewAvatar = () => {
+        if (profile?.avatar) {
+            setViewerMedia([{ url: profile.avatar, mediaType: 'IMAGE', publicId: '' }]);
+            setViewerInitialIndex(0);
+            setOpenImageViewer(true);
+        }
+        handleCloseAvatarMenu();
+    };
+
+    const handleUploadAvatar = () => {
+        avatarInputRef.current?.click();
+        handleCloseAvatarMenu();
+    };
+
+    // Cover menu handlers
+    const handleOpenCoverMenu = (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        setCoverMenuAnchor(event.currentTarget);
+    };
+
+    const handleCloseCoverMenu = () => {
+        setCoverMenuAnchor(null);
+    };
+
+    const handleViewCover = () => {
+        if (profile?.background) {
+            setViewerMedia([{ url: profile.background, mediaType: 'IMAGE', publicId: '' }]);
+            setViewerInitialIndex(0);
+            setOpenImageViewer(true);
+        }
+        handleCloseCoverMenu();
+    };
+
+    const handleUploadCoverFromMenu = () => {
+        handleCloseCoverMenu();
+        handleOpenCoverEditModal();
+    };
+
+    // Cover photo edit modal handlers
+    const handleOpenCoverEditModal = () => {
+        setCoverPreviewUrl(profile?.background || '');
+        setSelectedCoverFile(null);
+        setOpenCoverEditModal(true);
+    };
+
+    const handleCloseCoverEditModal = () => {
+        setOpenCoverEditModal(false);
+        setCoverPreviewUrl('');
+        setSelectedCoverFile(null);
+    };
+
+    const handleCoverFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            setSelectedCoverFile(file);
+            const previewUrl = URL.createObjectURL(file);
+            setCoverPreviewUrl(previewUrl);
+        }
+    };
+
+    const handleSaveCoverPhoto = async () => {
+        if (!selectedCoverFile) return;
+        try {
+            setUploadingCover(true);
+            const result = await uploadChatMedia([selectedCoverFile]);
+            if (result.success && result.results.length > 0) {
+                const backgroundUrl = result.results[0].url;
+                const updatedProfile = await accountService.updateProfile({ background: backgroundUrl });
+                setProfile(updatedProfile);
+                toast.success('Cập nhật ảnh bìa thành công!');
+                handleCloseCoverEditModal();
+            }
+        } catch (error) {
+            console.error('Error uploading cover:', error);
+            toast.error('Lỗi khi tải ảnh lên');
+        } finally {
+            setUploadingCover(false);
+        }
+    };
+
+    // Navigate to friends page
+    const navigateToFriends = (tab?: string) => {
+        if (tab) {
+            router.push(`${CLIENT_PATH.FRIENDS}?tab=${tab}`);
+        } else {
+            router.push(CLIENT_PATH.FRIENDS);
+        }
+    };
+
+    // Open photo in gallery
+    const handleOpenGalleryPhoto = (photos: MediaItem[], index: number) => {
+        setViewerMedia(photos);
+        setViewerInitialIndex(index);
+        setOpenImageViewer(true);
     };
 
     // Privacy icon helper
@@ -519,17 +682,20 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     if (loading) {
         return (
             <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
-                <Box sx={{ bgcolor: 'white', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                    <Container maxWidth="lg">
-                        <Skeleton variant="rectangular" height={350} sx={{ borderRadius: '0 0 8px 8px' }} />
-                        <Box sx={{ display: 'flex', alignItems: 'flex-end', mt: -8, px: 2, pb: 2 }}>
-                            <Skeleton variant="circular" width={168} height={168} />
-                            <Box sx={{ ml: 2, flex: 1 }}>
-                                <Skeleton variant="text" width={200} height={40} />
-                                <Skeleton variant="text" width={100} height={24} />
+                <Header />
+                <Box sx={{ pt: '56px' }}>
+                    <Box sx={{ bgcolor: 'white', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                        <Container maxWidth="lg">
+                            <Skeleton variant="rectangular" height={350} sx={{ borderRadius: '0 0 8px 8px' }} />
+                            <Box sx={{ display: 'flex', alignItems: 'flex-end', mt: -8, px: 2, pb: 2 }}>
+                                <Skeleton variant="circular" width={168} height={168} />
+                                <Box sx={{ ml: 2, flex: 1 }}>
+                                    <Skeleton variant="text" width={200} height={40} />
+                                    <Skeleton variant="text" width={100} height={24} />
+                                </Box>
                             </Box>
-                        </Box>
-                    </Container>
+                        </Container>
+                    </Box>
                 </Box>
             </Box>
         );
@@ -537,8 +703,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     if (!profile) {
         return (
-            <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Typography color="#050505">Không tìm thấy người dùng</Typography>
+            <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
+                <Header />
+                <Box sx={{ pt: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 56px)' }}>
+                    <Typography color="#050505">Không tìm thấy người dùng</Typography>
+                </Box>
             </Box>
         );
     }
@@ -547,970 +716,1300 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     return (
         <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
-            {/* Hidden file inputs */}
-            <input
-                type="file"
-                ref={avatarInputRef}
-                onChange={handleAvatarUpload}
-                accept="image/*"
-                style={{ display: 'none' }}
-            />
-            <input
-                type="file"
-                ref={coverInputRef}
-                onChange={handleCoverUpload}
-                accept="image/*"
-                style={{ display: 'none' }}
-            />
+            {/* Header */}
+            <Header />
 
-            {/* Cover & Profile Header */}
-            <Box sx={{ bgcolor: 'white', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                <Container maxWidth="lg">
-                    {/* Cover Photo */}
-                    <Box
-                        sx={{
-                            position: 'relative',
-                            height: 350,
-                            borderRadius: '0 0 8px 8px',
-                            overflow: 'hidden',
-                            background: profile.background
-                                ? `url(${profile.background}) center/cover no-repeat`
-                                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        }}
-                    >
-                        {uploadingCover && (
-                            <Box sx={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                bgcolor: 'rgba(0,0,0,0.5)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                            }}>
-                                <CircularProgress sx={{ color: 'white' }} />
-                            </Box>
-                        )}
-                        {isOwnProfile && (
-                            <Button
-                                variant="contained"
-                                startIcon={<PhotoCameraIcon />}
-                                sx={{
-                                    position: 'absolute',
-                                    bottom: 16,
-                                    right: 16,
-                                    bgcolor: 'white',
-                                    color: '#050505',
-                                    textTransform: 'none',
-                                    fontWeight: 600,
-                                    '&:hover': { bgcolor: '#f0f2f5' }
-                                }}
-                                onClick={() => coverInputRef.current?.click()}
-                                disabled={uploadingCover}
-                            >
-                                {profile.background ? 'Chỉnh sửa ảnh bìa' : 'Thêm ảnh bìa'}
-                            </Button>
-                        )}
-                    </Box>
+            {/* Main content with padding for header */}
+            <Box sx={{ pt: '56px' }}>
+                {/* Hidden file inputs */}
+                <input
+                    type="file"
+                    ref={avatarInputRef}
+                    onChange={handleAvatarUpload}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                />
+                <input
+                    type="file"
+                    ref={coverInputRef}
+                    onChange={handleCoverUpload}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                />
 
-                    {/* Profile Info */}
-                    <Box sx={{ display: 'flex', alignItems: 'flex-end', mt: -6, px: 4, pb: 2, position: 'relative' }}>
-                        {/* Avatar */}
-                        <Box sx={{ position: 'relative' }}>
-                            <Avatar
-                                src={profile.avatar}
-                                sx={{
-                                    width: 168,
-                                    height: 168,
-                                    border: '4px solid white',
-                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                    bgcolor: '#e4e6eb',
-                                    fontSize: 64,
-                                    color: '#65676b',
-                                }}
-                            >
-                                {!profile.avatar && fullName.charAt(0)}
-                            </Avatar>
-                            {uploadingAvatar && (
+                {/* Cover & Profile Header */}
+                <Box sx={{ bgcolor: 'white', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                    <Container maxWidth="lg">
+                        {/* Cover Photo */}
+                        <Box
+                            sx={{
+                                position: 'relative',
+                                height: 350,
+                                borderRadius: '0 0 8px 8px',
+                                overflow: 'hidden',
+                                background: profile.background
+                                    ? `url(${profile.background}) center/cover no-repeat`
+                                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            }}
+                        >
+                            {uploadingCover && (
                                 <Box sx={{
                                     position: 'absolute',
                                     top: 0,
                                     left: 0,
                                     right: 0,
                                     bottom: 0,
-                                    borderRadius: '50%',
                                     bgcolor: 'rgba(0,0,0,0.5)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center'
                                 }}>
-                                    <CircularProgress sx={{ color: 'white' }} size={40} />
+                                    <CircularProgress sx={{ color: 'white' }} />
                                 </Box>
                             )}
                             {isOwnProfile && (
-                                <IconButton
+                                <Button
+                                    variant="contained"
+                                    startIcon={<PhotoCameraIcon />}
                                     sx={{
                                         position: 'absolute',
-                                        bottom: 8,
-                                        right: 8,
-                                        bgcolor: '#e4e6eb',
-                                        border: '2px solid white',
-                                        '&:hover': { bgcolor: '#d8dadf' }
+                                        bottom: 16,
+                                        right: 16,
+                                        bgcolor: 'white',
+                                        zIndex: 15,
+                                        color: '#050505',
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        '&:hover': { bgcolor: '#f0f2f5' }
                                     }}
-                                    onClick={() => avatarInputRef.current?.click()}
-                                    disabled={uploadingAvatar}
+                                    onClick={profile.background ? handleOpenCoverMenu : handleOpenCoverEditModal}
+                                    disabled={uploadingCover}
                                 >
-                                    <PhotoCameraIcon sx={{ fontSize: 20, color: '#050505' }} />
-                                </IconButton>
+                                    {profile.background ? 'Chỉnh sửa ảnh bìa' : 'Thêm ảnh bìa'}
+                                </Button>
                             )}
                         </Box>
 
-                        {/* Name & Friends Count */}
-                        <Box sx={{ ml: 3, flex: 1, mb: 1 }}>
-                            <Typography variant="h4" fontWeight={700} color="#050505">
-                                {fullName}
-                            </Typography>
-                            <Typography color="#65676b" fontWeight={500} fontSize={15}>
-                                {friends.length} bạn bè
-                            </Typography>
-                            {/* Friends avatars preview */}
-                            {friends.length > 0 && (
-                                <Box sx={{ display: 'flex', mt: 0.5 }}>
-                                    {friends.slice(0, 8).map((friend, idx) => (
-                                        <Avatar
-                                            key={friend._id}
-                                            src={friend.avatar}
-                                            sx={{
-                                                width: 32,
-                                                height: 32,
-                                                border: '2px solid white',
-                                                ml: idx > 0 ? -1 : 0,
-                                                cursor: 'pointer',
-                                                '&:hover': { zIndex: 1, transform: 'scale(1.1)' },
-                                                transition: 'transform 0.2s'
-                                            }}
-                                            onClick={() => navigateToProfile(friend.username)}
-                                        />
-                                    ))}
-                                </Box>
-                            )}
-                        </Box>
-
-                        {/* Action Buttons */}
-                        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-                            {isOwnProfile ? (
-                                <>
-                                    <Button
-                                        variant="contained"
-                                        startIcon={<AddIcon />}
+                        {/* Profile Info */}
+                        <Box sx={{ display: 'flex', alignItems: 'flex-end', mt: -6, px: 4, pb: 2, position: 'relative' }}>
+                            {/* Avatar */}
+                            <Box sx={{ position: 'relative' }}>
+                                <Avatar
+                                    src={profile.avatar}
+                                    sx={{
+                                        width: 168,
+                                        height: 168,
+                                        border: '4px solid white',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                        bgcolor: '#e4e6eb',
+                                        fontSize: 64,
+                                        color: '#65676b',
+                                    }}
+                                >
+                                    {!profile.avatar && fullName.charAt(0)}
+                                </Avatar>
+                                {uploadingAvatar && (
+                                    <Box sx={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        borderRadius: '50%',
+                                        bgcolor: 'rgba(0,0,0,0.5)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}>
+                                        <CircularProgress sx={{ color: 'white' }} size={40} />
+                                    </Box>
+                                )}
+                                {isOwnProfile && (
+                                    <IconButton
                                         sx={{
-                                            bgcolor: '#1877f2',
-                                            textTransform: 'none',
-                                            fontWeight: 600,
-                                            '&:hover': { bgcolor: '#166fe5' }
-                                        }}
-                                    >
-                                        Thêm vào tin
-                                    </Button>
-                                    <Button
-                                        variant="contained"
-                                        startIcon={<EditIcon />}
-                                        sx={{
+                                            position: 'absolute',
+                                            bottom: 8,
+                                            right: 8,
                                             bgcolor: '#e4e6eb',
-                                            color: '#050505',
-                                            textTransform: 'none',
-                                            fontWeight: 600,
+                                            border: '2px solid white',
                                             '&:hover': { bgcolor: '#d8dadf' }
                                         }}
-                                        onClick={() => setEditModalOpen(true)}
+                                        onClick={handleOpenAvatarMenu}
+                                        disabled={uploadingAvatar}
                                     >
-                                        Chỉnh sửa trang cá nhân
-                                    </Button>
-                                </>
-                            ) : (
-                                <>
-                                    {/* Friend action button based on friendship status */}
-                                    {friendshipLoading ? (
+                                        <PhotoCameraIcon sx={{ fontSize: 20, color: '#050505' }} />
+                                    </IconButton>
+                                )}
+                            </Box>
+
+                            {/* Name & Friends Count */}
+                            <Box sx={{ ml: 3, flex: 1, mb: 1 }}>
+                                <Typography variant="h4" fontWeight={700} color="#050505">
+                                    {fullName}
+                                </Typography>
+                                <Typography color="#65676b" fontWeight={500} fontSize={15}>
+                                    {friends.length} bạn bè
+                                </Typography>
+                                {/* Friends avatars preview */}
+                                {friends.length > 0 && (
+                                    <Box sx={{ display: 'flex', mt: 0.5 }}>
+                                        {friends.slice(0, 8).map((friend, idx) => (
+                                            <Avatar
+                                                key={friend._id}
+                                                src={friend.avatar}
+                                                sx={{
+                                                    width: 32,
+                                                    height: 32,
+                                                    border: '2px solid white',
+                                                    ml: idx > 0 ? -1 : 0,
+                                                    cursor: 'pointer',
+                                                    '&:hover': { zIndex: 1, transform: 'scale(1.1)' },
+                                                    transition: 'transform 0.2s'
+                                                }}
+                                                onClick={() => navigateToProfile(friend.username)}
+                                            />
+                                        ))}
+                                    </Box>
+                                )}
+                            </Box>
+
+                            {/* Action Buttons */}
+                            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                                {isOwnProfile ? (
+                                    <>
                                         <Button
                                             variant="contained"
-                                            disabled
-                                            sx={{
-                                                bgcolor: '#e4e6eb',
-                                                color: '#050505',
-                                                textTransform: 'none',
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            <CircularProgress size={20} sx={{ mr: 1 }} />
-                                            Đang tải...
-                                        </Button>
-                                    ) : isFriend ? (
-                                        <Button
-                                            variant="contained"
-                                            startIcon={<CheckIcon />}
-                                            sx={{
-                                                bgcolor: '#e4e6eb',
-                                                color: '#050505',
-                                                textTransform: 'none',
-                                                fontWeight: 600,
-                                                '&:hover': { bgcolor: '#d8dadf' }
-                                            }}
-                                            onClick={() => handleUnfriend()}
-                                        >
-                                            Bạn bè
-                                        </Button>
-                                    ) : friendshipStatus === 'PENDING' ? (
-                                        <Button
-                                            variant="contained"
-                                            startIcon={<HourglassEmptyIcon />}
-                                            sx={{
-                                                bgcolor: '#e4e6eb',
-                                                color: '#050505',
-                                                textTransform: 'none',
-                                                fontWeight: 600,
-                                                '&:hover': { bgcolor: '#d8dadf' }
-                                            }}
-                                        >
-                                            Đã gửi lời mời
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            variant="contained"
-                                            startIcon={<PersonAddIcon />}
+                                            startIcon={<AddIcon />}
                                             sx={{
                                                 bgcolor: '#1877f2',
                                                 textTransform: 'none',
                                                 fontWeight: 600,
                                                 '&:hover': { bgcolor: '#166fe5' }
                                             }}
-                                            onClick={handleAddFriend}
                                         >
-                                            Thêm bạn bè
+                                            Thêm vào tin
                                         </Button>
-                                    )}
-                                    <Button
-                                        variant="contained"
-                                        startIcon={<MessageIcon />}
-                                        sx={{
-                                            bgcolor: isFriend ? '#1877f2' : '#e4e6eb',
-                                            color: isFriend ? 'white' : '#050505',
-                                            textTransform: 'none',
-                                            fontWeight: 600,
-                                            '&:hover': { bgcolor: isFriend ? '#166fe5' : '#d8dadf' }
-                                        }}
-                                        onClick={handleMessage}
-                                    >
-                                        Nhắn tin
-                                    </Button>
-                                </>
-                            )}
-                            <IconButton sx={{ bgcolor: '#e4e6eb', '&:hover': { bgcolor: '#d8dadf' } }}>
-                                <MoreIcon sx={{ color: '#050505' }} />
-                            </IconButton>
-                        </Box>
-                    </Box>
-
-                    <Divider sx={{ mx: 4 }} />
-
-                    {/* Tabs */}
-                    <Box sx={{ px: 4 }}>
-                        <Tabs
-                            value={activeTab}
-                            onChange={(_, v) => setActiveTab(v)}
-                            sx={{
-                                '& .MuiTab-root': {
-                                    textTransform: 'none',
-                                    fontWeight: 600,
-                                    fontSize: 15,
-                                    color: '#65676b',
-                                    minWidth: 'auto',
-                                    px: 2,
-                                    '&.Mui-selected': { color: '#1877f2' }
-                                },
-                                '& .MuiTabs-indicator': { bgcolor: '#1877f2', height: 3 }
-                            }}
-                        >
-                            <Tab label="Bài viết" />
-                            <Tab label="Giới thiệu" />
-                            <Tab label="Bạn bè" />
-                            <Tab label="Ảnh" />
-                            <Tab label="Xem thêm" />
-                        </Tabs>
-                    </Box>
-                </Container>
-            </Box>
-
-            {/* Content based on activeTab */}
-            <Container maxWidth="lg" sx={{ py: 2 }}>
-                {/* Tab 0: Bài viết (Posts) */}
-                {activeTab === 0 && (
-                    <Grid container spacing={2}>
-                        {/* Left Column - Intro */}
-                        <Grid size={{ xs: 12, md: 5 }}>
-                            {/* Intro Card */}
-                            <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                                <CardContent>
-                                    <Typography variant="h6" fontWeight={700} color="#050505" gutterBottom>
-                                        Giới thiệu
-                                    </Typography>
-
-                                    {/* Bio */}
-                                    {profile.bio ? (
-                                        <Typography color="#050505" fontSize={15} textAlign="center" sx={{ mb: 2 }}>
-                                            {profile.bio}
-                                        </Typography>
-                                    ) : isOwnProfile && (
                                         <Button
-                                            fullWidth
+                                            variant="contained"
+                                            startIcon={<EditIcon />}
                                             sx={{
                                                 bgcolor: '#e4e6eb',
                                                 color: '#050505',
                                                 textTransform: 'none',
-                                                fontWeight: 500,
-                                                mb: 2,
+                                                fontWeight: 600,
                                                 '&:hover': { bgcolor: '#d8dadf' }
                                             }}
                                             onClick={() => setEditModalOpen(true)}
                                         >
-                                            Thêm tiểu sử
+                                            Chỉnh sửa trang cá nhân
                                         </Button>
-                                    )}
-
-                                    {/* Info Items */}
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                                        {profile.addresses && profile.addresses.length > 0 && (
-                                            profile.addresses.map((addr, idx) => (
-                                                <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                    <HomeIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                                                    <Typography color="#050505" fontSize={15}>
-                                                        Sống tại <strong>{addr.ward?.name}, {addr.district?.name}, {addr.province?.name}</strong>
-                                                    </Typography>
-                                                </Box>
-                                            ))
-                                        )}
-
-                                        {profile.birthday && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                <CakeIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                                                <Typography color="#050505" fontSize={15}>
-                                                    Sinh ngày <strong>{formatDate(profile.birthday)}</strong>
-                                                </Typography>
-                                            </Box>
-                                        )}
-
-                                        {profile.phone && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                <PhoneIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                                                <Typography color="#050505" fontSize={15}>
-                                                    {profile.phone}
-                                                </Typography>
-                                            </Box>
-                                        )}
-
-                                        {profile.createdAt && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                <PublicIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                                                <Typography color="#050505" fontSize={15}>
-                                                    Tham gia từ <strong>{formatDate(profile.createdAt)}</strong>
-                                                </Typography>
-                                            </Box>
-                                        )}
-                                    </Box>
-
-                                    {isOwnProfile && (
-                                        <Button
-                                            fullWidth
-                                            sx={{
-                                                bgcolor: '#e4e6eb',
-                                                color: '#050505',
-                                                textTransform: 'none',
-                                                fontWeight: 500,
-                                                mt: 2,
-                                                '&:hover': { bgcolor: '#d8dadf' }
-                                            }}
-                                            onClick={() => setEditModalOpen(true)}
-                                        >
-                                            Chỉnh sửa chi tiết
-                                        </Button>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            {/* Photos Card */}
-                            <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', mt: 2 }}>
-                                <CardContent>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                        <Typography variant="h6" fontWeight={700} color="#050505">
-                                            Ảnh
-                                        </Typography>
-                                        <Button sx={{ textTransform: 'none', color: '#1877f2' }} onClick={() => setActiveTab(3)}>
-                                            Xem tất cả ảnh
-                                        </Button>
-                                    </Box>
-                                    {posts.filter(p => p.media && p.media.length > 0).length > 0 ? (
-                                        <Grid container spacing={0.5}>
-                                            {posts
-                                                .filter(p => p.media && p.media.length > 0)
-                                                .flatMap(p => p.media)
-                                                .filter(m => m.mediaType === 'IMAGE')
-                                                .slice(0, 9)
-                                                .map((media, idx) => (
-                                                    <Grid size={{ xs: 4 }} key={idx}>
-                                                        <Box
-                                                            component="img"
-                                                            src={media.url}
-                                                            sx={{
-                                                                width: '100%',
-                                                                aspectRatio: '1',
-                                                                objectFit: 'cover',
-                                                                borderRadius: 1,
-                                                            }}
-                                                        />
-                                                    </Grid>
-                                                ))}
-                                        </Grid>
-                                    ) : (
-                                        <Typography color="#65676b" fontSize={14}>
-                                            Chưa có ảnh nào
-                                        </Typography>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            {/* Friends Card */}
-                            <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', mt: 2 }}>
-                                <CardContent>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                        <Box>
-                                            <Typography variant="h6" fontWeight={700} color="#050505">
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Friend action button based on friendship status */}
+                                        {friendshipLoading ? (
+                                            <Button
+                                                variant="contained"
+                                                disabled
+                                                sx={{
+                                                    bgcolor: '#e4e6eb',
+                                                    color: '#050505',
+                                                    textTransform: 'none',
+                                                    fontWeight: 600,
+                                                }}
+                                            >
+                                                <CircularProgress size={20} sx={{ mr: 1 }} />
+                                                Đang tải...
+                                            </Button>
+                                        ) : isFriend ? (
+                                            <Button
+                                                variant="contained"
+                                                startIcon={<CheckIcon />}
+                                                sx={{
+                                                    bgcolor: '#e4e6eb',
+                                                    color: '#050505',
+                                                    textTransform: 'none',
+                                                    fontWeight: 600,
+                                                    '&:hover': { bgcolor: '#d8dadf' }
+                                                }}
+                                                onClick={() => handleUnfriend()}
+                                            >
                                                 Bạn bè
-                                            </Typography>
-                                            <Typography color="#65676b" fontSize={14}>
-                                                {friends.length} người bạn
-                                            </Typography>
-                                        </Box>
-                                        <Button sx={{ textTransform: 'none', color: '#1877f2' }} onClick={() => setActiveTab(2)}>
-                                            Xem tất cả bạn bè
+                                            </Button>
+                                        ) : friendshipStatus === 'PENDING' ? (
+                                            <Button
+                                                variant="contained"
+                                                startIcon={<CancelIcon />}
+                                                sx={{
+                                                    bgcolor: '#e4e6eb',
+                                                    color: '#050505',
+                                                    textTransform: 'none',
+                                                    fontWeight: 600,
+                                                    '&:hover': { bgcolor: '#d8dadf' }
+                                                }}
+                                                onClick={handleCancelFriendRequest}
+                                            >
+                                                Hủy lời mời
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                variant="contained"
+                                                startIcon={<PersonAddIcon />}
+                                                sx={{
+                                                    bgcolor: '#1877f2',
+                                                    textTransform: 'none',
+                                                    fontWeight: 600,
+                                                    '&:hover': { bgcolor: '#166fe5' }
+                                                }}
+                                                onClick={handleAddFriend}
+                                            >
+                                                Thêm bạn bè
+                                            </Button>
+                                        )}
+                                        <Button
+                                            variant="contained"
+                                            startIcon={<MessageIcon />}
+                                            sx={{
+                                                bgcolor: isFriend ? '#1877f2' : '#e4e6eb',
+                                                color: isFriend ? 'white' : '#050505',
+                                                textTransform: 'none',
+                                                fontWeight: 600,
+                                                '&:hover': { bgcolor: isFriend ? '#166fe5' : '#d8dadf' }
+                                            }}
+                                            onClick={handleMessage}
+                                        >
+                                            Nhắn tin
                                         </Button>
-                                    </Box>
+                                    </>
+                                )}
+                                <IconButton
+                                    sx={{ bgcolor: '#e4e6eb', '&:hover': { bgcolor: '#d8dadf' } }}
+                                    onClick={handleOpenProfileSettings}
+                                >
+                                    <MoreIcon sx={{ color: '#050505' }} />
+                                </IconButton>
+                            </Box>
+                        </Box>
 
-                                    {friendsLoading ? (
-                                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                                            <CircularProgress size={24} />
-                                        </Box>
-                                    ) : friends.length === 0 ? (
-                                        <Typography color="#65676b" fontSize={14} textAlign="center" py={2}>
-                                            Chưa có bạn bè nào
+                        <Divider sx={{ mx: 4 }} />
+
+                        {/* Tabs */}
+                        <Box sx={{ px: 4 }}>
+                            <Tabs
+                                value={activeTab}
+                                onChange={(_, v) => setActiveTab(v)}
+                                sx={{
+                                    '& .MuiTab-root': {
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        fontSize: 15,
+                                        color: '#65676b',
+                                        minWidth: 'auto',
+                                        px: 2,
+                                        '&.Mui-selected': { color: '#1877f2' }
+                                    },
+                                    '& .MuiTabs-indicator': { bgcolor: '#1877f2', height: 3 }
+                                }}
+                            >
+                                <Tab label="Bài viết" />
+                                <Tab label="Giới thiệu" />
+                                <Tab label="Bạn bè" />
+                                <Tab label="Ảnh" />
+                                <Tab label="Xem thêm" />
+                            </Tabs>
+                        </Box>
+                    </Container>
+                </Box>
+
+                {/* Content based on activeTab */}
+                <Container maxWidth="lg" sx={{ py: 2 }}>
+                    {/* Tab 0: Bài viết (Posts) */}
+                    {activeTab === 0 && (
+                        <Grid container spacing={2}>
+                            {/* Left Column - Intro */}
+                            <Grid size={{ xs: 12, md: 5 }}>
+                                {/* Intro Card */}
+                                <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                                    <CardContent>
+                                        <Typography variant="h6" fontWeight={700} color="#050505" gutterBottom>
+                                            Giới thiệu
                                         </Typography>
-                                    ) : (
-                                        <Grid container spacing={1}>
-                                            {friends.slice(0, 9).map((friend) => (
-                                                <Grid size={{ xs: 4 }} key={friend._id}>
-                                                    <Box
-                                                        sx={{
-                                                            cursor: 'pointer',
-                                                            borderRadius: 2,
-                                                            overflow: 'hidden',
-                                                            '&:hover': { opacity: 0.9 }
-                                                        }}
-                                                        onClick={() => navigateToProfile(friend.username)}
-                                                    >
-                                                        <Box
-                                                            component="img"
-                                                            src={friend.avatar || `https://ui-avatars.com/api/?name=${friend.firstName}+${friend.lastName}&background=e4e6eb&color=050505`}
-                                                            sx={{
-                                                                width: '100%',
-                                                                aspectRatio: '1',
-                                                                objectFit: 'cover',
-                                                                borderRadius: 2,
-                                                            }}
-                                                        />
-                                                        <Typography
-                                                            fontSize={13}
-                                                            fontWeight={500}
-                                                            color="#050505"
-                                                            sx={{
-                                                                mt: 0.5,
-                                                                overflow: 'hidden',
-                                                                textOverflow: 'ellipsis',
-                                                                whiteSpace: 'nowrap'
-                                                            }}
-                                                        >
-                                                            {friend.firstName} {friend.lastName}
+
+                                        {/* Bio */}
+                                        {profile.bio ? (
+                                            <Typography color="#050505" fontSize={15} textAlign="center" sx={{ mb: 2 }}>
+                                                {profile.bio}
+                                            </Typography>
+                                        ) : isOwnProfile && (
+                                            <Button
+                                                fullWidth
+                                                sx={{
+                                                    bgcolor: '#e4e6eb',
+                                                    color: '#050505',
+                                                    textTransform: 'none',
+                                                    fontWeight: 500,
+                                                    mb: 2,
+                                                    '&:hover': { bgcolor: '#d8dadf' }
+                                                }}
+                                                onClick={() => setEditModalOpen(true)}
+                                            >
+                                                Thêm tiểu sử
+                                            </Button>
+                                        )}
+
+                                        {/* Info Items */}
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                            {profile.addresses && profile.addresses.length > 0 && (
+                                                profile.addresses.map((addr, idx) => (
+                                                    <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                        <HomeIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                                                        <Typography color="#050505" fontSize={15}>
+                                                            Sống tại <strong>{addr.ward?.name}, {addr.district?.name}, {addr.province?.name}</strong>
                                                         </Typography>
                                                     </Box>
-                                                </Grid>
-                                            ))}
-                                        </Grid>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        </Grid>
+                                                ))
+                                            )}
 
-                        {/* Right Column - Posts */}
-                        <Grid size={{ xs: 12, md: 7 }}>
-                            {/* Create Post Card */}
-                            {isOwnProfile && (
-                                <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', mb: 2 }}>
-                                    <CardContent>
-                                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                                            <Avatar
-                                                src={profile.avatar}
-                                                sx={{
-                                                    width: 40,
-                                                    height: 40,
-                                                    bgcolor: '#e4e6eb',
-                                                    color: '#65676b',
-                                                }}
-                                            >
-                                                {!profile.avatar && fullName.charAt(0)}
-                                            </Avatar>
-                                            <Button
-                                                fullWidth
-                                                onClick={() => setCreatePostModalOpen(true)}
-                                                sx={{
-                                                    bgcolor: '#f0f2f5',
-                                                    color: '#65676b',
-                                                    textTransform: 'none',
-                                                    justifyContent: 'flex-start',
-                                                    px: 2,
-                                                    py: 1,
-                                                    borderRadius: 20,
-                                                    '&:hover': { bgcolor: '#e4e6eb' }
-                                                }}
-                                            >
-                                                {fullName} ơi, bạn đang nghĩ gì thế?
-                                            </Button>
-                                        </Box>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* Posts List */}
-                            {postsLoading ? (
-                                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                                    <CircularProgress />
-                                </Box>
-                            ) : posts.length === 0 ? (
-                                <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                                    <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                                        <Typography color="#65676b" fontSize={15}>
-                                            Chưa có bài viết nào
-                                        </Typography>
-                                    </CardContent>
-                                </Card>
-                            ) : (
-                                posts.map(post => {
-                                    const PrivacyIconComponent = getPrivacyIcon(post.privacy);
-                                    return (
-                                        <PostItem
-                                            key={post._id}
-                                            post={post}
-                                            userId={user?.id || ''}
-                                            handleOpenMenu={handleOpenMenu}
-                                            handleOpenComments={handleOpenComments}
-                                            handleOpenShare={handleOpenShare}
-                                            renderPostMedia={renderPostMedia}
-                                            PrivacyIconComponent={PrivacyIconComponent}
-                                        />
-                                    );
-                                })
-                            )}
-                        </Grid>
-                    </Grid>
-                )}
-
-                {/* Tab 1: Giới thiệu (About) */}
-                {activeTab === 1 && (
-                    <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                        <CardContent>
-                            <Grid container>
-                                {/* Left sidebar */}
-                                <Grid size={{ xs: 12, md: 4 }} sx={{ borderRight: { md: '1px solid #e4e6eb' }, pr: { md: 2 } }}>
-                                    <Typography variant="h5" fontWeight={700} color="#050505" gutterBottom>
-                                        Giới thiệu
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                        {['Tổng quan', 'Công việc và học vấn', 'Nơi từng sống', 'Thông tin liên hệ và cơ bản', 'Chi tiết về bạn'].map((item, idx) => (
-                                            <Button
-                                                key={idx}
-                                                fullWidth
-                                                sx={{
-                                                    justifyContent: 'flex-start',
-                                                    textTransform: 'none',
-                                                    color: idx === 0 ? '#1877f2' : '#050505',
-                                                    bgcolor: idx === 0 ? '#e7f3ff' : 'transparent',
-                                                    fontWeight: idx === 0 ? 600 : 400,
-                                                    borderRadius: 2,
-                                                    py: 1,
-                                                    '&:hover': { bgcolor: idx === 0 ? '#e7f3ff' : '#f0f2f5' }
-                                                }}
-                                            >
-                                                {item}
-                                            </Button>
-                                        ))}
-                                    </Box>
-                                </Grid>
-
-                                {/* Right content */}
-                                <Grid size={{ xs: 12, md: 8 }} sx={{ pl: { md: 3 }, pt: { xs: 2, md: 0 } }}>
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                        {/* Add work */}
-                                        {isOwnProfile && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', '&:hover': { opacity: 0.8 } }}>
-                                                <AddIcon sx={{ color: '#1877f2', bgcolor: '#e7f3ff', borderRadius: '50%', p: 0.5 }} />
-                                                <Typography color="#1877f2" fontSize={15} fontWeight={500}>
-                                                    Thêm nơi làm việc
-                                                </Typography>
-                                            </Box>
-                                        )}
-
-                                        {/* School info */}
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                            <SchoolIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                            <Typography color="#050505" fontSize={15}>
-                                                Chưa có thông tin trường học
-                                            </Typography>
-                                        </Box>
-
-                                        {/* Location info */}
-                                        {profile.addresses && profile.addresses.length > 0 ? (
-                                            profile.addresses.map((addr, idx) => (
-                                                <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                    <HomeIcon sx={{ color: '#65676b', fontSize: 24 }} />
+                                            {profile.birthday && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                    <CakeIcon sx={{ fontSize: 20, color: '#65676b' }} />
                                                     <Typography color="#050505" fontSize={15}>
-                                                        Sống tại <strong>{addr.ward?.name}, {addr.district?.name}, {addr.province?.name}</strong>
+                                                        Sinh ngày <strong>{formatDate(profile.birthday)}</strong>
                                                     </Typography>
                                                 </Box>
-                                            ))
-                                        ) : isOwnProfile && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', '&:hover': { opacity: 0.8 } }} onClick={() => setEditModalOpen(true)}>
-                                                <AddIcon sx={{ color: '#1877f2', bgcolor: '#e7f3ff', borderRadius: '50%', p: 0.5 }} />
-                                                <Typography color="#1877f2" fontSize={15} fontWeight={500}>
-                                                    Thêm thành phố hiện tại
-                                                </Typography>
-                                            </Box>
-                                        )}
+                                            )}
 
-                                        {/* Birthday */}
-                                        {profile.birthday && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                <CakeIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                                <Typography color="#050505" fontSize={15}>
-                                                    Sinh ngày <strong>{formatDate(profile.birthday)}</strong>
-                                                </Typography>
-                                            </Box>
-                                        )}
+                                            {profile.phone && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                    <PhoneIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                                                    <Typography color="#050505" fontSize={15}>
+                                                        {profile.phone}
+                                                    </Typography>
+                                                </Box>
+                                            )}
 
-                                        {/* Gender */}
-                                        {profile.gender && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                {getGenderIcon(profile.gender)}
-                                                <Typography color="#050505" fontSize={15}>
-                                                    {getGenderText(profile.gender)}
-                                                </Typography>
-                                            </Box>
-                                        )}
+                                            {profile.createdAt && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                    <PublicIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                                                    <Typography color="#050505" fontSize={15}>
+                                                        Tham gia từ <strong>{formatDate(profile.createdAt)}</strong>
+                                                    </Typography>
+                                                </Box>
+                                            )}
+                                        </Box>
 
-                                        {/* Phone */}
-                                        {profile.phone && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                <PhoneIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                                <Typography color="#050505" fontSize={15}>
-                                                    {profile.phone}
-                                                </Typography>
-                                            </Box>
-                                        )}
-
-                                        {/* Email */}
-                                        {profile.email && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                <EmailIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                                <Typography color="#050505" fontSize={15}>
-                                                    {profile.email}
-                                                </Typography>
-                                            </Box>
-                                        )}
-
-                                        {/* Join date */}
-                                        {profile.createdAt && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                <PublicIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                                <Typography color="#050505" fontSize={15}>
-                                                    Tham gia từ <strong>{formatDate(profile.createdAt)}</strong>
-                                                </Typography>
-                                            </Box>
-                                        )}
-                                    </Box>
-                                </Grid>
-                            </Grid>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Tab 2: Bạn bè (Friends) */}
-                {activeTab === 2 && (
-                    <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                        <CardContent>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                <Typography variant="h5" fontWeight={700} color="#050505">
-                                    Bạn bè
-                                </Typography>
-                                <Box sx={{ display: 'flex', gap: 1 }}>
-                                    <TextField
-                                        placeholder="Tìm kiếm"
-                                        size="small"
-                                        value={friendSearchQuery}
-                                        onChange={(e) => setFriendSearchQuery(e.target.value)}
-                                        sx={{
-                                            '& .MuiOutlinedInput-root': {
-                                                bgcolor: '#f0f2f5',
-                                                borderRadius: 20,
-                                                '& fieldset': { border: 'none' }
-                                            }
-                                        }}
-                                        InputProps={{
-                                            startAdornment: (
-                                                <InputAdornment position="start">
-                                                    <SearchIcon sx={{ color: '#65676b' }} />
-                                                </InputAdornment>
-                                            )
-                                        }}
-                                    />
-                                    <Button sx={{ textTransform: 'none', color: '#1877f2' }}>
-                                        Lời mời kết bạn
-                                    </Button>
-                                    <Button sx={{ textTransform: 'none', color: '#1877f2' }}>
-                                        Tìm bạn bè
-                                    </Button>
-                                </Box>
-                            </Box>
-
-                            <Tabs value={0} sx={{ mb: 2, '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
-                                <Tab label="Tất cả bạn bè" />
-                                <Tab label="Thêm gần đây" />
-                            </Tabs>
-
-                            {friendsLoading ? (
-                                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                                    <CircularProgress />
-                                </Box>
-                            ) : filteredFriends.length === 0 ? (
-                                <Typography color="#65676b" textAlign="center" py={4}>
-                                    {friendSearchQuery ? 'Không tìm thấy bạn bè nào' : 'Chưa có bạn bè nào'}
-                                </Typography>
-                            ) : (
-                                <Grid container spacing={2}>
-                                    {filteredFriends.map((friend) => (
-                                        <Grid size={{ xs: 12, sm: 6 }} key={friend._id}>
-                                            <Box
+                                        {isOwnProfile && (
+                                            <Button
+                                                fullWidth
                                                 sx={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: 2,
-                                                    p: 2,
-                                                    borderRadius: 2,
-                                                    border: '1px solid #e4e6eb',
-                                                    cursor: 'pointer',
-                                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                                    bgcolor: '#e4e6eb',
+                                                    color: '#050505',
+                                                    textTransform: 'none',
+                                                    fontWeight: 500,
+                                                    mt: 2,
+                                                    '&:hover': { bgcolor: '#d8dadf' }
                                                 }}
-                                                onClick={() => navigateToProfile(friend.username)}
+                                                onClick={() => setEditModalOpen(true)}
                                             >
-                                                <Avatar
-                                                    src={friend.avatar}
-                                                    sx={{ width: 80, height: 80, borderRadius: 2 }}
-                                                />
-                                                <Box sx={{ flex: 1 }}>
-                                                    <Typography fontWeight={600} color="#050505">
-                                                        {friend.firstName} {friend.lastName}
-                                                    </Typography>
-                                                    <Typography fontSize={13} color="#65676b">
-                                                        @{friend.username}
-                                                    </Typography>
-                                                </Box>
-                                                <IconButton>
-                                                    <MoreIcon />
-                                                </IconButton>
+                                                Chỉnh sửa chi tiết
+                                            </Button>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                {/* Photos Card */}
+                                <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', mt: 2 }}>
+                                    <CardContent>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                            <Typography variant="h6" fontWeight={700} color="#050505">
+                                                Ảnh
+                                            </Typography>
+                                            <Button sx={{ textTransform: 'none', color: '#1877f2' }} onClick={() => setActiveTab(3)}>
+                                                Xem tất cả ảnh
+                                            </Button>
+                                        </Box>
+                                        {posts.filter(p => p.media && p.media.length > 0).length > 0 ? (
+                                            <Grid container spacing={0.5}>
+                                                {posts
+                                                    .filter(p => p.media && p.media.length > 0)
+                                                    .flatMap(p => p.media)
+                                                    .filter(m => m.mediaType === 'IMAGE')
+                                                    .slice(0, 9)
+                                                    .map((media, idx) => (
+                                                        <Grid size={{ xs: 4 }} key={idx}>
+                                                            <Box
+                                                                component="img"
+                                                                src={media.url}
+                                                                sx={{
+                                                                    width: '100%',
+                                                                    aspectRatio: '1',
+                                                                    objectFit: 'cover',
+                                                                    borderRadius: 1,
+                                                                }}
+                                                            />
+                                                        </Grid>
+                                                    ))}
+                                            </Grid>
+                                        ) : (
+                                            <Typography color="#65676b" fontSize={14}>
+                                                Chưa có ảnh nào
+                                            </Typography>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                {/* Friends Card */}
+                                <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', mt: 2 }}>
+                                    <CardContent>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                            <Box>
+                                                <Typography variant="h6" fontWeight={700} color="#050505">
+                                                    Bạn bè
+                                                </Typography>
+                                                <Typography color="#65676b" fontSize={14}>
+                                                    {friends.length} người bạn
+                                                </Typography>
                                             </Box>
-                                        </Grid>
-                                    ))}
-                                </Grid>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
+                                            <Button sx={{ textTransform: 'none', color: '#1877f2' }} onClick={() => setActiveTab(2)}>
+                                                Xem tất cả bạn bè
+                                            </Button>
+                                        </Box>
 
-                {/* Tab 3: Ảnh (Photos) */}
-                {activeTab === 3 && (
-                    <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                        <CardContent>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                <Typography variant="h5" fontWeight={700} color="#050505">
-                                    Ảnh
-                                </Typography>
+                                        {friendsLoading ? (
+                                            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                                                <CircularProgress size={24} />
+                                            </Box>
+                                        ) : friends.length === 0 ? (
+                                            <Typography color="#65676b" fontSize={14} textAlign="center" py={2}>
+                                                Chưa có bạn bè nào
+                                            </Typography>
+                                        ) : (
+                                            <Grid container spacing={1}>
+                                                {friends.slice(0, 9).map((friend) => (
+                                                    <Grid size={{ xs: 4 }} key={friend._id}>
+                                                        <Box
+                                                            sx={{
+                                                                cursor: 'pointer',
+                                                                borderRadius: 2,
+                                                                overflow: 'hidden',
+                                                                '&:hover': { opacity: 0.9 }
+                                                            }}
+                                                            onClick={() => navigateToProfile(friend.username)}
+                                                        >
+                                                            <Box
+                                                                component="img"
+                                                                src={friend.avatar || `https://ui-avatars.com/api/?name=${friend.firstName}+${friend.lastName}&background=e4e6eb&color=050505`}
+                                                                sx={{
+                                                                    width: '100%',
+                                                                    aspectRatio: '1',
+                                                                    objectFit: 'cover',
+                                                                    borderRadius: 2,
+                                                                }}
+                                                            />
+                                                            <Typography
+                                                                fontSize={13}
+                                                                fontWeight={500}
+                                                                color="#050505"
+                                                                sx={{
+                                                                    mt: 0.5,
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    whiteSpace: 'nowrap'
+                                                                }}
+                                                            >
+                                                                {friend.firstName} {friend.lastName}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Grid>
+                                                ))}
+                                            </Grid>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+
+                            {/* Right Column - Posts */}
+                            <Grid size={{ xs: 12, md: 7 }}>
+                                {/* Create Post Card */}
                                 {isOwnProfile && (
-                                    <Button
-                                        sx={{ textTransform: 'none', color: '#1877f2' }}
-                                        onClick={() => setCreatePostModalOpen(true)}
-                                    >
-                                        Thêm ảnh/video
-                                    </Button>
-                                )}
-                            </Box>
-
-                            <Tabs value={0} sx={{ mb: 2, '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
-                                <Tab label="Ảnh của bạn" />
-                                <Tab label="Album" />
-                            </Tabs>
-
-                            {(() => {
-                                const allPhotos = posts
-                                    .filter(p => p.media && p.media.length > 0)
-                                    .flatMap(p => p.media)
-                                    .filter(m => m.mediaType === 'IMAGE');
-
-                                if (allPhotos.length === 0) {
-                                    return (
-                                        <Typography color="#65676b" textAlign="center" py={4}>
-                                            Chưa có ảnh nào
-                                        </Typography>
-                                    );
-                                }
-
-                                return (
-                                    <Grid container spacing={1}>
-                                        {allPhotos.map((media, idx) => (
-                                            <Grid size={{ xs: 6, sm: 4, md: 3, lg: 2.4 }} key={idx}>
-                                                <Box
+                                    <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', mb: 2 }}>
+                                        <CardContent>
+                                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                                <Avatar
+                                                    src={profile.avatar}
                                                     sx={{
-                                                        position: 'relative',
-                                                        aspectRatio: '1',
-                                                        borderRadius: 2,
-                                                        overflow: 'hidden',
-                                                        '&:hover .edit-btn': { opacity: 1 }
+                                                        width: 40,
+                                                        height: 40,
+                                                        bgcolor: '#e4e6eb',
+                                                        color: '#65676b',
                                                     }}
                                                 >
-                                                    <Box
-                                                        component="img"
-                                                        src={media.url}
-                                                        sx={{
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            objectFit: 'cover',
-                                                        }}
+                                                    {!profile.avatar && fullName.charAt(0)}
+                                                </Avatar>
+                                                <Button
+                                                    fullWidth
+                                                    onClick={() => setCreatePostModalOpen(true)}
+                                                    sx={{
+                                                        bgcolor: '#f0f2f5',
+                                                        color: '#65676b',
+                                                        textTransform: 'none',
+                                                        justifyContent: 'flex-start',
+                                                        px: 2,
+                                                        py: 1,
+                                                        borderRadius: 20,
+                                                        '&:hover': { bgcolor: '#e4e6eb' }
+                                                    }}
+                                                >
+                                                    {fullName} ơi, bạn đang nghĩ gì thế?
+                                                </Button>
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {/* Posts List */}
+                                {postsLoading ? (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                                        <CircularProgress />
+                                    </Box>
+                                ) : posts.length === 0 ? (
+                                    <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                                        <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                                            <Typography color="#65676b" fontSize={15}>
+                                                Chưa có bài viết nào
+                                            </Typography>
+                                        </CardContent>
+                                    </Card>
+                                ) : (
+                                    posts.map(post => {
+                                        const PrivacyIconComponent = getPrivacyIcon(post.privacy);
+                                        return (
+                                            <PostItem
+                                                key={post._id}
+                                                post={post}
+                                                userId={user?.id || ''}
+                                                handleOpenMenu={handleOpenMenu}
+                                                handleOpenComments={handleOpenComments}
+                                                handleOpenShare={handleOpenShare}
+                                                renderPostMedia={renderPostMedia}
+                                                PrivacyIconComponent={PrivacyIconComponent}
+                                            />
+                                        );
+                                    })
+                                )}
+                            </Grid>
+                        </Grid>
+                    )}
+
+                    {/* Tab 1: Giới thiệu (About) */}
+                    {activeTab === 1 && (
+                        <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                            <CardContent>
+                                <Grid container>
+                                    {/* Left sidebar */}
+                                    <Grid size={{ xs: 12, md: 4 }} sx={{ borderRight: { md: '1px solid #e4e6eb' }, pr: { md: 2 } }}>
+                                        <Typography variant="h5" fontWeight={700} color="#050505" gutterBottom>
+                                            Giới thiệu
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                            {['Tổng quan', 'Công việc và học vấn', 'Nơi từng sống', 'Thông tin liên hệ và cơ bản', 'Chi tiết về bạn'].map((item, idx) => (
+                                                <Button
+                                                    key={idx}
+                                                    fullWidth
+                                                    sx={{
+                                                        justifyContent: 'flex-start',
+                                                        textTransform: 'none',
+                                                        color: idx === 0 ? '#1877f2' : '#050505',
+                                                        bgcolor: idx === 0 ? '#e7f3ff' : 'transparent',
+                                                        fontWeight: idx === 0 ? 600 : 400,
+                                                        borderRadius: 2,
+                                                        py: 1,
+                                                        '&:hover': { bgcolor: idx === 0 ? '#e7f3ff' : '#f0f2f5' }
+                                                    }}
+                                                >
+                                                    {item}
+                                                </Button>
+                                            ))}
+                                        </Box>
+                                    </Grid>
+
+                                    {/* Right content */}
+                                    <Grid size={{ xs: 12, md: 8 }} sx={{ pl: { md: 3 }, pt: { xs: 2, md: 0 } }}>
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                            {/* Add work */}
+                                            {isOwnProfile && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', '&:hover': { opacity: 0.8 } }}>
+                                                    <AddIcon sx={{ color: '#1877f2', bgcolor: '#e7f3ff', borderRadius: '50%', p: 0.5 }} />
+                                                    <Typography color="#1877f2" fontSize={15} fontWeight={500}>
+                                                        Thêm nơi làm việc
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
+                                            {/* School info */}
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                <SchoolIcon sx={{ color: '#65676b', fontSize: 24 }} />
+                                                <Typography color="#050505" fontSize={15}>
+                                                    Chưa có thông tin trường học
+                                                </Typography>
+                                            </Box>
+
+                                            {/* Location info */}
+                                            {profile.addresses && profile.addresses.length > 0 ? (
+                                                profile.addresses.map((addr, idx) => (
+                                                    <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                        <HomeIcon sx={{ color: '#65676b', fontSize: 24 }} />
+                                                        <Typography color="#050505" fontSize={15}>
+                                                            Sống tại <strong>{addr.ward?.name}, {addr.district?.name}, {addr.province?.name}</strong>
+                                                        </Typography>
+                                                    </Box>
+                                                ))
+                                            ) : isOwnProfile && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', '&:hover': { opacity: 0.8 } }} onClick={() => setEditModalOpen(true)}>
+                                                    <AddIcon sx={{ color: '#1877f2', bgcolor: '#e7f3ff', borderRadius: '50%', p: 0.5 }} />
+                                                    <Typography color="#1877f2" fontSize={15} fontWeight={500}>
+                                                        Thêm thành phố hiện tại
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
+                                            {/* Birthday */}
+                                            {profile.birthday && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                    <CakeIcon sx={{ color: '#65676b', fontSize: 24 }} />
+                                                    <Typography color="#050505" fontSize={15}>
+                                                        Sinh ngày <strong>{formatDate(profile.birthday)}</strong>
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
+                                            {/* Gender */}
+                                            {profile.gender && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                    {getGenderIcon(profile.gender)}
+                                                    <Typography color="#050505" fontSize={15}>
+                                                        {getGenderText(profile.gender)}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
+                                            {/* Phone */}
+                                            {profile.phone && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                    <PhoneIcon sx={{ color: '#65676b', fontSize: 24 }} />
+                                                    <Typography color="#050505" fontSize={15}>
+                                                        {profile.phone}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
+                                            {/* Email */}
+                                            {profile.email && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                    <EmailIcon sx={{ color: '#65676b', fontSize: 24 }} />
+                                                    <Typography color="#050505" fontSize={15}>
+                                                        {profile.email}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
+                                            {/* Join date */}
+                                            {profile.createdAt && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                    <PublicIcon sx={{ color: '#65676b', fontSize: 24 }} />
+                                                    <Typography color="#050505" fontSize={15}>
+                                                        Tham gia từ <strong>{formatDate(profile.createdAt)}</strong>
+                                                    </Typography>
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    </Grid>
+                                </Grid>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Tab 2: Bạn bè (Friends) */}
+                    {activeTab === 2 && (
+                        <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                            <CardContent>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                    <Typography variant="h5" fontWeight={700} color="#050505">
+                                        Bạn bè
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                        <TextField
+                                            placeholder="Tìm kiếm"
+                                            size="small"
+                                            value={friendSearchQuery}
+                                            onChange={(e) => setFriendSearchQuery(e.target.value)}
+                                            sx={{
+                                                '& .MuiOutlinedInput-root': {
+                                                    bgcolor: '#f0f2f5',
+                                                    borderRadius: 20,
+                                                    '& fieldset': { border: 'none' }
+                                                }
+                                            }}
+                                            InputProps={{
+                                                startAdornment: (
+                                                    <InputAdornment position="start">
+                                                        <SearchIcon sx={{ color: '#65676b' }} />
+                                                    </InputAdornment>
+                                                )
+                                            }}
+                                        />
+                                        <Button
+                                            sx={{ textTransform: 'none', color: '#1877f2' }}
+                                            onClick={() => navigateToFriends('requests')}
+                                        >
+                                            Lời mời kết bạn
+                                        </Button>
+                                        <Button
+                                            sx={{ textTransform: 'none', color: '#1877f2' }}
+                                            onClick={() => navigateToFriends('suggestions')}
+                                        >
+                                            Tìm bạn bè
+                                        </Button>
+                                    </Box>
+                                </Box>
+
+                                <Tabs value={0} sx={{ mb: 2, '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
+                                    <Tab label="Tất cả bạn bè" onClick={() => navigateToFriends('list')} />
+                                    <Tab label="Thêm gần đây" onClick={() => navigateToFriends('recent')} />
+                                </Tabs>
+
+                                {friendsLoading ? (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                                        <CircularProgress />
+                                    </Box>
+                                ) : filteredFriends.length === 0 ? (
+                                    <Typography color="#65676b" textAlign="center" py={4}>
+                                        {friendSearchQuery ? 'Không tìm thấy bạn bè nào' : 'Chưa có bạn bè nào'}
+                                    </Typography>
+                                ) : (
+                                    <Grid container spacing={2}>
+                                        {filteredFriends.map((friend) => (
+                                            <Grid size={{ xs: 12, sm: 6 }} key={friend._id}>
+                                                <Box
+                                                    sx={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 2,
+                                                        p: 2,
+                                                        borderRadius: 2,
+                                                        border: '1px solid #e4e6eb',
+                                                        bgcolor: 'white',
+                                                        cursor: 'pointer',
+                                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                                    }}
+                                                    onClick={() => navigateToProfile(friend.username)}
+                                                >
+                                                    <Avatar
+                                                        src={friend.avatar}
+                                                        sx={{ width: 80, height: 80, borderRadius: 2 }}
                                                     />
+                                                    <Box sx={{ flex: 1 }}>
+                                                        <Typography fontWeight={600} color="#050505">
+                                                            {friend.firstName} {friend.lastName}
+                                                        </Typography>
+                                                        <Typography fontSize={13} color="#65676b">
+                                                            @{friend.username}
+                                                        </Typography>
+                                                    </Box>
                                                     {isOwnProfile && (
                                                         <IconButton
-                                                            className="edit-btn"
-                                                            size="small"
-                                                            sx={{
-                                                                position: 'absolute',
-                                                                top: 8,
-                                                                right: 8,
-                                                                bgcolor: 'rgba(0,0,0,0.6)',
-                                                                opacity: 0,
-                                                                transition: 'opacity 0.2s',
-                                                                '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' }
-                                                            }}
+                                                            onClick={(e) => handleOpenFriendMenu(e, friend)}
+                                                            sx={{ bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}
                                                         >
-                                                            <EditIcon sx={{ color: 'white', fontSize: 16 }} />
+                                                            <MoreIcon sx={{ color: '#050505' }} />
                                                         </IconButton>
                                                     )}
                                                 </Box>
                                             </Grid>
                                         ))}
                                     </Grid>
-                                );
-                            })()}
-                        </CardContent>
-                    </Card>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Tab 3: Ảnh (Photos) */}
+                    {activeTab === 3 && (
+                        <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                            <CardContent>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                    <Typography variant="h5" fontWeight={700} color="#050505">
+                                        Ảnh
+                                    </Typography>
+                                    {isOwnProfile && (
+                                        <Button
+                                            sx={{ textTransform: 'none', color: '#1877f2' }}
+                                            onClick={() => setCreatePostModalOpen(true)}
+                                        >
+                                            Thêm ảnh/video
+                                        </Button>
+                                    )}
+                                </Box>
+
+                                <Tabs value={0} sx={{ mb: 2, '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
+                                    <Tab label="Ảnh của bạn" />
+                                    <Tab label="Album" />
+                                </Tabs>
+
+                                {(() => {
+                                    const allPhotos = posts
+                                        .filter(p => p.media && p.media.length > 0)
+                                        .flatMap(p => p.media)
+                                        .filter(m => m.mediaType === 'IMAGE');
+
+                                    if (allPhotos.length === 0) {
+                                        return (
+                                            <Typography color="#65676b" textAlign="center" py={4}>
+                                                Chưa có ảnh nào
+                                            </Typography>
+                                        );
+                                    }
+
+                                    return (
+                                        <Grid container spacing={1}>
+                                            {allPhotos.map((media, idx) => (
+                                                <Grid size={{ xs: 6, sm: 4, md: 3, lg: 2.4 }} key={idx}>
+                                                    <Box
+                                                        sx={{
+                                                            position: 'relative',
+                                                            aspectRatio: '1',
+                                                            borderRadius: 2,
+                                                            overflow: 'hidden',
+                                                            cursor: 'pointer',
+                                                            '&:hover .edit-btn': { opacity: 1 },
+                                                            '&:hover': { opacity: 0.9 }
+                                                        }}
+                                                        onClick={() => handleOpenGalleryPhoto(allPhotos, idx)}
+                                                    >
+                                                        <Box
+                                                            component="img"
+                                                            src={media.url}
+                                                            sx={{
+                                                                width: '100%',
+                                                                height: '100%',
+                                                                objectFit: 'cover',
+                                                            }}
+                                                        />
+                                                        {isOwnProfile && (
+                                                            <IconButton
+                                                                className="edit-btn"
+                                                                size="small"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                sx={{
+                                                                    position: 'absolute',
+                                                                    top: 8,
+                                                                    right: 8,
+                                                                    bgcolor: 'rgba(0,0,0,0.6)',
+                                                                    opacity: 0,
+                                                                    transition: 'opacity 0.2s',
+                                                                    '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' }
+                                                                }}
+                                                            >
+                                                                <EditIcon sx={{ color: 'white', fontSize: 16 }} />
+                                                            </IconButton>
+                                                        )}
+                                                    </Box>
+                                                </Grid>
+                                            ))}
+                                        </Grid>
+                                    );
+                                })()}
+                            </CardContent>
+                        </Card>
+                    )}
+                </Container>
+
+                {/* Edit Profile Modal */}
+                <EditProfileModal
+                    open={editModalOpen}
+                    onClose={() => setEditModalOpen(false)}
+                    profile={profile}
+                    onUpdate={handleProfileUpdate}
+                />
+
+                {/* Create Post Modal */}
+                <CreatePostModal
+                    open={createPostModalOpen}
+                    onClose={() => setCreatePostModalOpen(false)}
+                    onPostCreated={handlePostCreated}
+                />
+
+                {/* Edit Post Modal */}
+                {editingPost && (
+                    <EditPostModal
+                        open={openEditPost}
+                        onClose={() => {
+                            setOpenEditPost(false);
+                            setEditingPost(null);
+                        }}
+                        post={editingPost}
+                        onPostUpdated={(updatedPost) => {
+                            // Update local posts state
+                            setPosts(prev => prev.map(p => p._id === updatedPost._id ? updatedPost : p));
+                            // Update global post store
+                            usePostStore.getState().updatePost(updatedPost._id, updatedPost);
+                        }}
+                    />
                 )}
-            </Container>
 
-            {/* Edit Profile Modal */}
-            <EditProfileModal
-                open={editModalOpen}
-                onClose={() => setEditModalOpen(false)}
-                profile={profile}
-                onUpdate={handleProfileUpdate}
-            />
+                {/* Image Viewer */}
+                <ImageViewer
+                    open={openImageViewer}
+                    onClose={() => setOpenImageViewer(false)}
+                    media={viewerMedia}
+                    initialIndex={viewerInitialIndex}
+                />
 
-            {/* Create Post Modal */}
-            <CreatePostModal
-                open={createPostModalOpen}
-                onClose={() => setCreatePostModalOpen(false)}
-                onPostCreated={handlePostCreated}
-            />
-
-            {/* Edit Post Modal */}
-            {editingPost && (
-                <EditPostModal
-                    open={openEditPost}
-                    onClose={() => {
-                        setOpenEditPost(false);
-                        setEditingPost(null);
+                {/* Post Options Menu */}
+                <Menu
+                    anchorEl={menuAnchor}
+                    open={Boolean(menuAnchor)}
+                    onClose={handleCloseMenu}
+                    PaperProps={{
+                        sx: {
+                            width: 320,
+                            borderRadius: 2,
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                            mt: 1
+                        }
                     }}
-                    post={editingPost}
-                />
-            )}
+                >
+                    <PostOptionContentMenu
+                        handleDeletePost={handleDeletePost}
+                        handleEditPost={handleEditPost}
+                        isDeleting={isDeleting}
+                        menuPost={menuPost}
+                        user={user}
+                    />
+                </Menu>
 
-            {/* Image Viewer */}
-            <ImageViewer
-                open={openImageViewer}
-                onClose={() => setOpenImageViewer(false)}
-                media={viewerMedia}
-                initialIndex={viewerInitialIndex}
-            />
+                {/* Comment Modal */}
+                <Modal open={openCommentModal} onClose={() => setOpenCommentModal(false)}>
+                    <CommentContentModal
+                        setOpenCommentModal={setOpenCommentModal}
+                        commentingPost={commentingPost}
+                        renderPostMedia={renderPostMedia}
+                        handleOpenShare={handleOpenShare}
+                    />
+                </Modal>
 
-            {/* Post Options Menu */}
-            <Menu
-                anchorEl={menuAnchor}
-                open={Boolean(menuAnchor)}
-                onClose={handleCloseMenu}
-                PaperProps={{
-                    sx: {
-                        width: 320,
-                        borderRadius: 2,
-                        boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-                        mt: 1
-                    }
-                }}
-            >
-                <PostOptionContentMenu
-                    handleDeletePost={handleDeletePost}
-                    handleEditPost={handleEditPost}
-                    isDeleting={isDeleting}
-                    menuPost={menuPost}
-                    user={user}
-                />
-            </Menu>
+                {/* Share Modal */}
+                <Modal open={openShareModal} onClose={handleCloseShare}>
+                    <ShareContentModal
+                        handleCloseShare={handleCloseShare}
+                        handleEmojiSelect={handleEmojiSelect}
+                        setShareCaption={setShareCaption}
+                        setShowEmojiPicker={setShowEmojiPicker}
+                        shareCaption={shareCaption}
+                        sharePrivacy={sharePrivacy}
+                        showEmojiPicker={showEmojiPicker}
+                        user={user}
+                        sharingPost={sharingPost}
+                    />
+                </Modal>
 
-            {/* Comment Modal */}
-            <Modal open={openCommentModal} onClose={() => setOpenCommentModal(false)}>
-                <CommentContentModal
-                    setOpenCommentModal={setOpenCommentModal}
-                    commentingPost={commentingPost}
-                    renderPostMedia={renderPostMedia}
-                    handleOpenShare={handleOpenShare}
-                />
-            </Modal>
+                {/* Friend Action Menu */}
+                <Menu
+                    anchorEl={friendMenuAnchor}
+                    open={Boolean(friendMenuAnchor)}
+                    onClose={handleCloseFriendMenu}
+                    PaperProps={{
+                        sx: {
+                            width: 280,
+                            borderRadius: 2,
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                            mt: 1,
+                            bgcolor: 'white',
+                        }
+                    }}
+                >
+                    <MenuItem
+                        onClick={() => {
+                            if (selectedFriend) handleUnfriend(selectedFriend._id);
+                        }}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                    >
+                        <ListItemIcon>
+                            <PersonRemoveIcon sx={{ color: '#050505' }} />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Hủy kết bạn"
+                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                        />
+                    </MenuItem>
+                    <MenuItem
+                        onClick={handleCloseFriendMenu}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                    >
+                        <ListItemIcon>
+                            <BlockIcon sx={{ color: '#050505' }} />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Chặn người dùng"
+                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                        />
+                    </MenuItem>
+                </Menu>
 
-            {/* Share Modal */}
-            <Modal open={openShareModal} onClose={handleCloseShare}>
-                <ShareContentModal
-                    handleCloseShare={handleCloseShare}
-                    handleEmojiSelect={handleEmojiSelect}
-                    setShareCaption={setShareCaption}
-                    setShowEmojiPicker={setShowEmojiPicker}
-                    shareCaption={shareCaption}
-                    sharePrivacy={sharePrivacy}
-                    showEmojiPicker={showEmojiPicker}
-                    user={user}
-                    sharingPost={sharingPost}
-                />
-            </Modal>
+                {/* Profile Settings Menu */}
+                <Menu
+                    anchorEl={profileSettingsAnchor}
+                    open={Boolean(profileSettingsAnchor)}
+                    onClose={handleCloseProfileSettings}
+                    PaperProps={{
+                        sx: {
+                            width: 320,
+                            borderRadius: 2,
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                            mt: 1,
+                            bgcolor: 'white',
+                        }
+                    }}
+                >
+                    <MenuItem
+                        onClick={handleCloseProfileSettings}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                    >
+                        <ListItemIcon>
+                            <SearchIcon sx={{ color: '#050505' }} />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Tìm hỗ trợ hoặc báo cáo"
+                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                        />
+                    </MenuItem>
+                    {isOwnProfile && (
+                        <>
+                            <MenuItem
+                                onClick={handleCloseProfileSettings}
+                                sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                            >
+                                <ListItemIcon>
+                                    <PauseCircleIcon sx={{ color: '#050505' }} />
+                                </ListItemIcon>
+                                <ListItemText
+                                    primary="Tạm khóa trang cá nhân"
+                                    secondary="Tạm ẩn trang cá nhân và thông tin của bạn"
+                                    primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                                    secondaryTypographyProps={{ color: '#65676b', fontSize: 12 }}
+                                />
+                            </MenuItem>
+                            <MenuItem
+                                onClick={handleCloseProfileSettings}
+                                sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                            >
+                                <ListItemIcon>
+                                    <SettingsIcon sx={{ color: '#050505' }} />
+                                </ListItemIcon>
+                                <ListItemText
+                                    primary="Cài đặt trang cá nhân"
+                                    primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                                />
+                            </MenuItem>
+                        </>
+                    )}
+                    {!isOwnProfile && (
+                        <MenuItem
+                            onClick={handleCloseProfileSettings}
+                            sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        >
+                            <ListItemIcon>
+                                <BlockIcon sx={{ color: '#050505' }} />
+                            </ListItemIcon>
+                            <ListItemText
+                                primary="Chặn"
+                                primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                            />
+                        </MenuItem>
+                    )}
+                </Menu>
+
+                {/* Avatar Menu */}
+                <Menu
+                    anchorEl={avatarMenuAnchor}
+                    open={Boolean(avatarMenuAnchor)}
+                    onClose={handleCloseAvatarMenu}
+                    PaperProps={{
+                        sx: {
+                            width: 280,
+                            borderRadius: 2,
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                            mt: 1,
+                            bgcolor: 'white',
+                        }
+                    }}
+                >
+                    <MenuItem
+                        onClick={handleViewAvatar}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                    >
+                        <ListItemIcon>
+                            <VisibilityIcon sx={{ color: '#050505' }} />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Xem ảnh đại diện"
+                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                        />
+                    </MenuItem>
+                    <MenuItem
+                        onClick={handleUploadAvatar}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                    >
+                        <ListItemIcon>
+                            <CloudUploadIcon sx={{ color: '#050505' }} />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Tải ảnh lên"
+                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                        />
+                    </MenuItem>
+                </Menu>
+
+                {/* Cover Menu */}
+                <Menu
+                    anchorEl={coverMenuAnchor}
+                    open={Boolean(coverMenuAnchor)}
+                    onClose={handleCloseCoverMenu}
+                    PaperProps={{
+                        sx: {
+                            width: 280,
+                            borderRadius: 2,
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                            mt: 1,
+                            bgcolor: 'white',
+                        }
+                    }}
+                >
+                    <MenuItem
+                        onClick={handleViewCover}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                    >
+                        <ListItemIcon>
+                            <VisibilityIcon sx={{ color: '#050505' }} />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Xem ảnh bìa"
+                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                        />
+                    </MenuItem>
+                    <MenuItem
+                        onClick={handleUploadCoverFromMenu}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                    >
+                        <ListItemIcon>
+                            <CloudUploadIcon sx={{ color: '#050505' }} />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Tải ảnh bìa lên"
+                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                        />
+                    </MenuItem>
+                </Menu>
+
+                {/* Cover Photo Edit Modal */}
+                <Dialog
+                    open={openCoverEditModal}
+                    onClose={handleCloseCoverEditModal}
+                    maxWidth="md"
+                    fullWidth
+                    PaperProps={{
+                        sx: {
+                            borderRadius: 2,
+                            bgcolor: 'white',
+                        }
+                    }}
+                >
+                    <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e4e6eb' }}>
+                        <Typography variant="h6" fontWeight={700} color="#050505">
+                            Cập nhật ảnh bìa
+                        </Typography>
+                        <IconButton onClick={handleCloseCoverEditModal}>
+                            <CloseIcon />
+                        </IconButton>
+                    </DialogTitle>
+                    <DialogContent sx={{ p: 0 }}>
+                        {/* Preview Area */}
+                        <Box
+                            sx={{
+                                position: 'relative',
+                                height: 300,
+                                background: coverPreviewUrl
+                                    ? `url(${coverPreviewUrl}) center/cover no-repeat`
+                                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            }}
+                        >
+                            {!coverPreviewUrl && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                                    <Typography color="white" fontSize={16}>
+                                        Chưa có ảnh bìa
+                                    </Typography>
+                                </Box>
+                            )}
+                        </Box>
+
+                        {/* Upload Section */}
+                        <Box sx={{ p: 3 }}>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleCoverFileSelect}
+                                style={{ display: 'none' }}
+                                id="cover-upload-input"
+                            />
+                            <label htmlFor="cover-upload-input">
+                                <Button
+                                    variant="outlined"
+                                    component="span"
+                                    startIcon={<CloudUploadIcon />}
+                                    fullWidth
+                                    sx={{
+                                        py: 1.5,
+                                        borderColor: '#e4e6eb',
+                                        color: '#050505',
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        '&:hover': { borderColor: '#1877f2', bgcolor: '#f0f2f5' }
+                                    }}
+                                >
+                                    Chọn ảnh từ máy tính
+                                </Button>
+                            </label>
+                            {selectedCoverFile && (
+                                <Typography color="#65676b" fontSize={14} sx={{ mt: 1, textAlign: 'center' }}>
+                                    Đã chọn: {selectedCoverFile.name}
+                                </Typography>
+                            )}
+                        </Box>
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2, borderTop: '1px solid #e4e6eb' }}>
+                        <Button
+                            onClick={handleCloseCoverEditModal}
+                            sx={{ textTransform: 'none', color: '#65676b' }}
+                        >
+                            Hủy
+                        </Button>
+                        <Button
+                            variant="contained"
+                            onClick={handleSaveCoverPhoto}
+                            disabled={!selectedCoverFile || uploadingCover}
+                            sx={{
+                                bgcolor: '#1877f2',
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                '&:hover': { bgcolor: '#166fe5' },
+                                '&:disabled': { bgcolor: '#e4e6eb' }
+                            }}
+                        >
+                            {uploadingCover ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Lưu thay đổi'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            </Box>
         </Box>
     );
 }

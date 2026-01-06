@@ -56,14 +56,19 @@ export class PostController {
 
   @Get('user/:userId')
   findByUserId(
+    @UserInfo() user: any,
     @Param('userId') userId: string,
     @Query('page') page?: string,
-    @Query('limit') limit?: string
+    @Query('limit') limit?: string,
+    @Query('friendIds') friendIds?: string
   ) {
+    const friends = friendIds ? friendIds.split(',') : [];
     return this.postService.findByUserId(
       userId,
       page ? parseInt(page) : 1,
-      limit ? parseInt(limit) : 10
+      limit ? parseInt(limit) : 10,
+      user?._id,
+      friends
     );
   }
 

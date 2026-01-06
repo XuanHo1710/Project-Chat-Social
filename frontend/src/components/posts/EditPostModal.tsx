@@ -71,9 +71,10 @@ interface EditPostModalProps {
     open: boolean;
     onClose: () => void;
     post: PostType;
+    onPostUpdated?: (updatedPost: PostType) => void;
 }
 
-export default function EditPostModal({ open, onClose, post }: EditPostModalProps) {
+export default function EditPostModal({ open, onClose, post, onPostUpdated }: EditPostModalProps) {
     const { user } = useAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const updatePostMutation = useUpdatePost();
@@ -215,7 +216,7 @@ export default function EditPostModal({ open, onClose, post }: EditPostModalProp
                 : backgroundColors.find((b) => b.id === selectedBackground)?.color || null;
 
             // 5. Update post
-            await updatePostMutation.mutateAsync({
+            const result = await updatePostMutation.mutateAsync({
                 postId: post._id,
                 data: {
                     content: postContent,
@@ -229,6 +230,11 @@ export default function EditPostModal({ open, onClose, post }: EditPostModalProp
             pendingMedia.forEach((m) => {
                 if (m.preview) URL.revokeObjectURL(m.preview);
             });
+
+            // 7. Notify parent component with updated post
+            if (onPostUpdated && result.data) {
+                onPostUpdated(result.data);
+            }
 
             onClose();
         } catch (error) {

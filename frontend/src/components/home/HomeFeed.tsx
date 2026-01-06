@@ -376,6 +376,10 @@ export default function HomeFeed() {
                         setEditingPost(null);
                     }}
                     post={editingPost}
+                    onPostUpdated={(updatedPost) => {
+                        // Update global post store
+                        usePostStore.getState().updatePost(updatedPost._id, updatedPost);
+                    }}
                 />
             )}
 

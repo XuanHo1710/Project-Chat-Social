@@ -121,7 +121,7 @@ export class AccountService {
   async findByUsername(username: string) {
     return await this.accountModel
       .findOne({ username: username })
-      .select('-password -accessToken -resetPasswordToken -resetPasswordExpires');
+      .select('-accessToken -resetPasswordToken -resetPasswordExpires');
   }
 
   // Get profile by ID (for viewing other users)

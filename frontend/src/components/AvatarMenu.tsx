@@ -34,6 +34,8 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
     const logout = useAuthStore((state) => state.logout);
     const router = useRouter();
 
+    console.log('AvatarMenu rendered with user:', user);
+
     const handleLogout = async () => {
         onClose();
         const response = await authService.logout();

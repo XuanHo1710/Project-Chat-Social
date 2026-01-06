@@ -39,6 +39,12 @@ export const CLIENT_PATH = {
   CLAIMS: "/claims",
   CAREERS: "/careers",
 
+  // Friends
+  FRIENDS: "/friends",
+  FRIENDS_REQUESTS: "/friends?tab=requests",
+  FRIENDS_SUGGESTIONS: "/friends?tab=suggestions",
+  FRIENDS_LIST: "/friends?tab=list",
+
   // Insurance
   INSURANCES: "/insurances",
   INSURANCE_DETAIL: (id: string) => `/insurances/${id}`,

@@ -53,15 +53,20 @@ class PostService {
   }
 
   /**
-   * Get posts by user ID
+   * Get posts by user ID with privacy filtering
    */
   async getPostsByUserId(
     userId: string,
-    params?: { page?: number; limit?: number }
+    params?: { page?: number; limit?: number; friendIds?: string[] }
   ) {
+    const queryParams = {
+      page: params?.page,
+      limit: params?.limit,
+      friendIds: params?.friendIds?.join(","),
+    };
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}/user/${userId}`,
-      { params }
+      { params: queryParams }
     );
     return response.data.data;
   }

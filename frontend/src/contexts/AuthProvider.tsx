@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     console.log("Token valid, account data:", res.data);
                     const { accessToken, data } = res.data;
                     const { account } = data;
+                    console.log("Fetched account:", account);
 
                     // Cập nhật access token mới (nếu có refresh)
                     if (accessToken) {

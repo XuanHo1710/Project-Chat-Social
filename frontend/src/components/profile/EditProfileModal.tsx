@@ -35,10 +35,11 @@ import {
     AddAPhoto as AddAPhotoIcon,
     Add as AddIcon,
 } from '@mui/icons-material';
-import { ProfileType, UpdateProfileType } from '@/types/account';
+import { ProfileType, UpdateProfileType, AddressType } from '@/types/account';
 import { accountService } from '@/services/account.service';
 import { uploadChatMedia } from '@/services/cloudinary.service';
 import { toast } from 'sonner';
+import AddressPickerModal from '@/components/profile/AddressPickerModal';
 
 interface EditProfileModalProps {
     open: boolean;
@@ -54,6 +55,9 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const coverInputRef = useRef<HTMLInputElement>(null);
 
+    // Address picker modal
+    const [addressPickerOpen, setAddressPickerOpen] = useState(false);
+
     const [formData, setFormData] = useState<UpdateProfileType>({
         firstName: '',
         lastName: '',
@@ -64,6 +68,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
         bio: '',
         gender: 'OTHER',
         birthday: '',
+        addresses: [],
     });
 
     useEffect(() => {
@@ -78,6 +83,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                 bio: profile.bio || '',
                 gender: profile.gender || 'OTHER',
                 birthday: profile.birthday ? profile.birthday.split('T')[0] : '',
+                addresses: profile.addresses || [],
             });
         }
     }, [profile]);
@@ -537,7 +543,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                         </Typography>
                     )}
 
-                    {/* Add new address button - placeholder for future address picker */}
+                    {/* Add new address button */}
                     <Button
                         fullWidth
                         variant="outlined"
@@ -551,19 +557,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                                 bgcolor: '#e7f3ff'
                             }
                         }}
-                        onClick={() => {
-                            // For now, add a placeholder address - in real implementation, open an address picker
-                            const newAddress = {
-                                label: 'Nhà',
-                                province: { code: 1, name: 'Hà Nội' },
-                                district: { code: 1, name: 'Quận Ba Đình' },
-                                ward: { code: 1, name: 'Phường Phúc Xá' },
-                                detailAddress: '',
-                                isDefault: (formData.addresses?.length || 0) === 0
-                            };
-                            const newAddresses = [...(formData.addresses || []), newAddress];
-                            handleChange('addresses', newAddresses);
-                        }}
+                        onClick={() => setAddressPickerOpen(true)}
                     >
                         Thêm địa chỉ
                     </Button>
@@ -662,6 +656,16 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                     {loading ? <CircularProgress size={20} color="inherit" /> : 'Lưu'}
                 </Button>
             </DialogActions>
+
+            {/* Address Picker Modal */}
+            <AddressPickerModal
+                open={addressPickerOpen}
+                onClose={() => setAddressPickerOpen(false)}
+                onSave={(newAddress: AddressType) => {
+                    const newAddresses = [...(formData.addresses || []), newAddress];
+                    handleChange('addresses', newAddresses);
+                }}
+            />
         </Dialog>
     );
 }

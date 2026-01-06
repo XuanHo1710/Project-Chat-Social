@@ -3,7 +3,9 @@ import {
   Story,
   StoryGroup,
   CreateStoryPayload,
+  UpdateStoryPayload,
   StoryViewer,
+  StoryReaction,
 } from "@/types/story";
 import { APIResponse } from "@/types/common";
 
@@ -44,6 +46,20 @@ export const createStory = async (
 };
 
 /**
+ * Update a story
+ */
+export const updateStory = async (
+  storyId: string,
+  payload: UpdateStoryPayload
+): Promise<APIResponse<Story>> => {
+  const response = await axios.patch<APIResponse<Story>>(
+    `/story/${storyId}`,
+    payload
+  );
+  return response.data;
+};
+
+/**
  * Mark story as viewed
  */
 export const viewStory = async (storyId: string): Promise<void> => {
@@ -72,13 +88,25 @@ export const deleteStory = async (storyId: string): Promise<void> => {
 };
 
 /**
- * Get story viewers
+ * Get story viewers with reactions
  */
 export const getStoryViewers = async (
   storyId: string
-): Promise<APIResponse<StoryViewer[]>> => {
-  const response = await axios.get<APIResponse<StoryViewer[]>>(
-    `/story/${storyId}/viewers`
+): Promise<APIResponse<{ viewers: StoryViewer[]; totalViews: number }>> => {
+  const response = await axios.get<
+    APIResponse<{ viewers: StoryViewer[]; totalViews: number }>
+  >(`/story/${storyId}/viewers`);
+  return response.data;
+};
+
+/**
+ * Get story reactions
+ */
+export const getStoryReactions = async (
+  storyId: string
+): Promise<APIResponse<StoryReaction[]>> => {
+  const response = await axios.get<APIResponse<StoryReaction[]>>(
+    `/story/${storyId}/reactions`
   );
   return response.data;
 };

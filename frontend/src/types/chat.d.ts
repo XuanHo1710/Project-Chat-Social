@@ -6,7 +6,8 @@ export type MessageType =
   | "VIDEO"
   | "FILE"
   | "POST"
-  | "SYSTEM";
+  | "SYSTEM"
+  | "STORY_REPLY";
 
 export type MessageStatus = "SENT" | "DELIVERED" | "READ";
 
@@ -43,6 +44,15 @@ export interface MessageResponse {
 
   postId?: string;
 
+  // Story reply fields
+  storyReply?: {
+    storyId: string;
+    storyMediaUrl: string;
+    storyOwnerId: string;
+    storyOwnerName: string;
+    storyCaption?: string;
+  };
+
   status?: MessageStatus;
 
   readBy?: string[];
@@ -63,6 +73,13 @@ export interface SendMessagePayload {
   attachments?: AttachmentData[];
   replyTo?: string;
   postId?: string;
+  storyReply?: {
+    storyId: string;
+    storyMediaUrl: string;
+    storyOwnerId: string;
+    storyOwnerName: string;
+    storyCaption?: string;
+  };
 }
 
 export interface PaginatedMessagesResponse {

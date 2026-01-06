@@ -1,5 +1,5 @@
 export type StoryType = "IMAGE" | "VIDEO";
-export type StoryPrivacy = "PUBLIC" | "FRIENDS" | "CUSTOM";
+export type StoryPrivacy = "PUBLIC" | "FRIENDS" | "PRIVATE" | "CUSTOM";
 
 export interface StoryViewer {
   userId: string;
@@ -10,12 +10,28 @@ export interface StoryViewer {
     lastName: string;
     avatar: string;
   };
+  reaction?: string | null;
 }
 
 export interface StoryReaction {
-  userId: string;
+  userId:
+    | string
+    | {
+        _id: string;
+        firstName: string;
+        lastName: string;
+        avatar: string;
+      };
   reaction: string;
   createdAt: string;
+}
+
+export interface CaptionStyle {
+  x: number;
+  y: number;
+  fontSize?: number;
+  color?: string;
+  backgroundColor?: string;
 }
 
 export interface Story {
@@ -33,8 +49,10 @@ export interface Story {
   thumbnail?: string;
   duration?: number;
   caption?: string;
+  captionStyle?: CaptionStyle;
   privacy: StoryPrivacy;
-  viewers: string[];
+  viewers: StoryViewer[];
+  viewCount?: number;
   reactions: StoryReaction[];
   createdAt: string;
   expiresAt: string;
@@ -61,5 +79,12 @@ export interface CreateStoryPayload {
   thumbnail?: string;
   duration?: number;
   caption?: string;
+  captionStyle?: CaptionStyle;
+  privacy?: StoryPrivacy;
+}
+
+export interface UpdateStoryPayload {
+  caption?: string;
+  captionStyle?: CaptionStyle;
   privacy?: StoryPrivacy;
 }

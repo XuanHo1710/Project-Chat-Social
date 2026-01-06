@@ -9,6 +9,12 @@ import {
     LinearProgress,
     TextField,
     Dialog,
+    Menu,
+    MenuItem,
+    ListItemIcon,
+    ListItemText,
+    Snackbar,
+    Alert,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -19,13 +25,17 @@ import {
     MoreHoriz as MoreHorizIcon,
     Pause as PauseIcon,
     PlayArrow as PlayArrowIcon,
+    Visibility as VisibilityIcon,
+    Delete as DeleteIcon,
+    Send as SendIcon,
 } from '@mui/icons-material';
 import { StoryGroup } from '@/types/story';
-import { useViewStory, useReactToStory } from '@/queries/useStoryQueries';
+import { useViewStory, useReactToStory, useStoryViewers, useDeleteStory } from '@/queries/useStoryQueries';
 import { timeAgo } from '@/utils/formatDate';
-
-
-const REACTIONS = ['👍', '❤️', '😆', '😮', '😢', '😡'];
+import StoryViewersModal from './StoryViewersModal';
+import StoryReactions from './StoryReactions';
+import { useSocket } from '@/contexts/SocketContext';
+import { conversationService } from '@/services/conversation.service';
 
 interface StoryViewerProps {
     storyGroups: StoryGroup[];
@@ -46,16 +56,32 @@ export default function StoryViewer({
     const [isPaused, setIsPaused] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [replyText, setReplyText] = useState('');
+    const [showViewers, setShowViewers] = useState(false);
+    const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+        open: false,
+        message: '',
+        severity: 'success',
+    });
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+    const { socket } = useSocket();
     const viewStoryMutation = useViewStory();
     const reactMutation = useReactToStory();
+    const deleteStoryMutation = useDeleteStory();
 
     const currentGroup = storyGroups[currentGroupIndex];
     const currentStory = currentGroup?.stories[currentStoryIndex];
     const isOwnStory = currentGroup?._id === currentUserId;
+
+    // Fetch viewers for own story
+    const { data: viewersData, isLoading: viewersLoading } = useStoryViewers(
+        currentStory?._id || '',
+        { enabled: isOwnStory && showViewers }
+    );
+
 
     // Duration for each story (5s for images, actual duration for videos)
     const getDuration = useCallback(() => {
@@ -176,6 +202,101 @@ export default function StoryViewer({
     const handleReaction = (reaction: string) => {
         if (currentStory) {
             reactMutation.mutate({ storyId: currentStory._id, reaction });
+        }
+    };
+
+    const handleOpenViewers = () => {
+        setIsPaused(true);
+        setShowViewers(true);
+    };
+
+    const handleCloseViewers = () => {
+        setShowViewers(false);
+        setIsPaused(false);
+    };
+
+    const handleOpenMenu = (event: React.MouseEvent<HTMLElement>) => {
+        setIsPaused(true);
+        setMenuAnchor(event.currentTarget);
+    };
+
+    const handleCloseMenu = () => {
+        setMenuAnchor(null);
+        setIsPaused(false);
+    };
+
+    const handleDeleteStory = () => {
+        if (currentStory) {
+            deleteStoryMutation.mutate(currentStory._id, {
+                onSuccess: () => {
+                    handleCloseMenu();
+                    // Move to next story or close if no more stories
+                    if (currentGroup.stories.length <= 1) {
+                        if (currentGroupIndex < storyGroups.length - 1) {
+                            setCurrentGroupIndex(prev => prev + 1);
+                            setCurrentStoryIndex(0);
+                            setProgress(0);
+                        } else {
+                            onClose();
+                        }
+                    } else {
+                        goToNextStory();
+                    }
+                },
+            });
+        }
+    };
+
+    const handleReplyToStory = async () => {
+        if (!replyText.trim() || !currentStory || !socket) return;
+
+        try {
+            // Get or create conversation with story owner
+            const storyOwnerId = currentGroup._id;
+            const conversationResponse = await conversationService.getConversationByUserId(storyOwnerId);
+
+            let conversationId: string | undefined;
+            if (conversationResponse.data && conversationResponse.data.length > 0) {
+                conversationId = conversationResponse.data[0]._id;
+            } else {
+                // Create new conversation via socket
+                socket.emit('createConversation', {
+                    participantId: storyOwnerId,
+                }, (response: { conversationId: string }) => {
+                    conversationId = response.conversationId;
+                });
+                // Wait a bit for conversation creation
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            if (!conversationId) {
+                throw new Error('Could not get or create conversation');
+            }
+
+            // Send message with story reference via socket
+            const messageContent = `[Đã phản hồi tin của bạn${currentStory.caption ? `: "${currentStory.caption}"` : ''}]\n${replyText}`;
+
+            socket.emit('sendMessage', {
+                conversationId,
+                senderId: currentUserId,
+                content: messageContent,
+                type: 'TEXT',
+            });
+
+            setReplyText('');
+            setIsPaused(false);
+            setSnackbar({
+                open: true,
+                message: 'Đã gửi phản hồi',
+                severity: 'success',
+            });
+        } catch (error) {
+            console.error('Error replying to story:', error);
+            setSnackbar({
+                open: true,
+                message: 'Không thể gửi phản hồi',
+                severity: 'error',
+            });
         }
     };
 
@@ -334,7 +455,7 @@ export default function StoryViewer({
                                 </Typography>
                             </Box>
                         </Box>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Box sx={{ display: 'flex', gap: 1 }} onClick={(e) => e.stopPropagation()}>
                             <IconButton onClick={() => setIsPaused(prev => !prev)} sx={{ color: 'white' }}>
                                 {isPaused ? <PlayArrowIcon /> : <PauseIcon />}
                             </IconButton>
@@ -343,11 +464,35 @@ export default function StoryViewer({
                                     {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
                                 </IconButton>
                             )}
-                            <IconButton sx={{ color: 'white' }}>
-                                <MoreHorizIcon />
-                            </IconButton>
+                            {isOwnStory && (
+                                <IconButton onClick={handleOpenMenu} sx={{ color: 'white' }}>
+                                    <MoreHorizIcon />
+                                </IconButton>
+                            )}
                         </Box>
                     </Box>
+
+                    {/* More menu */}
+                    <Menu
+                        anchorEl={menuAnchor}
+                        open={Boolean(menuAnchor)}
+                        onClose={handleCloseMenu}
+                        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                        onClick={(e) => e.stopPropagation()}
+                        slotProps={{
+                            paper: {
+                                sx: { minWidth: 180 }
+                            }
+                        }}
+                    >
+                        <MenuItem onClick={handleDeleteStory}>
+                            <ListItemIcon>
+                                <DeleteIcon fontSize="small" color="error" />
+                            </ListItemIcon>
+                            <ListItemText>Xóa tin</ListItemText>
+                        </MenuItem>
+                    </Menu>
 
                     {/* Media */}
                     {currentStory.type === 'VIDEO' ? (
@@ -374,76 +519,153 @@ export default function StoryViewer({
                         />
                     )}
 
-                    {/* Caption */}
+                    {/* Caption with custom style */}
                     {currentStory.caption && (
                         <Box
                             sx={{
                                 position: 'absolute',
-                                bottom: 80,
-                                left: 0,
-                                right: 0,
+                                bottom: currentStory.captionStyle?.y ? 'auto' : 80,
+                                top: currentStory.captionStyle?.y ? `${currentStory.captionStyle.y}%` : 'auto',
+                                left: currentStory.captionStyle?.x ? `${currentStory.captionStyle.x}%` : 0,
+                                right: currentStory.captionStyle?.x ? 'auto' : 0,
+                                transform: currentStory.captionStyle?.x ? 'translateX(-50%)' : 'none',
                                 px: 2,
                                 py: 1,
-                                bgcolor: 'rgba(0,0,0,0.5)',
+                                bgcolor: currentStory.captionStyle?.backgroundColor || 'rgba(0,0,0,0.5)',
+                                borderRadius: 2,
+                                maxWidth: '80%',
                             }}
                         >
-                            <Typography color="white" textAlign="center">
+                            <Typography
+                                color={currentStory.captionStyle?.color || 'white'}
+                                textAlign="center"
+                                fontSize={currentStory.captionStyle?.fontSize || 16}
+                            >
                                 {currentStory.caption}
                             </Typography>
                         </Box>
                     )}
 
-                    {/* Reply/Reaction bar */}
-
-                    <Box
-                        sx={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            p: 2,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            bgcolor: 'rgba(0,0,0,0.5)',
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <TextField
-                            fullWidth
-                            placeholder="Gửi tin nhắn..."
-                            size="small"
-                            value={replyText}
-                            onChange={(e) => setReplyText(e.target.value)}
-                            onFocus={() => setIsPaused(true)}
-                            onBlur={() => setIsPaused(false)}
+                    {/* Reply/Reaction bar for other users' stories */}
+                    {!isOwnStory && (
+                        <Box
                             sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    color: 'white',
-                                    bgcolor: 'rgba(255,255,255,0.1)',
-                                    borderRadius: 5,
-                                    '& fieldset': { border: 'none' },
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                p: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                bgcolor: 'rgba(0,0,0,0.5)',
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <TextField
+                                fullWidth
+                                placeholder="Gửi tin nhắn..."
+                                size="small"
+                                value={replyText}
+                                onChange={(e) => setReplyText(e.target.value)}
+                                onFocus={() => setIsPaused(true)}
+                                onBlur={() => !replyText && setIsPaused(false)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleReplyToStory();
+                                    }
+                                }}
+                                sx={{
+                                    flex: 1,
+                                    '& .MuiOutlinedInput-root': {
+                                        color: 'white',
+                                        bgcolor: 'rgba(255,255,255,0.1)',
+                                        borderRadius: 5,
+                                        '& fieldset': { border: 'none' },
+                                    },
+                                }}
+                                InputProps={{
+                                    endAdornment: replyText && (
+                                        <IconButton onClick={handleReplyToStory} sx={{ color: 'white' }}>
+                                            <SendIcon fontSize="small" />
+                                        </IconButton>
+                                    ),
+                                }}
+                            />
+                            <FloatingReactions onReactionComplete={handleReaction} />
+                        </Box>
+                    )}
+
+                    {/* Viewers panel for own stories */}
+                    {isOwnStory && (
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                p: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 1.5,
+                                bgcolor: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
+                                background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                '&:hover': {
+                                    bgcolor: 'rgba(0,0,0,0.6)',
                                 },
                             }}
-                        />
-                        {REACTIONS.map((emoji) => (
-                            <IconButton
-                                key={emoji}
-                                onClick={() => handleReaction(emoji)}
-                                sx={{
-                                    fontSize: 24,
-                                    p: 0.5,
-                                    '&:hover': { transform: 'scale(1.2)' },
-                                    transition: 'transform 0.2s',
-                                }}
-                            >
-                                {emoji}
-                            </IconButton>
-                        ))}
-                    </Box>
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenViewers();
+                            }}
+                        >
+                            <Box sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                bgcolor: 'rgba(255,255,255,0.15)',
+                                px: 2,
+                                py: 1,
+                                borderRadius: 3,
+                                '&:hover': {
+                                    bgcolor: 'rgba(255,255,255,0.25)',
+                                },
+                            }}>
+                                <VisibilityIcon sx={{ color: 'white', fontSize: 20 }} />
+                                <Typography color="white" fontWeight={500} fontSize={14}>
+                                    {currentStory.viewCount || currentStory.viewers?.length || 0} người xem
+                                </Typography>
+                            </Box>
+                        </Box>
+                    )}
 
                 </Box>
             </Box>
+
+            {/* Viewers Modal */}
+            <StoryViewersModal
+                open={showViewers}
+                onClose={handleCloseViewers}
+                viewers={viewersData?.data?.viewers || []}
+                isLoading={viewersLoading}
+                totalViews={viewersData?.data?.totalViews || currentStory?.viewCount || currentStory?.viewers?.length || 0}
+            />
+
+            {/* Snackbar for feedback */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={3000}
+                onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert severity={snackbar.severity} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Dialog>
     );
 }

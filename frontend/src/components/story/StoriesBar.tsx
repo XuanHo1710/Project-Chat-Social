@@ -11,18 +11,35 @@ import {
     TextField,
     Button,
     CircularProgress,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    SelectChangeEvent,
 } from '@mui/material';
 import {
     Add as AddIcon,
     Close as CloseIcon,
     Image as ImageIcon,
     Videocam as VideocamIcon,
+    Public as PublicIcon,
+    People as PeopleIcon,
+    Lock as LockIcon,
 } from '@mui/icons-material';
 import { useStoriesFeed, useCreateStory } from '@/queries/useStoryQueries';
 import { uploadChatMedia } from '@/services/cloudinary.service';
 import StoryViewer from '@/components/story/StoryViewer';
+import DraggableCaption from '@/components/story/DraggableCaption';
 import { UserLoginType } from '@/types/account';
+import { StoryPrivacy, CaptionStyle } from '@/types/story';
 
+const DEFAULT_CAPTION_STYLE: CaptionStyle = {
+    x: 50,
+    y: 80,
+    fontSize: 18,
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+};
 
 export default function StoriesBar({ currentUser }: { currentUser: UserLoginType }) {
     const { data: storyGroups, isLoading } = useStoriesFeed();
@@ -32,12 +49,16 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [caption, setCaption] = useState('');
+    const [captionStyle, setCaptionStyle] = useState<CaptionStyle>(DEFAULT_CAPTION_STYLE);
+    const [privacy, setPrivacy] = useState<StoryPrivacy>('FRIENDS');
     const [isUploading, setIsUploading] = useState(false);
     const [videoDuration, setVideoDuration] = useState(0);
     const [videoError, setVideoError] = useState('');
 
     const [viewerOpen, setViewerOpen] = useState(false);
     const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
+
+    const previewContainerRef = useRef<HTMLDivElement>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -91,7 +112,8 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                 mediaUrl,
                 duration: isVideo ? videoDuration : undefined,
                 caption: caption || undefined,
-                privacy: 'FRIENDS',
+                captionStyle: caption ? captionStyle : undefined,
+                privacy,
             });
 
             handleCloseDialog();
@@ -107,8 +129,40 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
         setSelectedFile(null);
         setPreviewUrl(null);
         setCaption('');
+        setCaptionStyle(DEFAULT_CAPTION_STYLE);
+        setPrivacy('FRIENDS');
         setVideoError('');
         setVideoDuration(0);
+    };
+
+    const handlePrivacyChange = (event: SelectChangeEvent<StoryPrivacy>) => {
+        setPrivacy(event.target.value as StoryPrivacy);
+    };
+
+    const getPrivacyIcon = (value: StoryPrivacy) => {
+        switch (value) {
+            case 'PUBLIC':
+                return <PublicIcon />;
+            case 'FRIENDS':
+                return <PeopleIcon />;
+            case 'PRIVATE':
+                return <LockIcon />;
+            default:
+                return <PeopleIcon />;
+        }
+    };
+
+    const getPrivacyLabel = (value: StoryPrivacy) => {
+        switch (value) {
+            case 'PUBLIC':
+                return 'Công khai';
+            case 'FRIENDS':
+                return 'Bạn bè';
+            case 'PRIVATE':
+                return 'Chỉ mình tôi';
+            default:
+                return 'Bạn bè';
+        }
     };
 
     const handleStoryClick = (index: number) => {
@@ -312,7 +366,10 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                             </Typography>
                         </Box>
                     ) : (
-                        <Box sx={{ position: 'relative' }}>
+                        <Box
+                            ref={previewContainerRef}
+                            sx={{ position: 'relative', minHeight: 400 }}
+                        >
                             {selectedFile?.type.startsWith('video/') ? (
                                 <video
                                     ref={videoRef}
@@ -336,6 +393,18 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                                     }}
                                 />
                             )}
+
+                            {/* Draggable Caption */}
+                            {!selectedFile?.type.startsWith('video/') && (
+                                <DraggableCaption
+                                    caption={caption}
+                                    onCaptionChange={setCaption}
+                                    captionStyle={captionStyle}
+                                    onStyleChange={setCaptionStyle}
+                                    containerRef={previewContainerRef}
+                                />
+                            )}
+
                             <IconButton
                                 onClick={() => {
                                     setSelectedFile(null);
@@ -369,21 +438,75 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                         onChange={handleFileSelect}
                     />
 
-                    <TextField
-                        fullWidth
-                        placeholder="Viết chú thích..."
-                        value={caption}
-                        onChange={(e) => setCaption(e.target.value)}
-                        sx={{
-                            mt: 2,
-                            '& .MuiOutlinedInput-root': {
-                                color: '#050505',
-                                '& fieldset': { borderColor: '#ccc' },
-                                '&:hover fieldset': { borderColor: '#1877f2' },
-                            },
-                            '& .MuiInputBase-input::placeholder': { color: '#65676b' },
-                        }}
-                    />
+                    {/* Show TextField only for video (image uses DraggableCaption) */}
+                    {selectedFile?.type.startsWith('video/') && (
+                        <TextField
+                            fullWidth
+                            placeholder="Viết chú thích..."
+                            value={caption}
+                            onChange={(e) => setCaption(e.target.value)}
+                            sx={{
+                                mt: 2,
+                                '& .MuiOutlinedInput-root': {
+                                    color: '#050505',
+                                    '& fieldset': { borderColor: '#ccc' },
+                                    '&:hover fieldset': { borderColor: '#1877f2' },
+                                },
+                                '& .MuiInputBase-input::placeholder': { color: '#65676b' },
+                            }}
+                        />
+                    )}
+
+                    {/* Privacy Selector */}
+                    <FormControl fullWidth sx={{ mt: 2 }}>
+                        <InputLabel id="privacy-label">Đối tượng</InputLabel>
+                        <Select
+                            labelId="privacy-label"
+                            value={privacy}
+                            label="Đối tượng"
+                            onChange={handlePrivacyChange}
+                            renderValue={(value) => (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    {getPrivacyIcon(value)}
+                                    {getPrivacyLabel(value)}
+                                </Box>
+                            )}
+                        >
+                            <MenuItem value="PUBLIC">
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <PublicIcon />
+                                    <Box>
+                                        <Typography>Công khai</Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            Bất kỳ ai trên Facebook
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </MenuItem>
+                            <MenuItem value="FRIENDS">
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <PeopleIcon />
+                                    <Box>
+                                        <Typography>Bạn bè</Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            Bạn bè của bạn
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </MenuItem>
+                            <MenuItem value="PRIVATE">
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <LockIcon />
+                                    <Box>
+                                        <Typography>Chỉ mình tôi</Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            Chỉ bạn có thể xem
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </MenuItem>
+                        </Select>
+                    </FormControl>
 
                     <Button
                         fullWidth

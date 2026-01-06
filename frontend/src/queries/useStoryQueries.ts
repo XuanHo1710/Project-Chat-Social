@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/constants/query-keys";
 import * as storyService from "@/services/story.service";
-import { CreateStoryPayload } from "@/types/story";
+import { CreateStoryPayload, UpdateStoryPayload } from "@/types/story";
 
 /**
  * Get stories feed
@@ -25,6 +25,20 @@ export const useMyStories = () => {
 };
 
 /**
+ * Get story viewers
+ */
+export const useStoryViewers = (
+  storyId: string,
+  options?: { enabled?: boolean }
+) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.STORY_DETAIL, storyId, "viewers"],
+    queryFn: () => storyService.getStoryViewers(storyId),
+    enabled: options?.enabled ?? !!storyId,
+  });
+};
+
+/**
  * Create story mutation
  */
 export const useCreateStory = () => {
@@ -41,16 +55,32 @@ export const useCreateStory = () => {
 };
 
 /**
- * View story mutation
+ * Update story mutation
  */
-export const useViewStory = () => {
+export const useUpdateStory = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (storyId: string) => storyService.viewStory(storyId),
+    mutationFn: ({
+      storyId,
+      payload,
+    }: {
+      storyId: string;
+      payload: UpdateStoryPayload;
+    }) => storyService.updateStory(storyId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.STORIES_FEED] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.MY_STORIES] });
     },
+  });
+};
+
+/**
+ * View story mutation
+ */
+export const useViewStory = () => {
+  return useMutation({
+    mutationFn: (storyId: string) => storyService.viewStory(storyId),
   });
 };
 

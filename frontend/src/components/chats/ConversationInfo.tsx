@@ -166,8 +166,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         const urls: { url: string; type: 'image' | 'video'; date: string }[] = [];
         if (msg.attachments) {
             msg.attachments.forEach(url => {
-                const isVideo = url.match(/\.(mp4|webm|ogg)$/i) || url.includes('video');
-                urls.push({ url, type: isVideo ? 'video' : 'image', date: msg.createdAt });
+                const isVideo = url.url.match(/\.(mp4|webm|ogg)$/i) || url.url.includes('video');
+                urls.push({ url: url.url, type: isVideo ? 'video' : 'image', date: msg.createdAt });
             });
         }
         return urls;

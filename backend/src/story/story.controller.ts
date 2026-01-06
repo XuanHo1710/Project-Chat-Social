@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Patch, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { StoryService } from './story.service';
-import { CreateStoryDto, ReactToStoryDto } from './dto/story.dto';
+import { CreateStoryDto, ReactToStoryDto, UpdateStoryDto } from './dto/story.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
 @Controller('story')
@@ -14,11 +14,7 @@ export class StoryController {
   @Post()
   async create(@Body() createStoryDto: CreateStoryDto, @Req() req: any) {
     const userId = req.user._id;
-    const story = await this.storyService.create(userId, createStoryDto);
-    return {
-      success: true,
-      data: story,
-    };
+    return await this.storyService.create(userId, createStoryDto);
   }
 
   /**
@@ -55,9 +51,6 @@ export class StoryController {
   async viewStory(@Param('id') id: string, @Req() req: any) {
     const userId = req.user._id;
     await this.storyService.viewStory(id, userId);
-    return {
-      success: true,
-    };
   }
 
   /**
@@ -67,6 +60,15 @@ export class StoryController {
   async reactToStory(@Body() dto: ReactToStoryDto, @Req() req: any) {
     const userId = req.user._id;
     return await this.storyService.reactToStory(dto.storyId, userId, dto.reaction);
+  }
+
+  /**
+   * Update a story
+   */
+  @Patch(':id')
+  async updateStory(@Param('id') id: string, @Body() updateDto: UpdateStoryDto, @Req() req: any) {
+    const userId = req.user._id;
+    return await this.storyService.updateStory(id, userId, updateDto);
   }
 
   /**
@@ -82,11 +84,19 @@ export class StoryController {
   }
 
   /**
-   * Get story viewers
+   * Get story viewers with reactions
    */
   @Get(':id/viewers')
   async getViewers(@Param('id') id: string, @Req() req: any) {
     const userId = req.user._id;
     return await this.storyService.getStoryViewers(id, userId);
+  }
+
+  /**
+   * Get story reactions
+   */
+  @Get(':id/reactions')
+  async getReactions(@Param('id') id: string) {
+    return await this.storyService.getStoryReactions(id);
   }
 }

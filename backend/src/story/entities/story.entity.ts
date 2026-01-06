@@ -11,6 +11,7 @@ export enum StoryType {
 export enum StoryPrivacy {
   PUBLIC = 'PUBLIC',
   FRIENDS = 'FRIENDS',
+  PRIVATE = 'PRIVATE',
   CUSTOM = 'CUSTOM',
 }
 
@@ -34,11 +35,39 @@ export class Story {
   @Prop({ type: String, maxlength: 500 })
   caption?: string; // Caption/text overlay
 
+  @Prop({
+    type: {
+      x: Number,
+      y: Number,
+      fontSize: Number,
+      color: String,
+      backgroundColor: String,
+    },
+  })
+  captionStyle?: {
+    x: number;
+    y: number;
+    fontSize?: number;
+    color?: string;
+    backgroundColor?: string;
+  };
+
   @Prop({ type: String, enum: StoryPrivacy, default: StoryPrivacy.FRIENDS })
   privacy: StoryPrivacy;
 
-  @Prop({ type: [{ type: Types.ObjectId, ref: 'Account' }], default: [] })
-  viewers: Types.ObjectId[]; // Người đã xem
+  @Prop({
+    type: [
+      {
+        userId: { type: Types.ObjectId, ref: 'Account' },
+        viewedAt: { type: Date, default: Date.now },
+      },
+    ],
+    default: [],
+  })
+  viewers: {
+    userId: Types.ObjectId;
+    viewedAt: Date;
+  }[];
 
   @Prop({
     type: [

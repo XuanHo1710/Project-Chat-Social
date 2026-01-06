@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Story, StoryDocument, StoryPrivacy } from './entities/story.entity';
-import { CreateStoryDto } from './dto/story.dto';
+import { CreateStoryDto, UpdateStoryDto } from './dto/story.dto';
 import { Relationship, RelationshipDocument } from 'src/relationship/entities/relationship.entity';
 
 @Injectable()
@@ -71,6 +71,12 @@ export class StoryService {
       {
         $sort: { createdAt: -1 },
       },
+      // Add viewCount to each story
+      {
+        $addFields: {
+          viewCount: { $size: '$viewers' },
+        },
+      },
       {
         $group: {
           _id: '$userId',
@@ -106,7 +112,18 @@ export class StoryService {
                 input: '$stories',
                 as: 'story',
                 in: {
-                  $not: { $in: [new Types.ObjectId(userId), '$$story.viewers'] },
+                  $not: {
+                    $in: [
+                      new Types.ObjectId(userId),
+                      {
+                        $map: {
+                          input: '$$story.viewers',
+                          as: 'v',
+                          in: '$$v.userId',
+                        },
+                      },
+                    ],
+                  },
                 },
               },
             },
@@ -189,9 +206,35 @@ export class StoryService {
    * Mark story as viewed
    */
   async viewStory(storyId: string, viewerId: string): Promise<void> {
-    await this.storyModel.findByIdAndUpdate(storyId, {
-      $addToSet: { viewers: new Types.ObjectId(viewerId) },
-    });
+    try {
+      const story = await this.storyModel.findById(storyId);
+      if (!story) return;
+
+      // Don't track own views
+      if (story.userId.toString() === viewerId) return;
+
+      // Check if already viewed - handle both old (ObjectId) and new ({userId, viewedAt}) format
+      const alreadyViewed = story.viewers.some((v) => {
+        if (typeof v === 'object' && v.userId) {
+          return v.userId.toString() === viewerId;
+        }
+        return v.toString() === viewerId;
+      });
+
+      if (!alreadyViewed) {
+        await this.storyModel.findByIdAndUpdate(storyId, {
+          $push: {
+            viewers: {
+              userId: new Types.ObjectId(viewerId),
+              viewedAt: new Date(),
+            },
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error in viewStory:', error);
+      // Don't throw - viewing is not critical
+    }
   }
 
   /**
@@ -217,6 +260,23 @@ export class StoryService {
   }
 
   /**
+   * Update a story (caption, privacy, captionStyle)
+   */
+  async updateStory(storyId: string, userId: string, updateDto: UpdateStoryDto): Promise<Story> {
+    const story = await this.storyModel.findById(storyId);
+    if (!story) {
+      throw new NotFoundException('Story not found');
+    }
+
+    if (story.userId.toString() !== userId) {
+      throw new ForbiddenException('You can only edit your own stories');
+    }
+
+    Object.assign(story, updateDto);
+    return story.save();
+  }
+
+  /**
    * Delete a story
    */
   async deleteStory(storyId: string, userId: string): Promise<void> {
@@ -234,13 +294,13 @@ export class StoryService {
   }
 
   /**
-   * Get story viewers
+   * Get story viewers with their reactions
    */
-  async getStoryViewers(storyId: string, userId: string): Promise<any[]> {
-    const story = await this.storyModel
-      .findById(storyId)
-      .populate('viewers', 'firstName lastName avatar')
-      .lean();
+  async getStoryViewers(
+    storyId: string,
+    userId: string
+  ): Promise<{ viewers: any[]; totalViews: number }> {
+    const story = await this.storyModel.findById(storyId).lean();
 
     if (!story) {
       throw new NotFoundException('Story not found');
@@ -250,6 +310,95 @@ export class StoryService {
       throw new ForbiddenException('You can only view viewers of your own stories');
     }
 
-    return story.viewers;
+    // Handle empty viewers
+    if (!story.viewers || story.viewers.length === 0) {
+      return { viewers: [], totalViews: 0 };
+    }
+
+    // Check if viewers are in old format (ObjectId) or new format ({userId, viewedAt})
+    const isOldFormat = story.viewers.length > 0 && !story.viewers[0].userId;
+
+    if (isOldFormat) {
+      // Old format: viewers are just ObjectIds
+      const viewerIds = story.viewers.map((v) => new Types.ObjectId(v.toString()));
+      const viewerAccounts = await this.storyModel.db
+        .collection('accounts')
+        .find({ _id: { $in: viewerIds } })
+        .project({ _id: 1, firstName: 1, lastName: 1, avatar: 1 })
+        .toArray();
+
+      const reactionsMap = new Map(story.reactions.map((r) => [r.userId.toString(), r.reaction]));
+
+      const viewers = viewerAccounts.map((acc) => ({
+        userId: acc._id,
+        viewedAt: new Date(),
+        user: {
+          _id: acc._id,
+          firstName: acc.firstName,
+          lastName: acc.lastName,
+          avatar: acc.avatar,
+        },
+        reaction: reactionsMap.get(acc._id.toString()) || null,
+      }));
+
+      return { viewers, totalViews: story.viewers.length };
+    }
+
+    // New format: viewers have {userId, viewedAt}
+    const viewersWithDetails = await this.storyModel.aggregate([
+      { $match: { _id: new Types.ObjectId(storyId) } },
+      { $unwind: '$viewers' },
+      {
+        $lookup: {
+          from: 'accounts',
+          localField: 'viewers.userId',
+          foreignField: '_id',
+          as: 'viewerInfo',
+        },
+      },
+      { $unwind: { path: '$viewerInfo', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          userId: '$viewers.userId',
+          viewedAt: '$viewers.viewedAt',
+          user: {
+            _id: '$viewerInfo._id',
+            firstName: '$viewerInfo.firstName',
+            lastName: '$viewerInfo.lastName',
+            avatar: '$viewerInfo.avatar',
+          },
+        },
+      },
+      { $sort: { viewedAt: -1 } },
+    ]);
+
+    // Add reactions to each viewer
+    const reactionsMap = new Map(story.reactions.map((r) => [r.userId.toString(), r.reaction]));
+
+    const viewers = viewersWithDetails.map((viewer) => ({
+      ...viewer,
+      reaction: reactionsMap.get(viewer.userId?.toString()) || null,
+    }));
+
+    return {
+      viewers,
+      totalViews: story.viewers.length,
+    };
+  }
+
+  /**
+   * Get story reactions
+   */
+  async getStoryReactions(storyId: string): Promise<any[]> {
+    const story = await this.storyModel
+      .findById(storyId)
+      .populate('reactions.userId', 'firstName lastName avatar')
+      .lean();
+
+    if (!story) {
+      throw new NotFoundException('Story not found');
+    }
+
+    return story.reactions;
   }
 }

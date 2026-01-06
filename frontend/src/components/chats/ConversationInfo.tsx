@@ -44,16 +44,20 @@ import {
     Lock as LockIcon,
     ArrowBack as ArrowBackIcon,
     PlayCircle as PlayCircleIcon,
+    InsertDriveFile as InsertDriveFileIcon,
+    PictureAsPdf as PictureAsPdfIcon,
+    Description as DescriptionIcon,
 } from '@mui/icons-material';
 import { useConversationDetail } from '@/queries/useConversationQueries';
 import { useSocket } from '@/contexts/SocketContext';
 import { useAccountsByPage } from '@/queries/useAccountQueries';
 import { chatService } from '@/services/chat.service';
-import { MessageResponse } from '@/types/chat';
+import { AttachmentData, MessageResponse } from '@/types/chat';
 import { ConversationParticipant } from '@/types/conversation';
 import { AccountCardFriendType } from '@/types/account';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
+
 
 // Quick action buttons data
 const QUICK_ACTIONS = [
@@ -116,6 +120,12 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     const [mediaLoading, setMediaLoading] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+    // File Messages State
+    const [fileMessages, setFileMessages] = useState<MessageResponse[]>([]);
+    const [filePage, setFilePage] = useState(1);
+    const [fileHasMore, setFileHasMore] = useState(true);
+    const [fileLoading, setFileLoading] = useState(false);
+
     const conversation = conversationData?.data;
     const themeColor = conversation?.theme || '#0084ff';
 
@@ -128,6 +138,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         setMediaLoading(true);
         try {
             const result = await chatService.getMediaMessages(conversationId, page, 20);
+            console.log('Loaded media messages:', result);
             if (reset) {
                 setMediaMessages(result.data);
             } else {
@@ -142,35 +153,96 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         }
     }, [conversationId, mediaLoading]);
 
+    // Load file messages
+    const loadFileMessages = useCallback(async (page: number, reset: boolean = false) => {
+        if (fileLoading) return;
+
+        setFileLoading(true);
+        try {
+            const result = await chatService.getFileMessages(conversationId, page, 20);
+            console.log('Loaded file messages:', result);
+            if (reset) {
+                setFileMessages(result.data);
+            } else {
+                setFileMessages(prev => [...prev, ...result.data]);
+            }
+            setFileHasMore(result.pagination.hasMore);
+            setFilePage(page);
+        } catch (error) {
+            console.error('Failed to load files:', error);
+        } finally {
+            setFileLoading(false);
+        }
+    }, [conversationId, fileLoading]);
+
     // Open media gallery
     const handleOpenMediaGallery = () => {
         setMediaGalleryOpen(true);
+        setMediaTab(0);
         setMediaMessages([]);
         setMediaPage(1);
         setMediaHasMore(true);
+        setFileMessages([]);
+        setFilePage(1);
+        setFileHasMore(true);
         loadMediaMessages(1, true);
+    };
+
+    // Handle tab change in media gallery
+    const handleMediaTabChange = (_: React.SyntheticEvent, newValue: number) => {
+        setMediaTab(newValue);
+        if (newValue === 0 && mediaMessages.length === 0) {
+            loadMediaMessages(1, true);
+        } else if (newValue === 1 && fileMessages.length === 0) {
+            loadFileMessages(1, true);
+        }
     };
 
     // Handle scroll to load more
     const handleMediaScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const target = e.target as HTMLDivElement;
         if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
-            if (mediaHasMore && !mediaLoading) {
+            if (mediaTab === 0 && mediaHasMore && !mediaLoading) {
                 loadMediaMessages(mediaPage + 1);
+            } else if (mediaTab === 1 && fileHasMore && !fileLoading) {
+                loadFileMessages(filePage + 1);
             }
         }
     };
 
-    // Get all media URLs from messages
+    // Get all media URLs from messages - fix to use mediaType properly
     const allMediaUrls = mediaMessages.flatMap(msg => {
         const urls: { url: string; type: 'image' | 'video'; date: string }[] = [];
-        if (msg.attachments) {
-            msg.attachments.forEach(url => {
-                const isVideo = url.url.match(/\.(mp4|webm|ogg)$/i) || url.url.includes('video');
-                urls.push({ url: url.url, type: isVideo ? 'video' : 'image', date: msg.createdAt });
+        if (msg.attachments && msg.attachments.length > 0) {
+            msg.attachments.forEach(attachment => {
+                if (attachment?.url && (attachment.mediaType === 'IMAGE' || attachment.mediaType === 'VIDEO')) {
+                    urls.push({
+                        url: attachment.url,
+                        type: attachment.mediaType === 'VIDEO' ? 'video' : 'image',
+                        date: msg.createdAt
+                    });
+                }
             });
         }
         return urls;
+    });
+
+    // Get all files from file messages
+    const allFiles = fileMessages.flatMap(msg => {
+        const files: { url: string; fileName: string; fileSize: number; date: string }[] = [];
+        if (msg.attachments && msg.attachments.length > 0) {
+            msg.attachments.forEach(attachment => {
+                if (attachment?.url && attachment.mediaType === 'RAW') {
+                    files.push({
+                        url: attachment.url,
+                        fileName: attachment.fileName || 'File',
+                        fileSize: attachment.fileSize || 0,
+                        date: msg.createdAt
+                    });
+                }
+            });
+        }
+        return files;
     });
 
     // Group media by month
@@ -181,6 +253,15 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         acc[monthYear].push(media);
         return acc;
     }, {} as Record<string, typeof allMediaUrls>);
+
+    // Group files by month
+    const groupedFiles = allFiles.reduce((acc, file) => {
+        const date = new Date(file.date);
+        const monthYear = `Tháng ${date.getMonth() + 1} năm ${date.getFullYear()}`;
+        if (!acc[monthYear]) acc[monthYear] = [];
+        acc[monthYear].push(file);
+        return acc;
+    }, {} as Record<string, typeof allFiles>);
 
     if (isLoading || !conversation) return null;
 
@@ -269,6 +350,23 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 socketChat.emit('conversation:avatar', { conversationId, avatar: url });
             }
         }
+    };
+
+    const getFileIcon = (attachment: { url: string; fileName: string }) => {
+        const url = attachment.url;
+        const fileName = attachment.fileName;
+
+        if (fileName.match(/\.pdf$/i) || url.includes('.pdf'))
+            return <PictureAsPdfIcon sx={{ color: '#e74c3c', fontSize: 40 }} />;
+        if (fileName.match(/\.(doc|docx)$/i) || url.includes('.doc'))
+            return <DescriptionIcon sx={{ color: '#2b5797', fontSize: 40 }} />;
+        if (fileName.match(/\.(xls|xlsx)$/i) || url.includes('.xls'))
+            return (
+                <InsertDriveFileIcon sx={{ color: '#1D6F42', fontSize: 40 }} />
+            );
+        if (fileName.match(/\.(ppt|pptx)$/i))
+            return <DescriptionIcon sx={{ color: '#d24726', fontSize: 40 }} />;
+        return <InsertDriveFileIcon sx={{ color: '#65676b', fontSize: 40 }} />;
     };
 
     const displayName = isGroup
@@ -400,7 +498,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                 <PhotoIcon sx={{ mr: 2, color: '#65676b' }} />
                                 <ListItemText primary={<Typography fontSize={14} color="#050505">File phương tiện</Typography>} />
                             </ListItemButton>
-                            <ListItemButton sx={{ borderRadius: 2, py: 1 }}>
+                            <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={handleOpenMediaGallery}>
                                 <FileIcon sx={{ mr: 2, color: '#65676b' }} />
                                 <ListItemText primary={<Typography fontSize={14} color="#050505">File</Typography>} />
                             </ListItemButton>
@@ -686,12 +784,12 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <IconButton onClick={() => setMediaGalleryOpen(false)} size="small">
                         <ArrowBackIcon />
                     </IconButton>
-                    <Typography variant="h6" fontWeight={600}>File phương tiện và file</Typography>
+                    <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 600 }}>File phương tiện và file</Box>
                 </DialogTitle>
                 <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
                     <Tabs
                         value={mediaTab}
-                        onChange={(_, v) => setMediaTab(v)}
+                        onChange={handleMediaTabChange}
                         sx={{
                             '& .MuiTab-root': {
                                 textTransform: 'none',
@@ -799,9 +897,79 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     )}
                     {mediaTab === 1 && (
                         <Box sx={{ p: 2 }}>
-                            <Typography color="text.secondary" textAlign="center" py={4}>
-                                Chưa có file nào
-                            </Typography>
+                            {allFiles.length === 0 && !fileLoading ? (
+                                <Typography color="text.secondary" textAlign="center" py={4}>
+                                    Chưa có file nào
+                                </Typography>
+                            ) : (
+                                Object.entries(groupedFiles).map(([monthYear, files]) => (
+                                    <Box key={monthYear} sx={{ mb: 2 }}>
+                                        <Typography
+                                            variant="subtitle2"
+                                            color="text.secondary"
+                                            sx={{ mb: 1, fontWeight: 600, px: 1 }}
+                                        >
+                                            {monthYear}
+                                        </Typography>
+                                        <List disablePadding>
+                                            {files.map((file, idx) => (
+                                                <ListItem
+                                                    key={idx}
+                                                    component="a"
+                                                    href={file.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    sx={{
+                                                        px: 1,
+                                                        py: 1,
+                                                        borderRadius: 1,
+                                                        mb: 0.5,
+                                                        cursor: 'pointer',
+                                                        textDecoration: 'none',
+                                                        color: 'inherit',
+                                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                                    }}
+                                                >
+                                                    <ListItemAvatar>
+                                                        {getFileIcon(file as { url: string; fileName: string })}
+                                                    </ListItemAvatar>
+                                                    <ListItemText
+                                                        primary={
+                                                            <Typography
+                                                                fontSize={14}
+                                                                color="#050505"
+                                                                sx={{
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    whiteSpace: 'nowrap',
+                                                                    maxWidth: 200
+                                                                }}
+                                                            >
+                                                                {file.fileName}
+                                                            </Typography>
+                                                        }
+                                                        secondary={
+                                                            <Typography fontSize={12} color="#65676b">
+                                                                {file.fileSize > 0
+                                                                    ? file.fileSize > 1024 * 1024
+                                                                        ? `${(file.fileSize / (1024 * 1024)).toFixed(1)} MB`
+                                                                        : `${(file.fileSize / 1024).toFixed(1)} KB`
+                                                                    : 'Không rõ dung lượng'
+                                                                } • {new Date(file.date).toLocaleDateString('vi-VN')}
+                                                            </Typography>
+                                                        }
+                                                    />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    </Box>
+                                ))
+                            )}
+                            {fileLoading && (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                                    <CircularProgress size={24} />
+                                </Box>
+                            )}
                         </Box>
                     )}
                 </DialogContent>

@@ -24,6 +24,7 @@
     "next": "^16.0.10",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "react-player": "^3.4.0",
     "react-virtuoso": "^4.15.0",
     "socket.io-client": "^4.8.1",
     "sonner": "^2.0.7",

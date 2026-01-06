@@ -54,6 +54,19 @@ class ChatService {
     return result;
   }
 
+  // Get file messages (documents) for a conversation
+  async getFileMessages(
+    conversationId: string,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<MediaMessagesResponse> {
+    const response = await axios.get(
+      `/chat/messages/${conversationId}/files?page=${page}&limit=${limit}`
+    );
+    const result = response.data?.data || response.data;
+    return result;
+  }
+
   async sendMessage(
     payload: SendMessagePayload
   ): Promise<APIResponse<MessageResponse[]>> {

@@ -10,7 +10,8 @@ import {
     PlayCircle as PlayIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useGetNewsFeed, useDeletePost } from '@/queries/usePostQueries';
 import { PostType, PostPrivacy, MediaItem } from '@/types/post';
 import CreatePostModal from '../posts/CreatePostModal';
@@ -27,6 +28,25 @@ import StoriesBar from '@/components/story/StoriesBar';
 
 export default function HomeFeed() {
     const { user } = useAuthStore();
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const highlightedPostRef = useRef<HTMLDivElement>(null);
+
+    // Get highlighted post ID from URL query
+    const highlightedPostIdFromUrl = searchParams.get('postId');
+
+    // Store highlighted post ID in ref to persist even after URL change
+    const persistedHighlightedPostId = useRef<string | null>(null);
+
+    // Update persisted ID when URL has postId
+    useEffect(() => {
+        if (highlightedPostIdFromUrl) {
+            persistedHighlightedPostId.current = highlightedPostIdFromUrl;
+        }
+    }, [highlightedPostIdFromUrl]);
+
+    // Use persisted ID for sorting, URL param for highlight animation
+    const highlightedPostId = persistedHighlightedPostId.current || highlightedPostIdFromUrl;
 
     // Fetch posts from API
     const { data: postsData, isLoading: isLoadingPosts } = useGetNewsFeed({ page: 1, limit: 20 });
@@ -62,8 +82,33 @@ export default function HomeFeed() {
     // Emoji Picker
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-    // Get posts from API data
-    const posts = useMemo(() => postsData?.data || [], [postsData]);
+    // Get posts from API data - sort to put highlighted post first (use persisted ID)
+    const posts = useMemo(() => {
+        const allPosts = postsData?.data || [];
+        if (!highlightedPostId) return allPosts;
+
+        // Move highlighted post to the top
+        const highlightedPost = allPosts.find(p => p._id === highlightedPostId);
+        if (!highlightedPost) return allPosts;
+
+        const otherPosts = allPosts.filter(p => p._id !== highlightedPostId);
+        return [highlightedPost, ...otherPosts];
+    }, [postsData, highlightedPostId]);
+
+    // Scroll to highlighted post and clear URL after viewing
+    useEffect(() => {
+        if (highlightedPostIdFromUrl && !isLoadingPosts && posts.length > 0) {
+            // Wait for render then scroll
+            setTimeout(() => {
+                highlightedPostRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Clear the postId from URL after 3 seconds (animation done)
+                setTimeout(() => {
+                    router.replace('/', { scroll: false });
+                }, 3000);
+            }, 300);
+        }
+    }, [highlightedPostIdFromUrl, isLoadingPosts, posts.length, router]);
 
     const handleOpenMenu = (event: React.MouseEvent<HTMLElement>, post: PostType) => {
         setMenuAnchor(event.currentTarget);
@@ -276,9 +321,12 @@ export default function HomeFeed() {
             {/* Posts */}
             {posts.map((post) => {
                 const PrivacyIconComponent = getPrivacyIcon(post.privacy);
+                const isHighlighted = post._id === highlightedPostIdFromUrl; // Use URL param for animation
+                const isTargetPost = post._id === highlightedPostId; // Use persisted ID for ref
                 return (
                     <PostItem
                         key={post._id}
+                        ref={isTargetPost ? highlightedPostRef : undefined}
                         post={post}
                         userId={user?.id || ''}
                         handleOpenMenu={handleOpenMenu}
@@ -286,6 +334,7 @@ export default function HomeFeed() {
                         handleOpenShare={handleOpenShare}
                         renderPostMedia={renderPostMedia}
                         PrivacyIconComponent={PrivacyIconComponent}
+                        isHighlighted={isHighlighted}
                     />
                 );
             })}
@@ -345,7 +394,9 @@ export default function HomeFeed() {
                     sharePrivacy={sharePrivacy}
                     showEmojiPicker={showEmojiPicker}
                     user={user}
+                    sharingPost={sharingPost}
                 />
+
             </Modal>
         </Box >
     );

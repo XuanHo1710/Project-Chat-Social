@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Box, Typography, Avatar, keyframes } from '@mui/material';
+import { Box, Typography, keyframes } from '@mui/material';
 import Image from 'next/image';
 
 const fadeIn = keyframes`
@@ -25,16 +25,12 @@ interface StoryReplyMessageProps {
     };
     content: string;
     isOwnMessage: boolean;
-    senderName?: string;
-    senderAvatar?: string;
 }
 
 export default function StoryReplyMessage({
     storyReply,
     content,
     isOwnMessage,
-    senderName,
-    senderAvatar,
 }: StoryReplyMessageProps) {
     return (
         <Box
@@ -115,7 +111,7 @@ export default function StoryReplyMessage({
                         fill
                         style={{ objectFit: 'cover' }}
                     />
-                    
+
                     {/* Story caption overlay */}
                     {storyReply.storyCaption && (
                         <Box

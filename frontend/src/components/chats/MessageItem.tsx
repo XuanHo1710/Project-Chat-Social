@@ -1,4 +1,5 @@
 'use client';
+import ReactPlayer from "react-player";
 
 import React, { useState } from 'react';
 import {
@@ -28,6 +29,7 @@ import { MessageResponse, EmotionType, AttachmentData } from '@/types/chat';
 import { formatTime } from '@/utils/formatDate';
 import { Socket } from 'socket.io-client';
 import { handleDownload } from '@/utils/formatFile';
+import PostShareMessage from "@/components/chat/PostShareMessage";
 
 const EMOTIONS: { type: EmotionType; emoji: string; label: string }[] = [
     { type: 'LIKE', emoji: '👍', label: 'Thích' },
@@ -213,17 +215,7 @@ export default function MessageItem({
             return <DescriptionIcon sx={{ color: '#2b5797', fontSize: 40 }} />;
         if (fileName.match(/\.(xls|xlsx)$/i) || url.includes('.xls'))
             return (
-                <Box sx={{
-                    width: 40,
-                    height: 40,
-                    bgcolor: '#1d6f42',
-                    borderRadius: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                }}>
-                    <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>X</Typography>
-                </Box>
+                <InsertDriveFileIcon sx={{ color: '#1D6F42', fontSize: 40 }} />
             );
         if (fileName.match(/\.(ppt|pptx)$/i))
             return <DescriptionIcon sx={{ color: '#d24726', fontSize: 40 }} />;
@@ -381,6 +373,275 @@ export default function MessageItem({
         );
     }
 
+    // Render STORY_REPLY message (Facebook style)
+    if (message.type === 'STORY_REPLY' && message.storyReply) {
+        return (
+            <Box
+                sx={{
+                    display: "flex",
+                    flexDirection: 'column',
+                    alignItems: isOwn ? "flex-end" : "flex-start",
+                    px: 2,
+                    py: 0.3,
+                    '&:hover .message-hover-actions': { opacity: 1 }
+                }}
+            >
+                <Box sx={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    gap: 0.5,
+                    maxWidth: '70%',
+                    flexDirection: isOwn ? 'row-reverse' : 'row'
+                }}>
+                    {!isOwn && (
+                        <Avatar
+                            src={avatar}
+                            sx={{ width: 28, height: 28, visibility: showAvatar ? "visible" : "hidden", mb: 0.5 }}
+                        />
+                    )}
+
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+                        <Box sx={{ position: 'relative' }}>
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    bgcolor: isOwn ? themeColor : "#e4e6eb",
+                                    color: "black",
+                                    borderRadius: '18px',
+                                    overflow: 'hidden',
+                                    maxWidth: 280,
+                                }}
+                            >
+                                {/* Story reference header */}
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.5,
+                                        px: 1.5,
+                                        py: 0.8,
+                                        bgcolor: 'rgba(0,0,0,0.15)',
+                                        borderBottom: '1px solid rgba(255,255,255,0.1)',
+                                    }}
+                                >
+                                    <Box
+                                        sx={{
+                                            width: 14,
+                                            height: 14,
+                                            borderRadius: '50%',
+                                            border: '2px solid',
+                                            borderColor: 'rgba(255,255,255,0.6)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <Box
+                                            sx={{
+                                                width: 5,
+                                                height: 5,
+                                                borderRadius: '50%',
+                                                bgcolor: 'rgba(255,255,255,0.6)',
+                                            }}
+                                        />
+                                    </Box>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: isOwn ? 'white' : 'black',
+                                            fontSize: 11,
+                                        }}
+                                    >
+                                        Đã trả lời tin của {message.storyReply.storyOwnerName}
+                                    </Typography>
+                                </Box>
+
+                                {/* Story thumbnail */}
+                                <Box
+                                    sx={{
+                                        position: 'relative',
+                                        width: '100%',
+                                        height: 140,
+                                        bgcolor: '#000',
+                                    }}
+                                >
+
+                                    <ReactPlayer
+                                        src={message.storyReply.storyMediaUrl}
+                                        light={message.storyReply.storyMediaUrl.replace('/upload/', '/upload/so_1/')
+                                            .replace('.mp4', '.jpg')}
+                                        playing={false}
+                                        preload="hidden"
+                                        previewTabIndex={0}
+                                        width="100%"
+                                        height="100%"
+                                        controls
+                                    />
+                                    {/* Story caption overlay */}
+                                    {message.storyReply.storyCaption && (
+                                        <Box
+                                            sx={{
+                                                position: 'absolute',
+                                                bottom: 0,
+                                                left: 0,
+                                                right: 0,
+                                                background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+                                                px: 1.5,
+                                                py: 0.8,
+                                            }}
+                                        >
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    color: 'white',
+                                                    fontSize: 11,
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical',
+                                                    overflow: 'hidden',
+                                                }}
+                                            >
+                                                {message.storyReply.storyCaption}
+                                            </Typography>
+                                        </Box>
+                                    )}
+                                </Box>
+
+                                {/* Reply message content */}
+                                <Box sx={{ p: 1.5 }}>
+                                    <Typography
+                                        sx={{
+                                            color: isOwn ? 'white' : 'black',
+                                            fontSize: 14,
+                                            wordBreak: 'break-word',
+                                            whiteSpace: 'pre-wrap',
+                                        }}
+                                    >
+                                        {message.content}
+                                    </Typography>
+                                </Box>
+                            </Paper>
+                            {renderEmotionsSummary()}
+                        </Box>
+
+                        {/* Time */}
+                        <Typography sx={{ fontSize: 11, color: '#65676b', mt: 0.3, px: 0.5 }}>
+                            {formatTime(message.createdAt)}
+                        </Typography>
+                    </Box>
+
+                    {/* Hover Actions & Time */}
+                    <Box
+                        className="message-hover-actions"
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            opacity: 0,
+                            transition: 'opacity 0.15s',
+                            flexDirection: isOwn ? 'row-reverse' : 'row',
+                            gap: 0.2,
+                            zIndex: 100,
+                            bgcolor: 'white',
+                            borderRadius: 3,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                            px: 0.5,
+                            py: 0.2,
+                        }}
+                    >
+                        <IconButton size="small" onClick={handleReactionOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                            <SentimentSatisfiedAltIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                            <ReplyIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                        </IconButton>
+                        <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                            <MoreHorizIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                        </IconButton>
+                        <Typography variant="caption" color="#65676b" sx={{ fontSize: 11, mx: 0.5, whiteSpace: 'nowrap' }}>
+                            {formatTime(message.createdAt)}
+                        </Typography>
+                    </Box>
+                </Box>
+
+
+                {/* Message Status Indicator - only show on last own message */}
+                {isOwn && isLastOwnMessage && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 2, mt: 0.3 }}>
+                        {renderMessageStatus()}
+                    </Box>
+                )}
+
+                {/* Context Menu */}
+                <Menu
+                    anchorEl={menuAnchor}
+                    open={Boolean(menuAnchor)}
+                    onClose={handleMenuClose}
+                    slotProps={{
+                        paper: {
+                            sx: {
+                                bgcolor: 'white',
+                                borderRadius: 2,
+                                minWidth: 150,
+                                boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                                border: 'none',
+                                '& .MuiList-root': { py: 0.5 }
+                            }
+                        }
+                    }}
+                >
+                    {canEdit && (
+                        <MenuItem onClick={handleEdit} sx={{ fontSize: 14, color: '#050505', py: 1 }}>
+                            <EditIcon sx={{ mr: 1.5, fontSize: 18, color: '#65676b' }} /> Chỉnh sửa
+                        </MenuItem>
+                    )}
+                    {isOwn && (
+                        <MenuItem onClick={handleDelete} sx={{ fontSize: 14, color: '#e74c3c', py: 1 }}>
+                            <DeleteIcon sx={{ mr: 1.5, fontSize: 18 }} /> Thu hồi
+                        </MenuItem>
+                    )}
+                </Menu>
+
+                {/* Reaction Picker - Quick Reactions */}
+                <Popover
+                    open={Boolean(reactionAnchor)}
+                    anchorEl={reactionAnchor}
+                    onClose={handleReactionClose}
+                    anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+                    transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                    slotProps={{
+                        paper: {
+                            sx: {
+                                bgcolor: 'white',
+                                borderRadius: '28px',
+                                boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                                border: 'none',
+                                overflow: 'visible',
+                                mt: -1
+                            }
+                        }
+                    }}
+                >
+                    <Box sx={{ display: 'flex', p: '6px 10px', gap: 0.5 }}>
+                        {EMOTIONS.map((emotion) => (
+                            <IconButton
+                                key={emotion.type}
+                                onClick={() => handleReaction(emotion.type)}
+                                sx={{
+                                    fontSize: 24,
+                                    p: 0.8,
+                                    transition: 'transform 0.15s',
+                                    '&:hover': { transform: 'scale(1.25)', bgcolor: 'transparent' }
+                                }}
+                            >
+                                {emotion.emoji}
+                            </IconButton>
+                        ))}
+                    </Box>
+                </Popover>
+            </Box>
+        );
+    }
+
     // Render deleted message (Facebook style)
     if (message.isDeleted) {
         return (
@@ -426,6 +687,19 @@ export default function MessageItem({
             </Box>
         );
     }
+
+    if (message.type === 'POST' && message.postId) {
+        console.log("Rendering POST message with post data:", message);
+        return (
+            <PostShareMessage
+                avatar={avatar}
+                isOwn={isOwn}
+                post={message.postId}
+            />
+        );
+    }
+
+
 
     return (
         <>
@@ -519,6 +793,11 @@ export default function MessageItem({
 
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexDirection: isOwn ? 'row-reverse' : 'row' }}>
                             <Box sx={{ position: 'relative' }}>
+                                {message.isEdited && (
+                                    <Box component="span" sx={{ fontSize: 11, opacity: 0.7, width: "100%" }}>
+                                        <Typography sx={{ textAlign: isOwn ? "right" : "left", fontSize: "12px" }}>Edited</Typography>
+                                    </Box>
+                                )}
                                 <Paper
                                     elevation={0}
                                     sx={{
@@ -531,7 +810,7 @@ export default function MessageItem({
                                     }}
                                 >
                                     {/* Main Message Content */}
-                                    <Box sx={{ p: message.content ? '8px 12px' : 0 }}>
+                                    <Box sx={{ p: message.content ? '8px 12px' : 0, position: "relative" }}>
                                         {isEditing ? (
                                             <Box sx={{ minWidth: 200 }}>
                                                 <TextField
@@ -544,7 +823,7 @@ export default function MessageItem({
                                                     onChange={(e) => setEditContent(e.target.value)}
                                                     InputProps={{
                                                         disableUnderline: true,
-                                                        sx: { color: 'white', fontSize: 15 }
+                                                        sx: { color: 'black', fontSize: 15, backgroundColor: "white", borderRadius: "15px", padding: "2px 5px" }
                                                     }}
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); }
@@ -566,9 +845,6 @@ export default function MessageItem({
                                                                 <Box component="span" key={i} sx={{ color: isOwn ? 'white' : '#0084ff', fontWeight: 600 }}>{part}</Box>
                                                             ) : part);
                                                         })()}
-                                                        {message.isEdited && (
-                                                            <Box component="span" sx={{ ml: 1, fontSize: 11, opacity: 0.7 }}>(đã chỉnh sửa)</Box>
-                                                        )}
                                                     </Typography>
                                                 )}
                                                 {renderAttachments()}

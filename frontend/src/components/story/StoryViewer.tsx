@@ -74,7 +74,7 @@ export default function StoryViewer({
 
     const currentGroup = storyGroups[currentGroupIndex];
     const currentStory = currentGroup?.stories[currentStoryIndex];
-    const isOwnStory = currentGroup?._id === currentUserId;
+    const isOwnStory = currentGroup?.user._id === currentUserId;
 
     // Fetch viewers for own story
     const { data: viewersData, isLoading: viewersLoading } = useStoryViewers(
@@ -252,13 +252,24 @@ export default function StoryViewer({
 
         try {
             // Get or create conversation with story owner
-            const storyOwnerId = currentGroup._id;
-            const conversationResponse = await conversationService.getConversationByUserId(storyOwnerId);
+            const storyOwnerId = currentGroup.user._id;
+
+            // Get all conversations of current user and find DIRECT conversation with story owner
+            const conversationResponse = await conversationService.getConversationByUserId(currentUserId);
 
             let conversationId: string | undefined;
             if (conversationResponse.data && conversationResponse.data.length > 0) {
-                conversationId = conversationResponse.data[0]._id;
-            } else {
+                // Find DIRECT conversation where both currentUser and storyOwner are participants
+                const directConv = conversationResponse.data.find(conv =>
+                    conv.type === 'DIRECT' &&
+                    conv.participants.some(p => p.user._id === storyOwnerId)
+                );
+                if (directConv) {
+                    conversationId = directConv._id;
+                }
+            }
+
+            if (!conversationId) {
                 // Create new conversation via socket
                 socket.emit('createConversation', {
                     participantId: storyOwnerId,
@@ -273,14 +284,19 @@ export default function StoryViewer({
                 throw new Error('Could not get or create conversation');
             }
 
-            // Send message with story reference via socket
-            const messageContent = `[Đã phản hồi tin của bạn${currentStory.caption ? `: "${currentStory.caption}"` : ''}]\n${replyText}`;
-
-            socket.emit('sendMessage', {
+            // Send message with story reply type
+            socket.emit('message', {
                 conversationId,
                 senderId: currentUserId,
-                content: messageContent,
-                type: 'TEXT',
+                content: replyText,
+                type: 'STORY_REPLY',
+                storyReply: {
+                    storyId: currentStory._id,
+                    storyMediaUrl: currentStory.mediaUrl,
+                    storyOwnerId: storyOwnerId,
+                    storyOwnerName: `${currentGroup.user.firstName} ${currentGroup.user.lastName}`,
+                    storyCaption: currentStory.caption || '',
+                },
             });
 
             setReplyText('');
@@ -593,7 +609,10 @@ export default function StoryViewer({
                                     ),
                                 }}
                             />
-                            <FloatingReactions onReactionComplete={handleReaction} />
+                            <StoryReactions
+                                onReactionComplete={handleReaction}
+                                storyOwnerName={`${currentGroup.user.firstName} ${currentGroup.user.lastName}`}
+                            />
                         </Box>
                     )}
 

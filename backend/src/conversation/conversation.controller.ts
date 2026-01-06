@@ -7,7 +7,7 @@ import { Account } from 'src/account/entities/account.entity';
 
 @Controller('conversation')
 export class ConversationController {
-  constructor(private readonly conversationService: ConversationService) { }
+  constructor(private readonly conversationService: ConversationService) {}
 
   @Post()
   create(@Body() createConversationDto: CreateConversationDto) {
@@ -15,10 +15,9 @@ export class ConversationController {
   }
 
   @Get()
-  findAll() {
-    return this.conversationService.findAll();
+  findAll(@UserInfo() user: Account) {
+    return this.conversationService.findConversationByUserId(user._id.toString());
   }
-
 
   @Get('detail/:id')
   findOne(@Param('id') id: string) {

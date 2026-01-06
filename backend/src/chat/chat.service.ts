@@ -87,10 +87,16 @@ export class ChatService {
         .sort({ createdAt: -1 }) // Newest first for pagination
         .limit(limit)
         .populate('senderId', 'firstName lastName _id avatar')
-        .populate({
-          path: 'replyTo',
-          populate: { path: 'senderId', select: 'firstName lastName _id' },
-        })
+        .populate([
+          {
+            path: 'replyTo',
+            populate: [{ path: 'senderId', select: 'firstName lastName _id' }],
+          },
+          {
+            path: 'postId',
+            populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+          },
+        ])
         .lean(),
       this.messageModel.countDocuments({ conversationId, isDeleted: { $ne: true } }),
     ]);
@@ -116,7 +122,38 @@ export class ChatService {
     const query = {
       conversationId,
       isDeleted: { $ne: true },
-      $or: [{ type: 'IMAGE' }, { type: 'VIDEO' }, { attachments: { $exists: true, $ne: [] } }],
+      $or: [
+        { type: 'IMAGE' },
+        { type: 'VIDEO' },
+        { 'attachments.mediaType': { $in: ['IMAGE', 'VIDEO'] } },
+      ],
+    };
+
+    const [messages, total] = await Promise.all([
+      this.messageModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      this.messageModel.countDocuments(query),
+    ]);
+
+    return {
+      data: messages,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      },
+    };
+  }
+
+  // Get file messages (documents/RAW files) for a conversation with pagination
+  async findFileMessages(conversationId: string, page: number = 1, limit: number = 20) {
+    const skip = (page - 1) * limit;
+
+    const query = {
+      conversationId,
+      isDeleted: { $ne: true },
+      $or: [{ type: 'FILE' }, { 'attachments.mediaType': 'RAW' }],
     };
 
     const [messages, total] = await Promise.all([

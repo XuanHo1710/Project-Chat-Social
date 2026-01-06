@@ -1,3 +1,5 @@
+import { PostType } from "@/types/post";
+
 export type EmotionType = "LIKE" | "LOVE" | "FUNNY" | "SAD" | "ANGRY" | "WOW";
 
 export type MessageType =
@@ -42,7 +44,7 @@ export interface MessageResponse {
 
   replyTo?: MessageResponse;
 
-  postId?: string;
+  postId?: PostType;
 
   // Story reply fields
   storyReply?: {

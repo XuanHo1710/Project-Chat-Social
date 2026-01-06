@@ -49,9 +49,7 @@ const REACTIONS = [
 
 export default function StoryReactions({ onReactionComplete, storyOwnerName }: StoryReactionsProps) {
     const [reactionBubbles, setReactionBubbles] = useState<ReactionBubble[]>([]);
-    const [pendingReaction, setPendingReaction] = useState<string | null>(null);
     const [reactionLabel, setReactionLabel] = useState<string>('');
-    const [clickCount, setClickCount] = useState(0);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const labelTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -59,7 +57,6 @@ export default function StoryReactions({ onReactionComplete, storyOwnerName }: S
     const addReactionBubble = useCallback((emoji: string) => {
         const id = Date.now() + Math.random();
         setReactionBubbles(prev => [...prev.slice(-4), { id, emoji }]); // Keep max 5 bubbles
-        setClickCount(prev => prev + 1);
 
         // Remove after animation
         setTimeout(() => {
@@ -71,14 +68,11 @@ export default function StoryReactions({ onReactionComplete, storyOwnerName }: S
     const handleReactionClick = useCallback((emoji: string, label: string) => {
         // Add bubble animation
         addReactionBubble(emoji);
-        
+
         // Show label
         setReactionLabel(label);
         if (labelTimerRef.current) clearTimeout(labelTimerRef.current);
         labelTimerRef.current = setTimeout(() => setReactionLabel(''), 2000);
-
-        // Update pending reaction
-        setPendingReaction(emoji);
 
         // Clear existing debounce timer
         if (debounceTimerRef.current) {
@@ -88,8 +82,6 @@ export default function StoryReactions({ onReactionComplete, storyOwnerName }: S
         // Debounce: wait 1.5s before sending to API
         debounceTimerRef.current = setTimeout(() => {
             onReactionComplete(emoji);
-            setPendingReaction(null);
-            setClickCount(0);
         }, 1500);
     }, [addReactionBubble, onReactionComplete]);
 
@@ -133,8 +125,8 @@ export default function StoryReactions({ onReactionComplete, storyOwnerName }: S
                         </Box>
                     ))}
                     {storyOwnerName && (
-                        <Typography 
-                            variant="caption" 
+                        <Typography
+                            variant="caption"
                             sx={{ color: 'white', ml: 0.5, whiteSpace: 'nowrap' }}
                         >
                             Đã gửi cho {storyOwnerName}

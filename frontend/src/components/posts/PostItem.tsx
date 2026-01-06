@@ -1,6 +1,6 @@
 'use client';
 import {
-    Box, Card, CardContent, Avatar, Typography, IconButton, Divider,
+    Box, Card, CardContent, Avatar, Typography, IconButton, Divider, keyframes
 } from '@mui/material';
 import {
     MoreHoriz as MoreIcon,
@@ -16,7 +16,13 @@ import ReactionListDialog from '@/components/posts/ReactionListDialog';
 import { PostType } from '@/types/post';
 import { HashtagContent } from '@/utils/hashtagParser';
 import { useReactionStore } from '@/stores/useReactionStore';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, forwardRef } from 'react';
+
+// Highlight animation
+const highlightPulse = keyframes`
+  0%, 100% { box-shadow: 0 0 0 0 rgba(24, 119, 242, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(24, 119, 242, 0.3); }
+`;
 
 interface PostItemProps {
     post: PostType;
@@ -26,17 +32,19 @@ interface PostItemProps {
     handleOpenShare: (post: PostType) => void;
     renderPostMedia: (post: PostType) => React.ReactNode;
     PrivacyIconComponent: React.ElementType;
+    isHighlighted?: boolean;
 }
 
-export default function PostItem({
+const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
     post,
     userId,
     handleOpenMenu,
     handleOpenComments,
     handleOpenShare,
     renderPostMedia,
-    PrivacyIconComponent
-}: PostItemProps) {
+    PrivacyIconComponent,
+    isHighlighted = false
+}, ref) {
     const [reactionListOpen, setReactionListOpen] = useState(false);
 
     // Use global store for reaction state
@@ -58,7 +66,18 @@ export default function PostItem({
     };
 
     return (
-        <Card key={post._id} sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+        <Card
+            ref={ref}
+            sx={{
+                mb: 2,
+                borderRadius: 2,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                ...(isHighlighted && {
+                    border: '2px solid #1877f2',
+                    animation: `${highlightPulse} 1.5s ease-in-out 3`,
+                })
+            }}
+        >
             <CardContent sx={{ p: 2 }}>
                 {/* Post Header */}
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -136,7 +155,6 @@ export default function PostItem({
                 </Box>
             </CardContent>
 
-            {/* Reaction List Dialog */}
             <ReactionListDialog
                 open={reactionListOpen}
                 onClose={() => setReactionListOpen(false)}
@@ -145,4 +163,6 @@ export default function PostItem({
             />
         </Card>
     )
-}
+});
+
+export default PostItem;

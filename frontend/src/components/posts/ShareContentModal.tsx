@@ -16,25 +16,19 @@ import {
     WhatsApp as WhatsAppIcon,
     Message as MessageIcon,
 } from '@mui/icons-material';
-import { PostPrivacy } from '@/types/post';
+import { PostPrivacy, PostType } from '@/types/post';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import { UserLoginType } from '@/types/account';
+import { useState } from 'react';
+import SharePostModal from './SharePostModal';
+import { useDisplayListFriends } from '@/queries/useRelationshipQueries';
 
 // Privacy options
 const privacyOptions = [
     { id: 'PUBLIC' as PostPrivacy, icon: PublicIcon, label: 'Công khai', description: 'Bất kỳ ai ở trên hoặc ngoài Facebook' },
     { id: 'FRIEND' as PostPrivacy, icon: PeopleIcon, label: 'Bạn bè', description: 'Bạn bè của bạn trên Facebook' },
     { id: 'PRIVATE' as PostPrivacy, icon: LockIcon, label: 'Chỉ mình tôi', description: 'Chỉ mình bạn' },
-];
-
-// Mock friends for share modal
-const mockFriends = [
-    { id: 1, name: 'Huy Nguyen', avatar: '', isOnline: false },
-    { id: 2, name: 'Mạnh Cường', avatar: '', isOnline: false },
-    { id: 3, name: 'Hồ Minh Quân', avatar: '', isOnline: true },
-    { id: 4, name: 'Trường Nguyễn', avatar: '', isOnline: false },
-    { id: 5, name: 'Jupiter Nguyễn', avatar: '', isOnline: true },
 ];
 
 // Share options
@@ -47,8 +41,12 @@ const shareOptions = [
 ];
 
 
-export default function ShareContentModal({ handleCloseShare, user, sharePrivacy, shareCaption, setShareCaption, showEmojiPicker, setShowEmojiPicker, handleEmojiSelect }: { handleCloseShare: () => void, user: UserLoginType | null, sharePrivacy: string, shareCaption: string, setShareCaption: React.Dispatch<React.SetStateAction<string>>, showEmojiPicker: boolean, setShowEmojiPicker: React.Dispatch<React.SetStateAction<boolean>>, handleEmojiSelect: (emoji: { native: string }) => void }) {
+export default function ShareContentModal({ handleCloseShare, user, sharePrivacy, shareCaption, setShareCaption, showEmojiPicker, setShowEmojiPicker, handleEmojiSelect, sharingPost }: { handleCloseShare: () => void, user: UserLoginType | null, sharePrivacy: string, shareCaption: string, setShareCaption: React.Dispatch<React.SetStateAction<string>>, showEmojiPicker: boolean, setShowEmojiPicker: React.Dispatch<React.SetStateAction<boolean>>, handleEmojiSelect: (emoji: { native: string }) => void, sharingPost: PostType | null }) {
     const getSharePrivacyLabel = () => privacyOptions.find(p => p.id === sharePrivacy)?.label || 'Công khai';
+
+    // State for messenger share modal
+    const [openMessengerShare, setOpenMessengerShare] = useState(false);
+    const { data: friendsData, isLoading: friendsLoading } = useDisplayListFriends(user?.id || "");
 
 
     return (
@@ -144,11 +142,15 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                     <IconButton sx={{ p: 0 }}>
                         <ArrowBackIcon sx={{ color: '#65676b' }} />
                     </IconButton>
-                    {mockFriends.map((friend) => (
-                        <Box key={friend.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
+                    {!friendsLoading && friendsData && friendsData?.data.map((friend) => (
+                        <Box
+                            key={friend._id}
+                            sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
+                            onClick={() => setOpenMessengerShare(true)}
+                        >
                             <Box sx={{ position: 'relative' }}>
                                 <Avatar sx={{ width: 56, height: 56 }} src={friend.avatar} />
-                                {friend.isOnline && (
+                                {friend.status === "ACTIVE" && (
                                     <Box sx={{
                                         position: 'absolute', bottom: 2, right: 2,
                                         width: 14, height: 14, borderRadius: '50%',
@@ -156,10 +158,13 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                                     }} />
                                 )}
                             </Box>
-                            <Typography sx={{ fontSize: 12, color: '#050505', textAlign: 'center', maxWidth: 64, mt: 0.5 }} noWrap>{friend.name}</Typography>
+                            <Typography sx={{ fontSize: 12, color: '#050505', textAlign: 'center', maxWidth: 64, mt: 0.5 }} noWrap>{friend.firstName + ' ' + friend.lastName}</Typography>
                         </Box>
                     ))}
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
+                    <Box
+                        sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
+                        onClick={() => setOpenMessengerShare(true)}
+                    >
                         <Box sx={{ width: 56, height: 56, borderRadius: '50%', bgcolor: '#e4e6eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <MoreIcon sx={{ color: '#050505' }} />
                         </Box>
@@ -173,7 +178,18 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                 <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505', mb: 1.5 }}>Chia sẻ lên</Typography>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                     {shareOptions.map((option) => (
-                        <Box key={option.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', '&:hover': { opacity: 0.8 } }}>
+                        <Box
+                            key={option.id}
+                            sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                            onClick={() => {
+                                if (option.id === 'messenger') {
+                                    setOpenMessengerShare(true);
+                                } else if (option.id === 'copy') {
+                                    navigator.clipboard.writeText(`${window.location.origin}/post/${sharingPost?._id}`);
+                                    alert('Đã sao chép liên kết!');
+                                }
+                            }}
+                        >
                             <Box sx={{
                                 width: 56, height: 56, borderRadius: '50%',
                                 bgcolor: option.id === 'messenger' ? '#0084ff' : option.id === 'whatsapp' ? '#25d366' : '#e4e6eb',
@@ -186,6 +202,16 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                     ))}
                 </Box>
             </Box>
+
+            {/* Share Post Modal for Messenger */}
+            {sharingPost && (
+                <SharePostModal
+                    open={openMessengerShare}
+                    onClose={() => setOpenMessengerShare(false)}
+                    post={sharingPost}
+                    currentUserId={user?.id || ''}
+                />
+            )}
         </Box>
     );
 }

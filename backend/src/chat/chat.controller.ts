@@ -46,6 +46,20 @@ export class ChatController {
     );
   }
 
+  // Get file messages (documents) for a conversation
+  @Get('/messages/:id/files')
+  findFileMessages(
+    @Param('id') conversationId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.chatService.findFileMessages(
+      conversationId,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 20
+    );
+  }
+
   @Get('/:id')
   findOne(@Param('id') id: string) {
     return this.chatService.findOne(id);

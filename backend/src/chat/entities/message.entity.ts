@@ -11,6 +11,7 @@ export enum MessageType {
   FILE = 'FILE',
   SYSTEM = 'SYSTEM', // Thông báo hệ thống (vd: X đã tham gia nhóm)
   POST = 'POST', // Bài viết được chia sẻ
+  STORY_REPLY = 'STORY_REPLY', // Trả lời story
 }
 
 export enum MessageStatus {
@@ -72,6 +73,24 @@ export class Message {
 
   @Prop({ type: Types.ObjectId, ref: 'Post' })
   postId?: Types.ObjectId; // ID của bài viết được chia sẻ (cho type=POST)
+
+  // Story reply data (cho type=STORY_REPLY)
+  @Prop({
+    type: {
+      storyId: String,
+      storyMediaUrl: String,
+      storyOwnerId: String,
+      storyOwnerName: String,
+      storyCaption: String,
+    },
+  })
+  storyReply?: {
+    storyId: string;
+    storyMediaUrl: string;
+    storyOwnerId: string;
+    storyOwnerName: string;
+    storyCaption?: string;
+  };
 
   // @Prop({ type: Object })
   // postData?: any; // Dữ liệu bài viết được cache (để hiển thị nhanh)

@@ -21,17 +21,10 @@ import {
 import { useStoriesFeed, useCreateStory } from '@/queries/useStoryQueries';
 import { uploadChatMedia } from '@/services/cloudinary.service';
 import StoryViewer from '@/components/story/StoryViewer';
+import { UserLoginType } from '@/types/account';
 
-interface StoriesBarProps {
-    currentUser: {
-        _id: string;
-        firstName: string;
-        lastName: string;
-        avatar: string;
-    };
-}
 
-export default function StoriesBar({ currentUser }: StoriesBarProps) {
+export default function StoriesBar({ currentUser }: { currentUser: UserLoginType }) {
     const { data: storyGroups, isLoading } = useStoriesFeed();
     const createStoryMutation = useCreateStory();
 
@@ -123,13 +116,6 @@ export default function StoriesBar({ currentUser }: StoriesBarProps) {
         setViewerOpen(true);
     };
 
-    // Access .data from APIResponse
-    const storyGroupsData = storyGroups?.data || [];
-
-    // Find own stories
-    const ownStoryGroup = storyGroupsData.find(g => g._id === currentUser._id);
-    const otherStoryGroups = storyGroupsData.filter(g => g._id !== currentUser._id) || [];
-
     return (
         <>
             <Box
@@ -146,9 +132,11 @@ export default function StoriesBar({ currentUser }: StoriesBarProps) {
                     '&::-webkit-scrollbar-thumb': { bgcolor: '#ccc', borderRadius: 3 },
                 }}
             >
+
+
                 {/* Create Story Card */}
                 <Box
-                    onClick={() => ownStoryGroup ? handleStoryClick(0) : setCreateDialogOpen(true)}
+                    onClick={() => setCreateDialogOpen(true)}
                     sx={{
                         width: 110,
                         height: 200,
@@ -161,83 +149,59 @@ export default function StoriesBar({ currentUser }: StoriesBarProps) {
                         '&:hover': { opacity: 0.9 },
                     }}
                 >
-                    {ownStoryGroup ? (
-                        <>
-                            <Box
-                                component={ownStoryGroup.latestStory.type === 'VIDEO' ? 'video' : 'img'}
-                                src={ownStoryGroup.latestStory.mediaUrl}
-                                sx={{
-                                    width: '100%',
-                                    height: '100%',
-                                    objectFit: 'cover',
-                                }}
-                            />
+                    <>
+                        <Box
+                            component="img"
+                            src={currentUser.avatar}
+                            sx={{
+                                width: '100%',
+                                height: '75%',
+                                objectFit: 'cover',
+                            }}
+                        />
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                height: '25%',
+                                bgcolor: 'white',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
                             <Box
                                 sx={{
                                     position: 'absolute',
-                                    top: 8,
-                                    left: 8,
-                                    border: ownStoryGroup.hasUnviewed ? '3px solid #1877f2' : '3px solid #65676b',
+                                    top: -18,
+                                    bgcolor: '#1877f2',
                                     borderRadius: '50%',
-                                }}
-                            >
-                                <Avatar src={currentUser.avatar} sx={{ width: 40, height: 40 }} />
-                            </Box>
-                        </>
-                    ) : (
-                        <>
-                            <Box
-                                component="img"
-                                src={currentUser.avatar}
-                                sx={{
-                                    width: '100%',
-                                    height: '75%',
-                                    objectFit: 'cover',
-                                }}
-                            />
-                            <Box
-                                sx={{
-                                    position: 'absolute',
-                                    bottom: 0,
-                                    left: 0,
-                                    right: 0,
-                                    height: '25%',
-                                    bgcolor: 'white',
+                                    border: '4px solid white',
+                                    width: 36,
+                                    height: 36,
                                     display: 'flex',
-                                    flexDirection: 'column',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                 }}
                             >
-                                <Box
-                                    sx={{
-                                        position: 'absolute',
-                                        top: -18,
-                                        bgcolor: '#1877f2',
-                                        borderRadius: '50%',
-                                        border: '4px solid white',
-                                        width: 36,
-                                        height: 36,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                    }}
-                                >
-                                    <AddIcon sx={{ color: 'white', fontSize: 20 }} />
-                                </Box>
-                                <Typography fontSize={12} color="#050505" fontWeight={600} mt={1}>
-                                    Tạo tin
-                                </Typography>
+                                <AddIcon sx={{ color: 'white', fontSize: 20 }} />
                             </Box>
-                        </>
-                    )}
+                            <Typography fontSize={12} color="#050505" fontWeight={600} mt={1}>
+                                Tạo tin
+                            </Typography>
+                        </Box>
+                    </>
+
                 </Box>
 
                 {/* Friend Stories */}
-                {otherStoryGroups.map((group, index) => (
+                {storyGroups?.data.map((group, index) => (
                     <Box
                         key={group._id}
-                        onClick={() => handleStoryClick(ownStoryGroup ? index + 1 : index)}
+                        onClick={() => handleStoryClick(index)}
                         sx={{
                             width: 110,
                             height: 200,
@@ -443,7 +407,7 @@ export default function StoriesBar({ currentUser }: StoriesBarProps) {
                 <StoryViewer
                     storyGroups={storyGroups.data}
                     initialGroupIndex={selectedGroupIndex}
-                    currentUserId={currentUser._id}
+                    currentUserId={currentUser.id}
                     onClose={() => setViewerOpen(false)}
                 />
             )}

@@ -1,12 +1,13 @@
 'use client';
 import {
-    Box, Card, CardContent, Avatar, Typography, IconButton, Divider,
+    Box, Card, CardContent, Avatar, Typography, Divider,
     Modal, Menu, Skeleton
 } from '@mui/material';
 import {
     VideoCall as VideoIcon,
     PhotoLibrary as PhotoIcon,
     Mood as MoodIcon,
+    PlayCircle as PlayIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useState, useMemo } from 'react';

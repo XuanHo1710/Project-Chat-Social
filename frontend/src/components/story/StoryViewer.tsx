@@ -394,54 +394,54 @@ export default function StoryViewer({
                     )}
 
                     {/* Reply/Reaction bar */}
-                    {!isOwnStory && (
-                        <Box
+
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            p: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            bgcolor: 'rgba(0,0,0,0.5)',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <TextField
+                            fullWidth
+                            placeholder="Gửi tin nhắn..."
+                            size="small"
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            onFocus={() => setIsPaused(true)}
+                            onBlur={() => setIsPaused(false)}
                             sx={{
-                                position: 'absolute',
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                p: 2,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                                bgcolor: 'rgba(0,0,0,0.5)',
+                                '& .MuiOutlinedInput-root': {
+                                    color: 'white',
+                                    bgcolor: 'rgba(255,255,255,0.1)',
+                                    borderRadius: 5,
+                                    '& fieldset': { border: 'none' },
+                                },
                             }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <TextField
-                                fullWidth
-                                placeholder="Gửi tin nhắn..."
-                                size="small"
-                                value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
-                                onFocus={() => setIsPaused(true)}
-                                onBlur={() => setIsPaused(false)}
+                        />
+                        {REACTIONS.map((emoji) => (
+                            <IconButton
+                                key={emoji}
+                                onClick={() => handleReaction(emoji)}
                                 sx={{
-                                    '& .MuiOutlinedInput-root': {
-                                        color: 'white',
-                                        bgcolor: 'rgba(255,255,255,0.1)',
-                                        borderRadius: 5,
-                                        '& fieldset': { border: 'none' },
-                                    },
+                                    fontSize: 24,
+                                    p: 0.5,
+                                    '&:hover': { transform: 'scale(1.2)' },
+                                    transition: 'transform 0.2s',
                                 }}
-                            />
-                            {REACTIONS.map((emoji) => (
-                                <IconButton
-                                    key={emoji}
-                                    onClick={() => handleReaction(emoji)}
-                                    sx={{
-                                        fontSize: 24,
-                                        p: 0.5,
-                                        '&:hover': { transform: 'scale(1.2)' },
-                                        transition: 'transform 0.2s',
-                                    }}
-                                >
-                                    {emoji}
-                                </IconButton>
-                            ))}
-                        </Box>
-                    )}
+                            >
+                                {emoji}
+                            </IconButton>
+                        ))}
+                    </Box>
+
                 </Box>
             </Box>
         </Dialog>

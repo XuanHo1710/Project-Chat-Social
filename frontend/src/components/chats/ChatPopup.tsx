@@ -27,6 +27,8 @@ import { useRouter } from 'next/navigation';
 import { formatTime } from '@/utils/formatDate';
 import { ConversationResponseData } from '@/types/conversation';
 import { CLIENT_PATH } from '@/constants/paths';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 
 
 interface ChatPopupProps {
@@ -39,6 +41,9 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
     const router = useRouter();
     const [tabValue, setTabValue] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
+    const { user } = useAuthStore();
+
+    const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
 
     const handleConversationClick = () => {
         router.push(CLIENT_PATH.CHAT);
@@ -50,6 +55,20 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
         const fullName = `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}`.toLowerCase();
         return fullName.includes(searchQuery.toLowerCase());
     });
+
+    const getUserStatus = (userId: string, originalStatus?: string, originalLastActive?: string) => {
+        const storeStatus = onlineUsers[userId];
+        if (storeStatus) {
+            return {
+                isOnline: storeStatus.isOnline,
+                lastActive: storeStatus.lastActive
+            };
+        }
+        return {
+            isOnline: originalStatus === 'ACTIVE',
+            lastActive: originalLastActive
+        };
+    };
 
     return (
         <Paper
@@ -193,19 +212,32 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                 <List disablePadding>
                     {!isLoading &&
                         filteredConversations.map((conversation) => {
-                            const chatUser = conversation.participants.find((p) => p.user._id !== userId)?.user;
+                            const chatUser = conversation.participants.find((p) => p.user._id !== user?.id)?.user;
+                            const nickname = conversation.participants.find((p) => p.user._id !== user?.id)?.nickname;
+                            const fullName = (!nickname || nickname === "") ? `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}` : nickname;
+
+                            const status = chatUser ? getUserStatus(chatUser._id, chatUser.status, chatUser.lastActive) : { isOnline: false, lastActive: undefined };
 
                             return (
                                 <ListItemButton
                                     key={conversation._id}
-                                    onClick={() => handleConversationClick()}
+                                    onClick={() => {
+                                        handleConversationClick();
+                                    }}
                                     sx={{
                                         py: 1.5,
                                         px: 2,
+                                        gap: 1,
+                                        bgcolor: 'transparent',
                                         '&:hover': {
                                             bgcolor: '#f0f2f5',
                                         },
-                                        gap: 1,
+                                        '&.Mui-selected': {
+                                            bgcolor: '#e7f3ff',
+                                            '&:hover': {
+                                                bgcolor: '#e7f3ff',
+                                            },
+                                        },
                                     }}
                                 >
                                     <ListItemAvatar>
@@ -215,10 +247,11 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                             variant="dot"
                                             sx={{
                                                 '& .MuiBadge-badge': {
-                                                    backgroundColor: '#31a24c',
-                                                    border: '2px solid white',
-                                                    width: 10,
-                                                    height: 10,
+                                                    backgroundColor: status.isOnline ? '#31a24c' : 'transparent',
+                                                    border: status.isOnline ? '2px solid white' : 'none',
+                                                    width: 15,
+                                                    borderRadius: '50%',
+                                                    height: 15,
                                                 },
                                             }}
                                         >
@@ -234,43 +267,75 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                     <ListItemText
                                         primary={
                                             <Typography noWrap fontWeight={600} fontSize={15} color="#050505">
-                                                {chatUser?.firstName} {chatUser?.lastName}
+                                                {fullName}
                                             </Typography>
                                         }
+                                        secondaryTypographyProps={{ component: 'div' }}
                                         secondary={
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                 <Typography
                                                     noWrap
                                                     variant="body2"
                                                     color="#65676b"
                                                     component="span"
                                                     fontSize={13}
-                                                    sx={{ flex: 1 }}
+                                                    sx={{ flex: 1, maxWidth: '75%' }}
                                                 >
-                                                    {conversation.lastMessage
-                                                        ? conversation.lastMessage.content
-                                                        : 'Bắt đầu cuộc trò chuyện mới'}
+                                                    {(() => {
+                                                        const lastMsg = conversation.lastMessage;
+                                                        if (!lastMsg) return 'Bắt đầu cuộc trò chuyện mới';
+                                                        // Simplified display without sender prefix
+
+                                                        // Return based on message type
+                                                        switch (lastMsg.type) {
+                                                            case 'IMAGE':
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một ảnh' : fullName + ' đã gửi một ảnh';
+                                                            case 'VIDEO':
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một video' : fullName + ' đã gửi một video';
+                                                            case 'FILE':
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một tệp' : fullName + ' đã gửi một tệp';
+                                                            case 'POST':
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã chia sẻ bài viết' : fullName + ' đã chia sẻ bài viết';
+                                                            case 'SYSTEM':
+                                                                return lastMsg.content || 'Thông báo';
+                                                            default:
+                                                                // Check if has attachments
+                                                                if (lastMsg.attachments && lastMsg.attachments.length > 0 && !lastMsg.content) {
+                                                                    return lastMsg.senderId === user?.id ? 'Bạn đã gửi ảnh' : fullName + ' đã gửi ảnh';
+                                                                }
+                                                                return lastMsg.content || 'Bắt đầu cuộc trò chuyện mới';
+                                                        }
+                                                    })()}
                                                 </Typography>
-                                                <Typography variant="caption" color="#65676b" fontSize={12}>
+                                                <Typography variant="caption" color="#65676b" fontSize={12} sx={{ whiteSpace: 'nowrap' }}>
                                                     · {conversation.lastMessageAt ? formatTime(conversation.lastMessageAt) : ''}
                                                 </Typography>
                                             </Box>
                                         }
                                     />
-                                    {conversation.lastMessage && (
-                                        <Badge
-                                            badgeContent=" "
-                                            sx={{
-                                                '& .MuiBadge-badge': {
-                                                    backgroundColor: '#1877f2',
-                                                    width: 12,
-                                                    height: 12,
-                                                    borderRadius: '50%',
-                                                    minWidth: 12,
-                                                },
-                                            }}
-                                        />
-                                    )}
+                                    {/* Unread Count Badge */}
+                                    {(() => {
+                                        const unreadCount = conversation.unreadCount?.[user?.id || ''] || 0;
+                                        if (unreadCount > 0) {
+                                            return (
+                                                <Badge
+                                                    badgeContent={unreadCount > 9 ? '9+' : unreadCount}
+                                                    sx={{
+                                                        '& .MuiBadge-badge': {
+                                                            backgroundColor: '#1877f2',
+                                                            color: 'white',
+                                                            fontSize: 11,
+                                                            fontWeight: 700,
+                                                            minWidth: 20,
+                                                            height: 20,
+                                                            borderRadius: '10px',
+                                                        },
+                                                    }}
+                                                />
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </ListItemButton>
                             );
                         })}

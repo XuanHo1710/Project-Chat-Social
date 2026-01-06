@@ -58,6 +58,7 @@ export class CloudinaryService implements OnModuleInit {
             resource_type: resourceType,
             folder: 'chat_attachments',
             public_id: safeFilename,
+            filename_override: filename,
           },
           (error, result) => {
             if (error) {
@@ -105,11 +106,13 @@ export class CloudinaryService implements OnModuleInit {
         mediaType = 'RAW';
       }
 
-      const result = await this.uploadMedia(file.buffer, file.originalname, mediaType);
+      const utf8FileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+
+      const result = await this.uploadMedia(file.buffer, utf8FileName, mediaType);
       return {
         ...result,
         mediaType,
-        fileName: file.originalname,
+        fileName: utf8FileName,
         fileSize: file.size,
       };
     });

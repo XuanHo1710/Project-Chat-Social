@@ -402,25 +402,24 @@ export default function ChatSidebar({
                                                     {(() => {
                                                         const lastMsg = conversation.lastMessage;
                                                         if (!lastMsg) return 'Bắt đầu cuộc trò chuyện mới';
-
                                                         // Simplified display without sender prefix
 
                                                         // Return based on message type
                                                         switch (lastMsg.type) {
                                                             case 'IMAGE':
-                                                                return 'Đã gửi một ảnh';
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một ảnh' : fullName + ' đã gửi một ảnh';
                                                             case 'VIDEO':
-                                                                return 'Đã gửi một video';
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một video' : fullName + ' đã gửi một video';
                                                             case 'FILE':
-                                                                return 'Đã gửi một tệp';
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một tệp' : fullName + ' đã gửi một tệp';
                                                             case 'POST':
-                                                                return 'Đã chia sẻ bài viết';
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã chia sẻ bài viết' : fullName + ' đã chia sẻ bài viết';
                                                             case 'SYSTEM':
                                                                 return lastMsg.content || 'Thông báo';
                                                             default:
                                                                 // Check if has attachments
                                                                 if (lastMsg.attachments && lastMsg.attachments.length > 0 && !lastMsg.content) {
-                                                                    return 'Đã gửi ảnh';
+                                                                    return lastMsg.senderId === user?.id ? 'Bạn đã gửi ảnh' : fullName + ' đã gửi ảnh';
                                                                 }
                                                                 return lastMsg.content || 'Bắt đầu cuộc trò chuyện mới';
                                                         }

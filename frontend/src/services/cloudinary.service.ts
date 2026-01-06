@@ -50,6 +50,7 @@ export const uploadChatMedia = async (
       headers: {
         "Content-Type": "multipart/form-data",
       },
+      timeout: 180000, // 3 minutes for large video uploads
     });
 
     // Handle wrapped response: { data: { success, results } }

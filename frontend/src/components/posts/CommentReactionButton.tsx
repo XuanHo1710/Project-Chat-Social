@@ -215,7 +215,7 @@ export default function CommentReactionButton({
                 <Box
                     onClick={handleClick}
                     sx={{
-                        display: localReaction ? "inline-flex" : "block",
+                        display: localReaction ? "inline-flex" : "flex",
                         alignItems: "center",
                         gap: 0.5,
                         cursor: "pointer",
@@ -232,7 +232,6 @@ export default function CommentReactionButton({
                             fontSize: 12,
                             color: currentReactionData?.color || "#65676b",
                             fontWeight: 600,
-                            lineHeight: 1,
                             "&:hover": { textDecoration: "underline" },
                         }}
                     >

@@ -3,9 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { Post, PostDocument, PostPrivacy } from './entities/post.entity';
+import { Post, PostDocument, PostPrivacy, MediaItem } from './entities/post.entity';
 import { HashtagService } from 'src/hashtag/hashtag.service';
 import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Injectable()
 export class PostService {
@@ -13,7 +14,8 @@ export class PostService {
     @InjectModel(Post.name)
     private postModel: Model<PostDocument>,
     private hashtagService: HashtagService,
-  ) { }
+    private cloudinaryService: CloudinaryService
+  ) {}
 
   async create(createPostDto: CreatePostDto): Promise<Post> {
     // Validate: phải có content hoặc media
@@ -36,7 +38,7 @@ export class PostService {
         createPostDto.content,
         savedPost._id.toString(),
         HashtagEntityType.POST,
-        createPostDto.userId,
+        createPostDto.userId
       );
     }
 
@@ -188,6 +190,24 @@ export class PostService {
       throw new BadRequestException('You can only edit your own posts');
     }
 
+    // Xóa media cũ không còn trong danh sách mới
+    if (updatePostDto.media !== undefined && post.media && post.media.length > 0) {
+      const newPublicIds = new Set((updatePostDto.media || []).map((m) => m.publicId));
+      const mediaToDelete = post.media
+        .filter((oldMedia) => oldMedia.publicId && !newPublicIds.has(oldMedia.publicId))
+        .map((media) => ({
+          publicId: media.publicId,
+          mediaType: media.mediaType === 'VIDEO' ? ('VIDEO' as const) : ('IMAGE' as const),
+        }));
+
+      if (mediaToDelete.length > 0) {
+        // Xóa async, không block response
+        this.cloudinaryService.deleteMultipleMedia(mediaToDelete).catch((err) => {
+          console.error('Failed to delete old media from Cloudinary:', err);
+        });
+      }
+    }
+
     const updatedPost = await this.postModel
       .findByIdAndUpdate(id, { $set: updatePostDto }, { new: true })
       .populate('userId', 'firstName lastName avatar username')
@@ -199,7 +219,7 @@ export class PostService {
         updatePostDto.content || '',
         id,
         HashtagEntityType.POST,
-        currentUserId,
+        currentUserId
       );
     }
 
@@ -218,6 +238,23 @@ export class PostService {
 
     if (post.userId.toString() !== currentUserId) {
       throw new BadRequestException('You can only delete your own posts');
+    }
+
+    // Xóa media trên Cloudinary nếu có
+    if (post.media && post.media.length > 0) {
+      const mediaToDelete = post.media
+        .filter((media) => media.publicId)
+        .map((media) => ({
+          publicId: media.publicId,
+          mediaType: media.mediaType === 'VIDEO' ? ('VIDEO' as const) : ('IMAGE' as const),
+        }));
+
+      if (mediaToDelete.length > 0) {
+        // Xóa async, không block response
+        this.cloudinaryService.deleteMultipleMedia(mediaToDelete).catch((err) => {
+          console.error('Failed to delete post media from Cloudinary:', err);
+        });
+      }
     }
 
     // Remove hashtag mappings

@@ -7,13 +7,9 @@ import {
     VideoCall as VideoIcon,
     PhotoLibrary as PhotoIcon,
     Mood as MoodIcon,
-    Add as AddIcon,
-    ArrowForward as ArrowForwardIcon,
-    ArrowBack as ArrowBackIcon,
-    PlayArrow as PlayIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useState, useRef, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useGetNewsFeed, useDeletePost } from '@/queries/usePostQueries';
 import { PostType, PostPrivacy, MediaItem } from '@/types/post';
 import CreatePostModal from '../posts/CreatePostModal';
@@ -25,24 +21,11 @@ import { getPrivacyIcon } from '@/utils/formatPost';
 import CommentContentModal from '@/components/posts/CommentContentModal';
 import ShareContentModal from '@/components/posts/ShareContentModal';
 import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
-
-
-const stories = [
-    { name: 'Tạo tin', isCreate: true },
-    { name: 'Đức Khoa Quach', avatar: '/avatar1.jpg' },
-    { name: '28Tech', avatar: '/avatar2.jpg' },
-    { name: 'Anime - My Heart', avatar: '/avatar3.jpg' },
-    { name: 'Trường Đại học Khoa học...', avatar: '/avatar4.jpg' },
-    { name: 'VTV24', avatar: '/avatar5.jpg' },
-    { name: 'F8 - Học Lập Trình', avatar: '/avatar6.jpg' },
-];
+import StoriesBar from '@/components/story/StoriesBar';
 
 
 export default function HomeFeed() {
     const { user } = useAuthStore();
-    const storiesRef = useRef<HTMLDivElement>(null);
-    const [showLeftArrow, setShowLeftArrow] = useState(false);
-    const [showRightArrow, setShowRightArrow] = useState(true);
 
     // Fetch posts from API
     const { data: postsData, isLoading: isLoadingPosts } = useGetNewsFeed({ page: 1, limit: 20 });
@@ -80,22 +63,6 @@ export default function HomeFeed() {
 
     // Get posts from API data
     const posts = useMemo(() => postsData?.data || [], [postsData]);
-
-    const scrollStories = (direction: 'left' | 'right') => {
-        if (storiesRef.current) {
-            const scrollAmount = 300;
-            const newScrollLeft = direction === 'left'
-                ? storiesRef.current.scrollLeft - scrollAmount
-                : storiesRef.current.scrollLeft + scrollAmount;
-            storiesRef.current.scrollTo({ left: newScrollLeft, behavior: 'smooth' });
-            setTimeout(() => {
-                if (storiesRef.current) {
-                    setShowLeftArrow(storiesRef.current.scrollLeft > 0);
-                    setShowRightArrow(storiesRef.current.scrollLeft < storiesRef.current.scrollWidth - storiesRef.current.clientWidth - 10);
-                }
-            }, 300);
-        }
-    };
 
     const handleOpenMenu = (event: React.MouseEvent<HTMLElement>, post: PostType) => {
         setMenuAnchor(event.currentTarget);
@@ -253,48 +220,7 @@ export default function HomeFeed() {
     return (
         <Box sx={{ maxWidth: 680, mx: 'auto', py: 2, px: { xs: 1, sm: 2 } }}>
             {/* Stories Section */}
-            <Card sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', position: 'relative' }}>
-                <Box sx={{ position: 'relative' }}>
-                    <Box ref={storiesRef} sx={{ p: 2, display: 'flex', gap: 1, overflowX: 'hidden', scrollBehavior: 'smooth', '&::-webkit-scrollbar': { display: 'none' } }}>
-                        {stories.map((story, index) => (
-                            <Box key={index} sx={{
-                                minWidth: 110, height: 190, borderRadius: 2, overflow: 'hidden', position: 'relative', cursor: 'pointer',
-                                border: story.isCreate ? '1px solid #e4e6eb' : 'none',
-                                bgcolor: story.isCreate ? 'white' : '#1877f2',
-                                backgroundImage: story.isCreate ? 'none' : 'linear-gradient(135deg, #1877f2 0%, #1a2a6c 100%)',
-                                '&:hover': { opacity: 0.9 },
-                            }}>
-                                {story.isCreate ? (
-                                    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                        <Box sx={{ flex: 1, bgcolor: '#f0f2f5', position: 'relative' }}>
-                                            <Avatar sx={{ width: '100%', height: '100%', borderRadius: 0 }} src={user?.avatar} />
-                                        </Box>
-                                        <Box sx={{ position: 'absolute', bottom: 30, left: '50%', transform: 'translateX(-50%)', bgcolor: '#1877f2', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '4px solid white' }}>
-                                            <AddIcon sx={{ color: 'white', fontSize: 20 }} />
-                                        </Box>
-                                        <Typography sx={{ fontSize: '13px', fontWeight: 600, textAlign: 'center', py: 1, color: '#050505' }}>Tạo tin</Typography>
-                                    </Box>
-                                ) : (
-                                    <>
-                                        <Avatar sx={{ width: 40, height: 40, position: 'absolute', top: 12, left: 12, border: '4px solid #1877f2' }} />
-                                        <Typography sx={{ position: 'absolute', bottom: 12, left: 12, right: 12, color: 'white', fontSize: '13px', fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>{story.name}</Typography>
-                                    </>
-                                )}
-                            </Box>
-                        ))}
-                    </Box>
-                    {showLeftArrow && (
-                        <IconButton onClick={() => scrollStories('left')} sx={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', bgcolor: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.2)', width: 48, height: 48, zIndex: 1, '&:hover': { bgcolor: '#f0f2f5' } }}>
-                            <ArrowBackIcon />
-                        </IconButton>
-                    )}
-                    {showRightArrow && (
-                        <IconButton onClick={() => scrollStories('right')} sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', bgcolor: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.2)', width: 48, height: 48, zIndex: 1, '&:hover': { bgcolor: '#f0f2f5' } }}>
-                            <ArrowForwardIcon />
-                        </IconButton>
-                    )}
-                </Box>
-            </Card>
+            {user && <StoriesBar currentUser={user} />}
 
             {/* Create Post */}
             <Card sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>

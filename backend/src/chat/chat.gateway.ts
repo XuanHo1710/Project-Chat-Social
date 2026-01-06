@@ -302,6 +302,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       const deletedMessage = await this.chatService.deleteMessage(data.messageId, userId);
+      // Xóa media liên quan nếu có
+
       this.server.to(`room:${data.conversationId}`).emit('message:deleted', deletedMessage);
       return { success: true, message: deletedMessage };
     } catch (err) {

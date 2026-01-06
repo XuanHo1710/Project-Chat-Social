@@ -27,6 +27,7 @@ import {
 import { MessageResponse, EmotionType, AttachmentData } from '@/types/chat';
 import { formatTime } from '@/utils/formatDate';
 import { Socket } from 'socket.io-client';
+import { handleDownload } from '@/utils/formatFile';
 
 const EMOTIONS: { type: EmotionType; emoji: string; label: string }[] = [
     { type: 'LIKE', emoji: '👍', label: 'Thích' },
@@ -301,16 +302,16 @@ export default function MessageItem({
                         <Box
                             key={`doc-${index}`}
                             component="a"
-                            href={url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            download={fileName}
+                            onClick={() => handleDownload(att.url, att.fileName)}
                             sx={{
                                 display: 'flex',
                                 alignItems: 'center',
+                                cursor: 'pointer',
                                 gap: 1.5,
                                 p: 1.5,
-                                bgcolor: isOwn ? 'rgba(255,255,255,0.1)' : '#fff',
+                                bgcolor: '#fff',
                                 borderRadius: 2,
                                 textDecoration: 'none',
                                 maxWidth: 280,
@@ -318,7 +319,7 @@ export default function MessageItem({
                                 border: isOwn ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e4e6eb',
                                 transition: 'all 0.2s',
                                 '&:hover': {
-                                    bgcolor: isOwn ? 'rgba(255,255,255,0.2)' : '#f0f2f5',
+                                    bgcolor: '#f0f2f5',
                                 }
                             }}
                         >
@@ -328,22 +329,22 @@ export default function MessageItem({
                                     fontSize={13}
                                     fontWeight={500}
                                     noWrap
-                                    sx={{ color: isOwn ? '#fff' : '#050505' }}
+                                    sx={{ color: '#050505' }}
                                 >
                                     {fileName}
                                 </Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                     {fileSize && (
-                                        <Typography fontSize={11} sx={{ color: isOwn ? 'rgba(255,255,255,0.7)' : '#65676b' }}>
+                                        <Typography fontSize={11} sx={{ color: '#65676b' }}>
                                             {formatFileSize(fileSize)}
                                         </Typography>
                                     )}
-                                    <Typography fontSize={11} sx={{ color: isOwn ? 'rgba(255,255,255,0.7)' : '#65676b' }}>
+                                    <Typography fontSize={11} sx={{ color: '#65676b' }}>
                                         {fileSize ? ' · ' : ''}Tải về để xem lâu dài
                                     </Typography>
                                 </Box>
                             </Box>
-                            <DownloadIcon sx={{ color: isOwn ? '#fff' : '#65676b', fontSize: 24 }} />
+                            <DownloadIcon sx={{ color: '#65676b', fontSize: 24 }} />
                         </Box>
                     );
                 })}

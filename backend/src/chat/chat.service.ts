@@ -10,12 +10,14 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Conversation, ConversationDocument } from 'src/conversation/entities/conversation.entity';
 import { Model, Types } from 'mongoose';
 import { Message, EmotionType, MessageType } from 'src/chat/entities/message.entity';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Injectable()
 export class ChatService {
   constructor(
     @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
-    @InjectModel(Message.name) private readonly messageModel: Model<Message>
+    @InjectModel(Message.name) private readonly messageModel: Model<Message>,
+    private readonly cloudinaryService: CloudinaryService
   ) {}
 
   async sendMessage(createMessageDto: CreateMessageDto) {
@@ -233,7 +235,7 @@ export class ChatService {
       .exec();
   }
 
-  // 4. Xóa tin nhắn (soft delete)
+  // 4. Xóa tin nhắn (soft delete) + xóa media trên Cloudinary
   async deleteMessage(messageId: string, userId: string) {
     const message = await this.messageModel.findById(messageId);
     if (!message) {
@@ -245,6 +247,27 @@ export class ChatService {
       throw new ForbiddenException('Bạn chỉ có thể xóa tin nhắn của mình');
     }
 
+    // Xóa media trên Cloudinary nếu có attachments
+    if (message.attachments && message.attachments.length > 0) {
+      const mediaToDelete = message.attachments.map((attachment) => {
+        // Extract publicId from URL: chat_attachments/xxxxx
+        const urlParts = attachment.url.split('/');
+        const fileNameWithExt = urlParts[urlParts.length - 1];
+        const folderName = urlParts[urlParts.length - 2];
+        const publicId = `${folderName}/${fileNameWithExt.split('.')[0]}`;
+
+        return {
+          publicId,
+          mediaType: attachment.mediaType as 'IMAGE' | 'VIDEO' | 'RAW',
+        };
+      });
+
+      // Xóa media song song (không block response)
+      this.cloudinaryService.deleteMultipleMedia(mediaToDelete).catch((err) => {
+        console.error('Failed to delete media from Cloudinary:', err);
+      });
+    }
+
     return await this.messageModel
       .findByIdAndUpdate(
         messageId,
@@ -253,6 +276,7 @@ export class ChatService {
             isDeleted: true,
             deletedAt: new Date(),
             content: 'Tin nhắn đã bị xóa',
+            attachments: [], // Clear attachments
           },
         },
         { new: true }
@@ -339,8 +363,8 @@ export class ChatService {
   }
 
   // Legacy methods
-  update(id: number, updateMessageDto: UpdateMessageDto) {
-    return `This action updates a #${id} chat`;
+  async update(id: string, updateMessageDto: UpdateMessageDto) {
+    return await this.messageModel.updateOne({ _id: id }, updateMessageDto).exec();
   }
 
   remove(id: number) {

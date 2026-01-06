@@ -1,4 +1,13 @@
-import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  UseInterceptors,
+  UploadedFiles,
+} from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { CloudinaryService, DeleteMediaDto } from './cloudinary.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
@@ -9,7 +18,7 @@ class DeleteMediaRequestDto {
 
 @Controller('cloudinary')
 export class CloudinaryController {
-  constructor(private readonly cloudinaryService: CloudinaryService) { }
+  constructor(private readonly cloudinaryService: CloudinaryService) {}
 
   /**
    * Upload multiple media files to Cloudinary
@@ -17,7 +26,7 @@ export class CloudinaryController {
    */
   @Post('upload')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FilesInterceptor('files', 10)) // max 10 files
+  @UseInterceptors(FilesInterceptor('files', 10))
   async uploadMedia(@UploadedFiles() files: Express.Multer.File[]) {
     if (!files || files.length === 0) {
       return { success: false, error: 'No files provided', results: [] };

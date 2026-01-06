@@ -47,13 +47,13 @@ export class ChatController {
   }
 
   @Get('/:id')
-  findONe(@Param('id') id: string) {
+  findOne(@Param('id') id: string) {
     return this.chatService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateMessageDto: UpdateMessageDto) {
-    return this.chatService.update(+id, updateMessageDto);
+    return this.chatService.update(id, updateMessageDto);
   }
 
   @Delete(':id')

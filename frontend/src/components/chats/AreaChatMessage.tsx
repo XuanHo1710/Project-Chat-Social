@@ -87,7 +87,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const [isUploading, setIsUploading] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
     const fileDocInputRef = useRef<HTMLInputElement>(null);
-    
+
     // Typing indicator states
     const [isOtherTyping, setIsOtherTyping] = useState(false);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -478,12 +478,12 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         const handleTypingStart = (data: { conversationId: string; userId: string }) => {
             if (data.conversationId === selectedConversation._id && data.userId !== userId) {
                 setIsOtherTyping(true);
-                
+
                 // Clear existing timeout
                 if (typingTimeoutRef.current) {
                     clearTimeout(typingTimeoutRef.current);
                 }
-                
+
                 // Auto-hide after 3 seconds
                 typingTimeoutRef.current = setTimeout(() => {
                     setIsOtherTyping(false);
@@ -500,12 +500,24 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             }
         };
 
+        // Also hide typing when new message arrives
+        const handleNewMessageTyping = (msg: MessageResponse) => {
+            if (msg.conversationId === selectedConversation._id && msg.senderId._id !== userId) {
+                setIsOtherTyping(false);
+                if (typingTimeoutRef.current) {
+                    clearTimeout(typingTimeoutRef.current);
+                }
+            }
+        };
+
         socketChat.on("typing:start", handleTypingStart);
         socketChat.on("typing:stop", handleTypingStop);
+        socketChat.on("message:new", handleNewMessageTyping);
 
         return () => {
             socketChat.off("typing:start", handleTypingStart);
             socketChat.off("typing:stop", handleTypingStop);
+            socketChat.off("message:new", handleNewMessageTyping);
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
             }
@@ -515,14 +527,13 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const [showMentions, setShowMentions] = useState(false);
     const [mentionSearch, setMentionSearch] = useState("");
 
-    const participants = conversationDetail?.data?.participants || [];
 
     const filteredParticipants = useMemo(() => {
-        if (!mentionSearch) return participants;
-        return participants.filter(p =>
+        if (!mentionSearch) return conversationDetail?.data?.participants || [];
+        return (conversationDetail?.data?.participants || []).filter(p =>
             (p.nickname || `${p.user.firstName} ${p.user.lastName}`).toLowerCase().includes(mentionSearch.toLowerCase())
         );
-    }, [participants, mentionSearch]);
+    }, [conversationDetail, mentionSearch]);
 
     // Load more messages when scrolling to top
     const handleStartReached = useCallback(() => {
@@ -659,7 +670,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
             // Stop typing indicator before sending
             socketChat.emit("typing:stop", { conversationId: selectedConversation._id });
-            
+
             socketChat.emit("message", payload);
             setNewMessage("");
             setReplyMsg(null);
@@ -683,7 +694,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     // Emit typing indicator (throttled to avoid spam)
     const emitTyping = useCallback(() => {
         if (!socketChat) return;
-        
+
         const now = Date.now();
         // Only emit every 2 seconds to avoid spamming
         if (now - lastTypingEmitRef.current > 2000) {
@@ -920,8 +931,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                             bgcolor: 'white',
                         }}
                     >
-                        <Avatar 
-                            src={selectedConversation.avatar} 
+                        <Avatar
+                            src={selectedConversation.avatar}
                             sx={{ width: 28, height: 28 }}
                         />
                         <Box
@@ -1190,8 +1201,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                             py: 1,
                         }}
                     >
-                        <IconButton 
-                            size="small" 
+                        <IconButton
+                            size="small"
                             sx={{ color: "#0084ff" }}
                             onClick={() => fileDocInputRef.current?.click()}
                             title="Đính kèm file"

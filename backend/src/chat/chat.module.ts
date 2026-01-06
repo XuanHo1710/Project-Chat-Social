@@ -8,19 +8,20 @@ import { ChatGateway } from 'src/chat/chat.gateway';
 import { AuthModule } from 'src/auth/auth.module';
 import { ConversationModule } from 'src/conversation/conversation.module';
 import { Account, AccountSchema } from 'src/account/entities/account.entity';
+import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Conversation.name, schema: ConversationSchema },
       { name: Message.name, schema: MessageSchema },
-      { name: Account.name, schema: AccountSchema }
+      { name: Account.name, schema: AccountSchema },
     ]),
     AuthModule,
-    ConversationModule
+    ConversationModule,
+    CloudinaryModule,
   ],
   controllers: [ChatController],
   providers: [ChatGateway, ChatService],
 })
-export class ChatModule { }
-
+export class ChatModule {}

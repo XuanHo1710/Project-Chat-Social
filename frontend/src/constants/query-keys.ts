@@ -39,4 +39,9 @@ export const QUERY_KEYS = {
   POST_DETAIL: "post_detail",
   NEWS_FEED: "news_feed",
   USER_POSTS: "user_posts",
+
+  // Stories
+  STORIES_FEED: "stories_feed",
+  MY_STORIES: "my_stories",
+  STORY_DETAIL: "story_detail",
 } as const;

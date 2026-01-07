@@ -69,21 +69,23 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const isGroupConversation = conversation?.type === 'GROUP';
     const isGroupDeleted = isGroupConversation && conversation?.isDeleted;
     const currentUserParticipant = conversation?.participants?.find(p => p.user._id === userId);
-    const wasKicked = currentUserParticipant?.kickedAt != null;
+    const wasKicked = currentUserParticipant?.kickedAt;
     const isAdmin = currentUserParticipant?.isAdmin ?? false;
+    const isLeft = currentUserParticipant?.leftAt === undefined ? false : currentUserParticipant?.leftAt !== null;
 
     // Check if only admin can chat
     const onlyAdminCanChat = isGroupConversation && (conversation?.settings?.onlyAdminCanChat ?? false);
     const canChatBasedOnSettings = !onlyAdminCanChat || isAdmin;
 
     // User can chat if: not deleted, not kicked, and (not onlyAdminCanChat OR is admin)
-    const canChat = !isGroupDeleted && !wasKicked && canChatBasedOnSettings;
+    const canChat = !isGroupDeleted && !wasKicked && canChatBasedOnSettings && !isLeft;
 
     // Message for restricted chat
     const getChatRestrictionMessage = () => {
         if (isGroupDeleted) return 'Nhóm đã bị giải tán';
         if (wasKicked) return 'Bạn đã bị mời ra khỏi nhóm';
         if (!canChatBasedOnSettings) return 'Chỉ quản trị viên mới có thể gửi tin nhắn trong nhóm này';
+        if (isLeft) return 'Bạn đã rời khỏi nhóm này';
         return '';
     };
 
@@ -143,7 +145,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const statusText = useMemo(() => {
         if (isGroup) {
             // Show member count for groups
-            const activeMembers = conversationDetail?.data?.participants.filter(p => !p.kickedAt).length || 0;
+            const activeMembers = conversationDetail?.data?.participants.filter(p => !p.kickedAt && !p.leftAt).length || 0;
             return `${activeMembers} thành viên`;
         }
         if (otherUserStatus.isOnline) {
@@ -156,20 +158,15 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const pages = chatData?.pages;
     const allMessages = useMemo(() => {
         if (!pages) return [];
-        let messages: MessageResponse[] = [];
+        const messages: MessageResponse[] = [];
         pages.forEach(page => {
             messages.push(...page.data);
         });
 
-        // If user was kicked, only show messages up to kickedAt time
-        if (currentUserParticipant?.kickedAt) {
-            const kickedAt = new Date(currentUserParticipant.kickedAt);
-            messages = messages.filter(msg => new Date(msg.createdAt) <= kickedAt);
-        }
+        // Note: Message filtering by kickedAt/leftAt is handled on backend for security
 
         return messages;
-    }, [pages, currentUserParticipant?.kickedAt]);
-
+    }, [pages]);
 
     // Calculate firstItemIndex based on total older messages
     const firstItemIndex = useMemo(() => {
@@ -394,6 +391,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         socketChat.on("conversation:quick-reaction:updated", handleConversationUpdate);
         socketChat.on("conversation:member:added", handleConversationUpdate);
         socketChat.on("conversation:member:removed", handleConversationUpdate);
+        socketChat.on("conversation:member:left", handleConversationUpdate);
+        socketChat.on("conversation:kicked", handleConversationUpdate);
         socketChat.on("conversation:admin:updated", handleConversationUpdate);
         socketChat.on("conversation:settings:updated", handleConversationUpdate);
 
@@ -513,6 +512,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             socketChat.off("conversation:quick-reaction:updated", handleConversationUpdate);
             socketChat.off("conversation:member:added", handleConversationUpdate);
             socketChat.off("conversation:member:removed", handleConversationUpdate);
+            socketChat.off("conversation:member:left", handleConversationUpdate);
+            socketChat.off("conversation:kicked", handleConversationUpdate);
             socketChat.off("conversation:admin:updated", handleConversationUpdate);
             socketChat.off("conversation:settings:updated", handleConversationUpdate);
             socketChat.off("message:read:updated", handleMessageReadUpdate);
@@ -1041,7 +1042,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                         }}
                     >
                         <Typography color={isGroupDeleted || wasKicked ? '#856404' : '#1565c0'} fontWeight={500}>
-                            {isGroupDeleted || wasKicked ? '🚫 ' : '🔒 '}{getChatRestrictionMessage()}
+                            {isGroupDeleted}{getChatRestrictionMessage()}
                         </Typography>
                     </Box>
                 )}

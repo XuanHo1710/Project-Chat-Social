@@ -92,8 +92,14 @@ export class ConversationService {
       .lean()
       .exec();
 
+    // Remove duplicates by _id (in case of any DB issues)
+    const uniqueConversations = conversations.filter(
+      (conv, index, self) =>
+        index === self.findIndex((c) => c._id.toString() === conv._id.toString())
+    );
+
     // Transform Map to plain object for unreadCount
-    return conversations.map((conv) => ({
+    return uniqueConversations.map((conv) => ({
       ...conv,
       unreadCount:
         conv.unreadCount instanceof Map
@@ -157,16 +163,20 @@ export class ConversationService {
     const conversation = await this.conversationModel.findById(conversationId);
     if (!conversation) return false;
 
-    const participant = conversation.participants.find((p) => p.user.toString() === userId);
+    const participant = conversation.participants.find(
+      (p) => p.user.toString() === userId && !p.kickedAt && !p.leftAt
+    );
     return participant?.isAdmin ?? false;
   }
 
-  // Kiểm tra user có trong conversation không
+  // Kiểm tra user có trong conversation không (và chưa bị kick/rời)
   async isUserInConversation(conversationId: string, userId: string): Promise<boolean> {
     const conversation = await this.conversationModel.findById(conversationId);
     if (!conversation) return false;
 
-    return conversation.participants.some((p) => p.user.toString() === userId);
+    return conversation.participants.some(
+      (p) => p.user.toString() === userId && !p.kickedAt && !p.leftAt
+    );
   }
 
   // 1. Thay đổi Quick Reaction
@@ -282,30 +292,32 @@ export class ConversationService {
       throw new ForbiddenException('Chỉ quản trị viên mới có thể thêm thành viên');
     }
 
-    // Kiểm tra người request có trong nhóm không
+    // Kiểm tra người request có trong nhóm không (không bị kick và không tự rời)
     const isMember = conversation.participants.some(
-      (p) => p.user.toString() === requestUserId && !p.kickedAt
+      (p) => p.user.toString() === requestUserId && !p.kickedAt && !p.leftAt
     );
     if (!isMember) {
       throw new ForbiddenException('Bạn không phải thành viên của nhóm này');
     }
 
-    // Kiểm tra user đã trong nhóm chưa (và chưa bị kick)
+    // Kiểm tra user đã trong nhóm chưa (và chưa bị kick hoặc rời đi)
     const existingMember = conversation.participants.find((p) => p.user.toString() === newUserId);
-    if (existingMember && !existingMember.kickedAt) {
+
+    if (existingMember && !existingMember.kickedAt && !existingMember.leftAt) {
       throw new BadRequestException('Người dùng đã là thành viên của nhóm');
     }
 
     const newUserObjectId = new Types.ObjectId(newUserId);
 
-    // Nếu từng bị kick, cho phép thêm lại
-    if (existingMember && existingMember.kickedAt) {
+    // Nếu từng bị kick hoặc tự rời, cho phép thêm lại
+    if (existingMember && (existingMember.kickedAt || existingMember.leftAt)) {
       const updated = await this.conversationModel
         .findByIdAndUpdate(
           conversationId,
           {
             $set: {
               'participants.$[elem].kickedAt': null,
+              'participants.$[elem].leftAt': null,
               'participants.$[elem].joinedAt': new Date(),
             },
           },

@@ -139,6 +139,8 @@ export default function ChatDetailPage() {
 
         socketChat.on("conversation:member:added", handleConversationUpdate);
         socketChat.on("conversation:member:removed", handleConversationUpdate);
+        socketChat.on("conversation:member:left", handleConversationUpdate);
+        socketChat.on("conversation:kicked", handleConversationUpdate);
         socketChat.on("conversation:avatar:updated", handleConversationUpdate);
         socketChat.on("conversation:name:updated", handleConversationUpdate);
         socketChat.on("conversation:nickname:updated", handleConversationUpdate);
@@ -149,6 +151,8 @@ export default function ChatDetailPage() {
             socketChat.off("message:new", handleGlobalMessageNew);
             socketChat.off("conversation:member:added", handleConversationUpdate);
             socketChat.off("conversation:member:removed", handleConversationUpdate);
+            socketChat.off("conversation:member:left", handleConversationUpdate);
+            socketChat.off("conversation:kicked", handleConversationUpdate);
             socketChat.off("conversation:avatar:updated", handleConversationUpdate);
             socketChat.off("conversation:name:updated", handleConversationUpdate);
             socketChat.off("conversation:nickname:updated", handleConversationUpdate);

@@ -37,15 +37,6 @@ export default function ReactionButton({ post, initialTotalReacts = 0 }: Reactio
     const localReaction = reactionState?.userReaction ?? null;
     const localTotalReacts = reactionState?.totalReacts ?? initialTotalReacts;
 
-    console.log(post.reactInfo)
-
-    // Fetch user's reaction for this post (initial load)
-    // const { data: userReactionData, isLoading } = useGetUserReaction(post._id);
-
-
-
-
-
     const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
     const leaveTimeout = useRef<NodeJS.Timeout | null>(null);
     const debounceRef = useRef<NodeJS.Timeout | null>(null);

@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestj
 import { ChatService } from './chat.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
+import { UserInfo } from '../../decorators/customize';
 
 @Controller('chat')
 export class ChatController {
@@ -20,12 +21,14 @@ export class ChatController {
   @Get('/messages/:id')
   findAllMessagesByConversationId(
     @Param('id') conversationId: string,
+    @UserInfo() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('before') before?: string
   ) {
     return this.chatService.findAllMessagesByConversationId(
       conversationId,
+      user._id.toString(),
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 15,
       before

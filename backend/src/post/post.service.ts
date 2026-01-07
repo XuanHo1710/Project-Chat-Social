@@ -165,10 +165,6 @@ export class PostService {
         isReact: !!r,
         type: r ? r.type : null,
       };
-
-      if (r) {
-        console.log('Reaction found for post', post);
-      }
     });
 
     return {

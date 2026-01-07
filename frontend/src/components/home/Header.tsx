@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppBar, Toolbar, Box, InputBase, IconButton, Avatar, Badge, ClickAwayListener } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -21,6 +21,11 @@ import AvatarMenu from '../AvatarMenu';
 import ChatPopup from '@/components/chats/ChatPopup';
 import NotificationPopup from '@/components/NotificationPopup';
 import { usePathname } from 'next/navigation';
+import { useSocket } from '@/contexts/SocketContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@/constants/query-keys';
+import { ConversationResponseData } from '@/types/conversation';
+import { MessageResponse } from '@/types/chat';
 
 export default function Header() {
     const { user } = useAuthStore();
@@ -28,8 +33,80 @@ export default function Header() {
     const [showChatPopup, setShowChatPopup] = useState(false);
     const [showNotificationPopup, setShowNotificationPopup] = useState(false);
     const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+    const { socketChat } = useSocket();
+    const queryClient = useQueryClient();
 
     const { data: listConversation, isLoading: isLoadingConversations } = useConversationByUserId(user?.id || "");
+
+    // Real-time updates for conversations (sync with ChatSidebar)
+    useEffect(() => {
+        if (!socketChat || !user?.id) return;
+
+        // Update lastMessage when new message arrives
+        const handleGlobalMessageNew = (msg: MessageResponse) => {
+            queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
+                (oldData) => {
+                    if (!oldData?.data) return oldData;
+
+                    return {
+                        ...oldData,
+                        data: oldData.data.map(conv => {
+                            if (conv._id === msg.conversationId) {
+                                return {
+                                    ...conv,
+                                    lastMessage: {
+                                        _id: msg._id,
+                                        type: msg.type,
+                                        content: msg.content || '',
+                                        createdAt: new Date(msg.createdAt),
+                                        senderId: typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId,
+                                        attachments: msg.attachments?.map(a => typeof a === 'string' ? a : a.url),
+                                    },
+                                    lastMessageAt: new Date(msg.createdAt),
+                                };
+                            }
+                            return conv;
+                        }).sort((a, b) => {
+                            const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+                            const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+                            return timeB - timeA;
+                        })
+                    };
+                }
+            );
+        };
+
+        socketChat.on("message:new", handleGlobalMessageNew);
+
+        // Listen for conversation updates to refresh list
+        const handleConversationUpdate = () => {
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, user.id] });
+        };
+
+        socketChat.on("conversation:member:added", handleConversationUpdate);
+        socketChat.on("conversation:member:removed", handleConversationUpdate);
+        socketChat.on("conversation:member:left", handleConversationUpdate);
+        socketChat.on("conversation:kicked", handleConversationUpdate);
+        socketChat.on("conversation:avatar:updated", handleConversationUpdate);
+        socketChat.on("conversation:name:updated", handleConversationUpdate);
+        socketChat.on("conversation:nickname:updated", handleConversationUpdate);
+        socketChat.on("conversation:settings:updated", handleConversationUpdate);
+        socketChat.on("conversation:created", handleConversationUpdate);
+
+        return () => {
+            socketChat.off("message:new", handleGlobalMessageNew);
+            socketChat.off("conversation:member:added", handleConversationUpdate);
+            socketChat.off("conversation:member:removed", handleConversationUpdate);
+            socketChat.off("conversation:member:left", handleConversationUpdate);
+            socketChat.off("conversation:kicked", handleConversationUpdate);
+            socketChat.off("conversation:avatar:updated", handleConversationUpdate);
+            socketChat.off("conversation:name:updated", handleConversationUpdate);
+            socketChat.off("conversation:nickname:updated", handleConversationUpdate);
+            socketChat.off("conversation:settings:updated", handleConversationUpdate);
+            socketChat.off("conversation:created", handleConversationUpdate);
+        };
+    }, [socketChat, user?.id, queryClient]);
 
     return (
         <AppBar

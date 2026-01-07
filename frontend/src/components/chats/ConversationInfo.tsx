@@ -71,6 +71,7 @@ import { CLIENT_PATH } from '@/constants/paths';
 import { UploadImage } from '@/utils/uploadImage';
 import { toast } from 'sonner';
 import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
+import { timeAgo } from '@/utils/formatDate';
 
 
 // Theme colors for chat background - now with gradients
@@ -163,10 +164,13 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     const { data: friendsData, isLoading: isFriendsLoading } = useDisplayListFriends(userId);
     const friends = friendsData?.data || [];
 
-    // Filter friends by search query and exclude existing members (for add member dialog)
+    // Filter friends by search query and exclude existing ACTIVE members (for add member dialog)
+    // Users who were kicked or left should be available to re-add
     const filteredFriends = friends.filter(friend => {
-        const isAlreadyMember = conversation?.participants.some(p => p.user._id === friend._id && !p.kickedAt);
-        if (isAlreadyMember) return false;
+        const participant = conversation?.participants.find(p => p.user._id === friend._id);
+        // Allow if not a participant, or if kicked/left
+        const isActiveMember = participant && !participant.kickedAt && !participant.leftAt;
+        if (isActiveMember) return false;
         if (!searchQuery.trim()) return true;
         const fullName = `${friend.firstName} ${friend.lastName}`.toLowerCase();
         return fullName.includes(searchQuery.toLowerCase());
@@ -371,6 +375,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     toast.success('Đã thêm thành viên vào nhóm');
                     setAddMemberDialogOpen(false);
                 } else {
+                    console.log('Add member error response:', response);
                     toast.error(response.error || 'Không thể thêm thành viên');
                 }
             });
@@ -504,7 +509,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     };
 
     const handleAvatarClick = () => {
-        if (isGroup && isAdmin) {
+        if (isGroup) {
             setAvatarUrl('');
             setAvatarDialogOpen(true);
         }
@@ -812,7 +817,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <Box sx={{ px: 1 }}>
                         <ListItemButton onClick={() => setMembersOpen(!membersOpen)} sx={{ borderRadius: 2 }}>
                             <ListItemText
-                                primary={<Typography fontWeight={600} color="#050505">Thành viên ({conversation.participants.filter(p => !p.kickedAt).length})</Typography>}
+                                primary={<Typography fontWeight={600} color="#050505">Thành viên ({conversation.participants.filter(p => !p.kickedAt && !p.leftAt).length})</Typography>}
                             />
                             {canAddMember && (
                                 <IconButton size="small" onClick={(e) => { e.stopPropagation(); setAddMemberDialogOpen(true); }}>
@@ -834,6 +839,15 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     // Get online status for member
                                     const memberOnlineStatus = onlineUsers[member.user._id];
                                     const isOnline = memberOnlineStatus?.isOnline || member.user.status === 'ACTIVE';
+                                    const lastActive = memberOnlineStatus?.lastActive || member.user.lastActive;
+
+                                    // Get display status text
+                                    const getStatusText = () => {
+                                        if (memberRole) return memberRole;
+                                        if (isOnline) return 'Đang hoạt động';
+                                        if (lastActive) return `Hoạt động ${timeAgo(lastActive)}`;
+                                        return 'Không hoạt động';
+                                    };
 
                                     return (
                                         <ListItem key={member.user._id} sx={{ px: 2 }}>
@@ -857,7 +871,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                             </ListItemAvatar>
                                             <ListItemText
                                                 primary={member.nickname || `${member.user.firstName} ${member.user.lastName}`}
-                                                secondary={memberRole || (isOnline ? 'Đang hoạt động' : 'Không hoạt động')}
+                                                secondary={getStatusText()}
                                                 primaryTypographyProps={{ fontSize: 14, fontWeight: 500, color: '#050505' }}
                                                 secondaryTypographyProps={{
                                                     fontSize: 12,
@@ -993,7 +1007,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 onClose={() => setAvatarDialogOpen(false)}
                 fullWidth
                 maxWidth="xs"
-                PaperProps={{ sx: { bgcolor: 'white', borderRadius: 3 } }}
+                PaperProps={{ sx: { bgcolor: 'white', borderRadius: 2, padding: 1 } }}
             >
                 <DialogTitle sx={{ color: '#050505' }}>Đổi ảnh đại diện nhóm</DialogTitle>
                 <DialogContent>
@@ -1020,21 +1034,6 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                 </Button>
                             </label>
                         </Box>
-
-                        <Divider sx={{ my: 1 }}>
-                            <Typography variant="body2" color="text.secondary">hoặc</Typography>
-                        </Divider>
-
-                        {/* URL input */}
-                        <TextField
-                            fullWidth
-                            label="Nhập đường link ảnh"
-                            variant="outlined"
-                            value={avatarUrl}
-                            onChange={(e) => setAvatarUrl(e.target.value)}
-                            placeholder="https://example.com/image.jpg"
-                            size="small"
-                        />
                     </Box>
                 </DialogContent>
                 <DialogActions>
@@ -1092,7 +1091,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             </Dialog>
 
             {/* Edit Name Dialog */}
-            <Dialog open={editNameDialogOpen} onClose={() => setEditNameDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'white', borderRadius: 3 } }}>
+            <Dialog open={editNameDialogOpen} onClose={() => setEditNameDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'white', borderRadius: 1, padding: 1 } }}>
                 <DialogTitle sx={{ color: '#050505' }}>Đổi tên nhóm</DialogTitle>
                 <DialogContent>
                     <TextField

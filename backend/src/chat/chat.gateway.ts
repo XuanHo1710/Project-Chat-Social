@@ -42,8 +42,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const userId = client.handshake.query.userId as string;
 
-      console.log('Client connected:', client.id, 'with userId:', userId);
-
       if (!userId) {
         this.logger.warn(`Client ${client.id} connected without userId`);
         client.disconnect();
@@ -178,7 +176,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
+      // Kiểm tra user có bị kick hoặc left trước khi cho gửi message
+      const conversation = await this.conversationService.findById(data.conversationId.toString());
+
+      const senderParticipant = conversation.participants.find(
+        (p) => p.user._id.toString() === userId.toString()
+      );
+
+      if (!senderParticipant || senderParticipant.kickedAt || senderParticipant.leftAt) {
+        client.leave(`room:${data.conversationId.toString()}`);
+        return {
+          success: false,
+          error: 'You are not allowed to send messages in this conversation',
+        };
+      }
+
       const savedMessage = await this.chatService.sendMessage(data);
+
       if (!savedMessage) {
         return { success: false, error: 'Failed to save message' };
       }
@@ -189,20 +203,41 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         conversationId: data.conversationId.toString(),
       };
 
-      this.server.to(`room:${data.conversationId.toString()}`).emit('message:new', messageToEmit);
+      // Chỉ emit message cho những participants chưa bị kick/left
+      const activeParticipants = conversation.participants.filter((p) => !p.kickedAt && !p.leftAt);
+
+      activeParticipants.forEach((participant) => {
+        const participantId = participant.user._id.toString();
+        const participantSockets = userSockets.get(participantId);
+
+        if (participantSockets && participantSockets.size > 0) {
+          participantSockets.forEach((socketId) => {
+            this.server.to(socketId).emit('message:new', messageToEmit);
+          });
+        }
+      });
 
       await this.conversationService.updateLastMessage(
         data.conversationId.toString(),
         savedMessage._id.toString()
       );
 
-      // Increment unread count for all participants except sender
+      // Increment unread count for active participants except sender
       await this.conversationService.incrementUnreadCount(data.conversationId.toString(), userId);
 
-      // Emit unread update to conversation list
-      this.server.to(`room:${data.conversationId.toString()}`).emit('conversation:unread:updated', {
-        conversationId: data.conversationId.toString(),
-        senderId: userId,
+      // Emit unread update chỉ cho active participants
+      activeParticipants.forEach((participant) => {
+        const participantId = participant.user._id.toString();
+        const participantSockets = userSockets.get(participantId);
+
+        if (participantSockets && participantSockets.size > 0) {
+          participantSockets.forEach((socketId) => {
+            this.server.to(socketId).emit('conversation:unread:updated', {
+              conversationId: data.conversationId.toString(),
+              senderId: userId,
+            });
+          });
+        }
       });
 
       return { success: true, message: savedMessage };
@@ -580,16 +615,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
+      // Get names before removing
+      const kickerName = await this.getUserDisplayName(userId);
+      const kickedName = await this.getUserDisplayName(data.targetUserId);
+
       const updated = await this.conversationService.removeMember(
         data.conversationId,
         userId,
         data.targetUserId
       );
 
+      // Send system message about the kick
+      await this.sendSystemMessage(
+        data.conversationId,
+        `${kickerName} đã xóa ${kickedName} khỏi nhóm`
+      );
+
       // Thông báo cho tất cả
       this.server.to(`room:${data.conversationId}`).emit('conversation:member:removed', {
         conversation: updated,
         removedUserId: data.targetUserId,
+        removedByUserId: userId,
       });
 
       // Remove kicked member khỏi room
@@ -599,6 +645,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           const socket = this.server.sockets.sockets?.get(socketId);
           if (socket) {
             socket.leave(`room:${data.conversationId}`);
+            // Notify the kicked user specifically
+            socket.emit('conversation:kicked', {
+              conversationId: data.conversationId,
+              kickedByUserId: userId,
+              kickedByName: kickerName,
+            });
           }
         });
       }

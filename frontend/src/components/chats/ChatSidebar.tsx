@@ -33,6 +33,7 @@ import { ConversationResponseData } from '@/types/conversation';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
 import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
+import { useSocket } from '@/contexts/SocketContext';
 
 interface SelectedConversation {
     _id: string;
@@ -62,6 +63,7 @@ export default function ChatSidebar({
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const router = useRouter();
+    const { socketChat } = useSocket();
 
     // Online status store - just read, don't subscribe to socket here
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
@@ -88,6 +90,25 @@ export default function ChatSidebar({
         });
     }, [conversations, user?.id, setUserOnline, setUserOffline]);
 
+    // Listen for kicked event
+    useEffect(() => {
+        if (!socketChat) return;
+
+        const handleKicked = (data: { conversationId: string; kickedByName: string }) => {
+            toast.error(`Bạn đã bị ${data.kickedByName} xóa khỏi nhóm`);
+            // If currently viewing the kicked conversation, navigate away
+            if (selectedConversationId === data.conversationId) {
+                router.push(CLIENT_PATH.CHAT);
+            }
+        };
+
+        socketChat.on('conversation:kicked', handleKicked);
+
+        return () => {
+            socketChat.off('conversation:kicked', handleKicked);
+        };
+    }, [socketChat, selectedConversationId, router]);
+
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget);
     };
@@ -109,20 +130,20 @@ export default function ChatSidebar({
     };
 
     const filteredConversations = conversations.filter((conversation) => {
-        // Kiểm tra user có trong participants và chưa bị kick/rời nhóm
+        // Kiểm tra user có trong participants
         const currentParticipant = conversation.participants.find(p => p.user?._id === user?.id);
         if (!currentParticipant) return false;
 
-        // Nếu đã rời nhóm hoặc bị kick thì không hiện trong sidebar
-        if (currentParticipant.kickedAt || currentParticipant.leftAt) return false;
-
+        // For DIRECT chats: hide if kicked or left
+        // For GROUP chats: still show even if kicked/left (so user knows they were removed)
         if (conversation.type === 'DIRECT') {
+            if (currentParticipant.kickedAt || currentParticipant.leftAt) return false;
             const chatUser = conversation.participants.find((p) => p.user?._id !== user?.id)?.user;
             const nickname = conversation.participants.find((p) => p.user?._id !== user?.id)?.nickname;
             const fullName = (!nickname || nickname === "") ? `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}`.toLowerCase() : nickname.toLowerCase();
             return fullName.includes(searchQuery.toLowerCase());
         } else if (conversation.type === 'GROUP') {
-            // Hiển thị nhóm nếu user là thành viên
+            // Hiển thị nhóm (kể cả đã bị kick hoặc rời)
             const groupName = conversation.nickname?.toLowerCase() || 'nhóm chat';
             return groupName.includes(searchQuery.toLowerCase());
         }
@@ -420,7 +441,7 @@ export default function ChatSidebar({
                                                 </Typography>
                                                 {isGroup && (
                                                     <Typography fontSize={12} color="#65676b">
-                                                        ({conversation.participants.filter(p => !p.kickedAt).length})
+                                                        ({conversation.participants.filter(p => !p.kickedAt && !p.leftAt).length})
                                                     </Typography>
                                                 )}
                                             </Box>

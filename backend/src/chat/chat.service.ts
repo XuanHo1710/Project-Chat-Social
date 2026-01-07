@@ -71,17 +71,37 @@ export class ChatService {
 
   async findAllMessagesByConversationId(
     conversationId: string,
+    userId: string, // Add userId to check kicked/left status
     page: number = 1,
     limit: number = 15,
     before?: string // cursor: load messages before this messageId
   ) {
+    // Get conversation to check user's kicked/left status
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException('Không tìm thấy cuộc trò chuyện');
+    }
+
+    // Find user's participant record
+    const participant = conversation.participants.find((p) => p.user.toString() === userId);
+
     const query: any = { conversationId, isDeleted: { $ne: true } };
+
+    // If user was kicked, only show messages up to kickedAt time
+    if (participant?.kickedAt) {
+      query.createdAt = { ...query.createdAt, $lte: participant.kickedAt };
+    }
+
+    // If user left, only show messages up to leftAt time
+    if (participant?.leftAt) {
+      query.createdAt = { ...query.createdAt, $lte: participant.leftAt };
+    }
 
     // If cursor provided, get messages before that message
     if (before) {
       const cursorMessage = await this.messageModel.findById(before);
       if (cursorMessage) {
-        query.createdAt = { $lt: cursorMessage.createdAt };
+        query.createdAt = { ...query.createdAt, $lt: cursorMessage.createdAt };
       }
     }
 
@@ -102,7 +122,7 @@ export class ChatService {
           },
         ])
         .lean(),
-      this.messageModel.countDocuments({ conversationId, isDeleted: { $ne: true } }),
+      this.messageModel.countDocuments(query),
     ]);
 
     // Reverse to show oldest first in UI

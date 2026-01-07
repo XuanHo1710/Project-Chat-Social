@@ -18,7 +18,7 @@ import { useDisplayListFriends } from "@/queries/useRelationshipQueries";
 import { FriendType } from "@/types/account";
 
 interface MentionUser {
-    id: string;
+    username: string;
     name: string;
     avatar?: string;
 }
@@ -37,7 +37,7 @@ interface MentionInputProps {
 
 // Parse raw content to display format
 function parseForDisplay(content: string): string {
-    return content.replace(/@\[([a-f0-9]+):([^\]]+)\]/gi, "@$2");
+    return content.replace(/@\[(.+?):([^\]]+)\]/g, '@$2');
 }
 
 // Build mapping from display mentions to raw mentions
@@ -106,11 +106,15 @@ export default function MentionInput({
     // Convert display value back to raw value (restore existing mentions)
     const displayToRaw = useCallback((displayContent: string): string => {
         let result = displayContent;
+        console.log("Restoring mentions in:", displayContent);
         mentionMapRef.current.forEach((rawMention, displayMention) => {
             // Use word boundary to avoid partial matches
             const escapedDisplay = displayMention.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(escapedDisplay + '(?![\\w])', 'g');
             result = result.replace(regex, rawMention);
+            console.log(`Replaced ${displayMention} with ${rawMention}`);
+            console.log("Escaped display mention:", escapedDisplay);
+            console.log("Current result:", result);
         });
         return result;
     }, []);
@@ -162,7 +166,7 @@ export default function MentionInput({
         if (mentionStartIndex === -1) return;
 
         const fullName = `${friend.firstName} ${friend.lastName}`.trim();
-        const rawMentionText = `@[${friend._id}:${fullName}]`;
+        const rawMentionText = `@[${friend.username}:${fullName}]`;
         const displayMentionText = `@${fullName}`;
 
         // Add to mention map
@@ -185,7 +189,7 @@ export default function MentionInput({
         inputRef.current?.focus();
 
         onMentionSelect?.({
-            id: friend._id,
+            username: friend.username,
             name: fullName,
             avatar: undefined,
         });

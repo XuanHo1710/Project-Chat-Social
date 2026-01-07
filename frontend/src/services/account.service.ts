@@ -1,6 +1,7 @@
 import axios from "@/config/axios";
 import {
   AccountCardFriendType,
+  AccountType,
   ProfileType,
   UpdateProfileType,
 } from "@/types/account";
@@ -15,6 +16,13 @@ class AccountService {
     const response = await axios.get<
       APIResponse<PageResponse<AccountCardFriendType>>
     >(`/${PREFIX}`, { params });
+    return response.data.data;
+  }
+
+  async getAccountById(id: string): Promise<AccountType> {
+    const response = await axios.get<APIResponse<AccountType>>(
+      `/${PREFIX}/${id}`
+    );
     return response.data.data;
   }
 

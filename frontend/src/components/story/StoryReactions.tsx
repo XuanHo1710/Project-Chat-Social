@@ -35,6 +35,7 @@ interface ReactionBubble {
 interface StoryReactionsProps {
     onReactionComplete: (emoji: string) => void;
     storyOwnerName?: string;
+    addFloatingEmoji: (emoji: string) => void;
 }
 
 const REACTIONS = [
@@ -47,7 +48,7 @@ const REACTIONS = [
     { emoji: '😡', label: 'Phẫn nộ' },
 ];
 
-export default function StoryReactions({ onReactionComplete, storyOwnerName }: StoryReactionsProps) {
+export default function StoryReactions({ onReactionComplete, storyOwnerName, addFloatingEmoji }: StoryReactionsProps) {
     const [reactionBubbles, setReactionBubbles] = useState<ReactionBubble[]>([]);
     const [reactionLabel, setReactionLabel] = useState<string>('');
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -64,10 +65,12 @@ export default function StoryReactions({ onReactionComplete, storyOwnerName }: S
         }, 1500);
     }, []);
 
-    // Handle reaction click with debounce
+    // Handle reaction click with short debounce
     const handleReactionClick = useCallback((emoji: string, label: string) => {
         // Add bubble animation
         addReactionBubble(emoji);
+        addFloatingEmoji(emoji);
+
 
         // Show label
         setReactionLabel(label);
@@ -79,11 +82,11 @@ export default function StoryReactions({ onReactionComplete, storyOwnerName }: S
             clearTimeout(debounceTimerRef.current);
         }
 
-        // Debounce: wait 1.5s before sending to API
+        // Short debounce: only 300ms to batch rapid clicks, then send immediately
         debounceTimerRef.current = setTimeout(() => {
             onReactionComplete(emoji);
-        }, 1500);
-    }, [addReactionBubble, onReactionComplete]);
+        }, 300);
+    }, [addReactionBubble, onReactionComplete, addFloatingEmoji]);
 
     // Cleanup timers on unmount
     useEffect(() => {
@@ -157,12 +160,16 @@ export default function StoryReactions({ onReactionComplete, storyOwnerName }: S
                 </Box>
             )}
 
-            {/* Reaction buttons - Facebook style */}
+            {/* Reaction buttons - Facebook/TikTok style - larger and more visible */}
             <Box
                 sx={{
                     display: 'flex',
                     gap: 0.5,
                     alignItems: 'center',
+                    bgcolor: 'rgba(0,0,0,0.4)',
+                    borderRadius: 5,
+                    px: 1,
+                    py: 0.5,
                 }}
             >
                 {REACTIONS.map(({ emoji, label }) => (
@@ -170,18 +177,19 @@ export default function StoryReactions({ onReactionComplete, storyOwnerName }: S
                         key={emoji}
                         onClick={() => handleReactionClick(emoji, label)}
                         sx={{
-                            width: 40,
-                            height: 40,
+                            width: 44,
+                            height: 44,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontSize: 26,
+                            fontSize: 28,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
                             borderRadius: '50%',
                             '&:hover': {
-                                transform: 'scale(1.3)',
+                                transform: 'scale(1.4)',
                                 animation: `${bounce} 0.5s ease infinite`,
+                                bgcolor: 'rgba(255,255,255,0.15)',
                             },
                             '&:active': {
                                 transform: 'scale(0.85)',

@@ -38,8 +38,8 @@ import Image from "next/image";
 import { toast } from "sonner";
 import CommentReactionButton from "./CommentReactionButton";
 import ImageViewer from "./ImageViewer";
-import MentionInput from "./MentionInput";
 import { commentMediaToMediaItems, renderContentWithMentions } from "@/utils/hashtagParser";
+import MentionInput from "@/components/posts/MentionInput";
 
 // Edit Comment Input Component - Facebook style
 function EditCommentInput({

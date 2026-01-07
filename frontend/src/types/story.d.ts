@@ -1,3 +1,5 @@
+import { StatusEnum } from "@/types/account";
+
 export type StoryType = "IMAGE" | "VIDEO";
 export type StoryPrivacy = "PUBLIC" | "FRIENDS" | "PRIVATE" | "CUSTOM";
 
@@ -9,6 +11,7 @@ export interface StoryViewer {
     firstName: string;
     lastName: string;
     avatar: string;
+    status: StatusEnum;
   };
   reaction?: string | null;
 }

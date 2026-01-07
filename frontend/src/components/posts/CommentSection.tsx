@@ -25,8 +25,8 @@ import {
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import { UploadMediaFiles } from "@/utils/uploadImage";
-import MentionInput from "./MentionInput";
 import CommentItem from "@/components/posts/CommentItem";
+import MentionInput from "@/components/posts/MentionInput";
 
 
 

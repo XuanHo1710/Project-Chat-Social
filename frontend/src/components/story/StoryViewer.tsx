@@ -15,6 +15,7 @@ import {
     ListItemText,
     Snackbar,
     Alert,
+    keyframes,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -36,6 +37,36 @@ import StoryViewersModal from './StoryViewersModal';
 import StoryReactions from './StoryReactions';
 import { useSocket } from '@/contexts/SocketContext';
 import { conversationService } from '@/services/conversation.service';
+
+// Floating emoji animation - TikTok/Facebook style vertical stream
+const floatUp = keyframes`
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(0.5);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(-20px) scale(1.2);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-80px) scale(1);
+  }
+  60% {
+    opacity: 0.8;
+    transform: translateY(-180px) scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-350px) scale(0.6);
+  }
+`;
+
+interface FloatingEmoji {
+    id: number;
+    emoji: string;
+    delay: number; // stagger delay for stream effect
+}
 
 interface StoryViewerProps {
     storyGroups: StoryGroup[];
@@ -64,8 +95,13 @@ export default function StoryViewer({
         severity: 'success',
     });
 
+    // New states for improvements
+    const [isVideoReady, setIsVideoReady] = useState(false);
+    const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
+
     const videoRef = useRef<HTMLVideoElement>(null);
     const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const viewedStoriesRef = useRef<Set<string>>(new Set()); // Track viewed stories to prevent double calls
 
     const { socket } = useSocket();
     const viewStoryMutation = useViewStory();
@@ -128,6 +164,7 @@ export default function StoryViewer({
             setCurrentGroupIndex(prev => prev + 1);
             setCurrentStoryIndex(0);
             setProgress(0);
+            setIsVideoReady(false);
         } else {
             onClose();
         }
@@ -139,32 +176,48 @@ export default function StoryViewer({
         if (currentStoryIndex > 0) {
             setCurrentStoryIndex(prev => prev - 1);
             setProgress(0);
+            setIsVideoReady(false);
         } else if (currentGroupIndex > 0) {
             setCurrentGroupIndex(prev => prev - 1);
             const prevGroup = storyGroups[currentGroupIndex - 1];
             setCurrentStoryIndex(prevGroup.stories.length - 1);
             setProgress(0);
+            setIsVideoReady(false);
         }
     }, [currentStoryIndex, currentGroupIndex, storyGroups]);
 
-    // Mark story as viewed
+    // Mark story as viewed - with deduplication
     useEffect(() => {
-        if (currentStory && currentStory.userId !== currentUserId) {
+        if (!currentStory) return;
+
+        // Get story owner ID - handle both object and string formats
+        const storyOwnerId = typeof currentStory.userId === 'object'
+            ? (currentStory.userId as { _id?: string })._id || String(currentStory.userId)
+            : currentStory.userId;
+
+        // Don't view own stories
+        if (storyOwnerId === currentUserId) return;
+
+        // Only call API if we haven't viewed this story yet in this session
+        if (!viewedStoriesRef.current.has(currentStory._id)) {
+            viewedStoriesRef.current.add(currentStory._id);
             viewStoryMutation.mutate(currentStory._id);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentStory?._id, currentUserId]);
 
-    // Progress effect
+    // Progress effect - only start when media is ready
     useEffect(() => {
-        if (!isPaused) {
+        const isMediaReady = currentStory?.type === 'VIDEO' ? isVideoReady : true;
+
+        if (!isPaused && isMediaReady) {
             startProgress();
         } else {
             stopProgress();
         }
 
         return () => stopProgress();
-    }, [isPaused, currentStory?._id, startProgress, stopProgress]);
+    }, [isPaused, currentStory?._id, currentStory?.type, isVideoReady, startProgress, stopProgress]);
 
     // Auto advance when progress reaches 100
     useEffect(() => {
@@ -173,15 +226,67 @@ export default function StoryViewer({
         }
     }, [progress, goToNextStory]);
 
-    // Handle video
+    // Handle video - reset video ready state and wait for canplay
+    useEffect(() => {
+        if (currentStory?.type === 'VIDEO') {
+            setIsVideoReady(false);
+        } else {
+            setIsVideoReady(true);
+        }
+    }, [currentStory?._id, currentStory?.type]);
+
+    // Handle video playback
     useEffect(() => {
         if (videoRef.current && currentStory?.type === 'VIDEO') {
             videoRef.current.currentTime = 0;
-            if (!isPaused) {
-                videoRef.current.play();
+            if (!isPaused && isVideoReady) {
+                videoRef.current.play().catch(console.error);
+            } else if (isPaused) {
+                videoRef.current.pause();
             }
         }
-    }, [currentStory, isPaused]);
+    }, [currentStory, isPaused, isVideoReady]);
+
+    // Video event handlers
+    const handleVideoCanPlay = useCallback(() => {
+        setIsVideoReady(true);
+    }, []);
+
+    const handleVideoPause = useCallback(() => {
+        // Sync pause state if video pauses unexpectedly
+        if (!isPaused) {
+            setIsPaused(true);
+        }
+    }, [isPaused]);
+
+    const handleVideoPlay = useCallback(() => {
+        // Sync play state if video plays
+        if (isPaused) {
+            setIsPaused(false);
+        }
+    }, [isPaused]);
+
+    // Add floating emoji - spawn multiple for stream effect
+    const addFloatingEmoji = (emoji: string) => {
+        // Spawn 3-5 emojis with staggered delays for stream effect
+        // const count = 3 + Math.floor(Math.random() * 3);
+        const newEmojis: FloatingEmoji[] = [];
+
+        // for (let i = 0; i < count; i++) {
+        newEmojis.push({
+            id: Date.now(),
+            emoji,
+            delay: 150,
+        });
+        // }
+
+        setFloatingEmojis(prev => [...prev, ...newEmojis]);
+
+        // Remove after animation completes
+        setTimeout(() => {
+            setFloatingEmojis(prev => prev.filter(e => !newEmojis.find(ne => ne.id === e.id)));
+        }, 2500 * 150)
+    };
 
     // Keyboard navigation
     useEffect(() => {
@@ -510,6 +615,32 @@ export default function StoryViewer({
                         </MenuItem>
                     </Menu>
 
+                    {/* Caption with custom style */}
+                    {currentStory.caption && (
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                top: '15%',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                px: 2,
+                                py: 1,
+                                bgcolor: currentStory.captionStyle?.backgroundColor || 'rgba(0,0,0,0.5)',
+                                borderRadius: 2,
+                                maxWidth: '90%',
+                            }}
+                        >
+                            <Typography
+                                color={currentStory.captionStyle?.color || 'white'}
+                                textAlign="center"
+                                fontSize={currentStory.captionStyle?.fontSize || 16}
+                            >
+                                {currentStory.caption}
+                            </Typography>
+                        </Box>
+
+                    )}
+
                     {/* Media */}
                     {currentStory.type === 'VIDEO' ? (
                         <video
@@ -517,6 +648,9 @@ export default function StoryViewer({
                             src={currentStory.mediaUrl}
                             muted={isMuted}
                             playsInline
+                            onCanPlay={handleVideoCanPlay}
+                            onPause={handleVideoPause}
+                            onPlay={handleVideoPlay}
                             style={{
                                 width: '100%',
                                 height: '100%',
@@ -535,32 +669,6 @@ export default function StoryViewer({
                         />
                     )}
 
-                    {/* Caption with custom style */}
-                    {currentStory.caption && (
-                        <Box
-                            sx={{
-                                position: 'absolute',
-                                bottom: currentStory.captionStyle?.y ? 'auto' : 80,
-                                top: currentStory.captionStyle?.y ? `${currentStory.captionStyle.y}%` : 'auto',
-                                left: currentStory.captionStyle?.x ? `${currentStory.captionStyle.x}%` : 0,
-                                right: currentStory.captionStyle?.x ? 'auto' : 0,
-                                transform: currentStory.captionStyle?.x ? 'translateX(-50%)' : 'none',
-                                px: 2,
-                                py: 1,
-                                bgcolor: currentStory.captionStyle?.backgroundColor || 'rgba(0,0,0,0.5)',
-                                borderRadius: 2,
-                                maxWidth: '80%',
-                            }}
-                        >
-                            <Typography
-                                color={currentStory.captionStyle?.color || 'white'}
-                                textAlign="center"
-                                fontSize={currentStory.captionStyle?.fontSize || 16}
-                            >
-                                {currentStory.caption}
-                            </Typography>
-                        </Box>
-                    )}
 
                     {/* Reply/Reaction bar for other users' stories */}
                     {!isOwnStory && (
@@ -570,49 +678,72 @@ export default function StoryViewer({
                                 bottom: 0,
                                 left: 0,
                                 right: 0,
-                                p: 2,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                                bgcolor: 'rgba(0,0,0,0.5)',
+                                p: 1.5,
+                                pb: 2,
+                                background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+                                zIndex: 100,
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <TextField
-                                fullWidth
-                                placeholder="Gửi tin nhắn..."
-                                size="small"
-                                value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
-                                onFocus={() => setIsPaused(true)}
-                                onBlur={() => !replyText && setIsPaused(false)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleReplyToStory();
-                                    }
-                                }}
+                            {/* Reaction buttons row - visible and spaced */}
+                            <Box
                                 sx={{
-                                    flex: 1,
-                                    '& .MuiOutlinedInput-root': {
-                                        color: 'white',
-                                        bgcolor: 'rgba(255,255,255,0.1)',
-                                        borderRadius: 5,
-                                        '& fieldset': { border: 'none' },
-                                    },
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    mb: 1.5,
                                 }}
-                                InputProps={{
-                                    endAdornment: replyText && (
-                                        <IconButton onClick={handleReplyToStory} sx={{ color: 'white' }}>
-                                            <SendIcon fontSize="small" />
-                                        </IconButton>
-                                    ),
+                            >
+                                <StoryReactions
+                                    onReactionComplete={handleReaction}
+                                    addFloatingEmoji={addFloatingEmoji}
+                                    storyOwnerName={`${currentGroup.user.firstName} ${currentGroup.user.lastName}`}
+                                />
+                            </Box>
+                            {/* Message input row */}
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    px: 1,
                                 }}
-                            />
-                            <StoryReactions
-                                onReactionComplete={handleReaction}
-                                storyOwnerName={`${currentGroup.user.firstName} ${currentGroup.user.lastName}`}
-                            />
+                            >
+                                <TextField
+                                    fullWidth
+                                    placeholder="Gửi tin nhắn..."
+                                    size="small"
+                                    value={replyText}
+                                    onChange={(e) => setReplyText(e.target.value)}
+                                    onFocus={() => setIsPaused(true)}
+                                    onBlur={() => !replyText && setIsPaused(false)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleReplyToStory();
+                                        }
+                                    }}
+                                    sx={{
+                                        flex: 1,
+                                        '& .MuiOutlinedInput-root': {
+                                            color: 'white',
+                                            bgcolor: 'rgba(255,255,255,0.15)',
+                                            borderRadius: 5,
+                                            height: 44,
+                                            '& fieldset': { border: 'none' },
+                                            '&:hover': {
+                                                bgcolor: 'rgba(255,255,255,0.2)',
+                                            },
+                                        },
+                                    }}
+                                    InputProps={{
+                                        endAdornment: replyText && (
+                                            <IconButton onClick={handleReplyToStory} sx={{ color: 'white' }}>
+                                                <SendIcon fontSize="small" />
+                                            </IconButton>
+                                        ),
+                                    }}
+                                />
+                            </Box>
                         </Box>
                     )}
 
@@ -662,6 +793,35 @@ export default function StoryViewer({
                         </Box>
                     )}
 
+                    {/* Floating Emojis Animation - TikTok style vertical stream */}
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            bottom: 80,
+                            right: 20,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            pointerEvents: 'none',
+                            zIndex: 1000,
+                        }}
+                    >
+                        {floatingEmojis.map((floatingEmoji) => (
+                            <Box
+                                key={floatingEmoji.id}
+                                sx={{
+                                    fontSize: '2.2rem',
+                                    animation: `${floatUp} 2s ease-out forwards`,
+                                    animationDelay: `${floatingEmoji.delay}ms`,
+                                    opacity: 0,
+                                    animationFillMode: 'forwards',
+                                    textShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                                }}
+                            >
+                                {floatingEmoji.emoji}
+                            </Box>
+                        ))}
+                    </Box>
                 </Box>
             </Box>
 
@@ -672,6 +832,13 @@ export default function StoryViewer({
                 viewers={viewersData?.data?.viewers || []}
                 isLoading={viewersLoading}
                 totalViews={viewersData?.data?.totalViews || currentStory?.viewCount || currentStory?.viewers?.length || 0}
+                stories={currentGroup?.stories || []}
+                currentStoryIndex={currentStoryIndex}
+                onStorySelect={(index) => {
+                    setCurrentStoryIndex(index);
+                    setProgress(0);
+                    setIsVideoReady(false);
+                }}
             />
 
             {/* Snackbar for feedback */}

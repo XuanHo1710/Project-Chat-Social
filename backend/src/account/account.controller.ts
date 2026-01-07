@@ -35,4 +35,9 @@ export class AccountController {
   getProfileByUsername(@Param('username') username: string) {
     return this.accountService.getProfileByUsername(username);
   }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.accountService.findOne(id);
+  }
 }

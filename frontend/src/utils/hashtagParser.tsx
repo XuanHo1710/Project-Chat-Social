@@ -1,3 +1,4 @@
+import { accountService } from '@/services/account.service';
 import { CommentMedia } from '@/types/comment';
 import { MediaItem } from '@/types/post';
 import Link from 'next/link';
@@ -106,7 +107,7 @@ export const renderContentWithMentions = (content: string) => {
     if (!content) return null;
 
     // Combined regex for mentions and hashtags
-    const mentionRegex = /@\[([a-f0-9]+):([^\]]+)\]/gi;
+    const mentionRegex = /@\[([^\]:]+):([^\]]+)\]/gi;
     const hashtagRegex = /#([\w\u00C0-\u024F\u1E00-\u1EFF]+)/gi;
 
     // First, collect all matches with their positions
@@ -120,7 +121,7 @@ export const renderContentWithMentions = (content: string) => {
     // Find all mentions
     let match;
     while ((match = mentionRegex.exec(content)) !== null) {
-        const userId = match[1];
+        const userName = match[1];
         const displayName = match[2];
         matches.push({
             index: match.index,
@@ -129,7 +130,7 @@ export const renderContentWithMentions = (content: string) => {
             content: (
                 <Link
                     key={`mention-${match.index}`}
-                    href={`/profile/${userId}`}
+                    href={`/profile/${userName}`}
                     style={{
                         color: '#1877f2',
                         textDecoration: 'none',

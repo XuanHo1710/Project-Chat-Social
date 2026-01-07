@@ -246,6 +246,26 @@ export class StoryService {
       throw new NotFoundException('Story not found');
     }
 
+    // Don't allow reacting to own story
+    if (story.userId.toString() === userId) {
+      throw new ForbiddenException('You cannot react to your own story');
+    }
+
+    // Also mark as viewed if not already
+    const alreadyViewed = story.viewers.some((v) => {
+      if (typeof v === 'object' && v.userId) {
+        return v.userId.toString() === userId;
+      }
+      return v.toString() === userId;
+    });
+
+    if (!alreadyViewed) {
+      story.viewers.push({
+        userId: new Types.ObjectId(userId),
+        viewedAt: new Date(),
+      });
+    }
+
     // Remove existing reaction from this user
     story.reactions = story.reactions.filter((r) => r.userId.toString() !== userId);
 
@@ -324,7 +344,7 @@ export class StoryService {
       const viewerAccounts = await this.storyModel.db
         .collection('accounts')
         .find({ _id: { $in: viewerIds } })
-        .project({ _id: 1, firstName: 1, lastName: 1, avatar: 1 })
+        .project({ _id: 1, firstName: 1, lastName: 1, avatar: 1, status: 1 })
         .toArray();
 
       const reactionsMap = new Map(story.reactions.map((r) => [r.userId.toString(), r.reaction]));
@@ -337,6 +357,7 @@ export class StoryService {
           firstName: acc.firstName,
           lastName: acc.lastName,
           avatar: acc.avatar,
+          status: acc.status,
         },
         reaction: reactionsMap.get(acc._id.toString()) || null,
       }));
@@ -366,6 +387,7 @@ export class StoryService {
             firstName: '$viewerInfo.firstName',
             lastName: '$viewerInfo.lastName',
             avatar: '$viewerInfo.avatar',
+            status: '$viewerInfo.status',
           },
         },
       },
@@ -392,7 +414,7 @@ export class StoryService {
   async getStoryReactions(storyId: string): Promise<any[]> {
     const story = await this.storyModel
       .findById(storyId)
-      .populate('reactions.userId', 'firstName lastName avatar')
+      .populate('reactions.userId', 'firstName lastName avatar status')
       .lean();
 
     if (!story) {

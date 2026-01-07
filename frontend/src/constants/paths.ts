@@ -23,6 +23,7 @@ export const ADMIN_PATH = {
 
 export const CLIENT_PATH = {
   CHAT: "/chat",
+  CHAT_BY_ID: (id: string) => `/chat/${id}`,
 
   // Auth
   LOGIN: "/auth/login",

@@ -34,18 +34,21 @@ import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
 import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 
+interface SelectedConversation {
+    _id: string;
+    fullName: string;
+    avatar: string;
+    status: 'online' | 'offline';
+    otherId: string;
+    lastActive?: string;
+    type?: 'DIRECT' | 'GROUP';
+}
+
 interface ChatSidebarProps {
     conversations: ConversationResponseData[];
     isLoading: boolean;
     selectedConversationId?: string;
-    onSelectConversation: (conversation: {
-        _id: string;
-        fullName: string;
-        avatar: string;
-        status: 'online' | 'offline';
-        otherId: string;
-        lastActive?: string;
-    }) => void;
+    onSelectConversation: (conversation: SelectedConversation) => void;
 }
 
 export default function ChatSidebar({
@@ -105,21 +108,32 @@ export default function ChatSidebar({
     };
 
     const filteredConversations = conversations.filter((conversation) => {
-        console.log('Filtering conversation:', conversation);
-        if (conversation.type !== 'DIRECT') return false;
-        const chatUser = conversation.participants.find((p) => p.user._id !== user?.id)?.user;
-        const nickname = conversation.participants.find((p) => p.user._id !== user?.id)?.nickname;
-        const fullName = (!nickname || nickname === "") ? `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}`.toLowerCase() : nickname;
-        return fullName.includes(searchQuery.toLowerCase());
+        // Kiểm tra user có trong participants và chưa bị kick
+        const currentParticipant = conversation.participants.find(p => p.user._id === user?.id);
+        if (!currentParticipant) return false;
+        // Nếu bị kick thì vẫn hiện nhưng sẽ handle ở chat area
+        // if (currentParticipant.kickedAt) return false;
+
+        if (conversation.type === 'DIRECT') {
+            const chatUser = conversation.participants.find((p) => p.user._id !== user?.id)?.user;
+            const nickname = conversation.participants.find((p) => p.user._id !== user?.id)?.nickname;
+            const fullName = (!nickname || nickname === "") ? `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}`.toLowerCase() : nickname.toLowerCase();
+            return fullName.includes(searchQuery.toLowerCase());
+        } else if (conversation.type === 'GROUP') {
+            // Hiển thị nhóm nếu user là thành viên
+            const groupName = conversation.nickname?.toLowerCase() || 'nhóm chat';
+            return groupName.includes(searchQuery.toLowerCase());
+        }
+        return false;
     });
 
     // Get real-time status for a user
-    const getUserStatus = (userId: string, originalStatus?: string, originalLastActive?: string) => {
+    const getUserStatus = (userId: string, originalStatus?: string, originalLastActive?: string): { isOnline: boolean; lastActive: string | undefined } => {
         const storeStatus = onlineUsers[userId];
         if (storeStatus) {
             return {
                 isOnline: storeStatus.isOnline,
-                lastActive: storeStatus.lastActive
+                lastActive: typeof storeStatus.lastActive === 'string' ? storeStatus.lastActive : storeStatus.lastActive?.toISOString()
             };
         }
         return {
@@ -320,11 +334,29 @@ export default function ChatSidebar({
                 <List disablePadding>
                     {!isLoading &&
                         filteredConversations.map((conversation) => {
-                            const chatUser = conversation.participants.find((p) => p.user._id !== user?.id)?.user;
-                            const nickname = conversation.participants.find((p) => p.user._id !== user?.id)?.nickname;
-                            const fullName = (!nickname || nickname === "") ? `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}` : nickname;
+                            const isGroup = conversation.type === 'GROUP';
                             const isSelected = conversation._id === selectedConversationId;
-                            const status = chatUser ? getUserStatus(chatUser._id, chatUser.status, chatUser.lastActive) : { isOnline: false, lastActive: undefined };
+
+                            // For DIRECT: get other user info
+                            // For GROUP: use group info
+                            let displayName = '';
+                            let displayAvatar = '';
+                            let status: { isOnline: boolean; lastActive: string | undefined } = { isOnline: false, lastActive: undefined };
+                            let otherId = '';
+
+                            if (isGroup) {
+                                displayName = conversation.nickname || 'Nhóm chat';
+                                displayAvatar = conversation.avatar || `https://ui-avatars.com/api/?name=G&background=1877f2&color=fff`;
+                                // Groups don't have online status
+                            } else {
+                                const otherParticipant = conversation.participants.find((p) => p.user._id !== user?.id);
+                                const chatUser = otherParticipant?.user;
+                                const nickname = otherParticipant?.nickname;
+                                displayName = (!nickname || nickname === "") ? `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}` : nickname;
+                                displayAvatar = chatUser?.avatar || `https://ui-avatars.com/api/?name=${chatUser?.username?.[0] || 'U'}&background=1877f2&color=fff`;
+                                status = chatUser ? getUserStatus(chatUser._id, chatUser.status, chatUser.lastActive) : { isOnline: false, lastActive: undefined };
+                                otherId = chatUser?._id || '';
+                            }
 
                             return (
                                 <ListItemButton
@@ -333,13 +365,12 @@ export default function ChatSidebar({
                                     onClick={() => {
                                         onSelectConversation({
                                             _id: conversation._id,
-                                            fullName,
-                                            avatar:
-                                                chatUser?.avatar ||
-                                                `https://ui-avatars.com/api/?name=${chatUser?.username?.[0] || 'U'}&background=1877f2&color=fff`,
+                                            fullName: displayName,
+                                            avatar: displayAvatar,
                                             status: status.isOnline ? 'online' : 'offline',
-                                            otherId: chatUser?._id || '',
-                                            lastActive: status.lastActive as string | undefined,
+                                            otherId,
+                                            lastActive: status.lastActive,
+                                            type: conversation.type,
                                         });
                                     }}
                                     sx={{
@@ -365,8 +396,8 @@ export default function ChatSidebar({
                                             variant="dot"
                                             sx={{
                                                 '& .MuiBadge-badge': {
-                                                    backgroundColor: status.isOnline ? '#31a24c' : 'transparent',
-                                                    border: status.isOnline ? '2px solid white' : 'none',
+                                                    backgroundColor: !isGroup && status.isOnline ? '#31a24c' : 'transparent',
+                                                    border: !isGroup && status.isOnline ? '2px solid white' : 'none',
                                                     width: 15,
                                                     borderRadius: '50%',
                                                     height: 15,
@@ -374,19 +405,23 @@ export default function ChatSidebar({
                                             }}
                                         >
                                             <Avatar
-                                                src={
-                                                    chatUser?.avatar ||
-                                                    `https://ui-avatars.com/api/?name=${chatUser?.username?.[0] || 'U'}&background=1877f2&color=fff`
-                                                }
+                                                src={displayAvatar}
                                                 sx={{ width: 56, height: 56 }}
                                             />
                                         </Badge>
                                     </ListItemAvatar>
                                     <ListItemText
                                         primary={
-                                            <Typography noWrap fontWeight={600} fontSize={15} color="#050505">
-                                                {fullName}
-                                            </Typography>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                <Typography noWrap fontWeight={600} fontSize={15} color="#050505">
+                                                    {displayName}
+                                                </Typography>
+                                                {isGroup && (
+                                                    <Typography fontSize={12} color="#65676b">
+                                                        ({conversation.participants.filter(p => !p.kickedAt).length})
+                                                    </Typography>
+                                                )}
+                                            </Box>
                                         }
                                         secondaryTypographyProps={{ component: 'div' }}
                                         secondary={
@@ -402,26 +437,33 @@ export default function ChatSidebar({
                                                     {(() => {
                                                         const lastMsg = conversation.lastMessage;
                                                         if (!lastMsg) return 'Bắt đầu cuộc trò chuyện mới';
-                                                        // Simplified display without sender prefix
 
-                                                        // Return based on message type
+                                                        // Get sender name for group chats
+                                                        const getSenderPrefix = () => {
+                                                            if (!isGroup) return '';
+                                                            if (lastMsg.senderId === user?.id) return 'Bạn: ';
+                                                            const sender = conversation.participants.find(p => p.user._id === lastMsg.senderId)?.user;
+                                                            return sender ? `${sender.firstName || ''}: ` : '';
+                                                        };
+
+                                                        const prefix = getSenderPrefix();
+
                                                         switch (lastMsg.type) {
                                                             case 'IMAGE':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một ảnh' : fullName + ' đã gửi một ảnh';
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một ảnh' : prefix + 'đã gửi một ảnh';
                                                             case 'VIDEO':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một video' : fullName + ' đã gửi một video';
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một video' : prefix + 'đã gửi một video';
                                                             case 'FILE':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một tệp' : fullName + ' đã gửi một tệp';
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một tệp' : prefix + 'đã gửi một tệp';
                                                             case 'POST':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã chia sẻ bài viết' : fullName + ' đã chia sẻ bài viết';
+                                                                return lastMsg.senderId === user?.id ? 'Bạn đã chia sẻ bài viết' : prefix + 'đã chia sẻ bài viết';
                                                             case 'SYSTEM':
                                                                 return lastMsg.content || 'Thông báo';
                                                             default:
-                                                                // Check if has attachments
                                                                 if (lastMsg.attachments && lastMsg.attachments.length > 0 && !lastMsg.content) {
-                                                                    return lastMsg.senderId === user?.id ? 'Bạn đã gửi ảnh' : fullName + ' đã gửi ảnh';
+                                                                    return lastMsg.senderId === user?.id ? 'Bạn đã gửi ảnh' : prefix + 'đã gửi ảnh';
                                                                 }
-                                                                return lastMsg.content || 'Bắt đầu cuộc trò chuyện mới';
+                                                                return prefix + (lastMsg.content || 'Bắt đầu cuộc trò chuyện mới');
                                                         }
                                                     })()}
                                                 </Typography>

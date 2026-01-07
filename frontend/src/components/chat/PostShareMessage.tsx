@@ -53,7 +53,7 @@ export default function PostShareMessage({
     // Privacy icon
     const PrivacyIcon = post?.privacy === 'PUBLIC' ? PublicIcon : post?.privacy === 'FRIEND' ? PeopleIcon : LockIcon;
 
-    if (!post) {
+    if (!post || (post.privacy === 'PRIVATE' && !isOwn)) {
         return (
             <Box sx={{
                 display: 'flex',

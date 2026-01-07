@@ -39,6 +39,7 @@ export class Conversation {
         fullName: String,
         avatar: String,
         nickname: String,
+        kickedAt: Date, // Thời điểm thành viên bị kick (null nếu chưa bị kick)
       },
     ],
   })
@@ -48,6 +49,7 @@ export class Conversation {
       nickname?: string;
       joinedAt: Date;
       isAdmin: boolean;
+      kickedAt?: Date; // Thời điểm thành viên bị kick
     },
   ];
 
@@ -77,6 +79,22 @@ export class Conversation {
 
   @Prop()
   deletedAt: Date;
+
+  // Group settings
+  @Prop({
+    type: {
+      allowMembersToAdd: { type: Boolean, default: true }, // Cho phép thành viên thêm người mới
+      onlyAdminCanChat: { type: Boolean, default: false }, // Chỉ admin mới được nhắn tin
+    },
+    default: {
+      allowMembersToAdd: true,
+      onlyAdminCanChat: false,
+    },
+  })
+  settings: {
+    allowMembersToAdd: boolean;
+    onlyAdminCanChat: boolean;
+  };
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

@@ -476,7 +476,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // Thay đổi avatar nhóm
   @SubscribeMessage('conversation:avatar')
   async handleGroupAvatarChange(
-    @MessageBody() data: { conversationId: string; avatarUrl: string },
+    @MessageBody() data: { conversationId: string; avatar: string },
     @ConnectedSocket() client: Socket
   ) {
     const userId = client.data.userId;
@@ -488,9 +488,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const updated = await this.conversationService.updateGroupAvatar(
         data.conversationId,
         userId,
-        data.avatarUrl
+        data.avatar
       );
-      this.server.to(`room:${data.conversationId}`).emit('conversation:updated', updated);
+      
+      // Tạo system message thông báo thay đổi avatar
+      const userName = await this.getUserDisplayName(userId);
+      await this.sendSystemMessage(
+        data.conversationId,
+        `${userName} đã thay đổi ảnh đại diện nhóm`
+      );
+      
+      this.server.to(`room:${data.conversationId}`).emit('conversation:avatar:updated', {
+        conversation: updated,
+        updatedBy: userId,
+      });
       return { success: true, conversation: updated };
     } catch (err) {
       return { success: false, error: err.message };
@@ -523,9 +534,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Join new member vào room
       const newUserSockets = userSockets.get(data.newUserId);
-      if (newUserSockets) {
+      if (newUserSockets && newUserSockets.size > 0) {
         newUserSockets.forEach((socketId) => {
-          this.server.sockets.sockets.get(socketId)?.join(`room:${data.conversationId}`);
+          const socket = this.server.sockets.sockets?.get(socketId);
+          if (socket) {
+            socket.join(`room:${data.conversationId}`);
+          }
         });
       }
 
@@ -561,9 +575,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Remove kicked member khỏi room
       const kickedUserSockets = userSockets.get(data.targetUserId);
-      if (kickedUserSockets) {
+      if (kickedUserSockets && kickedUserSockets.size > 0) {
         kickedUserSockets.forEach((socketId) => {
-          this.server.sockets.sockets.get(socketId)?.leave(`room:${data.conversationId}`);
+          const socket = this.server.sockets.sockets?.get(socketId);
+          if (socket) {
+            socket.leave(`room:${data.conversationId}`);
+          }
         });
       }
 
@@ -623,6 +640,95 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       return { success: true };
     } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // Cập nhật settings nhóm
+  @SubscribeMessage('conversation:settings')
+  async handleUpdateSettings(
+    @MessageBody()
+    data: {
+      conversationId: string;
+      settings: { allowMembersToAdd?: boolean; onlyAdminCanChat?: boolean };
+    },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      const updated = await this.conversationService.updateSettings(
+        data.conversationId,
+        userId,
+        data.settings
+      );
+
+      // Thông báo cho tất cả thành viên
+      this.server.to(`room:${data.conversationId}`).emit('conversation:settings:updated', {
+        conversation: updated,
+        settings: data.settings,
+      });
+
+      return { success: true, conversation: updated };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // Tạo nhóm với nhiều thành viên (tối thiểu 3 người)
+  @SubscribeMessage('conversation:create-group')
+  async handleCreateGroup(
+    @MessageBody() data: { memberIds: string[]; groupName?: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    // Validate memberIds
+    if (!data.memberIds || !Array.isArray(data.memberIds) || data.memberIds.length < 2) {
+      return { success: false, error: 'Cần ít nhất 2 thành viên khác để tạo nhóm' };
+    }
+
+    try {
+      const newGroup = await this.conversationService.createGroup(
+        userId,
+        data.memberIds,
+        data.groupName
+      );
+
+      // Join creator vào room mới
+      client.join(`room:${newGroup._id.toString()}`);
+
+      // Join all members vào room nếu online
+      for (const memberId of data.memberIds) {
+        const memberSockets = userSockets.get(memberId);
+        if (memberSockets && memberSockets.size > 0) {
+          memberSockets.forEach((socketId) => {
+            const socket = this.server.sockets.sockets?.get(socketId);
+            if (socket) {
+              socket.join(`room:${newGroup._id.toString()}`);
+            }
+          });
+        }
+        // Emit conversation created to member
+        this.server.to(`user:${memberId}`).emit('conversation:created', newGroup);
+      }
+
+      // Emit conversation created to creator
+      this.server.to(`user:${userId}`).emit('conversation:created', newGroup);
+
+      // Send system message
+      const userName = await this.getUserDisplayName(userId);
+      await this.sendSystemMessage(newGroup._id.toString(), `${userName} đã tạo nhóm`);
+
+      return { success: true, conversation: newGroup };
+    } catch (err) {
+      this.logger.error('Failed to create group:', err);
       return { success: false, error: err.message };
     }
   }

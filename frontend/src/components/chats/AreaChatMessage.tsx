@@ -49,6 +49,7 @@ interface SelectedConversation {
     status: "online" | "offline";
     otherId: string;
     lastActive?: string;
+    type?: "DIRECT" | "GROUP";
 }
 
 export default function AreaChatMessages({ selectedConversation, userId }: { selectedConversation: SelectedConversation, userId: string }) {
@@ -60,8 +61,31 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
     // Get conversation detail for theme
     const { data: conversationDetail } = useConversationDetail(selectedConversation._id);
-    const themeColor = conversationDetail?.data?.theme || '#0084ff';
-    const quickReaction = conversationDetail?.data?.quickReaction || '👍';
+    const conversation = conversationDetail?.data;
+    const themeColor = conversation?.theme || '#0084ff';
+    const quickReaction = conversation?.quickReaction || '👍';
+
+    // Check if group is deleted or user was kicked
+    const isGroupConversation = conversation?.type === 'GROUP';
+    const isGroupDeleted = isGroupConversation && conversation?.isDeleted;
+    const currentUserParticipant = conversation?.participants?.find(p => p.user._id === userId);
+    const wasKicked = currentUserParticipant?.kickedAt != null;
+    const isAdmin = currentUserParticipant?.isAdmin ?? false;
+
+    // Check if only admin can chat
+    const onlyAdminCanChat = isGroupConversation && (conversation?.settings?.onlyAdminCanChat ?? false);
+    const canChatBasedOnSettings = !onlyAdminCanChat || isAdmin;
+
+    // User can chat if: not deleted, not kicked, and (not onlyAdminCanChat OR is admin)
+    const canChat = !isGroupDeleted && !wasKicked && canChatBasedOnSettings;
+
+    // Message for restricted chat
+    const getChatRestrictionMessage = () => {
+        if (isGroupDeleted) return 'Nhóm đã bị giải tán';
+        if (wasKicked) return 'Bạn đã bị mời ra khỏi nhóm';
+        if (!canChatBasedOnSettings) return 'Chỉ quản trị viên mới có thể gửi tin nhắn trong nhóm này';
+        return '';
+    };
 
     // Generate gradient from theme color
     const getGradientBg = (color: string) => {
@@ -93,8 +117,14 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastTypingEmitRef = useRef<number>(0);
 
-    // Real-time status from store
+    // Check if this is a group conversation
+    const isGroup = selectedConversation.type === 'GROUP';
+
+    // Real-time status from store (only for DIRECT)
     const otherUserStatus = useMemo(() => {
+        if (isGroup) {
+            return { isOnline: false, lastActive: undefined };
+        }
         const storeStatus = onlineUsers[selectedConversation.otherId];
         if (storeStatus) {
             return {
@@ -106,26 +136,38 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             isOnline: selectedConversation.status === 'online',
             lastActive: selectedConversation.lastActive
         };
-    }, [onlineUsers, selectedConversation.otherId, selectedConversation.status, selectedConversation.lastActive]);
+    }, [isGroup, onlineUsers, selectedConversation.otherId, selectedConversation.status, selectedConversation.lastActive]);
 
     // Status display text
     const statusText = useMemo(() => {
+        if (isGroup) {
+            // Show member count for groups
+            const activeMembers = conversationDetail?.data?.participants.filter(p => !p.kickedAt).length || 0;
+            return `${activeMembers} thành viên`;
+        }
         if (otherUserStatus.isOnline) {
             return 'Đang hoạt động';
         }
         return formatLastActiveDetailed(otherUserStatus.lastActive);
-    }, [otherUserStatus]);
+    }, [isGroup, otherUserStatus, conversationDetail]);
 
     // Flatten all pages into single array of messages
     const pages = chatData?.pages;
     const allMessages = useMemo(() => {
         if (!pages) return [];
-        const messages: MessageResponse[] = [];
+        let messages: MessageResponse[] = [];
         pages.forEach(page => {
             messages.push(...page.data);
         });
+
+        // If user was kicked, only show messages up to kickedAt time
+        if (currentUserParticipant?.kickedAt) {
+            const kickedAt = new Date(currentUserParticipant.kickedAt);
+            messages = messages.filter(msg => new Date(msg.createdAt) <= kickedAt);
+        }
+
         return messages;
-    }, [pages]);
+    }, [pages, currentUserParticipant?.kickedAt]);
 
     // Calculate firstItemIndex based on total older messages
     const firstItemIndex = useMemo(() => {
@@ -213,23 +255,25 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         // Then emit to server (background sync)
         socketChat.emit("message:read", { conversationId: selectedConversation._id });
 
-        // Query online status of the other user when opening chat
-        socketChat.emit("user:status", { userId: selectedConversation.otherId }, (response: { userId: string; isOnline: boolean; status: string; lastActive?: string }) => {
-            console.log("📊 User status response:", response);
-            if (response) {
-                const store = useOnlineStatusStore.getState();
-                if (response.isOnline) {
-                    store.setUserOnline(response.userId);
-                } else {
-                    store.setUserOffline(response.userId, response.lastActive);
+        // Query online status of the other user when opening chat (only for DIRECT)
+        if (selectedConversation.type !== 'GROUP' && selectedConversation.otherId) {
+            socketChat.emit("user:status", { userId: selectedConversation.otherId }, (response: { userId: string; isOnline: boolean; status: string; lastActive?: string }) => {
+                console.log("📊 User status response:", response);
+                if (response) {
+                    const store = useOnlineStatusStore.getState();
+                    if (response.isOnline) {
+                        store.setUserOnline(response.userId);
+                    } else {
+                        store.setUserOffline(response.userId, response.lastActive);
+                    }
                 }
-            }
-        });
+            });
+        }
 
         return () => {
             // No leave event in backend, just clean up
         }
-    }, [socketChat, selectedConversation._id, userId, selectedConversation.otherId, queryClient]);
+    }, [socketChat, selectedConversation._id, userId, selectedConversation.otherId, selectedConversation.type, queryClient]);
 
     // Update message in cache helper
     const updateMessageInCache = useCallback((updatedMsg: MessageResponse) => {
@@ -341,6 +385,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         socketChat.on("message:deleted", handleMessageDeleted);
 
         socketChat.on("conversation:updated", handleConversationUpdate);
+        socketChat.on("conversation:created", handleConversationUpdate);
         socketChat.on("conversation:nickname:updated", handleConversationUpdate);
         socketChat.on("conversation:name:updated", handleConversationUpdate);
         socketChat.on("conversation:avatar:updated", handleConversationUpdate);
@@ -458,6 +503,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             socketChat.off("message:reaction:updated", handleMessageReaction);
             socketChat.off("message:deleted", handleMessageDeleted);
             socketChat.off("conversation:updated", handleConversationUpdate);
+            socketChat.off("conversation:created", handleConversationUpdate);
             socketChat.off("conversation:nickname:updated", handleConversationUpdate);
             socketChat.off("conversation:name:updated", handleConversationUpdate);
             socketChat.off("conversation:avatar:updated", handleConversationUpdate);
@@ -981,299 +1027,317 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                     </Box>
                 )}
 
-                {/* Input Area */}
-                <Box
-                    sx={{
-                        p: 2,
-                        bgcolor: "white",
-                        borderTop: "1px solid #e4e6eb",
-                        position: 'relative'
-                    }}
-                >
-                    {/* Mentions List */}
-                    {showMentions && filteredParticipants.length > 0 && (
-                        <Box
-                            sx={{
-                                position: 'absolute',
-                                bottom: '100%',
-                                left: 16,
-                                right: 16,
-                                bgcolor: 'white',
-                                boxShadow: 3,
-                                borderRadius: 2,
-                                mb: 1,
-                                maxHeight: 200,
-                                overflowY: 'auto',
-                                zIndex: 10
-                            }}
-                        >
-                            <List dense>
-                                {filteredParticipants.map((p: ConversationParticipant) => (
-                                    <MenuItem key={p.user._id} onClick={() => handleSelectMention(p)}>
-                                        <ListItemAvatar>
-                                            <Avatar src={p.user.avatar} sx={{ width: 24, height: 24 }} />
-                                        </ListItemAvatar>
-                                        <ListItemText primary={p.nickname || `${p.user.firstName} ${p.user.lastName}`} />
-                                    </MenuItem>
-                                ))}
-                            </List>
-                        </Box>
-                    )}
+                {/* Group Deleted or Kicked or Restricted Notice */}
+                {!canChat && (
+                    <Box
+                        sx={{
+                            p: 3,
+                            bgcolor: isGroupDeleted || wasKicked ? '#fff3cd' : '#e3f2fd',
+                            borderTop: isGroupDeleted || wasKicked ? '1px solid #ffc107' : '1px solid #2196f3',
+                            textAlign: 'center'
+                        }}
+                    >
+                        <Typography color={isGroupDeleted || wasKicked ? '#856404' : '#1565c0'} fontWeight={500}>
+                            {isGroupDeleted || wasKicked ? '🚫 ' : '🔒 '}{getChatRestrictionMessage()}
+                        </Typography>
+                    </Box>
+                )}
 
-                    {/* Reply Preview UI */}
-                    {replyMsg && (
-                        <Box
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                bgcolor: "#f0f2f5",
-                                p: 1,
-                                px: 2,
-                                borderRadius: 2,
-                                mb: 1,
-                            }}
-                        >
-                            <Box sx={{ minWidth: 0 }}>
-                                <Typography fontSize={12} color="#65676b">
-                                    Đang trả lời <strong>{replyMsg?.senderId._id === userId ? "chính mình" : "một tin nhắn"}</strong>
-                                </Typography>
-                                <Typography fontSize={13} color="#050505" noWrap sx={{ opacity: 0.8 }}>
-                                    {replyMsg.content}
-                                </Typography>
-                            </Box>
-                            <IconButton size="small" onClick={handleCancelReply}>
-                                <CloseIcon fontSize="small" />
-                            </IconButton>
-                        </Box>
-                    )}
-
-                    {/* Media Preview - Messenger Style */}
-                    {mediaPreview.length > 0 && (
-                        <Box
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                                mb: 1.5,
-                                p: 1.5,
-                                bgcolor: 'white',
-                                borderRadius: 1,
-                                overflowX: 'auto',
-                            }}
-                        >
-                            {/* Add media button */}
+                {/* Input Area - Only show if can chat */}
+                {canChat && (
+                    <Box
+                        sx={{
+                            p: 2,
+                            bgcolor: "white",
+                            borderTop: "1px solid #e4e6eb",
+                            position: 'relative'
+                        }}
+                    >
+                        {/* Mentions List */}
+                        {showMentions && filteredParticipants.length > 0 && (
                             <Box
                                 sx={{
-                                    width: 80,
-                                    height: 80,
+                                    position: 'absolute',
+                                    bottom: '100%',
+                                    left: 16,
+                                    right: 16,
+                                    bgcolor: 'white',
+                                    boxShadow: 3,
                                     borderRadius: 2,
-                                    border: '2px dashed #555',
+                                    mb: 1,
+                                    maxHeight: 200,
+                                    overflowY: 'auto',
+                                    zIndex: 10
+                                }}
+                            >
+                                <List dense>
+                                    {filteredParticipants.map((p: ConversationParticipant) => (
+                                        <MenuItem key={p.user._id} onClick={() => handleSelectMention(p)}>
+                                            <ListItemAvatar>
+                                                <Avatar src={p.user.avatar} sx={{ width: 24, height: 24 }} />
+                                            </ListItemAvatar>
+                                            <ListItemText primary={p.nickname || `${p.user.firstName} ${p.user.lastName}`} />
+                                        </MenuItem>
+                                    ))}
+                                </List>
+                            </Box>
+                        )}
+
+                        {/* Reply Preview UI */}
+                        {replyMsg && (
+                            <Box
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    bgcolor: "#f0f2f5",
+                                    p: 1,
+                                    px: 2,
+                                    borderRadius: 2,
+                                    mb: 1,
+                                }}
+                            >
+                                <Box sx={{ minWidth: 0 }}>
+                                    <Typography fontSize={12} color="#65676b">
+                                        Đang trả lời <strong>{replyMsg?.senderId._id === userId ? "chính mình" : "một tin nhắn"}</strong>
+                                    </Typography>
+                                    <Typography fontSize={13} color="#050505" noWrap sx={{ opacity: 0.8 }}>
+                                        {replyMsg.content}
+                                    </Typography>
+                                </Box>
+                                <IconButton size="small" onClick={handleCancelReply}>
+                                    <CloseIcon fontSize="small" />
+                                </IconButton>
+                            </Box>
+                        )}
+
+                        {/* Media Preview - Messenger Style */}
+                        {mediaPreview.length > 0 && (
+                            <Box
+                                sx={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    flexShrink: 0,
-                                    '&:hover': { borderColor: '#777' }
+                                    gap: 1,
+                                    mb: 1.5,
+                                    p: 1.5,
+                                    bgcolor: 'white',
+                                    borderRadius: 1,
+                                    overflowX: 'auto',
                                 }}
-                                onClick={() => fileInputRef.current?.click()}
                             >
-                                <AddCircleIcon sx={{ color: '#aaa', fontSize: 28 }} />
-                            </Box>
-                            {mediaPreview.map((media, index) => (
+                                {/* Add media button */}
                                 <Box
-                                    key={index}
                                     sx={{
-                                        position: 'relative',
                                         width: 80,
                                         height: 80,
                                         borderRadius: 2,
-                                        overflow: 'hidden',
+                                        border: '2px dashed #555',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
                                         flexShrink: 0,
-                                        bgcolor: '#242526',
-                                        border: '1px solid #444',
+                                        '&:hover': { borderColor: '#777' }
                                     }}
+                                    onClick={() => fileInputRef.current?.click()}
                                 >
-                                    {media.type === 'video' ? (
-                                        <>
-                                            <video
+                                    <AddCircleIcon sx={{ color: '#aaa', fontSize: 28 }} />
+                                </Box>
+                                {mediaPreview.map((media, index) => (
+                                    <Box
+                                        key={index}
+                                        sx={{
+                                            position: 'relative',
+                                            width: 80,
+                                            height: 80,
+                                            borderRadius: 2,
+                                            overflow: 'hidden',
+                                            flexShrink: 0,
+                                            bgcolor: '#242526',
+                                            border: '1px solid #444',
+                                        }}
+                                    >
+                                        {media.type === 'video' ? (
+                                            <>
+                                                <video
+                                                    src={media.url}
+                                                    style={{
+                                                        width: '100%',
+                                                        height: '100%',
+                                                        objectFit: 'cover'
+                                                    }}
+                                                />
+                                                <Box sx={{
+                                                    position: 'absolute',
+                                                    top: '50%',
+                                                    left: '50%',
+                                                    transform: 'translate(-50%, -50%)',
+                                                    bgcolor: 'rgba(0,0,0,0.6)',
+                                                    borderRadius: '50%',
+                                                    width: 24,
+                                                    height: 24,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center'
+                                                }}>
+                                                    <Typography color="white" fontSize={12}>▶</Typography>
+                                                </Box>
+                                            </>
+                                        ) : (
+                                            <Box
+                                                component="img"
                                                 src={media.url}
-                                                style={{
+                                                sx={{
                                                     width: '100%',
                                                     height: '100%',
                                                     objectFit: 'cover'
                                                 }}
                                             />
-                                            <Box sx={{
-                                                position: 'absolute',
-                                                top: '50%',
-                                                left: '50%',
-                                                transform: 'translate(-50%, -50%)',
-                                                bgcolor: 'rgba(0,0,0,0.6)',
-                                                borderRadius: '50%',
-                                                width: 24,
-                                                height: 24,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                            }}>
-                                                <Typography color="white" fontSize={12}>▶</Typography>
-                                            </Box>
-                                        </>
-                                    ) : (
-                                        <Box
-                                            component="img"
-                                            src={media.url}
+                                        )}
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => handleRemoveMedia(index)}
                                             sx={{
-                                                width: '100%',
-                                                height: '100%',
-                                                objectFit: 'cover'
+                                                position: 'absolute',
+                                                top: 4,
+                                                right: 4,
+                                                bgcolor: '#242526',
+                                                color: 'white',
+                                                p: 0.3,
+                                                border: '1px solid #3a3b3c',
+                                                '&:hover': { bgcolor: '#555' }
                                             }}
-                                        />
-                                    )}
-                                    <IconButton
-                                        size="small"
-                                        onClick={() => handleRemoveMedia(index)}
+                                        >
+                                            <CloseIcon sx={{ fontSize: 12 }} />
+                                        </IconButton>
+                                    </Box>
+                                ))}
+                            </Box>
+                        )}
+
+                        {/* File Preview */}
+                        {filePreview.length > 0 && (
+                            <Box sx={{ mb: 1.5 }}>
+                                {filePreview.map((file, index) => (
+                                    <Box
+                                        key={index}
                                         sx={{
-                                            position: 'absolute',
-                                            top: 4,
-                                            right: 4,
-                                            bgcolor: '#242526',
-                                            color: 'white',
-                                            p: 0.3,
-                                            border: '1px solid #3a3b3c',
-                                            '&:hover': { bgcolor: '#555' }
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1.5,
+                                            p: 1.5,
+                                            bgcolor: '#f0f2f5',
+                                            borderRadius: 2,
+                                            mb: 0.5,
                                         }}
                                     >
-                                        <CloseIcon sx={{ fontSize: 12 }} />
-                                    </IconButton>
-                                </Box>
-                            ))}
-                        </Box>
-                    )}
+                                        {getFileIcon(file.type)}
+                                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                                            <Typography
+                                                fontSize={13}
+                                                fontWeight={500}
+                                                noWrap
+                                                sx={{ color: '#050505' }}
+                                            >
+                                                {file.name}
+                                            </Typography>
+                                            <Typography fontSize={12} color="#65676b">
+                                                {formatFileSize(file.size)}
+                                            </Typography>
+                                        </Box>
+                                        <IconButton size="small" onClick={() => handleRemoveFile(index)}>
+                                            <CloseIcon fontSize="small" />
+                                        </IconButton>
+                                    </Box>
+                                ))}
+                            </Box>
+                        )}
 
-                    {/* File Preview */}
-                    {filePreview.length > 0 && (
-                        <Box sx={{ mb: 1.5 }}>
-                            {filePreview.map((file, index) => (
-                                <Box
-                                    key={index}
+                        <Box
+                            sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                                bgcolor: "#f0f2f5",
+                                borderRadius: 5,
+                                px: 2,
+                                py: 1,
+                            }}
+                        >
+                            <IconButton
+                                size="small"
+                                sx={{ color: "#0084ff" }}
+                                onClick={() => fileDocInputRef.current?.click()}
+                                title="Đính kèm file"
+                            >
+                                <AddCircleIcon fontSize="small" />
+                            </IconButton>
+                            <input
+                                type="file"
+                                ref={fileDocInputRef}
+                                hidden
+                                multiple
+                                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
+                                onChange={handleDocFileSelect}
+                            />
+                            <IconButton size="small" sx={{ color: "#0084ff" }} onClick={() => fileInputRef.current?.click()}>
+                                <InsertPhotoIcon fontSize="small" />
+                            </IconButton>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                hidden
+                                multiple
+                                accept="image/*,video/*"
+                                onChange={handleFileSelect}
+                            />
+                            <TextField
+                                fullWidth
+                                multiline
+                                maxRows={4}
+                                placeholder="Aa"
+                                value={newMessage}
+                                onChange={handleInputChange}
+                                onKeyPress={handleKeyPress}
+                                variant="standard"
+                                InputProps={{
+                                    disableUnderline: true,
+                                    sx: {
+                                        color: "#050505",
+                                        fontSize: "15px",
+                                        "& .MuiInputBase-input": {
+                                            py: 0.5,
+                                        },
+                                        "&::placeholder": {
+                                            color: "#65676b",
+                                            opacity: 1,
+                                        },
+                                    },
+                                }}
+                            />
+                            <IconButton size="small" sx={{ color: "#0084ff" }} onClick={(e) => setEmojiAnchor(e.currentTarget)}>
+                                <EmojiEmotionsIcon fontSize="small" />
+                            </IconButton>
+                            {(newMessage.trim() || mediaPreview.length > 0) ? (
+                                <IconButton onClick={handleSendMessage} size="small" sx={{ color: themeColor }} disabled={isUploading}>
+                                    {isUploading ? <CircularProgress size={18} /> : <SendIcon fontSize="small" />}
+                                </IconButton>
+                            ) : (
+                                <IconButton
+                                    onClick={handleSendQuickReaction}
+                                    size="small"
                                     sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 1.5,
-                                        p: 1.5,
-                                        bgcolor: '#f0f2f5',
-                                        borderRadius: 2,
-                                        mb: 0.5,
+                                        fontSize: 20,
+                                        transition: 'transform 0.15s',
+                                        '&:hover': { transform: 'scale(1.2)', bgcolor: 'transparent' }
                                     }}
                                 >
-                                    {getFileIcon(file.type)}
-                                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                                        <Typography
-                                            fontSize={13}
-                                            fontWeight={500}
-                                            noWrap
-                                            sx={{ color: '#050505' }}
-                                        >
-                                            {file.name}
-                                        </Typography>
-                                        <Typography fontSize={12} color="#65676b">
-                                            {formatFileSize(file.size)}
-                                        </Typography>
-                                    </Box>
-                                    <IconButton size="small" onClick={() => handleRemoveFile(index)}>
-                                        <CloseIcon fontSize="small" />
-                                    </IconButton>
-                                </Box>
-                            ))}
+                                    {quickReaction}
+                                </IconButton>
+                            )}
                         </Box>
-                    )}
-
-                    <Box
-                        sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1,
-                            bgcolor: "#f0f2f5",
-                            borderRadius: 5,
-                            px: 2,
-                            py: 1,
-                        }}
-                    >
-                        <IconButton
-                            size="small"
-                            sx={{ color: "#0084ff" }}
-                            onClick={() => fileDocInputRef.current?.click()}
-                            title="Đính kèm file"
-                        >
-                            <AddCircleIcon fontSize="small" />
-                        </IconButton>
-                        <input
-                            type="file"
-                            ref={fileDocInputRef}
-                            hidden
-                            multiple
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
-                            onChange={handleDocFileSelect}
-                        />
-                        <IconButton size="small" sx={{ color: "#0084ff" }} onClick={() => fileInputRef.current?.click()}>
-                            <InsertPhotoIcon fontSize="small" />
-                        </IconButton>
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            hidden
-                            multiple
-                            accept="image/*,video/*"
-                            onChange={handleFileSelect}
-                        />
-                        <TextField
-                            fullWidth
-                            multiline
-                            maxRows={4}
-                            placeholder="Aa"
-                            value={newMessage}
-                            onChange={handleInputChange}
-                            onKeyPress={handleKeyPress}
-                            variant="standard"
-                            InputProps={{
-                                disableUnderline: true,
-                                sx: {
-                                    color: "#050505",
-                                    fontSize: "15px",
-                                    "& .MuiInputBase-input": {
-                                        py: 0.5,
-                                    },
-                                    "&::placeholder": {
-                                        color: "#65676b",
-                                        opacity: 1,
-                                    },
-                                },
-                            }}
-                        />
-                        <IconButton size="small" sx={{ color: "#0084ff" }} onClick={(e) => setEmojiAnchor(e.currentTarget)}>
-                            <EmojiEmotionsIcon fontSize="small" />
-                        </IconButton>
-                        {(newMessage.trim() || mediaPreview.length > 0) ? (
-                            <IconButton onClick={handleSendMessage} size="small" sx={{ color: themeColor }} disabled={isUploading}>
-                                {isUploading ? <CircularProgress size={18} /> : <SendIcon fontSize="small" />}
-                            </IconButton>
-                        ) : (
-                            <IconButton
-                                onClick={handleSendQuickReaction}
-                                size="small"
-                                sx={{
-                                    fontSize: 20,
-                                    transition: 'transform 0.15s',
-                                    '&:hover': { transform: 'scale(1.2)', bgcolor: 'transparent' }
-                                }}
-                            >
-                                {quickReaction}
-                            </IconButton>
-                        )}
                     </Box>
-                </Box>
+                )}
             </Box>
 
 

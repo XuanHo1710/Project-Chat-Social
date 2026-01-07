@@ -17,18 +17,27 @@ export interface ConversationParticipant {
   joinedAt: Date;
   isAdmin: boolean;
   nickname: string;
+  kickedAt?: Date; // Thời điểm thành viên bị kick (null nếu chưa bị kick)
+}
+
+export interface ConversationSettings {
+  allowMembersToAdd: boolean; // Cho phép thành viên thêm người mới
+  onlyAdminCanChat: boolean; // Chỉ admin mới được nhắn tin
 }
 
 export interface ConversationResponseData {
   _id: string;
   type: ConversationTypeEnum;
   isBlocked: boolean;
+  isDeleted?: boolean; // Nhóm đã bị giải tán
+  deletedAt?: Date; // Thời điểm giải tán
   creator: string; // ID của người tạo nhóm
-  name?: string; // Tên nhóm
+  nickname?: string; // Tên nhóm
   avatar?: string; // Avatar nhóm
   quickReaction: string;
   theme?: string; // Theme color for chat background
   unreadCount?: Record<string, number>; // Map userId -> unread count
+  settings?: ConversationSettings; // Group settings
   participants: ConversationParticipant[];
   lastMessage?: {
     _id: string;

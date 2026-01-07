@@ -21,6 +21,44 @@ export class ConversationService {
     return await converstation.save();
   }
 
+  // Create a group chat with multiple members (minimum 3 people including creator)
+  async createGroup(
+    creatorId: string,
+    memberIds: string[], // Array of user IDs to add to the group
+    groupName?: string
+  ): Promise<any> {
+    // Validate minimum 2 other members (total 3 including creator)
+    if (!memberIds || memberIds.length < 2) {
+      throw new BadRequestException('Nhóm cần ít nhất 3 thành viên (bao gồm bạn)');
+    }
+
+    // Create participants array with creator as admin
+    const participants = [
+      {
+        user: new Types.ObjectId(creatorId),
+        joinedAt: new Date(),
+        isAdmin: true,
+        nickname: '',
+      },
+      ...memberIds.map((memberId) => ({
+        user: new Types.ObjectId(memberId),
+        joinedAt: new Date(),
+        isAdmin: false,
+        nickname: '',
+      })),
+    ];
+
+    const group = new this.conversationModel({
+      type: 'GROUP',
+      nickname: groupName || 'Nhóm mới',
+      creator: new Types.ObjectId(creatorId),
+      participants,
+    });
+
+    const saved = await group.save();
+    return this.findById(saved._id.toString());
+  }
+
   async findAll() {
     return await this.conversationModel.find().exec();
   }
@@ -220,7 +258,7 @@ export class ConversationService {
   }
 
   // 5. Thêm thành viên vào nhóm
-  async addMember(conversationId: string, adminUserId: string, newUserId: string) {
+  async addMember(conversationId: string, requestUserId: string, newUserId: string) {
     const conversation = await this.conversationModel.findById(conversationId);
     if (!conversation) {
       throw new NotFoundException('Không tìm thấy cuộc trò chuyện');
@@ -230,15 +268,47 @@ export class ConversationService {
       throw new BadRequestException('Chỉ có thể thêm thành viên vào nhóm chat');
     }
 
-    const isAdmin = await this.isUserAdmin(conversationId, adminUserId);
-    if (!isAdmin) {
-      throw new ForbiddenException('Chỉ admin mới có thể thêm thành viên');
+    // Kiểm tra quyền thêm thành viên
+    const isAdmin = await this.isUserAdmin(conversationId, requestUserId);
+    const allowMembersToAdd = conversation.settings?.allowMembersToAdd ?? true;
+
+    // Nếu không cho phép thành viên thêm và user không phải admin -> từ chối
+    if (!allowMembersToAdd && !isAdmin) {
+      throw new ForbiddenException('Chỉ quản trị viên mới có thể thêm thành viên');
     }
 
-    // Kiểm tra user đã trong nhóm chưa
-    const alreadyExists = conversation.participants.some((p) => p.user.toString() === newUserId);
-    if (alreadyExists) {
+    // Kiểm tra người request có trong nhóm không
+    const isMember = conversation.participants.some(
+      (p) => p.user.toString() === requestUserId && !p.kickedAt
+    );
+    if (!isMember) {
+      throw new ForbiddenException('Bạn không phải thành viên của nhóm này');
+    }
+
+    // Kiểm tra user đã trong nhóm chưa (và chưa bị kick)
+    const existingMember = conversation.participants.find((p) => p.user.toString() === newUserId);
+    if (existingMember && !existingMember.kickedAt) {
       throw new BadRequestException('Người dùng đã là thành viên của nhóm');
+    }
+
+    // Nếu từng bị kick, cho phép thêm lại
+    if (existingMember && existingMember.kickedAt) {
+      return await this.conversationModel
+        .findByIdAndUpdate(
+          conversationId,
+          {
+            $set: {
+              'participants.$[elem].kickedAt': null,
+              'participants.$[elem].joinedAt': new Date(),
+            },
+          },
+          {
+            new: true,
+            arrayFilters: [{ 'elem.user': new Types.ObjectId(newUserId) }],
+          }
+        )
+        .populate('participants.user', 'firstName lastName username avatar status lastActive')
+        .exec();
     }
 
     return await this.conversationModel
@@ -256,7 +326,7 @@ export class ConversationService {
         },
         { new: true }
       )
-      .populate('participants.user', 'firstName lastName username avatar')
+      .populate('participants.user', 'firstName lastName username avatar status lastActive')
       .exec();
   }
 
@@ -271,6 +341,10 @@ export class ConversationService {
       throw new BadRequestException('Chỉ có thể kick thành viên từ nhóm chat');
     }
 
+    if (conversation.isDeleted) {
+      throw new BadRequestException('Nhóm này đã bị giải tán');
+    }
+
     const isAdmin = await this.isUserAdmin(conversationId, adminUserId);
     if (!isAdmin) {
       throw new ForbiddenException('Chỉ admin mới có thể kick thành viên');
@@ -281,10 +355,39 @@ export class ConversationService {
       throw new ForbiddenException('Không thể kick người tạo nhóm');
     }
 
+    // Đếm số thành viên active (chưa bị kick)
+    const activeMembers = conversation.participants.filter((p) => !p.kickedAt);
+
+    // Nếu sau khi kick còn dưới 3 người thì giải tán nhóm
+    if (activeMembers.length <= 3) {
+      // Giải tán nhóm: set isDeleted = true và kickedAt cho tất cả thành viên còn lại (trừ admin kick)
+      const kickedAt = new Date();
+
+      // Set kickedAt cho người bị kick
+      await this.conversationModel.findOneAndUpdate(
+        { _id: conversationId, 'participants.user': new Types.ObjectId(targetUserId) },
+        {
+          $set: {
+            'participants.$.kickedAt': kickedAt,
+            isDeleted: true,
+            deletedAt: kickedAt,
+          },
+        }
+      );
+
+      return await this.conversationModel
+        .findById(conversationId)
+        .populate('participants.user', 'firstName lastName username avatar')
+        .exec();
+    }
+
+    // Kick thành viên bằng cách set kickedAt thay vì xóa khỏi array
+    const kickedAt = new Date();
+
     return await this.conversationModel
-      .findByIdAndUpdate(
-        conversationId,
-        { $pull: { participants: { user: new Types.ObjectId(targetUserId) } } },
+      .findOneAndUpdate(
+        { _id: conversationId, 'participants.user': new Types.ObjectId(targetUserId) },
+        { $set: { 'participants.$.kickedAt': kickedAt } },
         { new: true }
       )
       .populate('participants.user', 'firstName lastName username avatar')
@@ -381,6 +484,41 @@ export class ConversationService {
         { $pull: { participants: { user: new Types.ObjectId(userId) } } },
         { new: true }
       )
+      .exec();
+  }
+
+  // 9. Cập nhật settings của nhóm
+  async updateSettings(
+    conversationId: string,
+    userId: string,
+    settings: { allowMembersToAdd?: boolean; onlyAdminCanChat?: boolean }
+  ) {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException('Không tìm thấy cuộc trò chuyện');
+    }
+
+    if (conversation.type !== 'GROUP') {
+      throw new BadRequestException('Chỉ có thể cập nhật settings cho nhóm chat');
+    }
+
+    // Chỉ admin mới được thay đổi settings
+    const isAdmin = await this.isUserAdmin(conversationId, userId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Chỉ quản trị viên mới có thể thay đổi cài đặt nhóm');
+    }
+
+    const updateData: Record<string, boolean> = {};
+    if (settings.allowMembersToAdd !== undefined) {
+      updateData['settings.allowMembersToAdd'] = settings.allowMembersToAdd;
+    }
+    if (settings.onlyAdminCanChat !== undefined) {
+      updateData['settings.onlyAdminCanChat'] = settings.onlyAdminCanChat;
+    }
+
+    return await this.conversationModel
+      .findByIdAndUpdate(conversationId, { $set: updateData }, { new: true })
+      .populate('participants.user', 'firstName lastName username avatar status lastActive')
       .exec();
   }
 }

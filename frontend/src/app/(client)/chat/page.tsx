@@ -10,6 +10,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/constants/query-keys";
 import { ConversationResponseData } from "@/types/conversation";
 import { MessageResponse } from "@/types/chat";
+import { useRouter } from "next/navigation";
+import { CLIENT_PATH } from "@/constants/paths";
 
 interface SelectedConversation {
     _id: string;
@@ -18,6 +20,7 @@ interface SelectedConversation {
     status: "online" | "offline";
     otherId: string;
     lastActive?: string;
+    type?: "DIRECT" | "GROUP";
 }
 
 export default function ChatPage() {
@@ -25,8 +28,14 @@ export default function ChatPage() {
     const [selectedConversation, setSelectConversation] = useState<SelectedConversation | null>(null);
     const { socketChat } = useSocket();
     const queryClient = useQueryClient();
+    const router = useRouter();
 
     const { data: listConversation, isLoading: isLoadingConversations } = useConversationByUserId(user?.id || "");
+
+    // Handle select conversation - navigate to /chat/:id
+    const handleSelectConversation = (conv: SelectedConversation) => {
+        router.push(CLIENT_PATH.CHAT_BY_ID(conv._id));
+    };
 
     // Listen for global message events - OPTIMISTIC UPDATE for lastMessage
     useEffect(() => {
@@ -51,7 +60,7 @@ export default function ChatPage() {
                                         content: msg.content || '',
                                         createdAt: new Date(msg.createdAt),
                                         senderId: typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId,
-                                        attachments: msg.attachments,
+                                        attachments: msg.attachments?.map(a => typeof a === 'string' ? a : a.url),
                                     },
                                     lastMessageAt: new Date(msg.createdAt),
                                 };
@@ -90,50 +99,46 @@ export default function ChatPage() {
                 conversations={listConversation?.data || []}
                 isLoading={isLoadingConversations}
                 selectedConversationId={selectedConversation?._id}
-                onSelectConversation={setSelectConversation}
+                onSelectConversation={handleSelectConversation}
             />
 
-            {/* Main Chat Area */}
-            {selectedConversation ? (
-                <AreaChatMessages key={selectedConversation._id} selectedConversation={selectedConversation} userId={user?.id || ""} />
-            ) : (
-                <Box
-                    sx={{
-                        flex: 1,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        bgcolor: "white",
-                    }}
-                >
-                    <Box sx={{ textAlign: "center", color: "#65676b" }}>
-                        <svg
-                            width="100"
-                            height="100"
-                            viewBox="0 0 100 100"
+            {/* Main Chat Area - Show placeholder on /chat page */}
+            <Box
+                sx={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    bgcolor: "white",
+                }}
+            >
+                <Box sx={{ textAlign: "center", color: "#65676b" }}>
+                    <svg
+                        width="100"
+                        height="100"
+                        viewBox="0 0 100 100"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        style={{ margin: "0 auto 20px" }}
+                    >
+                        <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="3" />
+                        <path
+                            d="M30 60 Q35 45, 50 50 T70 60"
+                            stroke="currentColor"
+                            strokeWidth="3"
                             fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            style={{ margin: "0 auto 20px" }}
-                        >
-                            <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="3" />
-                            <path
-                                d="M30 60 Q35 45, 50 50 T70 60"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                                fill="none"
-                            />
-                            <circle cx="35" cy="40" r="3" fill="currentColor" />
-                            <circle cx="65" cy="40" r="3" fill="currentColor" />
-                        </svg>
-                        <p style={{ fontSize: "20px", fontWeight: 600, marginBottom: "8px", color: "#050505" }}>
-                            Chọn một cuộc trò chuyện
-                        </p>
-                        <p style={{ fontSize: "14px", color: "#65676b" }}>
-                            Chọn một người từ danh sách để bắt đầu trò chuyện
-                        </p>
-                    </Box>
+                        />
+                        <circle cx="35" cy="40" r="3" fill="currentColor" />
+                        <circle cx="65" cy="40" r="3" fill="currentColor" />
+                    </svg>
+                    <p style={{ fontSize: "20px", fontWeight: 600, marginBottom: "8px", color: "#050505" }}>
+                        Chọn một cuộc trò chuyện
+                    </p>
+                    <p style={{ fontSize: "14px", color: "#65676b" }}>
+                        Chọn một người từ danh sách để bắt đầu trò chuyện
+                    </p>
                 </Box>
-            )}
+            </Box>
         </Box>
     );
 }

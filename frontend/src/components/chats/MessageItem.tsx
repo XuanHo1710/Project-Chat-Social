@@ -554,9 +554,11 @@ export default function MessageItem({
                         <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
                             <ReplyIcon sx={{ fontSize: 17, color: '#65676b' }} />
                         </IconButton>
-                        <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
-                            <MoreHorizIcon sx={{ fontSize: 17, color: '#65676b' }} />
-                        </IconButton>
+                        {isOwn &&
+                            <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                                <MoreHorizIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                            </IconButton>
+                        }
                         <Typography variant="caption" color="#65676b" sx={{ fontSize: 11, mx: 0.5, whiteSpace: 'nowrap' }}>
                             {formatTime(message.createdAt)}
                         </Typography>
@@ -879,9 +881,11 @@ export default function MessageItem({
                                 <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
                                     <ReplyIcon sx={{ fontSize: 17, color: '#65676b' }} />
                                 </IconButton>
-                                <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
-                                    <MoreHorizIcon sx={{ fontSize: 17, color: '#65676b' }} />
-                                </IconButton>
+                                {isOwn &&
+                                    <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                                        <MoreHorizIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                                    </IconButton>
+                                }
                                 <Typography variant="caption" color="#65676b" sx={{ fontSize: 11, mx: 0.5, whiteSpace: 'nowrap' }}>
                                     {formatTime(message.createdAt)}
                                 </Typography>

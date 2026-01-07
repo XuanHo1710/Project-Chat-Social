@@ -7,6 +7,7 @@ import { useGetUserReaction } from "@/queries/useReactionQueries";
 import { ReactionType } from "@/types/reaction";
 import { useSocket } from "@/contexts/SocketContext";
 import { useReactionStore, ReactionType as StoreReactionType } from "@/stores/useReactionStore";
+import { PostType } from "@/types/post";
 
 // Reaction data with emoji, label, and color
 const REACTIONS = [
@@ -19,39 +20,46 @@ const REACTIONS = [
 ];
 
 interface ReactionButtonProps {
-    postId: string;
+    post: PostType;
     initialTotalReacts?: number;
 }
 
-export default function ReactionButton({ postId, initialTotalReacts = 0 }: ReactionButtonProps) {
+export default function ReactionButton({ post, initialTotalReacts = 0 }: ReactionButtonProps) {
     const [showReactions, setShowReactions] = useState(false);
 
     const { socketReaction } = useSocket();
 
     // Use global store for reaction state
     const { postReactions, setPostReaction, initPostReaction, setFromApi, setFromServer } = useReactionStore();
-    const reactionState = postReactions[postId];
+    const reactionState = postReactions[post._id];
 
     // Local state derived from global store
     const localReaction = reactionState?.userReaction ?? null;
     const localTotalReacts = reactionState?.totalReacts ?? initialTotalReacts;
 
+    console.log(post.reactInfo)
+
     // Fetch user's reaction for this post (initial load)
-    const { data: userReactionData, isLoading } = useGetUserReaction(postId);
+    // const { data: userReactionData, isLoading } = useGetUserReaction(post._id);
+
+
+
+
+
     const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
     const leaveTimeout = useRef<NodeJS.Timeout | null>(null);
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     // Initialize store with post data
     useEffect(() => {
-        initPostReaction(postId, initialTotalReacts);
-    }, [postId, initialTotalReacts, initPostReaction]);
+        initPostReaction(post._id, initialTotalReacts);
+    }, [post._id, initialTotalReacts, initPostReaction]);
 
     // Subscribe to post updates when component mounts
     useEffect(() => {
-        if (!socketReaction || !postId) return;
+        if (!socketReaction || !post._id) return;
 
-        socketReaction.emit('post:subscribe', { postId });
+        socketReaction.emit('post:subscribe', { postId: post._id });
 
         // Listen for reaction updates from server (authoritative)
         const handleReactionUpdated = (data: {
@@ -61,9 +69,9 @@ export default function ReactionButton({ postId, initialTotalReacts = 0 }: React
             type: ReactionType;
             totalReacts: number;
         }) => {
-            if (data.postId === postId) {
+            if (data.postId === post._id) {
                 // Server is authoritative for totalReacts
-                setFromServer(postId, data.totalReacts);
+                setFromServer(post._id, data.totalReacts);
             }
         };
 
@@ -74,9 +82,9 @@ export default function ReactionButton({ postId, initialTotalReacts = 0 }: React
             action: string;
             totalReacts: number;
         }) => {
-            if (data.postId === postId && data.success) {
+            if (data.postId === post._id && data.success) {
                 // Server confirmed - use authoritative count
-                setFromServer(postId, data.totalReacts);
+                setFromServer(post._id, data.totalReacts);
             }
         };
 
@@ -84,19 +92,19 @@ export default function ReactionButton({ postId, initialTotalReacts = 0 }: React
         socketReaction.on('reaction:result', handleReactionResult);
 
         return () => {
-            socketReaction.emit('post:unsubscribe', { postId });
+            socketReaction.emit('post:unsubscribe', { postId: post._id });
             socketReaction.off('reaction:updated', handleReactionUpdated);
             socketReaction.off('reaction:result', handleReactionResult);
         };
-    }, [socketReaction, postId, setFromServer]);
+    }, [socketReaction, post._id, setFromServer]);
 
     // Set initial reaction from API (ONLY if no local updates)
     useEffect(() => {
-        if (!isLoading && userReactionData) {
+        if (post && post.reactInfo) {
             // Use setFromApi which won't overwrite if hasLocalUpdate is true
-            setFromApi(postId, userReactionData.type as StoreReactionType);
+            setFromApi(post._id, post.reactInfo.type as StoreReactionType);
         }
-    }, [userReactionData, isLoading, postId, setFromApi]);
+    }, [post._id, setFromApi, post, post.reactInfo]);
 
     const handleMouseEnter = () => {
         if (leaveTimeout.current) {
@@ -122,7 +130,7 @@ export default function ReactionButton({ postId, initialTotalReacts = 0 }: React
         setShowReactions(false);
 
         // Get current state from store (always up to date)
-        const currentState = useReactionStore.getState().postReactions[postId];
+        const currentState = useReactionStore.getState().postReactions[post._id];
         const currentReaction = currentState?.userReaction;
         const currentTotal = currentState?.totalReacts ?? initialTotalReacts;
 
@@ -145,7 +153,7 @@ export default function ReactionButton({ postId, initialTotalReacts = 0 }: React
         }
 
         // Update global store immediately (optimistic) - marks hasLocalUpdate = true
-        setPostReaction(postId, {
+        setPostReaction(post._id, {
             userReaction: newReaction,
             totalReacts: newTotal
         });
@@ -158,10 +166,10 @@ export default function ReactionButton({ postId, initialTotalReacts = 0 }: React
         // Debounce - only send the FINAL state after user stops clicking
         debounceRef.current = setTimeout(() => {
             if (socketReaction?.connected) {
-                socketReaction.emit('reaction:toggle', { postId, type });
+                socketReaction.emit('reaction:toggle', { postId: post._id, type });
             }
         }, 400);
-    }, [postId, socketReaction, setPostReaction, initialTotalReacts]);
+    }, [post._id, socketReaction, setPostReaction, initialTotalReacts]);
 
     const handleClick = () => {
         handleReactionSelect("LIKE");

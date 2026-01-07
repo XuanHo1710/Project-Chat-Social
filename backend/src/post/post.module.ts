@@ -5,12 +5,18 @@ import { PostController } from './post.controller';
 import { Post, PostSchema } from './entities/post.entity';
 import { HashtagModule } from 'src/hashtag/hashtag.module';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
+import { ReactionModule } from 'src/reaction/reaction.module';
+import { Reaction, ReactionSchema } from 'src/reaction/entities/reaction.entity';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Post.name, schema: PostSchema }]),
+    MongooseModule.forFeature([
+      { name: Post.name, schema: PostSchema },
+      { name: Reaction.name, schema: ReactionSchema },
+    ]),
     HashtagModule,
     CloudinaryModule,
+    ReactionModule,
   ],
   controllers: [PostController],
   providers: [PostService],

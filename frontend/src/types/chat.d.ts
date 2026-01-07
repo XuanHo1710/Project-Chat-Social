@@ -29,6 +29,7 @@ export interface MessageResponse {
     firstName: string;
     lastName: string;
     _id: string;
+    avatar: string;
   };
 
   type: MessageType;

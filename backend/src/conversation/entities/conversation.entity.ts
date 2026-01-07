@@ -40,6 +40,7 @@ export class Conversation {
         avatar: String,
         nickname: String,
         kickedAt: Date, // Thời điểm thành viên bị kick (null nếu chưa bị kick)
+        leftAt: Date, // Thời điểm thành viên tự rời nhóm (null nếu chưa rời)
       },
     ],
   })
@@ -50,6 +51,7 @@ export class Conversation {
       joinedAt: Date;
       isAdmin: boolean;
       kickedAt?: Date; // Thời điểm thành viên bị kick
+      leftAt?: Date; // Thời điểm thành viên tự rời nhóm
     },
   ];
 

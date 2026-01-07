@@ -28,9 +28,7 @@ import {
     Checkbox,
     Chip,
     Switch,
-    FormControlLabel,
-    Fade,
-    Slide,
+    Badge,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -72,6 +70,7 @@ import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
 import { UploadImage } from '@/utils/uploadImage';
 import { toast } from 'sonner';
+import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 
 
 // Theme colors for chat background - now with gradients
@@ -98,6 +97,9 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     const router = useRouter();
     const { data: conversationData, isLoading } = useConversationDetail(conversationId);
     const { socketChat } = useSocket();
+
+    // Online status store
+    const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
 
     // Collapsible sections
     const [customizeOpen, setCustomizeOpen] = useState(true);
@@ -362,9 +364,16 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         }
     };
 
-    const handleAddMember = (targetUserId: string) => {
+    const handleAddMember = (newUserId: string) => {
         if (socketChat) {
-            socketChat.emit('conversation:member:add', { conversationId, targetUserId });
+            socketChat.emit('conversation:member:add', { conversationId, newUserId }, (response: { success: boolean; error?: string }) => {
+                if (response.success) {
+                    toast.success('Đã thêm thành viên vào nhóm');
+                    setAddMemberDialogOpen(false);
+                } else {
+                    toast.error(response.error || 'Không thể thêm thành viên');
+                }
+            });
         }
     };
 
@@ -570,9 +579,10 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             src={isGroup ? conversation.avatar : otherUser?.avatar}
                             sx={{ width: 80, height: 80 }}
                         />
-                        {isGroup && isAdmin && (
+                        {isGroup && (
                             <IconButton
                                 size="small"
+                                onClick={handleAvatarClick}
                                 sx={{ position: 'absolute', bottom: 0, right: -5, bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}
                             >
                                 <PhotoCameraIcon sx={{ fontSize: 16 }} />
@@ -583,7 +593,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         <Typography variant="h6" fontWeight={700} color="#050505" textAlign="center">
                             {displayName}
                         </Typography>
-                        {isGroup && isAdmin && (
+                        {isGroup && (
                             <IconButton size="small" onClick={() => { setNewName(conversation.nickname || ''); setEditNameDialogOpen(true); }}>
                                 <EditIcon sx={{ fontSize: 16 }} />
                             </IconButton>
@@ -813,7 +823,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         </ListItemButton>
                         <Collapse in={membersOpen}>
                             <List disablePadding>
-                                {conversation.participants.filter(p => !p.kickedAt).map((member) => {
+                                {conversation.participants.filter(p => !p.kickedAt && !p.leftAt).map((member) => {
                                     const memberIsCreator = isMemberCreator(member.user._id);
                                     const memberRole = memberIsCreator
                                         ? 'Người tạo nhóm'
@@ -821,18 +831,37 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                             ? 'Quản trị viên'
                                             : '';
 
+                                    // Get online status for member
+                                    const memberOnlineStatus = onlineUsers[member.user._id];
+                                    const isOnline = memberOnlineStatus?.isOnline || member.user.status === 'ACTIVE';
+
                                     return (
                                         <ListItem key={member.user._id} sx={{ px: 2 }}>
                                             <ListItemAvatar>
-                                                <Avatar src={member.user.avatar} sx={{ width: 36, height: 36 }} />
+                                                <Badge
+                                                    overlap="circular"
+                                                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                                                    variant="dot"
+                                                    sx={{
+                                                        '& .MuiBadge-badge': {
+                                                            backgroundColor: isOnline ? '#31a24c' : '#65676b',
+                                                            border: '2px solid white',
+                                                            width: 10,
+                                                            height: 10,
+                                                            borderRadius: '50%',
+                                                        },
+                                                    }}
+                                                >
+                                                    <Avatar src={member.user.avatar} sx={{ width: 36, height: 36 }} />
+                                                </Badge>
                                             </ListItemAvatar>
                                             <ListItemText
                                                 primary={member.nickname || `${member.user.firstName} ${member.user.lastName}`}
-                                                secondary={memberRole}
+                                                secondary={memberRole || (isOnline ? 'Đang hoạt động' : 'Không hoạt động')}
                                                 primaryTypographyProps={{ fontSize: 14, fontWeight: 500, color: '#050505' }}
                                                 secondaryTypographyProps={{
                                                     fontSize: 12,
-                                                    color: memberIsCreator ? themeColor : '#65676b',
+                                                    color: memberIsCreator ? themeColor : isOnline ? '#31a24c' : '#65676b',
                                                     fontWeight: memberIsCreator ? 600 : 400
                                                 }}
                                             />

@@ -1,8 +1,12 @@
 import { Injectable, NotFoundException, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, ObjectId, Types } from 'mongoose';
 import { Reaction, ReactionDocument, ReactionType, TypeFactor } from './entities/reaction.entity';
-import { CreateReactionDto, CreatePostReactionDto, CreateCommentReactionDto } from './dto/create-reaction.dto';
+import {
+  CreateReactionDto,
+  CreatePostReactionDto,
+  CreateCommentReactionDto,
+} from './dto/create-reaction.dto';
 import { Post, PostDocument } from 'src/post/entities/post.entity';
 import { Comment, CommentDocument } from 'src/comment/entities/comment.entity';
 
@@ -13,8 +17,8 @@ export class ReactionService implements OnModuleInit {
   constructor(
     @InjectModel(Reaction.name) private reactionModel: Model<ReactionDocument>,
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
-    @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
-  ) { }
+    @InjectModel(Comment.name) private commentModel: Model<CommentDocument>
+  ) {}
 
   async onModuleInit() {
     // Auto-run migration on startup
@@ -34,8 +38,8 @@ export class ReactionService implements OnModuleInit {
 
       // Ensure new index exists
       const indexes = await this.reactionModel.collection.indexes();
-      const hasNewIndex = indexes.some((idx: any) =>
-        idx.key?.factorId && idx.key?.typeFactor && idx.key?.userId
+      const hasNewIndex = indexes.some(
+        (idx: any) => idx.key?.factorId && idx.key?.typeFactor && idx.key?.userId
       );
 
       if (!hasNewIndex) {
@@ -50,6 +54,14 @@ export class ReactionService implements OnModuleInit {
     }
   }
 
+  async userReactions(postIds: ObjectId[], currentUserId: string): Promise<any> {
+    return await this.reactionModel
+      .find({
+        factorId: { $in: postIds },
+        userId: currentUserId,
+      })
+      .lean();
+  }
 
   /**
    * Toggle reaction on any factor (post/comment/message)
@@ -139,22 +151,28 @@ export class ReactionService implements OnModuleInit {
    * Legacy method for post reactions (backward compatibility)
    */
   async togglePostReaction(dto: CreatePostReactionDto, userId: string) {
-    return this.toggleReaction({
-      factorId: dto.postId,
-      typeFactor: TypeFactor.POST,
-      type: dto.type,
-    }, userId);
+    return this.toggleReaction(
+      {
+        factorId: dto.postId,
+        typeFactor: TypeFactor.POST,
+        type: dto.type,
+      },
+      userId
+    );
   }
 
   /**
    * Legacy method for comment reactions (backward compatibility)
    */
   async toggleCommentReaction(dto: CreateCommentReactionDto, userId: string) {
-    return this.toggleReaction({
-      factorId: dto.commentId,
-      typeFactor: TypeFactor.COMMENT,
-      type: dto.type,
-    }, userId);
+    return this.toggleReaction(
+      {
+        factorId: dto.commentId,
+        typeFactor: TypeFactor.COMMENT,
+        type: dto.type,
+      },
+      userId
+    );
   }
 
   /**
@@ -181,7 +199,11 @@ export class ReactionService implements OnModuleInit {
   /**
    * Update the reaction count on the factor
    */
-  private async updateFactorReactCount(factorId: string, typeFactor: TypeFactor, delta: number): Promise<number> {
+  private async updateFactorReactCount(
+    factorId: string,
+    typeFactor: TypeFactor,
+    delta: number
+  ): Promise<number> {
     const id = new Types.ObjectId(factorId);
 
     switch (typeFactor) {
@@ -245,7 +267,7 @@ export class ReactionService implements OnModuleInit {
    * Legacy: Get user's reaction on a post
    */
   async getPostUserReaction(postId: string, userId: string): Promise<any> {
-    return this.getUserReaction(postId, TypeFactor.POST, userId);
+    return await this.getUserReaction(postId, TypeFactor.POST, userId);
   }
 
   /**
@@ -258,7 +280,12 @@ export class ReactionService implements OnModuleInit {
   /**
    * Get all reactions for a factor with counts by type
    */
-  async getFactorReactions(factorId: string, typeFactor: TypeFactor, page: number = 1, limit: number = 20): Promise<any> {
+  async getFactorReactions(
+    factorId: string,
+    typeFactor: TypeFactor,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<any> {
     const skip = (page - 1) * limit;
     const factorObjId = new Types.ObjectId(factorId);
 
@@ -278,7 +305,12 @@ export class ReactionService implements OnModuleInit {
     ]);
 
     const counts: Record<ReactionType, number> = {
-      LIKE: 0, LOVE: 0, HAHA: 0, WOW: 0, SAD: 0, ANGRY: 0,
+      LIKE: 0,
+      LOVE: 0,
+      HAHA: 0,
+      WOW: 0,
+      SAD: 0,
+      ANGRY: 0,
     };
     reactionCounts.forEach((item) => {
       counts[item._id as ReactionType] = item.count;
@@ -332,7 +364,10 @@ export class ReactionService implements OnModuleInit {
       { $project: { reactions: { $slice: ['$reactions', 3] } } },
     ]);
 
-    const result: Record<string, { userReaction: ReactionType | null; topReactions: { type: ReactionType; count: number }[] }> = {};
+    const result: Record<
+      string,
+      { userReaction: ReactionType | null; topReactions: { type: ReactionType; count: number }[] }
+    > = {};
 
     factorIds.forEach((factorId) => {
       const userReaction = userReactions.find((r) => r.factorId.toString() === factorId);
@@ -360,10 +395,7 @@ export class ReactionService implements OnModuleInit {
     try {
       // Find reactions that have postId but no factorId
       const oldReactions = await this.reactionModel.find({
-        $or: [
-          { factorId: { $exists: false } },
-          { typeFactor: { $exists: false } }
-        ]
+        $or: [{ factorId: { $exists: false } }, { typeFactor: { $exists: false } }],
       });
 
       console.log(`Found ${oldReactions.length} old reactions to migrate`);
@@ -379,8 +411,8 @@ export class ReactionService implements OnModuleInit {
             {
               $set: {
                 factorId: reactionObj.postId,
-                typeFactor: TypeFactor.POST
-              }
+                typeFactor: TypeFactor.POST,
+              },
             }
           );
           migratedCount++;
@@ -409,15 +441,14 @@ export class ReactionService implements OnModuleInit {
       return {
         success: true,
         migratedCount,
-        message: `Migrated ${migratedCount} reactions to new schema`
+        message: `Migrated ${migratedCount} reactions to new schema`,
       };
     } catch (error: any) {
       console.error('Migration error:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 }
-

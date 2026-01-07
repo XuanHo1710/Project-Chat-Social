@@ -1,5 +1,5 @@
 'use client';
-import { Box, Card, CardContent, Typography, Avatar, Button } from '@mui/material';
+import { Box, Card, CardContent, Typography, Avatar, Button, CircularProgress } from '@mui/material';
 
 import {
     PersonAdd as PersonAddIcon,
@@ -9,23 +9,53 @@ import { useState } from 'react';
 // import { useAddFriendMutation } from '@/queries/useRelationshipQueries';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSocket } from '@/contexts/SocketContext';
+import { toast } from 'sonner';
 
 
 
 export default function CardFriendShowAllComponent({ friend }: { friend: AccountCardFriendType }) {
     const { user } = useAuthStore();
     const [addFriend, setAddFriend] = useState<boolean>(false);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
     const { socketRelationship } = useSocket();
 
     const handleAddFriend = (friendId: string) => {
-        socketRelationship?.emit("friend:request", { userId: user?.id, friendId });
+        if (isLoading || !socketRelationship) return;
+
+        setIsLoading(true);
+        // Optimistic update
         setAddFriend(true);
+
+        socketRelationship.emit("friend:request", { userId: user?.id, friendId }, (response: { success: boolean; error?: string }) => {
+            setIsLoading(false);
+            if (!response?.success) {
+                // Revert on error
+                setAddFriend(false);
+                toast.error(response?.error || 'Không thể gửi lời mời kết bạn');
+            } else {
+                toast.success('Đã gửi lời mời kết bạn');
+            }
+        });
     };
 
     const handleCancelAddFriend = (friendId: string) => {
-        socketRelationship?.emit("friend:cancel", { userId: user?.id, friendId, status: 'CANCELED' });
+        if (isLoading || !socketRelationship) return;
+
+        setIsLoading(true);
+        // Optimistic update
         setAddFriend(false);
-    }
+
+        socketRelationship.emit("friend:cancel", { userId: user?.id, friendId, status: 'CANCELED' }, (response: { success: boolean; error?: string }) => {
+            setIsLoading(false);
+            if (!response?.success) {
+                // Revert on error
+                setAddFriend(true);
+                toast.error(response?.error || 'Không thể hủy lời mời');
+            } else {
+                toast.success('Đã hủy lời mời kết bạn');
+            }
+        });
+    };
 
 
     return (
@@ -58,8 +88,9 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                         <Button
                             fullWidth
                             onClick={() => handleAddFriend(friend.id)}
+                            disabled={isLoading}
                             variant="contained"
-                            startIcon={<PersonAddIcon />}
+                            startIcon={isLoading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <PersonAddIcon />}
                             sx={{
                                 bgcolor: '#1877f2',
                                 textTransform: 'none',
@@ -71,16 +102,23 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                                     bgcolor: '#166fe5',
                                     boxShadow: 'none',
                                 },
+                                '&.Mui-disabled': {
+                                    bgcolor: '#1877f2',
+                                    color: 'white',
+                                    opacity: 0.7,
+                                },
                             }}
                         >
-                            Thêm bạn bè
+                            {isLoading ? 'Đang gửi...' : 'Thêm bạn bè'}
                         </Button>
                         :
-                        // Đã kết bạn
+                        // Đã gửi lời mời
                         <Button
                             fullWidth
                             onClick={() => handleCancelAddFriend(friend.id)}
+                            disabled={isLoading}
                             variant="contained"
+                            startIcon={isLoading ? <CircularProgress size={16} sx={{ color: '#050505' }} /> : null}
                             sx={{
                                 bgcolor: '#e4e6eb',
                                 color: '#050505',
@@ -90,9 +128,14 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                                 '&:hover': {
                                     bgcolor: '#d8dadf',
                                 },
+                                '&.Mui-disabled': {
+                                    bgcolor: '#e4e6eb',
+                                    color: '#050505',
+                                    opacity: 0.7,
+                                },
                             }}
                         >
-                            Hủy
+                            {isLoading ? 'Đang hủy...' : 'Hủy lời mời'}
                         </Button>
                     }
 

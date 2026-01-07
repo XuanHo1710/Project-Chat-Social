@@ -104,6 +104,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         isLoading,
     } = useChatByConversationId(selectedConversation._id);
 
+
     const [newMessage, setNewMessage] = useState("");
     const [replyMsg, setReplyMsg] = useState<MessageResponse | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string; type: 'image' | 'video' }[]>([]);
@@ -168,6 +169,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
         return messages;
     }, [pages, currentUserParticipant?.kickedAt]);
+
 
     // Calculate firstItemIndex based on total older messages
     const firstItemIndex = useMemo(() => {
@@ -393,6 +395,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         socketChat.on("conversation:member:added", handleConversationUpdate);
         socketChat.on("conversation:member:removed", handleConversationUpdate);
         socketChat.on("conversation:admin:updated", handleConversationUpdate);
+        socketChat.on("conversation:settings:updated", handleConversationUpdate);
 
         // Handle message read updates
         const handleMessageReadUpdate = (data: { conversationId: string; readBy: string }) => {
@@ -511,6 +514,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             socketChat.off("conversation:member:added", handleConversationUpdate);
             socketChat.off("conversation:member:removed", handleConversationUpdate);
             socketChat.off("conversation:admin:updated", handleConversationUpdate);
+            socketChat.off("conversation:settings:updated", handleConversationUpdate);
             socketChat.off("message:read:updated", handleMessageReadUpdate);
             socketChat.off("conversation:unread:updated", handleUnreadIncrement);
             socketChat.off("conversation:unread:reset", handleUnreadUpdate);
@@ -937,7 +941,6 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 const actualIndex = index - firstItemIndex;
                                 const isOwn = message.senderId._id?.toString() === userId || message.senderId.toString() === userId;
                                 const showAvatar = actualIndex === 0 || (allMessages[actualIndex - 1]?.senderId !== message.senderId);
-
                                 // Find last own message for showing read avatar
                                 const lastOwnMessageIndex = allMessages.map((m, i) =>
                                     (m.senderId._id?.toString() === userId || m.senderId.toString() === userId) ? i : -1
@@ -950,7 +953,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                         message={message}
                                         isOwn={isOwn}
                                         showAvatar={showAvatar}
-                                        avatar={selectedConversation.avatar}
+                                        avatar={message.senderId.avatar}
                                         conversationId={selectedConversation._id}
                                         socket={socketChat}
                                         userId={userId}

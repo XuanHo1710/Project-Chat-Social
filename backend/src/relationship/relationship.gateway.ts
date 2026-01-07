@@ -27,7 +27,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
   server: Server;
   private logger = new Logger('RelationshipGateway');
 
-  constructor(private readonly relationshipService: RelationshipService) { }
+  constructor(private readonly relationshipService: RelationshipService) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -51,7 +51,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
         userSockets.set(userId, new Set());
       }
       userSockets.get(userId)!.add(client.id);
-    } catch { }
+    } catch {}
   }
 
   async handleDisconnect(client: Socket) {
@@ -110,9 +110,11 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       // Gửi cho người B (friendId)
       this.server.to(data.friendId.toString()).emit('friend:sent', sentForFriendId);
       this.server.to(data.friendId.toString()).emit('friend:received', receivedForFriendId);
+
+      return { success: true };
     } catch (err) {
-      this.logger.error('Failed to save message', err);
-      return { success: false, error: 'Failed to save message' };
+      this.logger.error('Failed to send friend request', err);
+      return { success: false, error: err.message || 'Failed to send friend request' };
     }
   }
 
@@ -161,9 +163,11 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       this.server.to(data.friendId.toString()).emit('friend:sent', sentForFriendId);
       this.server.to(data.friendId.toString()).emit('friend:received', receivedForFriendId);
       this.server.to(data.friendId.toString()).emit('friend:friends', friendsForFriendId);
+
+      return { success: true };
     } catch (err) {
-      this.logger.error('Failed to save message', err);
-      return { success: false, error: 'Failed to save message' };
+      this.logger.error('Failed to cancel friend request', err);
+      return { success: false, error: err.message || 'Failed to cancel friend request' };
     }
   }
 
@@ -208,9 +212,11 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       this.server.to(data.friendId.toString()).emit('friend:sent', sentForFriendId);
       this.server.to(data.friendId.toString()).emit('friend:received', receivedForFriendId);
       this.server.to(data.friendId.toString()).emit('friend:friends', friendsForFriendId);
+
+      return { success: true };
     } catch (err) {
-      this.logger.error('Failed to save message', err);
-      return { success: false, error: 'Failed to save message' };
+      this.logger.error('Failed to accept friend request', err);
+      return { success: false, error: err.message || 'Failed to accept friend request' };
     }
   }
 }

@@ -18,6 +18,7 @@ export interface ConversationParticipant {
   isAdmin: boolean;
   nickname: string;
   kickedAt?: Date; // Thời điểm thành viên bị kick (null nếu chưa bị kick)
+  leftAt?: Date; // Thời điểm thành viên tự rời nhóm (null nếu chưa rời)
 }
 
 export interface ConversationSettings {

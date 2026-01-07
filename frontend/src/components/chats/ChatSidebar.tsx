@@ -73,14 +73,15 @@ export default function ChatSidebar({
     useEffect(() => {
         conversations.forEach(conv => {
             conv.participants.forEach(p => {
-                if (p.user._id !== user?.id) {
-                    const existing = useOnlineStatusStore.getState().onlineUsers[p.user._id];
-                    if (!existing) {
-                        if (p.user.status === 'ACTIVE') {
-                            setUserOnline(p.user._id);
-                        } else if (p.user.lastActive) {
-                            setUserOffline(p.user._id, p.user.lastActive);
-                        }
+                // Skip if user is not populated or is current user
+                if (!p.user || !p.user._id || p.user._id === user?.id) return;
+
+                const existing = useOnlineStatusStore.getState().onlineUsers[p.user._id];
+                if (!existing) {
+                    if (p.user.status === 'ACTIVE') {
+                        setUserOnline(p.user._id);
+                    } else if (p.user.lastActive) {
+                        setUserOffline(p.user._id, p.user.lastActive);
                     }
                 }
             });
@@ -108,15 +109,16 @@ export default function ChatSidebar({
     };
 
     const filteredConversations = conversations.filter((conversation) => {
-        // Kiểm tra user có trong participants và chưa bị kick
-        const currentParticipant = conversation.participants.find(p => p.user._id === user?.id);
+        // Kiểm tra user có trong participants và chưa bị kick/rời nhóm
+        const currentParticipant = conversation.participants.find(p => p.user?._id === user?.id);
         if (!currentParticipant) return false;
-        // Nếu bị kick thì vẫn hiện nhưng sẽ handle ở chat area
-        // if (currentParticipant.kickedAt) return false;
+
+        // Nếu đã rời nhóm hoặc bị kick thì không hiện trong sidebar
+        if (currentParticipant.kickedAt || currentParticipant.leftAt) return false;
 
         if (conversation.type === 'DIRECT') {
-            const chatUser = conversation.participants.find((p) => p.user._id !== user?.id)?.user;
-            const nickname = conversation.participants.find((p) => p.user._id !== user?.id)?.nickname;
+            const chatUser = conversation.participants.find((p) => p.user?._id !== user?.id)?.user;
+            const nickname = conversation.participants.find((p) => p.user?._id !== user?.id)?.nickname;
             const fullName = (!nickname || nickname === "") ? `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}`.toLowerCase() : nickname.toLowerCase();
             return fullName.includes(searchQuery.toLowerCase());
         } else if (conversation.type === 'GROUP') {
@@ -211,7 +213,7 @@ export default function ChatSidebar({
                         }}
                     >
                         <Avatar
-                            src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.fullName?.[0] || 'U'}&background=1877f2&color=fff`}
+                            src={user?.avatar || ''}
                             sx={{ width: 40, height: 40 }}
                         />
                     </Badge>
@@ -346,15 +348,15 @@ export default function ChatSidebar({
 
                             if (isGroup) {
                                 displayName = conversation.nickname || 'Nhóm chat';
-                                displayAvatar = conversation.avatar || `https://ui-avatars.com/api/?name=G&background=1877f2&color=fff`;
+                                displayAvatar = conversation.avatar || ``;
                                 // Groups don't have online status
                             } else {
-                                const otherParticipant = conversation.participants.find((p) => p.user._id !== user?.id);
+                                const otherParticipant = conversation.participants.find((p) => p.user?._id !== user?.id);
                                 const chatUser = otherParticipant?.user;
                                 const nickname = otherParticipant?.nickname;
                                 displayName = (!nickname || nickname === "") ? `${chatUser?.firstName || ''} ${chatUser?.lastName || ''}` : nickname;
-                                displayAvatar = chatUser?.avatar || `https://ui-avatars.com/api/?name=${chatUser?.username?.[0] || 'U'}&background=1877f2&color=fff`;
-                                status = chatUser ? getUserStatus(chatUser._id, chatUser.status, chatUser.lastActive) : { isOnline: false, lastActive: undefined };
+                                displayAvatar = chatUser?.avatar || "";
+                                status = chatUser?._id ? getUserStatus(chatUser._id, chatUser.status, chatUser.lastActive) : { isOnline: false, lastActive: undefined };
                                 otherId = chatUser?._id || '';
                             }
 

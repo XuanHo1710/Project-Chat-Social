@@ -259,6 +259,11 @@ export class ConversationService {
 
   // 5. Thêm thành viên vào nhóm
   async addMember(conversationId: string, requestUserId: string, newUserId: string) {
+    // Validate ObjectId
+    if (!Types.ObjectId.isValid(newUserId)) {
+      throw new BadRequestException('ID người dùng không hợp lệ');
+    }
+
     const conversation = await this.conversationModel.findById(conversationId);
     if (!conversation) {
       throw new NotFoundException('Không tìm thấy cuộc trò chuyện');
@@ -291,9 +296,11 @@ export class ConversationService {
       throw new BadRequestException('Người dùng đã là thành viên của nhóm');
     }
 
+    const newUserObjectId = new Types.ObjectId(newUserId);
+
     // Nếu từng bị kick, cho phép thêm lại
     if (existingMember && existingMember.kickedAt) {
-      return await this.conversationModel
+      const updated = await this.conversationModel
         .findByIdAndUpdate(
           conversationId,
           {
@@ -304,20 +311,22 @@ export class ConversationService {
           },
           {
             new: true,
-            arrayFilters: [{ 'elem.user': new Types.ObjectId(newUserId) }],
+            arrayFilters: [{ 'elem.user': newUserObjectId }],
           }
         )
         .populate('participants.user', 'firstName lastName username avatar status lastActive')
         .exec();
+      return updated;
     }
 
-    return await this.conversationModel
+    // Thêm thành viên mới
+    const updated = await this.conversationModel
       .findByIdAndUpdate(
         conversationId,
         {
           $push: {
             participants: {
-              user: new Types.ObjectId(newUserId),
+              user: newUserObjectId,
               joinedAt: new Date(),
               isAdmin: false,
               nickname: '',
@@ -328,6 +337,8 @@ export class ConversationService {
       )
       .populate('participants.user', 'firstName lastName username avatar status lastActive')
       .exec();
+
+    return updated;
   }
 
   // 6. Kick thành viên khỏi nhóm
@@ -438,9 +449,11 @@ export class ConversationService {
       .exec();
   }
 
-  // 8. Rời nhóm
+  // 8. Rời nhóm - User tự rời, giữ lại lịch sử tin nhắn
   async leaveGroup(conversationId: string, userId: string) {
-    const conversation = await this.conversationModel.findById(conversationId);
+    const conversation = await this.conversationModel
+      .findById(conversationId)
+      .populate('participants.user', 'firstName lastName');
     if (!conversation) {
       throw new NotFoundException('Không tìm thấy cuộc trò chuyện');
     }
@@ -449,76 +462,85 @@ export class ConversationService {
       throw new BadRequestException('Chỉ có thể rời khỏi nhóm chat');
     }
 
-    // Nếu là creator và còn thành viên, chuyển quyền creator cho admin khác
+    // Kiểm tra user có trong nhóm không
+    const participant = conversation.participants.find(
+      (p: any) => p.user._id.toString() === userId && !p.kickedAt && !p.leftAt
+    );
+    if (!participant) {
+      throw new BadRequestException('Bạn không phải thành viên của nhóm này');
+    }
+
+    const userObjectId = new Types.ObjectId(userId);
+    const leftAt = new Date();
+
+    // Đếm số thành viên active còn lại (trừ người đang rời)
+    const activeMembers = conversation.participants.filter(
+      (p: any) => !p.kickedAt && !p.leftAt && p.user._id.toString() !== userId
+    );
+
+    // Nếu sau khi rời còn dưới 3 người thì giải tán nhóm
+    if (activeMembers.length < 3) {
+      // Giải tán nhóm
+      return await this.conversationModel
+        .findOneAndUpdate(
+          { _id: conversationId, 'participants.user': userObjectId },
+          {
+            $set: {
+              'participants.$.leftAt': leftAt,
+              isDeleted: true,
+              deletedAt: leftAt,
+            },
+          },
+          { new: true }
+        )
+        .populate('participants.user', 'firstName lastName username avatar status lastActive')
+        .exec();
+    }
+
+    // Nếu là creator, chuyển quyền cho người khác
     if (conversation.creator?.toString() === userId) {
-      const otherAdmins = conversation.participants.filter(
-        (p) => p.isAdmin && p.user.toString() !== userId
-      );
+      const otherAdmins: { user: { _id: string } }[] = activeMembers.filter(
+        (p) => p.isAdmin
+      ) as any;
 
       if (otherAdmins.length > 0) {
         // Chuyển creator cho admin đầu tiên
         await this.conversationModel.findByIdAndUpdate(conversationId, {
-          $set: { creator: otherAdmins[0].user },
+          $set: { creator: otherAdmins[0].user._id },
         });
-      } else if (conversation.participants.length > 1) {
-        // Nếu không có admin khác, chuyển cho thành viên đầu tiên
-        const otherMembers = conversation.participants.filter((p) => p.user.toString() !== userId);
-        if (otherMembers.length > 0) {
-          await this.conversationModel.findByIdAndUpdate(
-            conversationId,
-            {
-              $set: { creator: otherMembers[0].user },
-              $addToSet: { 'participants.$[elem].isAdmin': true },
+      } else {
+        // Nếu không có admin khác, chuyển cho thành viên đầu tiên và set làm admin
+        const newCreator: { user: { _id: string } } = activeMembers[0] as any;
+        await this.conversationModel.findOneAndUpdate(
+          { _id: conversationId, 'participants.user': newCreator.user._id },
+          {
+            $set: {
+              creator: newCreator.user._id,
+              'participants.$.isAdmin': true,
             },
-            {
-              arrayFilters: [{ 'elem.user': otherMembers[0].user }],
-            }
-          );
-        }
+          }
+        );
       }
     }
 
+    // Set leftAt cho user (không xóa khỏi array để giữ lịch sử)
     return await this.conversationModel
-      .findByIdAndUpdate(
-        conversationId,
-        { $pull: { participants: { user: new Types.ObjectId(userId) } } },
+      .findOneAndUpdate(
+        { _id: conversationId, 'participants.user': userObjectId },
+        { $set: { 'participants.$.leftAt': leftAt } },
         { new: true }
       )
+      .populate('participants.user', 'firstName lastName username avatar status lastActive')
       .exec();
   }
 
-  // 9. Cập nhật settings của nhóm
-  async updateSettings(
-    conversationId: string,
-    userId: string,
-    settings: { allowMembersToAdd?: boolean; onlyAdminCanChat?: boolean }
-  ) {
-    const conversation = await this.conversationModel.findById(conversationId);
-    if (!conversation) {
-      throw new NotFoundException('Không tìm thấy cuộc trò chuyện');
+  async updateSettings(conversationId: string, userId: string, settings: Record<string, any>) {
+    const isInConversation = await this.isUserInConversation(conversationId, userId);
+    if (!isInConversation) {
+      throw new ForbiddenException('Bạn không phải thành viên của cuộc trò chuyện này');
     }
-
-    if (conversation.type !== 'GROUP') {
-      throw new BadRequestException('Chỉ có thể cập nhật settings cho nhóm chat');
-    }
-
-    // Chỉ admin mới được thay đổi settings
-    const isAdmin = await this.isUserAdmin(conversationId, userId);
-    if (!isAdmin) {
-      throw new ForbiddenException('Chỉ quản trị viên mới có thể thay đổi cài đặt nhóm');
-    }
-
-    const updateData: Record<string, boolean> = {};
-    if (settings.allowMembersToAdd !== undefined) {
-      updateData['settings.allowMembersToAdd'] = settings.allowMembersToAdd;
-    }
-    if (settings.onlyAdminCanChat !== undefined) {
-      updateData['settings.onlyAdminCanChat'] = settings.onlyAdminCanChat;
-    }
-
     return await this.conversationModel
-      .findByIdAndUpdate(conversationId, { $set: updateData }, { new: true })
-      .populate('participants.user', 'firstName lastName username avatar status lastActive')
+      .findByIdAndUpdate(conversationId, { $set: { settings: { ...settings } } }, { new: true })
       .exec();
   }
 }

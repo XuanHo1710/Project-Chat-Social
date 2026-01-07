@@ -79,8 +79,28 @@ export default function ChatPage() {
 
         socketChat.on("message:new", handleGlobalMessageNew);
 
+        // Listen for conversation updates to refresh sidebar
+        const handleConversationUpdate = () => {
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, user.id] });
+        };
+
+        socketChat.on("conversation:member:added", handleConversationUpdate);
+        socketChat.on("conversation:member:removed", handleConversationUpdate);
+        socketChat.on("conversation:avatar:updated", handleConversationUpdate);
+        socketChat.on("conversation:name:updated", handleConversationUpdate);
+        socketChat.on("conversation:nickname:updated", handleConversationUpdate);
+        socketChat.on("conversation:settings:updated", handleConversationUpdate);
+        socketChat.on("conversation:created", handleConversationUpdate);
+
         return () => {
             socketChat.off("message:new", handleGlobalMessageNew);
+            socketChat.off("conversation:member:added", handleConversationUpdate);
+            socketChat.off("conversation:member:removed", handleConversationUpdate);
+            socketChat.off("conversation:avatar:updated", handleConversationUpdate);
+            socketChat.off("conversation:name:updated", handleConversationUpdate);
+            socketChat.off("conversation:nickname:updated", handleConversationUpdate);
+            socketChat.off("conversation:settings:updated", handleConversationUpdate);
+            socketChat.off("conversation:created", handleConversationUpdate);
         };
     }, [socketChat, queryClient, user?.id]);
 

@@ -8,8 +8,6 @@ import {
     ChatBubbleOutline as CommentIcon,
     Share as ShareIcon,
     Close as CloseIcon,
-    Repeat as RepeatIcon,
-
 } from '@mui/icons-material';
 import { formatPostTime, getAuthorName } from '@/utils/formatPost';
 import ReactionButton from '@/components/posts/ReactionButton';
@@ -197,7 +195,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                 <Box sx={{ display: 'flex', justifyContent: 'space-around', position: 'relative' }}>
                     {/* Reaction Button - uses global store automatically */}
                     <ReactionButton
-                        postId={post._id}
+                        post={post}
                         initialTotalReacts={post.totalReacts}
                     />
 

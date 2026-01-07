@@ -35,6 +35,10 @@ export interface PostType {
   updatedAt: string;
   // Client-side state
   currentReaction?: string | null;
+  reactInfo?: {
+    isReact: boolean;
+    type: string | null;
+  };
 }
 
 export interface CreatePostRequest {

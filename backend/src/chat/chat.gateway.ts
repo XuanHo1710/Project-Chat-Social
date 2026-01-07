@@ -424,7 +424,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         data.targetUserId,
         data.nickname
       );
-      this.server.to(`room:${data.conversationId}`).emit('conversation:updated', updated);
+
+      // Emit specific event for nickname update
+      this.server.to(`room:${data.conversationId}`).emit('conversation:nickname:updated', {
+        conversation: updated,
+        targetUserId: data.targetUserId,
+        nickname: data.nickname,
+      });
 
       // Send system message
       const userName = await this.getUserDisplayName(userId);
@@ -458,7 +464,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userId,
         data.name
       );
-      this.server.to(`room:${data.conversationId}`).emit('conversation:updated', updated);
+
+      // Emit specific event for name update
+      this.server.to(`room:${data.conversationId}`).emit('conversation:name:updated', {
+        conversation: updated,
+        name: data.name,
+      });
 
       // Send system message
       const userName = await this.getUserDisplayName(userId);
@@ -490,14 +501,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userId,
         data.avatar
       );
-      
+
       // Tạo system message thông báo thay đổi avatar
       const userName = await this.getUserDisplayName(userId);
       await this.sendSystemMessage(
         data.conversationId,
         `${userName} đã thay đổi ảnh đại diện nhóm`
       );
-      
+
       this.server.to(`room:${data.conversationId}`).emit('conversation:avatar:updated', {
         conversation: updated,
         updatedBy: userId,
@@ -524,6 +535,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         data.conversationId,
         userId,
         data.newUserId
+      );
+
+      // System message
+      const adderName = await this.getUserDisplayName(userId);
+      const addedName = await this.getUserDisplayName(data.newUserId);
+      await this.sendSystemMessage(
+        data.conversationId,
+        `${adderName} đã thêm ${addedName} vào nhóm`
       );
 
       // Gửi cho tất cả members hiện tại
@@ -627,7 +646,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
+      // Lấy tên user trước khi rời
+      const userName = await this.getUserDisplayName(userId);
+
       const updated = await this.conversationService.leaveGroup(data.conversationId, userId);
+
+      // System message
+      await this.sendSystemMessage(data.conversationId, `${userName} đã rời khỏi nhóm`);
 
       // Thông báo cho group
       this.server.to(`room:${data.conversationId}`).emit('conversation:member:left', {
@@ -665,6 +690,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userId,
         data.settings
       );
+
+      // Tạo system message cho từng thay đổi
+      const userName = await this.getUserDisplayName(userId);
+      if (data.settings.allowMembersToAdd !== undefined) {
+        const status = data.settings.allowMembersToAdd ? 'cho phép' : 'không cho phép';
+        await this.sendSystemMessage(
+          data.conversationId,
+          `${userName} đã ${status} thành viên thêm người mới`
+        );
+      }
+      if (data.settings.onlyAdminCanChat !== undefined) {
+        const status = data.settings.onlyAdminCanChat ? 'bật' : 'tắt';
+        await this.sendSystemMessage(
+          data.conversationId,
+          `${userName} đã ${status} chế độ chỉ quản trị viên được nhắn tin`
+        );
+      }
 
       // Thông báo cho tất cả thành viên
       this.server.to(`room:${data.conversationId}`).emit('conversation:settings:updated', {

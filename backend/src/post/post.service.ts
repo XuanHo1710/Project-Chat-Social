@@ -7,6 +7,17 @@ import { Post, PostDocument, PostPrivacy, MediaItem } from './entities/post.enti
 import { HashtagService } from 'src/hashtag/hashtag.service';
 import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { ReactionService } from 'src/reaction/reaction.service';
+import { TypeFactor } from 'src/reaction/entities/reaction.entity';
+
+interface ReactInfo {
+  isReact: boolean;
+  type: string | null;
+}
+
+export interface PostWithReactInfo extends Post {
+  reactInfo?: ReactInfo;
+}
 
 @Injectable()
 export class PostService {
@@ -14,6 +25,7 @@ export class PostService {
     @InjectModel(Post.name)
     private postModel: Model<PostDocument>,
     private hashtagService: HashtagService,
+    private reactionService: ReactionService,
     private cloudinaryService: CloudinaryService
   ) {}
 
@@ -105,7 +117,7 @@ export class PostService {
     page = 1,
     limit = 10,
     friendIds: string[] = []
-  ): Promise<{ data: Post[]; total: number; page: number; totalPages: number }> {
+  ): Promise<{ data: PostWithReactInfo[]; total: number; page: number; totalPages: number }> {
     const skip = (page - 1) * limit;
 
     // Build query for news feed:
@@ -136,9 +148,29 @@ export class PostService {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
+        .lean()
         .exec(),
       this.postModel.countDocuments(filter),
     ]);
+
+    const postIds = data.map((p) => p._id);
+
+    const userReactions = await this.reactionService.userReactions(postIds, currentUserId);
+    // convert về map để tra O(1)
+    const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
+
+    (data as PostWithReactInfo[]).forEach((post) => {
+      const r = reactionMap.get(post._id.toString()) as any;
+      post.reactInfo = {
+        isReact: !!r,
+        type: r ? r.type : null,
+      };
+
+      if (r) {
+        console.log('Reaction found for post', post);
+      }
+    });
+
     return {
       data,
       total,

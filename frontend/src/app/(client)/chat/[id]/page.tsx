@@ -137,7 +137,25 @@ export default function ChatDetailPage() {
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, user.id] });
         };
 
-        socketChat.on("conversation:member:added", handleConversationUpdate);
+        // Handle when current user is added to a group - join room and load messages
+        const handleMemberAdded = (data: { conversation: ConversationResponseData; newUserId: string }) => {
+            if (data.newUserId === user.id) {
+                // Current user was added - join room
+                socketChat.emit('room', { conversationId: data.conversation._id });
+                // Invalidate conversation list to show new group
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, user.id] });
+                // If viewing this conversation, reload detail and messages
+                if (conversationId === data.conversation._id) {
+                    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, "detail", conversationId] });
+                    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CHATS, conversationId] });
+                }
+            } else {
+                // Someone else was added - just refresh conversation list
+                handleConversationUpdate();
+            }
+        };
+
+        socketChat.on("conversation:member:added", handleMemberAdded);
         socketChat.on("conversation:member:removed", handleConversationUpdate);
         socketChat.on("conversation:member:left", handleConversationUpdate);
         socketChat.on("conversation:kicked", handleConversationUpdate);
@@ -149,7 +167,7 @@ export default function ChatDetailPage() {
 
         return () => {
             socketChat.off("message:new", handleGlobalMessageNew);
-            socketChat.off("conversation:member:added", handleConversationUpdate);
+            socketChat.off("conversation:member:added", handleMemberAdded);
             socketChat.off("conversation:member:removed", handleConversationUpdate);
             socketChat.off("conversation:member:left", handleConversationUpdate);
             socketChat.off("conversation:kicked", handleConversationUpdate);

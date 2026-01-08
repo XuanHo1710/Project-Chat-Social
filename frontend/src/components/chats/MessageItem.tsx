@@ -691,7 +691,6 @@ export default function MessageItem({
     }
 
     if (message.type === 'POST' && message.postId) {
-        console.log("Rendering POST message with post data:", message);
         return (
             <PostShareMessage
                 avatar={avatar}

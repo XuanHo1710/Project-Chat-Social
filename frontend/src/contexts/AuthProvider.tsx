@@ -26,11 +26,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const res = await axios.post("/api/auth/token");
 
                 if (res.status === 200 && res.data !== null) {
-                    console.log("Token valid, account data:", res.data);
                     const { accessToken, data } = res.data;
                     const { account } = data;
-                    console.log("Fetched account:", account);
-
                     // Cập nhật access token mới (nếu có refresh)
                     if (accessToken) {
                         setAccessToken(accessToken);

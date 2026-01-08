@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
     Box,
     Avatar,
@@ -56,6 +56,7 @@ import {
     PersonAddDisabled as PersonAddDisabledIcon,
     Description as DescriptionIcon,
     GroupAdd as GroupAddIcon,
+    Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import { useConversationDetail } from '@/queries/useConversationQueries';
 import { useSocket } from '@/contexts/SocketContext';
@@ -134,6 +135,9 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState('');
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    // Avatar menu state
+    const [avatarMenuAnchor, setAvatarMenuAnchor] = useState<null | HTMLElement>(null);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
 
     // Media Gallery State
     const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
@@ -199,7 +203,6 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         setMediaLoading(true);
         try {
             const result = await chatService.getMediaMessages(conversationId, page, 20);
-            console.log('Loaded media messages:', result);
             if (reset) {
                 setMediaMessages(result.data);
             } else {
@@ -221,7 +224,6 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         setFileLoading(true);
         try {
             const result = await chatService.getFileMessages(conversationId, page, 20);
-            console.log('Loaded file messages:', result);
             if (reset) {
                 setFileMessages(result.data);
             } else {
@@ -375,7 +377,6 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     toast.success('Đã thêm thành viên vào nhóm');
                     setAddMemberDialogOpen(false);
                 } else {
-                    console.log('Add member error response:', response);
                     toast.error(response.error || 'Không thể thêm thành viên');
                 }
             });
@@ -508,11 +509,28 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         setCreateGroupDialogOpen(true);
     };
 
-    const handleAvatarClick = () => {
-        if (isGroup) {
-            setAvatarUrl('');
-            setAvatarDialogOpen(true);
+
+    const handleAvatarClick = (event: React.MouseEvent<HTMLElement>) => {
+        if (isGroup && isAdmin) {
+            event.stopPropagation();
+            setAvatarMenuAnchor(event.currentTarget);
         }
+    };
+
+    const handleCloseAvatarMenu = () => {
+        setAvatarMenuAnchor(null);
+    };
+
+    const handleViewAvatar = () => {
+        if (conversation?.avatar) {
+            setImagePreview(conversation.avatar);
+        }
+        handleCloseAvatarMenu();
+    };
+
+    const handleUploadAvatar = () => {
+        avatarInputRef.current?.click();
+        handleCloseAvatarMenu();
     };
 
     const handleAvatarFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -578,13 +596,22 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
             <Box sx={{ flex: 1, overflowY: 'auto' }}>
                 {/* Profile Section */}
+                {/* Hidden file input for avatar upload */}
+                <input
+                    type="file"
+                    ref={avatarInputRef}
+                    onChange={handleAvatarFileSelect}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                />
+
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3, px: 2 }}>
-                    <Box sx={{ position: 'relative', cursor: (isGroup && isAdmin) ? 'pointer' : 'default', mb: 1 }} onClick={handleAvatarClick}>
+                    <Box sx={{ position: 'relative', mb: 1 }}>
                         <Avatar
                             src={isGroup ? conversation.avatar : otherUser?.avatar}
                             sx={{ width: 80, height: 80 }}
                         />
-                        {isGroup && (
+                        {isGroup && isAdmin && (
                             <IconButton
                                 size="small"
                                 onClick={handleAvatarClick}
@@ -1708,6 +1735,71 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         {isCreatingGroup ? 'Đang tạo...' : 'Tạo nhóm'}
                     </Button>
                 </DialogActions>
+            </Dialog>
+
+            {/* Avatar Menu */}
+            <Menu
+                anchorEl={avatarMenuAnchor}
+                open={Boolean(avatarMenuAnchor)}
+                onClose={handleCloseAvatarMenu}
+                PaperProps={{
+                    sx: {
+                        mt: 1,
+                        borderRadius: 2,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                        minWidth: 200
+                    }
+                }}
+            >
+                <MenuItem onClick={handleViewAvatar} sx={{ gap: 1.5, py: 1 }}>
+                    <VisibilityIcon fontSize="small" sx={{ color: '#65676b' }} />
+                    <Typography fontSize={14}>Xem ảnh đại diện</Typography>
+                </MenuItem>
+                <MenuItem onClick={handleUploadAvatar} sx={{ gap: 1.5, py: 1 }}>
+                    <PhotoCameraIcon fontSize="small" sx={{ color: '#65676b' }} />
+                    <Typography fontSize={14}>Tải ảnh lên</Typography>
+                </MenuItem>
+            </Menu>
+
+            {/* Image Preview Dialog */}
+            <Dialog
+                open={!!imagePreview}
+                onClose={() => setImagePreview(null)}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        bgcolor: 'rgba(0, 0, 0, 0.9)',
+                        boxShadow: 'none',
+                        borderRadius: 0
+                    }
+                }}
+            >
+                <DialogContent sx={{ p: 0, position: 'relative' }}>
+                    <IconButton
+                        onClick={() => setImagePreview(null)}
+                        sx={{
+                            position: 'absolute',
+                            top: 16,
+                            right: 16,
+                            color: 'white',
+                            bgcolor: 'rgba(0, 0, 0, 0.5)',
+                            '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' }
+                        }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                    <Box
+                        component="img"
+                        src={imagePreview || ''}
+                        sx={{
+                            width: '100%',
+                            height: 'auto',
+                            maxHeight: '80vh',
+                            objectFit: 'contain'
+                        }}
+                    />
+                </DialogContent>
             </Dialog>
         </Box>
     );

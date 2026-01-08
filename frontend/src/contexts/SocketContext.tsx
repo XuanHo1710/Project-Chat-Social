@@ -42,8 +42,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    console.log("🔌 Creating sockets with userId:", userId);
-
     // Chat socket
     const socketIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/chat", {
       query: { userId },
@@ -67,7 +65,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     // Event handlers
     socketIo.on("connect", () => {
-      console.log("💬 Chat socket connected:", socketIo.id);
       setIsConnected(true);
 
       // Setup global listeners ONCE when connected
@@ -103,7 +100,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     setSocketReaction(socketReactionIo);
 
     return () => {
-      console.log("🧹 Cleanup sockets");
       onlineListenerSetup.current = false;
       socketIo.disconnect();
       socketRelationshipIo.disconnect();

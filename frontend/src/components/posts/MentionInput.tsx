@@ -106,15 +106,11 @@ export default function MentionInput({
     // Convert display value back to raw value (restore existing mentions)
     const displayToRaw = useCallback((displayContent: string): string => {
         let result = displayContent;
-        console.log("Restoring mentions in:", displayContent);
         mentionMapRef.current.forEach((rawMention, displayMention) => {
             // Use word boundary to avoid partial matches
             const escapedDisplay = displayMention.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(escapedDisplay + '(?![\\w])', 'g');
             result = result.replace(regex, rawMention);
-            console.log(`Replaced ${displayMention} with ${rawMention}`);
-            console.log("Escaped display mention:", escapedDisplay);
-            console.log("Current result:", result);
         });
         return result;
     }, []);

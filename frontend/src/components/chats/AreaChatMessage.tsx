@@ -117,6 +117,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
     // Typing indicator states
     const [isOtherTyping, setIsOtherTyping] = useState(false);
+    const [usersTyping, setUsersTyping] = useState<ConversationParticipant[]>([]);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastTypingEmitRef = useRef<number>(0);
 
@@ -182,8 +183,6 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         const pendingMessages = useMessageCacheStore.getState().consumePendingMessages(selectedConversation._id);
 
         if (pendingMessages.length > 0) {
-            console.log("📥 Consuming pending messages:", pendingMessages.length);
-
             queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                 [QUERY_KEYS.CHATS, selectedConversation._id],
                 (oldData) => {
@@ -257,7 +256,6 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         // Query online status of the other user when opening chat (only for DIRECT)
         if (selectedConversation.type !== 'GROUP' && selectedConversation.otherId) {
             socketChat.emit("user:status", { userId: selectedConversation.otherId }, (response: { userId: string; isOnline: boolean; status: string; lastActive?: string }) => {
-                console.log("📊 User status response:", response);
                 if (response) {
                     const store = useOnlineStatusStore.getState();
                     if (response.isOnline) {
@@ -398,8 +396,6 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
         // Handle message read updates
         const handleMessageReadUpdate = (data: { conversationId: string; readBy: string }) => {
-            console.log("👁️ Message read event received:", data, "Current conversation:", selectedConversation._id);
-
             if (data.conversationId === selectedConversation._id) {
                 // Mark all my messages as read in cache
                 queryClient.setQueryData<InfiniteData<MessagesResponse>>(
@@ -414,7 +410,6 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 const isMyMessage = senderId === userId || senderId?.toString() === userId;
 
                                 if (isMyMessage && msg.status !== 'READ' && data.readBy !== userId) {
-                                    console.log("👁️ Marking message as READ:", msg._id);
                                     return {
                                         ...msg,
                                         status: 'READ' as const,
@@ -434,8 +429,6 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
         // Handle unread count updates - OPTIMISTIC UPDATE in local cache
         const handleUnreadUpdate = (data?: { conversationId?: string; userId?: string }) => {
-            console.log("🔄 Unread update event received:", data);
-
             // If it's a reset for current user viewing this conversation, update cache immediately
             if (data?.conversationId && data?.userId) {
                 queryClient.setQueryData<{ data: ConversationResponseData[] }>(
@@ -464,8 +457,6 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
         // Handle unread increment when someone sends a message
         const handleUnreadIncrement = (data?: { conversationId?: string; senderId?: string }) => {
-            console.log("📬 Unread increment event received:", data);
-
             // If message is NOT from current user, increment unread for current user
             if (data?.conversationId && data?.senderId !== userId) {
                 // Only increment if NOT viewing this conversation
@@ -529,7 +520,10 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         const handleTypingStart = (data: { conversationId: string; userId: string }) => {
             if (data.conversationId === selectedConversation._id && data.userId !== userId) {
                 setIsOtherTyping(true);
-
+                const userTyping = conversation?.participants.find(p => p.user._id === data.userId);
+                if (!userTyping) return;
+                const newUserTypings = usersTyping.filter(u => u.user._id !== userTyping.user._id)
+                setUsersTyping([...newUserTypings, userTyping]);
                 // Clear existing timeout
                 if (typingTimeoutRef.current) {
                     clearTimeout(typingTimeoutRef.current);
@@ -544,7 +538,10 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
         const handleTypingStop = (data: { conversationId: string; userId: string }) => {
             if (data.conversationId === selectedConversation._id && data.userId !== userId) {
-                setIsOtherTyping(false);
+                const userTypingsLeft = usersTyping.filter(u => u.user._id !== data.userId);
+                setUsersTyping([...userTypingsLeft]);
+                if (userTypingsLeft.length === 0)
+                    setIsOtherTyping(false);
                 if (typingTimeoutRef.current) {
                     clearTimeout(typingTimeoutRef.current);
                 }
@@ -554,6 +551,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         // Also hide typing when new message arrives
         const handleNewMessageTyping = (msg: MessageResponse) => {
             if (msg.conversationId === selectedConversation._id && msg.senderId._id !== userId) {
+                const userTypingsLeft = usersTyping.filter(u => u.user._id !== msg.senderId._id);
+                setUsersTyping([...userTypingsLeft]);
                 setIsOtherTyping(false);
                 if (typingTimeoutRef.current) {
                     clearTimeout(typingTimeoutRef.current);
@@ -573,7 +572,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                 clearTimeout(typingTimeoutRef.current);
             }
         };
-    }, [socketChat, selectedConversation._id, userId]);
+    }, [socketChat, selectedConversation._id, userId, setUsersTyping, usersTyping, conversation]);
+
 
     const [showMentions, setShowMentions] = useState(false);
     const [mentionSearch, setMentionSearch] = useState("");
@@ -970,8 +970,9 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                 </Box>
 
                 {/* Typing Indicator */}
-                {isOtherTyping && (
+                {isOtherTyping && usersTyping.length > 0 && usersTyping.map((userTyping) => (
                     <Box
+                        key={userTyping.user._id}
                         sx={{
                             display: 'flex',
                             alignItems: 'center',
@@ -982,7 +983,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                         }}
                     >
                         <Avatar
-                            src={selectedConversation.avatar}
+                            src={userTyping.user.avatar || ""}
                             sx={{ width: 28, height: 28 }}
                         />
                         <Box
@@ -1028,8 +1029,11 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 ))}
                             </Box>
                         </Box>
+                        <Typography fontSize={14} color="#65676b">
+                            {userTyping.nickname || `${userTyping.user.firstName} ${userTyping.user.lastName}`} đang nhập...
+                        </Typography>
                     </Box>
-                )}
+                ))}
 
                 {/* Group Deleted or Kicked or Restricted Notice */}
                 {!canChat && (

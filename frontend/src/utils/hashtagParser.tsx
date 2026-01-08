@@ -163,7 +163,6 @@ export const renderContentWithMentions = (content: string) => {
                     onClick={(e) => {
                         e.stopPropagation();
                         // TODO: Navigate to hashtag search
-                        console.log('Clicked hashtag:', hashtag);
                     }}
                 >
                     {fullMatch}

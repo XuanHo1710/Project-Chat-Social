@@ -685,20 +685,6 @@ export default function StoryViewer({
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            {/* Reaction buttons row - visible and spaced */}
-                            <Box
-                                sx={{
-                                    display: 'flex',
-                                    justifyContent: 'center',
-                                    mb: 1.5,
-                                }}
-                            >
-                                <StoryReactions
-                                    onReactionComplete={handleReaction}
-                                    addFloatingEmoji={addFloatingEmoji}
-                                    storyOwnerName={`${currentGroup.user.firstName} ${currentGroup.user.lastName}`}
-                                />
-                            </Box>
                             {/* Message input row */}
                             <Box
                                 sx={{
@@ -744,6 +730,21 @@ export default function StoryViewer({
                                     }}
                                 />
                             </Box>
+                            {/* Reaction buttons row - visible and spaced */}
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    mb: 1.5,
+                                }}
+                            >
+                                <StoryReactions
+                                    onReactionComplete={handleReaction}
+                                    addFloatingEmoji={addFloatingEmoji}
+                                    storyOwnerName={`${currentGroup.user.firstName} ${currentGroup.user.lastName}`}
+                                />
+                            </Box>
+
                         </Box>
                     )}
 

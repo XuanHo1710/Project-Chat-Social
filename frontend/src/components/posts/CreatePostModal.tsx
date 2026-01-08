@@ -200,7 +200,6 @@ export default function CreatePostModal({
     // Wrapper for emoji picker
     const onEmojiSelect = (emoji: { native: string }) => {
         handleEmojiSelect(emoji, setPostContent);
-        console.log(emoji);
     };
 
     // Get selected background

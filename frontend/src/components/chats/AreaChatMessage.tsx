@@ -395,8 +395,13 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         socketChat.on("conversation:settings:updated", handleConversationUpdate);
 
         // Handle message read updates
-        const handleMessageReadUpdate = (data: { conversationId: string; readBy: string }) => {
-            if (data.conversationId === selectedConversation._id) {
+        const handleMessageReadUpdate = (data: {
+            conversationId: string;
+            readBy: { _id: string; firstName: string; lastName: string; avatar?: string } | null;
+            readByUserId: string;
+            modifiedCount: number;
+        }) => {
+            if (data.conversationId === selectedConversation._id && data.readBy) {
                 // Mark all my messages as read in cache
                 queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                     [QUERY_KEYS.CHATS, selectedConversation._id],
@@ -409,11 +414,21 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 const senderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
                                 const isMyMessage = senderId === userId || senderId?.toString() === userId;
 
-                                if (isMyMessage && msg.status !== 'READ' && data.readBy !== userId) {
+                                // Skip if reader is current user (don't mark my messages as read by myself)
+                                if (data.readByUserId === userId) {
+                                    return msg;
+                                }
+
+                                if (isMyMessage && msg.status !== 'READ') {
+                                    // Check if this user already exists in readBy array
+                                    const alreadyRead = msg.readBy?.some(r => r._id === data.readBy!._id);
+                                    if (alreadyRead) {
+                                        return msg;
+                                    }
                                     return {
                                         ...msg,
                                         status: 'READ' as const,
-                                        readBy: [...(msg.readBy || []), data.readBy]
+                                        readBy: [...(msg.readBy || []), data.readBy!]
                                     };
                                 }
                                 return msg;
@@ -948,23 +963,23 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 ).filter(i => i !== -1).pop();
                                 const isLastOwnMessage = actualIndex === lastOwnMessageIndex;
 
-                                // const otherAvatarNotRead = message.readBy?.map(r => r.)
-                                console.log("Other user:", message)
+                                const otherAvatarsNotRead = message.readBy?.map(r => r.avatar).filter(avatar => avatar !== undefined) || [];
 
                                 return (
+                                    conversationDetail?.data &&
                                     <MessageItem
                                         key={message._id}
                                         message={message}
                                         isOwn={isOwn}
                                         showAvatar={showAvatar}
                                         avatar={message.senderId.avatar}
-                                        conversationId={selectedConversation._id}
+                                        conversation={conversationDetail?.data}
                                         socket={socketChat}
                                         userId={userId}
                                         onReply={handleReply}
                                         themeColor={themeColor}
                                         isLastOwnMessage={isLastOwnMessage}
-                                        otherUserAvatar={selectedConversation.avatar}
+                                        otherAvatarsNotRead={otherAvatarsNotRead}
                                     />
                                 );
                             }}

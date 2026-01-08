@@ -31,6 +31,8 @@ import { formatTime } from '@/utils/formatDate';
 import { Socket } from 'socket.io-client';
 import { handleDownload } from '@/utils/formatFile';
 import PostShareMessage from "@/components/chat/PostShareMessage";
+import EmotionListDialog from "@/components/chats/EmotionListDialog";
+import { ConversationResponseData } from "@/types/conversation";
 
 const EMOTIONS: { type: EmotionType; emoji: string; label: string }[] = [
     { type: 'LIKE', emoji: '👍', label: 'Thích' },
@@ -46,13 +48,13 @@ interface MessageItemProps {
     isOwn: boolean;
     showAvatar: boolean;
     avatar: string;
-    conversationId: string;
+    conversation: ConversationResponseData;
     socket: Socket | null;
     userId: string;
     onReply?: (message: MessageResponse) => void;
     themeColor?: string;
     isLastOwnMessage?: boolean;
-    otherUserAvatar?: string;
+    otherAvatarsNotRead?: string[];
 }
 
 export default function MessageItem({
@@ -60,19 +62,20 @@ export default function MessageItem({
     isOwn,
     showAvatar,
     avatar,
-    conversationId,
+    conversation,
     socket,
     userId,
     onReply,
     themeColor = '#0084ff',
     isLastOwnMessage = false,
-    otherUserAvatar,
+    otherAvatarsNotRead,
 }: MessageItemProps) {
     const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
     const [reactionAnchor, setReactionAnchor] = useState<HTMLElement | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [editContent, setEditContent] = useState(message.content || '');
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [emotionDialogOpen, setEmotionDialogOpen] = useState(false);
 
     const canEdit = isOwn && !message.isDeleted && message.content &&
         (new Date().getTime() - new Date(message.createdAt).getTime()) < 15 * 60 * 1000;
@@ -85,21 +88,25 @@ export default function MessageItem({
     const handleEdit = () => { handleMenuClose(); setIsEditing(true); setEditContent(message.content || ''); };
     const handleSaveEdit = () => {
         if (socket && editContent.trim() !== message.content) {
-            socket.emit('message:edit', { messageId: message._id, conversationId, content: editContent.trim() });
+            socket.emit('message:edit', { messageId: message._id, conversationId: conversation._id, content: editContent.trim() });
         }
         setIsEditing(false);
     };
     const handleCancelEdit = () => { setIsEditing(false); setEditContent(message.content || ''); };
-    const handleDelete = () => { handleMenuClose(); if (socket) socket.emit('message:delete', { messageId: message._id, conversationId }); };
+    const handleDelete = () => { handleMenuClose(); if (socket) socket.emit('message:delete', { messageId: message._id, conversationId: conversation._id }); };
 
     const handleReaction = (emotionType: EmotionType) => {
         handleReactionClose();
         if (socket) {
-            const userReaction = message.emotions?.find(e => e.userId === userId);
+            // Handle both string and object userId
+            const userReaction = message.emotions?.find(e => {
+                const emotionUserId = e.userId;
+                return emotionUserId === userId;
+            });
             if (userReaction?.emotionType === emotionType) {
-                socket.emit('message:reaction:remove', { messageId: message._id, conversationId });
+                socket.emit('message:reaction:remove', { messageId: message._id, conversationId: conversation._id });
             } else {
-                socket.emit('message:reaction', { messageId: message._id, conversationId, emotionType });
+                socket.emit('message:reaction', { messageId: message._id, conversationId: conversation._id, emotionType });
             }
         }
     };
@@ -111,16 +118,19 @@ export default function MessageItem({
         const status = message.status || 'SENT';
 
         // Show avatar of reader for READ status (đã xem)
-        if (status === 'READ' && otherUserAvatar) {
+        if (status === 'READ' && otherAvatarsNotRead && otherAvatarsNotRead.length > 0) {
             return (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Avatar
-                        src={otherUserAvatar}
-                        sx={{
-                            width: 14,
-                            height: 14,
-                        }}
-                    />
+                    {otherAvatarsNotRead.map((avatar, index) => (
+                        <Avatar
+                            src={avatar}
+                            key={index}
+                            sx={{
+                                width: 14,
+                                height: 14,
+                            }}
+                        />
+                    ))}
                 </Box>
             );
         }
@@ -169,7 +179,7 @@ export default function MessageItem({
                     zIndex: 10,
                     border: '1px solid #e4e6eb',
                 }}
-                onClick={handleReactionOpen}
+                onClick={() => setEmotionDialogOpen(true)}
             >
                 <Box sx={{ display: 'flex' }}>
                     {uniqueTypes.slice(0, 3).map((type, i) => (
@@ -1017,6 +1027,14 @@ export default function MessageItem({
                     </IconButton>
                 </Box>
             )}
+
+            {/* Emotion List Dialog */}
+            <EmotionListDialog
+                open={emotionDialogOpen}
+                onClose={() => setEmotionDialogOpen(false)}
+                emotions={message.emotions || []}
+                participants={conversation.participants}
+            />
         </>
     );
 }

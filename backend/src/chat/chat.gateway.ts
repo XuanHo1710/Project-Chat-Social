@@ -884,10 +884,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Reset unread count for this user
       await this.conversationService.resetUnreadCount(data.conversationId, userId);
 
+      // Get user info for the reader
+      const readerUser = await this.accountModel
+        .findById(userId)
+        .select('firstName lastName _id avatar');
+      const readByUser = readerUser
+        ? {
+            _id: readerUser._id.toString(),
+            firstName: readerUser.firstName,
+            lastName: readerUser.lastName,
+            avatar: readerUser.avatar,
+          }
+        : null;
+
       // Notify all users in conversation that messages have been read
       this.server.to(`room:${data.conversationId}`).emit('message:read:updated', {
         conversationId: data.conversationId,
-        readBy: userId,
+        readBy: readByUser,
+        readByUserId: userId, // Keep userId for backward compatibility
         modifiedCount: result.modifiedCount,
       });
 

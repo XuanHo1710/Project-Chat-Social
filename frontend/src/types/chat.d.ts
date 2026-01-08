@@ -58,7 +58,12 @@ export interface MessageResponse {
 
   status?: MessageStatus;
 
-  readBy?: string[];
+  readBy?: Array<{
+    _id: string;
+    firstName: string;
+    lastName: string;
+    avatar?: string;
+  }>;
 
   createdAt: string;
 

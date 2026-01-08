@@ -25,6 +25,7 @@ export class ChatService {
     return await this.messageModel
       .findById(message._id)
       .populate('senderId', 'firstName lastName _id avatar')
+      .populate('readBy', 'firstName lastName _id avatar')
       .populate({
         path: 'replyTo',
         populate: { path: 'senderId', select: 'firstName lastName _id' },
@@ -111,6 +112,10 @@ export class ChatService {
         .sort({ createdAt: -1 }) // Newest first for pagination
         .limit(limit)
         .populate('senderId', 'firstName lastName _id avatar')
+        .populate({
+          path: 'emotions.userId',
+          select: 'firstName lastName _id avatar',
+        })
         .populate([
           {
             path: 'replyTo',
@@ -275,6 +280,7 @@ export class ChatService {
         },
         { new: true }
       )
+      .populate('emotions.userId', 'firstName lastName _id avatar')
       .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
       .exec();
   }
@@ -292,6 +298,7 @@ export class ChatService {
         { $pull: { emotions: { userId: new Types.ObjectId(userId) } } },
         { new: true }
       )
+      .populate('emotions.userId', 'firstName lastName _id avatar')
       .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
       .exec();
   }

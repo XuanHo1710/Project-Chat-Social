@@ -304,11 +304,13 @@ export class RelationshipService {
   // Restrict a user (hide conversation but still friends)
   async restrictUser(userId: string, targetUserId: string) {
     // Find existing relationship
+    console.log('UserId in restrictUser:', userId);
+    console.log('TargetUserId in restrictUser:', targetUserId);
 
     const relationship = await this.relationshipModel.findOne({
       $or: [
-        { userId: userId, friendId: targetUserId },
-        { userId: targetUserId, friendId: userId },
+        { userId: new Types.ObjectId(userId), friendId: new Types.ObjectId(targetUserId) },
+        { userId: new Types.ObjectId(targetUserId), friendId: new Types.ObjectId(userId) },
       ],
     });
 

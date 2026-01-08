@@ -8,6 +8,7 @@ export enum PostPrivacy {
   PRIVATE = 'PRIVATE',
   PUBLIC = 'PUBLIC',
   FRIEND = 'FRIEND',
+  GROUP = 'GROUP', // Group posts
 }
 
 export enum MediaType {
@@ -36,6 +37,14 @@ export class Post {
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Account.name, required: true })
   userId: mongoose.Schema.Types.ObjectId;
+
+  // Group post reference
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Group', default: null })
+  groupId: mongoose.Schema.Types.ObjectId | null;
+
+  // Anonymous post in group
+  @Prop({ type: Boolean, default: false })
+  isAnonymous: boolean;
 
   // Shared post reference
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Post', default: null })

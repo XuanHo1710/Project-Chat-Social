@@ -215,16 +215,19 @@ export default function Header() {
                     >
                         <StorefrontIcon />
                     </IconButton>
-                    <IconButton
-                        sx={{
-                            px: 4,
-                            borderRadius: 2,
-                            color: '#65676b',
-                            '&:hover': { bgcolor: '#f0f2f5' }
-                        }}
-                    >
-                        <GroupIcon />
-                    </IconButton>
+                    <Link href="/groups" style={{ textDecoration: 'none' }}>
+                        <IconButton
+                            sx={{
+                                px: 4,
+                                borderRadius: pathname?.startsWith('/groups') ? 0 : 2,
+                                borderBottom: pathname?.startsWith('/groups') ? '3px solid #1877f2' : 'none',
+                                color: pathname?.startsWith('/groups') ? '#1877f2' : '#65676b',
+                                '&:hover': { bgcolor: '#f0f2f5' }
+                            }}
+                        >
+                            <GroupIcon />
+                        </IconButton>
+                    </Link>
                     <IconButton
                         sx={{
                             px: 4,

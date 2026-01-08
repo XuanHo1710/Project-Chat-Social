@@ -26,7 +26,6 @@ interface ReactionButtonProps {
 
 export default function ReactionButton({ post, initialTotalReacts = 0 }: ReactionButtonProps) {
     const [showReactions, setShowReactions] = useState(false);
-
     const { socketReaction } = useSocket();
 
     // Use global store for reaction state

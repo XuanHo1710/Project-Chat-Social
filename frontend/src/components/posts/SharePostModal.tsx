@@ -83,7 +83,7 @@ export default function SharePostModal({
         if (!conversationsData?.data) return [];
         return conversationsData.data.filter((conv: ConversationResponseData) => {
             if (conv.type === 'GROUP') {
-                return conv.name?.toLowerCase().includes(searchQuery.toLowerCase());
+                return conv.nickname?.toLowerCase().includes(searchQuery.toLowerCase());
             }
             const otherParticipant = conv.participants.find(
                 (p) => p.user._id !== currentUserId
@@ -96,7 +96,7 @@ export default function SharePostModal({
     }, [conversationsData, searchQuery, currentUserId]);
 
     const getConversationName = (conv: ConversationResponseData) => {
-        if (conv.type === 'GROUP') return conv.name || 'Nhóm chat';
+        if (conv.type === 'GROUP') return conv.nickname || 'Nhóm chat';
         const otherParticipant = conv.participants.find(
             (p) => p.user._id !== currentUserId
         );

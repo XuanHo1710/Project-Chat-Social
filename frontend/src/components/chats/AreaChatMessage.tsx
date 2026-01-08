@@ -402,6 +402,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             modifiedCount: number;
         }) => {
             if (data.conversationId === selectedConversation._id && data.readBy) {
+
                 // Mark all my messages as read in cache
                 queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                     [QUERY_KEYS.CHATS, selectedConversation._id],
@@ -414,17 +415,13 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 const senderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
                                 const isMyMessage = senderId === userId || senderId?.toString() === userId;
 
-                                // Skip if reader is current user (don't mark my messages as read by myself)
-                                if (data.readByUserId === userId) {
-                                    return msg;
-                                }
-
-                                if (isMyMessage && msg.status !== 'READ') {
+                                if (isMyMessage) {
                                     // Check if this user already exists in readBy array
                                     const alreadyRead = msg.readBy?.some(r => r._id === data.readBy!._id);
                                     if (alreadyRead) {
                                         return msg;
                                     }
+                                    // Add new reader to readBy array and update status
                                     return {
                                         ...msg,
                                         status: 'READ' as const,

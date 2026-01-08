@@ -86,7 +86,10 @@ export class ChatService {
     // Find user's participant record
     const participant = conversation.participants.find((p) => p.user.toString() === userId);
 
-    const query: any = { conversationId, isDeleted: { $ne: true } };
+    const query: any = {
+      conversationId: conversationId,
+      isDeleted: { $ne: true },
+    };
 
     // If user was kicked, only show messages up to kickedAt time
     if (participant?.kickedAt) {
@@ -112,6 +115,7 @@ export class ChatService {
         .sort({ createdAt: -1 }) // Newest first for pagination
         .limit(limit)
         .populate('senderId', 'firstName lastName _id avatar')
+        .populate('readBy', 'firstName lastName _id avatar')
         .populate({
           path: 'emotions.userId',
           select: 'firstName lastName _id avatar',
@@ -242,6 +246,8 @@ export class ChatService {
         },
         { new: true }
       )
+      .populate('readBy', 'firstName lastName _id avatar')
+      .populate('emotions.userId', 'firstName lastName _id avatar')
       .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
       .exec();
   }
@@ -280,6 +286,7 @@ export class ChatService {
         },
         { new: true }
       )
+      .populate('readBy', 'firstName lastName _id avatar')
       .populate('emotions.userId', 'firstName lastName _id avatar')
       .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
       .exec();
@@ -298,6 +305,7 @@ export class ChatService {
         { $pull: { emotions: { userId: new Types.ObjectId(userId) } } },
         { new: true }
       )
+      .populate('readBy', 'firstName lastName _id avatar')
       .populate('emotions.userId', 'firstName lastName _id avatar')
       .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
       .exec();
@@ -349,6 +357,8 @@ export class ChatService {
         },
         { new: true }
       )
+      .populate('readBy', 'firstName lastName _id avatar')
+      .populate('emotions.userId', 'firstName lastName _id avatar')
       .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
       .exec();
   }

@@ -33,6 +33,8 @@ export interface PostType {
   isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
+  // Top reactions for display (3 most recent types)
+  topReactions?: { type: string; count: number }[];
   // Client-side state
   currentReaction?: string | null;
   reactInfo?: {

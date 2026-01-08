@@ -32,6 +32,7 @@ export default function CommentContentModal({
 }: CommentContentModalProps) {
     const [totalComments, setTotalComments] = useState<number>(commentingPost?.totalComments || 0);
 
+
     // Use global store for reaction state
     const { postReactions, initPostReaction } = useReactionStore();
     const reactionState = commentingPost ? postReactions[commentingPost._id] : null;
@@ -74,7 +75,7 @@ export default function CommentContentModal({
                 <Box sx={{ display: 'flex', justifyContent: 'space-around', mb: 2 }}>
                     {commentingPost && (
                         <ReactionButton
-                            postId={commentingPost._id}
+                            post={commentingPost}
                             initialTotalReacts={commentingPost.totalReacts}
                         />
                     )}

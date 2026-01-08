@@ -178,10 +178,46 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                         }}
                         onClick={() => displayTotalReacts > 0 && setReactionListOpen(true)}
                     >
-                        <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: '#1877f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <ThumbUpIcon sx={{ fontSize: 12, color: 'white' }} />
-                        </Box>
-                        <Typography sx={{ fontSize: 15, color: '#65676b' }}>{displayTotalReacts}</Typography>
+                        {/* Show top 3 reaction types */}
+                        {post.topReactions && post.topReactions.length > 0 ? (
+                            <Box sx={{ display: 'flex', ml: -0.5 }}>
+                                {post.topReactions.slice(0, 3).map((reaction, index) => {
+                                    const reactionEmoji: Record<string, { emoji: string; bg: string }> = {
+                                        LIKE: { emoji: '👍', bg: '#1877f2' },
+                                        LOVE: { emoji: '❤️', bg: '#f33e58' },
+                                        HAHA: { emoji: '😆', bg: '#f7b125' },
+                                        WOW: { emoji: '😮', bg: '#f7b125' },
+                                        SAD: { emoji: '😢', bg: '#f7b125' },
+                                        ANGRY: { emoji: '😡', bg: '#e9710f' },
+                                    };
+                                    const reactionData = reactionEmoji[reaction.type] || { emoji: '👍', bg: '#1877f2' };
+                                    return (
+                                        <Box
+                                            key={reaction.type}
+                                            sx={{
+                                                width: 25,
+                                                height: 25,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: 20,
+                                                ml: index > 0 ? -0.5 : 0,
+                                                zIndex: 3 - index,
+                                            }}
+                                        >
+                                            {reactionData.emoji}
+                                        </Box>
+                                    );
+                                })}
+                            </Box>
+                        ) : displayTotalReacts > 0 ? (
+                            <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: '#1877f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <ThumbUpIcon sx={{ fontSize: 12, color: 'white' }} />
+                            </Box>
+                        ) : null}
+                        {displayTotalReacts > 0 && (
+                            <Typography sx={{ fontSize: 15, color: '#65676b' }}>{displayTotalReacts}</Typography>
+                        )}
                     </Box>
                     <Box sx={{ display: 'flex', gap: 2 }}>
                         <Typography sx={{ fontSize: 15, color: '#65676b', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }} onClick={() => handleOpenComments(post)}>{post.totalComments} bình luận</Typography>

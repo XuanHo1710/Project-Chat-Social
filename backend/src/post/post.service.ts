@@ -154,17 +154,28 @@ export class PostService {
     ]);
 
     const postIds = data.map((p) => p._id);
+    const postIdStrings = postIds.map((id) => id.toString());
 
-    const userReactions = await this.reactionService.userReactions(postIds, currentUserId);
+    // Get user reactions and top reactions summary in parallel
+    const [userReactions, reactionsSummary] = await Promise.all([
+      this.reactionService.userReactions(postIds, currentUserId),
+      this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+    ]);
+
     // convert về map để tra O(1)
     const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
 
     (data as PostWithReactInfo[]).forEach((post) => {
-      const r = reactionMap.get(post._id.toString()) as any;
+      const postIdStr = post._id.toString();
+      const r = reactionMap.get(postIdStr) as any;
+      const summary = reactionsSummary[postIdStr];
+
       post.reactInfo = {
         isReact: !!r,
         type: r ? r.type : null,
       };
+      // Add top reactions for display
+      (post as any).topReactions = summary?.topReactions || [];
     });
 
     return {

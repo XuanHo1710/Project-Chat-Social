@@ -784,7 +784,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         const lastAtIndex = newMessage.lastIndexOf('@');
         const beforeAt = newMessage.substring(0, lastAtIndex);
         const displayName = participant.nickname || `${participant.user.firstName} ${participant.user.lastName}`;
-        const inserted = participant.user._id === 'all' ? '@all ' : `@${displayName} `;
+        const inserted = participant.user.username === 'all' ? '@all ' : `@${displayName} `;
         setNewMessage(beforeAt + inserted);
         setShowMentions(false);
     };
@@ -948,6 +948,9 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 ).filter(i => i !== -1).pop();
                                 const isLastOwnMessage = actualIndex === lastOwnMessageIndex;
 
+                                // const otherAvatarNotRead = message.readBy?.map(r => r.)
+                                console.log("Other user:", message)
+
                                 return (
                                     <MessageItem
                                         key={message._id}
@@ -1107,7 +1110,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                             >
                                 <Box sx={{ minWidth: 0 }}>
                                     <Typography fontSize={12} color="#65676b">
-                                        Đang trả lời <strong>{replyMsg?.senderId._id === userId ? "chính mình" : "một tin nhắn"}</strong>
+                                        Đang trả lời <strong>{replyMsg?.senderId._id === userId ? "chính mình" : replyMsg.senderId.firstName + " " + replyMsg.senderId.lastName}</strong>
                                     </Typography>
                                     <Typography fontSize={13} color="#050505" noWrap sx={{ opacity: 0.8 }}>
                                         {replyMsg.content}
@@ -1354,8 +1357,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                 open={Boolean(emojiAnchor)}
                 anchorEl={emojiAnchor}
                 onClose={() => setEmojiAnchor(null)}
-                anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-                transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
                 slotProps={{
                     paper: {
                         sx: {

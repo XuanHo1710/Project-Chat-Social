@@ -12,6 +12,7 @@ import {
     MenuItem,
     TextField,
     Popover,
+    Tooltip,
 } from '@mui/material';
 import {
     MoreHoriz as MoreHorizIcon,
@@ -935,14 +936,14 @@ export default function MessageItem({
                     open={Boolean(reactionAnchor)}
                     anchorEl={reactionAnchor}
                     onClose={handleReactionClose}
-                    anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
                     transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
                     slotProps={{
                         paper: {
                             sx: {
                                 bgcolor: 'white',
                                 borderRadius: '28px',
-                                boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                                // boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
                                 border: 'none',
                                 overflow: 'visible',
                                 mt: -1
@@ -951,19 +952,22 @@ export default function MessageItem({
                     }}
                 >
                     <Box sx={{ display: 'flex', p: '6px 10px', gap: 0.5 }}>
-                        {EMOTIONS.map((emotion) => (
-                            <IconButton
-                                key={emotion.type}
-                                onClick={() => handleReaction(emotion.type)}
-                                sx={{
-                                    fontSize: 24,
-                                    p: 0.8,
-                                    transition: 'transform 0.15s',
-                                    '&:hover': { transform: 'scale(1.25)', bgcolor: 'transparent' }
-                                }}
-                            >
-                                {emotion.emoji}
-                            </IconButton>
+                        {EMOTIONS.map((reaction) => (
+                            <Tooltip key={reaction.type} title={reaction.label} placement="bottom">
+                                <Box
+                                    onClick={() => handleReaction(reaction.type)}
+                                    sx={{
+                                        fontSize: 24,
+                                        cursor: "pointer",
+                                        transition: "transform 0.2s",
+                                        "&:hover": {
+                                            transform: "scale(1.3)",
+                                        },
+                                    }}
+                                >
+                                    {reaction.emoji}
+                                </Box>
+                            </Tooltip>
                         ))}
                     </Box>
                 </Popover>

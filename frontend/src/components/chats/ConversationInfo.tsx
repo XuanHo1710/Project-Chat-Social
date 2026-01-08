@@ -511,7 +511,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
 
     const handleAvatarClick = (event: React.MouseEvent<HTMLElement>) => {
-        if (isGroup && isAdmin) {
+        if (isGroup) {
             event.stopPropagation();
             setAvatarMenuAnchor(event.currentTarget);
         }
@@ -611,7 +611,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             src={isGroup ? conversation.avatar : otherUser?.avatar}
                             sx={{ width: 80, height: 80 }}
                         />
-                        {isGroup && isAdmin && (
+                        {isGroup && (
                             <IconButton
                                 size="small"
                                 onClick={handleAvatarClick}
@@ -1028,52 +1028,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 </DialogActions>
             </Dialog>
 
-            {/* Avatar Dialog */}
-            <Dialog
-                open={avatarDialogOpen}
-                onClose={() => setAvatarDialogOpen(false)}
-                fullWidth
-                maxWidth="xs"
-                PaperProps={{ sx: { bgcolor: 'white', borderRadius: 2, padding: 1 } }}
-            >
-                <DialogTitle sx={{ color: '#050505' }}>Đổi ảnh đại diện nhóm</DialogTitle>
-                <DialogContent>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-                        {/* Upload from file */}
-                        <Box sx={{ textAlign: 'center' }}>
-                            <input
-                                accept="image/*"
-                                style={{ display: 'none' }}
-                                id="avatar-upload-input"
-                                type="file"
-                                onChange={handleAvatarFileSelect}
-                                disabled={isUploadingAvatar}
-                            />
-                            <label htmlFor="avatar-upload-input">
-                                <Button
-                                    variant="contained"
-                                    component="span"
-                                    startIcon={isUploadingAvatar ? <CircularProgress size={20} color="inherit" /> : <PhotoCameraIcon />}
-                                    disabled={isUploadingAvatar}
-                                    fullWidth
-                                >
-                                    {isUploadingAvatar ? 'Đang tải lên...' : 'Tải ảnh từ máy tính'}
-                                </Button>
-                            </label>
-                        </Box>
-                    </Box>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setAvatarDialogOpen(false)}>Hủy</Button>
-                    <Button
-                        onClick={handleAvatarUrlSubmit}
-                        variant="contained"
-                        disabled={!avatarUrl.trim()}
-                    >
-                        Lưu
-                    </Button>
-                </DialogActions>
-            </Dialog>
+
 
             {/* Theme Dialog */}
             <Dialog open={themeDialogOpen} onClose={() => setThemeDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'white', borderRadius: 3 } }}>
@@ -1506,52 +1461,6 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 </DialogContent>
             </Dialog>
 
-            {/* Image Preview Dialog */}
-            <Dialog
-                open={!!imagePreview}
-                onClose={() => setImagePreview(null)}
-                maxWidth="lg"
-                PaperProps={{
-                    sx: {
-                        bgcolor: 'transparent',
-                        boxShadow: 'none',
-                        maxWidth: '90vw',
-                        maxHeight: '90vh'
-                    }
-                }}
-            >
-                <IconButton
-                    onClick={() => setImagePreview(null)}
-                    sx={{
-                        position: 'absolute',
-                        top: -40,
-                        right: 0,
-                        color: 'white',
-                        bgcolor: 'rgba(0,0,0,0.5)',
-                        '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
-                    }}
-                >
-                    <CloseIcon />
-                </IconButton>
-                {imagePreview && (
-                    imagePreview.includes('.mp4') || imagePreview.includes('.webm') || imagePreview.includes('.mov') ? (
-                        <video
-                            src={imagePreview}
-                            controls
-                            autoPlay
-                            style={{ maxWidth: '90vw', maxHeight: '85vh' }}
-                        />
-                    ) : (
-                        <Box
-                            component="img"
-                            src={imagePreview}
-                            alt=""
-                            sx={{ maxWidth: '90vw', maxHeight: '85vh', objectFit: 'contain' }}
-                        />
-                    )
-                )}
-            </Dialog>
-
             {/* Create Group Dialog */}
             <Dialog
                 open={createGroupDialogOpen}
@@ -1765,7 +1674,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             <Dialog
                 open={!!imagePreview}
                 onClose={() => setImagePreview(null)}
-                maxWidth="md"
+                maxWidth="lg"
                 fullWidth
                 PaperProps={{
                     sx: {

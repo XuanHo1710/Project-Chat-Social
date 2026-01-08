@@ -36,7 +36,6 @@ export default function CommentReactionButton({
 
     // Local state derived from global store
     const localReaction = reactionState?.userReaction ?? null;
-    const localTotalLikes = reactionState?.totalLikes ?? initialTotalLikes;
 
     // Fetch user's reaction for this comment (initial load)
     const { data: userReactionData, isLoading } = useGetUserCommentReaction(commentId);
@@ -237,11 +236,6 @@ export default function CommentReactionButton({
                     >
                         {currentReactionData?.label || "Thích"}
                     </Typography>
-                    {localTotalLikes > 0 && (
-                        <Typography sx={{ fontSize: 11, color: "#65676b", lineHeight: 1, ml: 0.5 }}>
-                            ({localTotalLikes})
-                        </Typography>
-                    )}
                 </Box>
             </Box>
         </ClickAwayListener>

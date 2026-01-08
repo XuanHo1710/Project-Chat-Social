@@ -88,4 +88,50 @@ export class RelationshipController {
   checkFriendship(@UserInfo() user: any, @Param('targetUserId') targetUserId: string) {
     return this.relationshipService.checkFriendship(user._id, targetUserId);
   }
+
+  // ==================== BLOCKING ====================
+
+  // Block a user
+  @Post('/block/:targetUserId')
+  blockUser(@UserInfo() user: any, @Param('targetUserId') targetUserId: string) {
+    return this.relationshipService.blockUser(user._id, targetUserId);
+  }
+
+  // Unblock a user
+  @Delete('/block/:targetUserId')
+  unblockUser(@UserInfo() user: any, @Param('targetUserId') targetUserId: string) {
+    return this.relationshipService.unblockUser(user._id, targetUserId);
+  }
+
+  // Get blocked users list
+  @Get('/blocked')
+  getBlockedUsers(@UserInfo() user: any) {
+    return this.relationshipService.getBlockedUsers(user._id);
+  }
+
+  // Check if a user is blocked
+  @Get('/is-blocked/:targetUserId')
+  isUserBlocked(@UserInfo() user: any, @Param('targetUserId') targetUserId: string) {
+    return this.relationshipService.isUserBlocked(user._id, targetUserId);
+  }
+
+  // ==================== RESTRICT ====================
+
+  // Restrict a user
+  @Post('/restrict/:targetUserId')
+  restrictUser(@UserInfo() user: any, @Param('targetUserId') targetUserId: string) {
+    return this.relationshipService.restrictUser(user._id, targetUserId);
+  }
+
+  // Unrestrict a user
+  @Delete('/unrestrict/:targetUserId')
+  unrestrictUser(@UserInfo() user: any, @Param('targetUserId') targetUserId: string) {
+    return this.relationshipService.unrestrictUser(user._id, targetUserId);
+  }
+
+  // Get restricted users list
+  @Get('/restricted')
+  getRestrictedUsers(@UserInfo() user: any) {
+    return this.relationshipService.getRestrictedUsers(user._id);
+  }
 }

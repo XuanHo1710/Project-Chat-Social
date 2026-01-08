@@ -37,6 +37,7 @@ import { UploadMediaFiles } from "@/utils/uploadImage";
 import Image from "next/image";
 import { toast } from "sonner";
 import CommentReactionButton from "./CommentReactionButton";
+import CommentReactionListDialog from "./CommentReactionListDialog";
 import ImageViewer from "./ImageViewer";
 import { commentMediaToMediaItems, renderContentWithMentions } from "@/utils/hashtagParser";
 import MentionInput from "@/components/posts/MentionInput";
@@ -610,6 +611,7 @@ export default function CommentItem({
     const [isEditing, setIsEditing] = useState(false);
     const [imageViewerOpen, setImageViewerOpen] = useState(false);
     const [imageViewerIndex, setImageViewerIndex] = useState(0);
+    const [reactionListOpen, setReactionListOpen] = useState(false);
     const deleteComment = useDeleteComment();
     const { data: repliesData, fetchNextPage, hasNextPage, isFetchingNextPage } = useGetReplies(
         comment._id,
@@ -759,6 +761,58 @@ export default function CommentItem({
                     </>
                 )}
 
+                {/* Reaction summary - positioned at bottom right of comment bubble */}
+                {comment.totalLikes > 0 && (
+                    <Box
+                        onClick={() => setReactionListOpen(true)}
+                        sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 0.3,
+                            bgcolor: 'white',
+                            borderRadius: 3,
+                            px: 0.8,
+                            py: 0.3,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                            cursor: 'pointer',
+                            mt: 0.5,
+                            '&:hover': { boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }
+                        }}
+                    >
+                        {comment.topReactions && comment.topReactions.length > 0 ? (
+                            <>
+                                {comment.topReactions.slice(0, 3).map((reaction, index) => {
+                                    const reactionEmoji: Record<string, string> = {
+                                        LIKE: '👍',
+                                        LOVE: '❤️',
+                                        HAHA: '😆',
+                                        WOW: '😮',
+                                        SAD: '😢',
+                                        ANGRY: '😡',
+                                    };
+                                    return (
+                                        <Box
+                                            key={reaction.type}
+                                            sx={{
+                                                fontSize: 13,
+                                                ml: index > 0 ? -0.3 : 0,
+                                                zIndex: 3 - index,
+                                            }}
+                                        >
+                                            {reactionEmoji[reaction.type] || '👍'}
+                                        </Box>
+                                    );
+                                })}
+                            </>
+                        ) : (
+                            <Box sx={{ fontSize: 13 }}>👍</Box>
+                        )}
+                        <Typography sx={{ fontSize: 12, color: '#65676b', ml: 0.2 }}>
+                            {comment.totalLikes}
+                        </Typography>
+                    </Box>
+                )}
+
                 {/* Actions */}
                 {!isEditing && (
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 0.5, px: 1 }}>
@@ -885,6 +939,13 @@ export default function CommentItem({
                         )}
                     </Box>
                 )}
+
+                {/* Reaction List Dialog */}
+                <CommentReactionListDialog
+                    open={reactionListOpen}
+                    onClose={() => setReactionListOpen(false)}
+                    commentId={comment._id}
+                />
             </Box>
         </Box>
     );

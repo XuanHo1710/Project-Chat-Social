@@ -16,6 +16,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Account, AccountDocument } from 'src/account/entities/account.entity';
 import { Model } from 'mongoose';
 import { EmotionType } from './entities/message.entity';
+import { RelationshipService } from 'src/relationship/relationship.service';
 
 // Map để lưu userId -> Set<socketId> (support multiple connections per user)
 const userSockets = new Map<string, Set<string>>();
@@ -35,6 +36,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly conversationService: ConversationService,
     private readonly chatService: ChatService,
+    private readonly relationshipService: RelationshipService,
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>
   ) {}
 
@@ -65,19 +67,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // If first connection, update status to ACTIVE
       if (isFirstConnection) {
-        await this.accountModel.findByIdAndUpdate(userId, {
-          status: 'ACTIVE',
-          lastLogin: new Date(),
-        });
-
-        // Broadcast to all users that this user is now online
-        this.server.emit('user:online', {
+        const account = await this.accountModel.findByIdAndUpdate(
           userId,
-          status: 'ACTIVE',
-          lastLogin: new Date(),
-        });
+          {
+            status: 'ACTIVE',
+            lastLogin: new Date(),
+          },
+          { new: true }
+        );
 
-        this.logger.log(`User ${userId} is now ONLINE`);
+        // Only broadcast online status if user allows showing activity status
+        if (account?.showActivityStatus !== false) {
+          this.server.emit('user:online', {
+            userId,
+            status: 'ACTIVE',
+            lastLogin: new Date(),
+          });
+        }
+
+        this.logger.log(
+          `User ${userId} is now ONLINE (showActivityStatus: ${account?.showActivityStatus})`
+        );
       }
 
       // Join user vào tất cả conversations của họ
@@ -105,19 +115,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
           // Update status to DEACTIVE and lastActive
           const lastActive = new Date();
-          await this.accountModel.findByIdAndUpdate(userId, {
-            status: 'DEACTIVE',
-            lastActive,
-          });
-
-          // Broadcast to all users that this user is now offline
-          this.server.emit('user:offline', {
+          const account = await this.accountModel.findByIdAndUpdate(
             userId,
-            status: 'DEACTIVE',
-            lastActive,
-          });
+            {
+              status: 'DEACTIVE',
+              lastActive,
+            },
+            { new: true }
+          );
 
-          this.logger.log(`User ${userId} is now OFFLINE`);
+          // Only broadcast offline status if user allows showing activity status
+          if (account?.showActivityStatus !== false) {
+            this.server.emit('user:offline', {
+              userId,
+              status: 'DEACTIVE',
+              lastActive,
+            });
+          }
+
+          this.logger.log(
+            `User ${userId} is now OFFLINE (showActivityStatus: ${account?.showActivityStatus})`
+          );
         }
       }
     } catch (error) {
@@ -131,6 +149,47 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket
   ) {
     client.join(`room:${data.conversationId}`);
+    return { success: true };
+  }
+
+  // ============ ACTIVITY STATUS TOGGLE ============
+  @SubscribeMessage('activity:toggle')
+  async handleActivityToggle(
+    @MessageBody() data: { showActivityStatus: boolean },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!userId) return;
+
+    // Get current user status
+    const account = await this.accountModel.findById(userId).select('status lastActive lastLogin');
+    if (!account) return;
+
+    if (data.showActivityStatus) {
+      // User wants to show activity status - broadcast current status
+      if (account.status === 'ACTIVE') {
+        this.server.emit('user:online', {
+          userId,
+          status: 'ACTIVE',
+          lastLogin: account.lastLogin,
+        });
+      } else {
+        this.server.emit('user:offline', {
+          userId,
+          status: 'DEACTIVE',
+          lastActive: account.lastActive,
+        });
+      }
+    } else {
+      // User wants to hide activity status - broadcast as offline
+      this.server.emit('user:offline', {
+        userId,
+        status: 'HIDDEN',
+        lastActive: null,
+      });
+    }
+
+    this.logger.log(`User ${userId} toggled activity status to ${data.showActivityStatus}`);
     return { success: true };
   }
 
@@ -189,6 +248,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           success: false,
           error: 'You are not allowed to send messages in this conversation',
         };
+      }
+
+      // Check if this is a DIRECT conversation and if either user has blocked the other
+      if (conversation.type === 'DIRECT') {
+        const otherParticipant = conversation.participants.find(
+          (p) => p.user._id.toString() !== userId.toString()
+        );
+
+        if (otherParticipant) {
+          const otherUserId = otherParticipant.user._id.toString();
+          const isBlocked = await this.relationshipService.isUserBlocked(userId, otherUserId);
+
+          if (isBlocked) {
+            return {
+              success: false,
+              error: 'Bạn không thể gửi tin nhắn cho người dùng này do một trong hai bên đã chặn',
+            };
+          }
+        }
       }
 
       const savedMessage = await this.chatService.sendMessage(data);
@@ -835,33 +913,54 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { userId: string },
     @ConnectedSocket() client: Socket
   ) {
-    const isOnline = userSockets.has(data.userId) && userSockets.get(data.userId)!.size > 0;
-
-    // If offline, get lastActive from database
-    let lastActive: Date | null = null;
-    if (!isOnline) {
-      try {
-        const user = await this.accountModel.findById(data.userId).select('lastActive').lean();
-        lastActive = user?.lastActive || null;
-      } catch (e) {
-        this.logger.error('Failed to get lastActive', e);
-      }
+    // Check if user allows showing activity status
+    let user;
+    try {
+      user = await this.accountModel
+        .findById(data.userId)
+        .select('lastActive showActivityStatus')
+        .lean();
+    } catch (e) {
+      this.logger.error('Failed to get user', e);
     }
+
+    // If user has hidden activity status, return as HIDDEN
+    if (user?.showActivityStatus === false) {
+      return {
+        userId: data.userId,
+        isOnline: false,
+        status: 'HIDDEN',
+        lastActive: null,
+      };
+    }
+
+    const isOnline = userSockets.has(data.userId) && userSockets.get(data.userId)!.size > 0;
 
     return {
       userId: data.userId,
       isOnline,
       status: isOnline ? 'ACTIVE' : 'DEACTIVE',
-      lastActive,
+      lastActive: isOnline ? null : user?.lastActive || null,
     };
   }
 
-  // Get list of online users
+  // Get list of online users (excludes users who hide activity status)
   @SubscribeMessage('users:online')
   async handleGetOnlineUsers(@ConnectedSocket() client: Socket) {
     const onlineUserIds = Array.from(userSockets.keys());
-    console.log('📋 Online users requested:', onlineUserIds);
-    return { onlineUsers: onlineUserIds };
+
+    // Filter out users who have hidden activity status
+    const users = await this.accountModel
+      .find({
+        _id: { $in: onlineUserIds },
+        showActivityStatus: { $ne: false },
+      })
+      .select('_id')
+      .lean();
+
+    const visibleOnlineUsers = users.map((u) => u._id.toString());
+    console.log('📋 Online users requested:', visibleOnlineUsers);
+    return { onlineUsers: visibleOnlineUsers };
   }
 
   // ============ MESSAGE READ STATUS ============

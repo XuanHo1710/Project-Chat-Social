@@ -25,6 +25,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import DescriptionIcon from "@mui/icons-material/Description";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import BlockIcon from "@mui/icons-material/Block";
 import { useChatByConversationId } from "@/queries/useChatQueries";
 import { MessageResponse, SendMessagePayload, AttachmentData } from "@/types/chat";
 import { useSocket } from "@/contexts/SocketContext";
@@ -41,6 +42,8 @@ import { uploadChatMedia } from "@/services/cloudinary.service";
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import { ConversationParticipant, ConversationResponseData } from "@/types/conversation";
+import { toast } from 'sonner';
+import { relationshipService } from "@/services/relationship.service";
 
 interface SelectedConversation {
     _id: string;
@@ -53,7 +56,7 @@ interface SelectedConversation {
 }
 
 export default function AreaChatMessages({ selectedConversation, userId }: { selectedConversation: SelectedConversation, userId: string }) {
-    const { socketChat } = useSocket();
+    const { socketChat, socketRelationship } = useSocket();
     const queryClient = useQueryClient();
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,8 +80,45 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const onlyAdminCanChat = isGroupConversation && (conversation?.settings?.onlyAdminCanChat ?? false);
     const canChatBasedOnSettings = !onlyAdminCanChat || isAdmin;
 
-    // User can chat if: not deleted, not kicked, and (not onlyAdminCanChat OR is admin)
-    const canChat = !isGroupDeleted && !wasKicked && canChatBasedOnSettings && !isLeft;
+    // Check if current user has blocked the other user (DIRECT only)
+    const blockedByMe = !isGroupConversation && conversation?.blockedByMe;
+    const [isUnblocking, setIsUnblocking] = useState(false);
+
+    // User can chat if: not deleted, not kicked, not blocked, and (not onlyAdminCanChat OR is admin)
+    const canChat = !isGroupDeleted && !wasKicked && canChatBasedOnSettings && !isLeft && !blockedByMe;
+
+    // Handle unblock user
+    const handleUnblockUser = async () => {
+        if (isUnblocking) return;
+        setIsUnblocking(true);
+        try {
+            // Use socket for real-time update
+            if (socketRelationship) {
+                socketRelationship.emit('user:unblock', { targetUserId: selectedConversation.otherId }, (response: { success: boolean; error?: string }) => {
+                    if (response.success) {
+                        toast.success('Đã bỏ chặn người dùng');
+                        // Refetch conversation detail to update blockedByMe status
+                        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
+                        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+                    } else {
+                        toast.error(response.error || 'Không thể bỏ chặn người dùng');
+                    }
+                    setIsUnblocking(false);
+                });
+            } else {
+                // Fallback to REST API
+                await relationshipService.unblockUser(selectedConversation.otherId);
+                toast.success('Đã bỏ chặn người dùng');
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_DETAIL, selectedConversation._id] });
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+                setIsUnblocking(false);
+            }
+        } catch (error) {
+            console.error('Failed to unblock user:', error);
+            toast.error('Không thể bỏ chặn người dùng');
+            setIsUnblocking(false);
+        }
+    };
 
     // Message for restricted chat
     const getChatRestrictionMessage = () => {
@@ -258,7 +298,10 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             socketChat.emit("user:status", { userId: selectedConversation.otherId }, (response: { userId: string; isOnline: boolean; status: string; lastActive?: string }) => {
                 if (response) {
                     const store = useOnlineStatusStore.getState();
-                    if (response.isOnline) {
+                    if (response.status === 'HIDDEN') {
+                        // User has hidden activity status - show as offline without lastActive
+                        store.setUserOffline(response.userId, undefined);
+                    } else if (response.isOnline) {
                         store.setUserOnline(response.userId);
                     } else {
                         store.setUserOffline(response.userId, response.lastActive);
@@ -402,7 +445,10 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             modifiedCount: number;
         }) => {
             if (data.conversationId === selectedConversation._id && data.readBy) {
-
+                // Skip if reader is current user (don't mark my messages as read by myself)
+                if (data.readByUserId === userId) {
+                    return;
+                }
                 // Mark all my messages as read in cache
                 queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                     [QUERY_KEYS.CHATS, selectedConversation._id],
@@ -734,7 +780,12 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             // Stop typing indicator before sending
             socketChat.emit("typing:stop", { conversationId: selectedConversation._id });
 
-            socketChat.emit("message", payload);
+            // Send message with callback to handle errors
+            socketChat.emit("message", payload, (response: { success: boolean; error?: string }) => {
+                if (response && !response.success) {
+                    toast.error(response.error || 'Không thể gửi tin nhắn');
+                }
+            });
             setNewMessage("");
             setReplyMsg(null);
             setMediaPreview([]);
@@ -960,7 +1011,12 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 ).filter(i => i !== -1).pop();
                                 const isLastOwnMessage = actualIndex === lastOwnMessageIndex;
 
-                                const otherAvatarsNotRead = message.readBy?.map(r => r.avatar).filter(avatar => avatar !== undefined) || [];
+                                // Get avatars of users who read the message, excluding the sender
+                                const senderId = message.senderId._id?.toString() || message.senderId.toString();
+                                const otherAvatarsNotRead = message.readBy
+                                    ?.filter(r => r._id !== senderId && r._id !== userId) // Exclude sender and current user
+                                    .map(r => r.avatar)
+                                    .filter(avatar => avatar !== undefined) || [];
 
                                 return (
                                     conversationDetail?.data &&
@@ -1051,7 +1107,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                 ))}
 
                 {/* Group Deleted or Kicked or Restricted Notice */}
-                {!canChat && (
+                {!canChat && !blockedByMe && (
                     <Box
                         sx={{
                             p: 3,
@@ -1063,6 +1119,51 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                         <Typography color={isGroupDeleted || wasKicked ? '#856404' : '#1565c0'} fontWeight={500}>
                             {isGroupDeleted}{getChatRestrictionMessage()}
                         </Typography>
+                    </Box>
+                )}
+
+                {/* Blocked User Notice */}
+                {blockedByMe && (
+                    <Box
+                        sx={{
+                            p: 2,
+                            bgcolor: '#fef2f2',
+                            borderTop: '1px solid #fecaca',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 2
+                        }}
+                    >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <BlockIcon sx={{ color: '#dc2626', fontSize: 20 }} />
+                            <Typography color="#dc2626" fontWeight={500} fontSize={14}>
+                                Bạn đã chặn người dùng này
+                            </Typography>
+                        </Box>
+                        <Box
+                            component="button"
+                            onClick={handleUnblockUser}
+                            disabled={isUnblocking}
+                            sx={{
+                                bgcolor: '#dc2626',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: 2,
+                                px: 2,
+                                py: 0.75,
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: isUnblocking ? 'not-allowed' : 'pointer',
+                                opacity: isUnblocking ? 0.7 : 1,
+                                transition: 'all 0.2s',
+                                '&:hover': {
+                                    bgcolor: isUnblocking ? '#dc2626' : '#b91c1c',
+                                }
+                            }}
+                        >
+                            {isUnblocking ? 'Đang xử lý...' : 'Bỏ chặn'}
+                        </Box>
                     </Box>
                 )}
 

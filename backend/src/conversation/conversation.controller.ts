@@ -20,8 +20,8 @@ export class ConversationController {
   }
 
   @Get('detail/:id')
-  findOne(@Param('id') id: string) {
-    return this.conversationService.findById(id);
+  findOne(@Param('id') id: string, @UserInfo() user: Account) {
+    return this.conversationService.findById(id, user._id.toString());
   }
 
   @Get(':id')

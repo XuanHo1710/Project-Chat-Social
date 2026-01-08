@@ -55,6 +55,11 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
         }
     };
 
+    const handleOpenSettings = () => {
+        onClose();
+        router.push('/settings');
+    };
+
     return (
         <Paper
             elevation={8}
@@ -114,6 +119,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
             {/* Menu Items */}
             <List disablePadding sx={{ py: 1 }}>
                 <ListItemButton
+                    onClick={handleOpenSettings}
                     sx={{
                         py: 1.5,
                         px: 2,

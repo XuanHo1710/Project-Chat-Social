@@ -3,6 +3,24 @@ import { FriendType } from "@/types/account";
 import { APIResponse } from "@/types/common";
 import { RelationshipEnum } from "@/types/relationship";
 
+export interface BlockedUser {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  avatar?: string;
+  username: string;
+  blockedAt: string;
+}
+
+export interface RestrictedUser {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  avatar?: string;
+  username: string;
+  restrictedAt: string;
+}
+
 class RelationshipService {
   async addFriend(userId: string, friendId: string): Promise<void> {
     await axios.post<void>("/relationship/add-friend", {
@@ -68,6 +86,66 @@ class RelationshipService {
       userId,
       friendId,
     });
+  }
+
+  // ==================== BLOCKING ====================
+
+  // Block a user
+  async blockUser(targetUserId: string): Promise<{ message: string }> {
+    const response = await axios.post<APIResponse<{ message: string }>>(
+      `/relationship/block/${targetUserId}`
+    );
+    return response.data.data;
+  }
+
+  // Unblock a user
+  async unblockUser(targetUserId: string): Promise<{ message: string }> {
+    const response = await axios.delete<APIResponse<{ message: string }>>(
+      `/relationship/block/${targetUserId}`
+    );
+    return response.data.data;
+  }
+
+  // Get blocked users list
+  async getBlockedUsers(): Promise<BlockedUser[]> {
+    const response = await axios.get<APIResponse<BlockedUser[]>>(
+      "/relationship/blocked"
+    );
+    return response.data.data;
+  }
+
+  // Check if a user is blocked
+  async isUserBlocked(targetUserId: string): Promise<boolean> {
+    const response = await axios.get<APIResponse<boolean>>(
+      `/relationship/is-blocked/${targetUserId}`
+    );
+    return response.data.data;
+  }
+
+  // ==================== RESTRICT ====================
+
+  // Restrict a user
+  async restrictUser(targetUserId: string): Promise<{ message: string }> {
+    const response = await axios.post<APIResponse<{ message: string }>>(
+      `/relationship/restrict/${targetUserId}`
+    );
+    return response.data.data;
+  }
+
+  // Unrestrict a user
+  async unrestrictUser(targetUserId: string): Promise<{ message: string }> {
+    const response = await axios.delete<APIResponse<{ message: string }>>(
+      `/relationship/unrestrict/${targetUserId}`
+    );
+    return response.data.data;
+  }
+
+  // Get restricted users list
+  async getRestrictedUsers(): Promise<RestrictedUser[]> {
+    const response = await axios.get<APIResponse<RestrictedUser[]>>(
+      "/relationship/restricted"
+    );
+    return response.data.data;
   }
 }
 

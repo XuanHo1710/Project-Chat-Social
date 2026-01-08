@@ -79,6 +79,7 @@ import { CLIENT_PATH } from '@/constants/paths';
 import { toast } from 'sonner';
 import { usePostStore } from '@/stores/usePostStore';
 import { useDeletePost } from '@/queries/usePostQueries';
+import { useSocket } from '@/contexts/SocketContext';
 
 interface ProfilePageProps {
     userName: string;
@@ -89,6 +90,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     const router = useRouter();
     const deletePostMutation = useDeletePost();
     const { addPost, deletePost: deletePostFromStore } = usePostStore();
+    const { socketRelationship } = useSocket();
 
     // Profile states
     const [profile, setProfile] = useState<ProfileType | null>(null);
@@ -140,6 +142,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     // Profile Settings Menu (3-dot menu)
     const [profileSettingsAnchor, setProfileSettingsAnchor] = useState<null | HTMLElement>(null);
+
+    // Block User Dialog
+    const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+    const [isBlocking, setIsBlocking] = useState(false);
+    const [blockFriendDialogOpen, setBlockFriendDialogOpen] = useState(false);
 
     // Avatar Menu (view/upload options)
     const [avatarMenuAnchor, setAvatarMenuAnchor] = useState<null | HTMLElement>(null);
@@ -485,6 +492,83 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     const handleCloseProfileSettings = () => {
         setProfileSettingsAnchor(null);
+    };
+
+    const handleGoToSettings = () => {
+        setProfileSettingsAnchor(null);
+        router.push('/settings');
+    };
+
+    // Block user handler
+    const handleBlockUser = async () => {
+        if (!profile || isBlocking) return;
+
+        setIsBlocking(true);
+        try {
+            // Use socket for real-time update
+            if (socketRelationship) {
+                socketRelationship.emit('user:block', { targetUserId: profile._id }, (response: { success: boolean; error?: string }) => {
+                    if (response.success) {
+                        toast.success(`Đã chặn ${profile.firstName} ${profile.lastName}`);
+                        setBlockDialogOpen(false);
+                        setProfileSettingsAnchor(null);
+                        router.push('/');
+                    } else {
+                        toast.error(response.error || 'Không thể chặn người dùng');
+                    }
+                    setIsBlocking(false);
+                });
+            } else {
+                // Fallback to REST API
+                await relationshipService.blockUser(profile._id);
+                toast.success(`Đã chặn ${profile.firstName} ${profile.lastName}`);
+                setBlockDialogOpen(false);
+                setProfileSettingsAnchor(null);
+                router.push('/');
+                setIsBlocking(false);
+            }
+        } catch (error) {
+            console.error('Failed to block user:', error);
+            toast.error('Không thể chặn người dùng');
+            setIsBlocking(false);
+        }
+    };
+
+    // Block friend handler (from friend list)
+    const handleBlockFriend = async () => {
+        if (!selectedFriend || isBlocking) return;
+
+        setIsBlocking(true);
+        try {
+            // Use socket for real-time update
+            if (socketRelationship) {
+                socketRelationship.emit('user:block', { targetUserId: selectedFriend._id }, (response: { success: boolean; error?: string }) => {
+                    if (response.success) {
+                        toast.success(`Đã chặn ${selectedFriend.firstName} ${selectedFriend.lastName}`);
+                        setBlockFriendDialogOpen(false);
+                        setFriendMenuAnchor(null);
+                        setFriends(friends.filter(f => f._id !== selectedFriend._id));
+                        setSelectedFriend(null);
+                    } else {
+                        toast.error(response.error || 'Không thể chặn người dùng');
+                    }
+                    setIsBlocking(false);
+                });
+            } else {
+                // Fallback to REST API
+                await relationshipService.blockUser(selectedFriend._id);
+                toast.success(`Đã chặn ${selectedFriend.firstName} ${selectedFriend.lastName}`);
+                setBlockFriendDialogOpen(false);
+                setFriendMenuAnchor(null);
+                setFriends(friends.filter(f => f._id !== selectedFriend._id));
+                setSelectedFriend(null);
+                setIsBlocking(false);
+            }
+        } catch (error) {
+            console.error('Failed to block friend:', error);
+            toast.error('Không thể chặn người dùng');
+            setIsBlocking(false);
+        }
     };
 
     // Avatar menu handlers
@@ -1743,7 +1827,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                         />
                     </MenuItem>
                     <MenuItem
-                        onClick={handleCloseFriendMenu}
+                        onClick={() => {
+                            handleCloseFriendMenu();
+                            setBlockFriendDialogOpen(true);
+                        }}
                         sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
                     >
                         <ListItemIcon>
@@ -1800,7 +1887,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 />
                             </MenuItem>
                             <MenuItem
-                                onClick={handleCloseProfileSettings}
+                                onClick={handleGoToSettings}
                                 sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
                             >
                                 <ListItemIcon>
@@ -1815,7 +1902,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                     )}
                     {!isOwnProfile && (
                         <MenuItem
-                            onClick={handleCloseProfileSettings}
+                            onClick={() => {
+                                handleCloseProfileSettings();
+                                setBlockDialogOpen(true);
+                            }}
                             sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
                         >
                             <ListItemIcon>
@@ -2006,6 +2096,206 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             }}
                         >
                             {uploadingCover ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Lưu thay đổi'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
+                {/* Block User Dialog */}
+                <Dialog
+                    open={blockDialogOpen}
+                    onClose={() => setBlockDialogOpen(false)}
+                    PaperProps={{
+                        sx: {
+                            borderRadius: 3,
+                            width: '400px',
+                            maxWidth: '90vw'
+                        }
+                    }}
+                >
+                    <DialogTitle
+                        sx={{
+                            textAlign: 'center',
+                            pt: 3,
+                            pb: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 1
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                width: 60,
+                                height: 60,
+                                borderRadius: '50%',
+                                bgcolor: '#fee2e2',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                mb: 1
+                            }}
+                        >
+                            <BlockIcon sx={{ fontSize: 32, color: '#dc2626' }} />
+                        </Box>
+                        <Typography variant="h6" fontWeight={700}>
+                            Chặn {profile?.firstName} {profile?.lastName}?
+                        </Typography>
+                    </DialogTitle>
+                    <DialogContent>
+                        <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            textAlign="center"
+                            sx={{ px: 2 }}
+                        >
+                            Khi bạn chặn người này:
+                        </Typography>
+                        <Box component="ul" sx={{ pl: 3, mt: 1, mb: 0, color: 'text.secondary' }}>
+                            <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                                Họ sẽ không thể nhắn tin cho bạn
+                            </Typography>
+                            <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                                Bạn sẽ không thể nhắn tin cho họ
+                            </Typography>
+                            <Typography component="li" variant="body2">
+                                Cuộc trò chuyện sẽ bị ẩn khỏi danh sách của bạn
+                            </Typography>
+                        </Box>
+                    </DialogContent>
+                    <DialogActions sx={{ px: 3, pb: 3, gap: 1, justifyContent: 'center' }}>
+                        <Button
+                            onClick={() => setBlockDialogOpen(false)}
+                            variant="outlined"
+                            sx={{
+                                flex: 1,
+                                borderRadius: 2,
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                borderColor: '#e4e6eb',
+                                color: '#050505',
+                                '&:hover': {
+                                    borderColor: '#bcc0c4',
+                                    bgcolor: '#f0f2f5'
+                                }
+                            }}
+                        >
+                            Hủy
+                        </Button>
+                        <Button
+                            onClick={handleBlockUser}
+                            variant="contained"
+                            disabled={isBlocking}
+                            sx={{
+                                flex: 1,
+                                borderRadius: 2,
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                bgcolor: '#dc2626',
+                                '&:hover': { bgcolor: '#b91c1c' },
+                                '&:disabled': { bgcolor: '#fca5a5' }
+                            }}
+                        >
+                            {isBlocking ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Chặn'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
+                {/* Block Friend Dialog */}
+                <Dialog
+                    open={blockFriendDialogOpen}
+                    onClose={() => setBlockFriendDialogOpen(false)}
+                    PaperProps={{
+                        sx: {
+                            borderRadius: 3,
+                            width: '400px',
+                            maxWidth: '90vw'
+                        }
+                    }}
+                >
+                    <DialogTitle
+                        sx={{
+                            textAlign: 'center',
+                            pt: 3,
+                            pb: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 1
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                width: 60,
+                                height: 60,
+                                borderRadius: '50%',
+                                bgcolor: '#fee2e2',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                mb: 1
+                            }}
+                        >
+                            <BlockIcon sx={{ fontSize: 32, color: '#dc2626' }} />
+                        </Box>
+                        <Typography variant="h6" fontWeight={700}>
+                            Chặn {selectedFriend?.firstName} {selectedFriend?.lastName}?
+                        </Typography>
+                    </DialogTitle>
+                    <DialogContent>
+                        <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            textAlign="center"
+                            sx={{ px: 2 }}
+                        >
+                            Khi bạn chặn người này:
+                        </Typography>
+                        <Box component="ul" sx={{ pl: 3, mt: 1, mb: 0, color: 'text.secondary' }}>
+                            <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                                Họ sẽ không thể nhắn tin cho bạn
+                            </Typography>
+                            <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                                Bạn sẽ không thể nhắn tin cho họ
+                            </Typography>
+                            <Typography component="li" variant="body2">
+                                Cuộc trò chuyện sẽ bị ẩn khỏi danh sách của bạn
+                            </Typography>
+                        </Box>
+                    </DialogContent>
+                    <DialogActions sx={{ px: 3, pb: 3, gap: 1, justifyContent: 'center' }}>
+                        <Button
+                            onClick={() => setBlockFriendDialogOpen(false)}
+                            variant="outlined"
+                            sx={{
+                                flex: 1,
+                                borderRadius: 2,
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                borderColor: '#e4e6eb',
+                                color: '#050505',
+                                '&:hover': {
+                                    borderColor: '#bcc0c4',
+                                    bgcolor: '#f0f2f5'
+                                }
+                            }}
+                        >
+                            Hủy
+                        </Button>
+                        <Button
+                            onClick={handleBlockFriend}
+                            variant="contained"
+                            disabled={isBlocking}
+                            sx={{
+                                flex: 1,
+                                borderRadius: 2,
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                bgcolor: '#dc2626',
+                                '&:hover': { bgcolor: '#b91c1c' },
+                                '&:disabled': { bgcolor: '#fca5a5' }
+                            }}
+                        >
+                            {isBlocking ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Chặn'}
                         </Button>
                     </DialogActions>
                 </Dialog>

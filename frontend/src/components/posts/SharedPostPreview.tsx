@@ -11,9 +11,10 @@ interface SharedPostPreviewProps {
     sharedPost: PostType;
     onHashtagClick?: (hashtag: string) => void;
     renderPostMedia?: (post: PostType) => React.ReactNode;
+    onClick?: () => void;
 }
 
-export default function SharedPostPreview({ sharedPost, onHashtagClick, renderPostMedia }: SharedPostPreviewProps) {
+export default function SharedPostPreview({ sharedPost, onHashtagClick, renderPostMedia, onClick }: SharedPostPreviewProps) {
     const router = useRouter();
 
     const getPrivacyIcon = (privacy: PostPrivacy) => {
@@ -78,6 +79,7 @@ export default function SharedPostPreview({ sharedPost, onHashtagClick, renderPo
 
     return (
         <Card
+            onClick={onClick}
             sx={{
                 borderRadius: 2,
                 border: '1px solid #e4e6eb',

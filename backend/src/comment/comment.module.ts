@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CommentService } from './comment.service';
 import { CommentController } from './comment.controller';
@@ -7,6 +7,7 @@ import { Post, PostSchema } from 'src/post/entities/post.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { HashtagModule } from 'src/hashtag/hashtag.module';
 import { Reaction, ReactionSchema } from 'src/reaction/entities/reaction.entity';
+import { ReactionModule } from 'src/reaction/reaction.module';
 
 @Module({
   imports: [
@@ -17,9 +18,10 @@ import { Reaction, ReactionSchema } from 'src/reaction/entities/reaction.entity'
     ]),
     CloudinaryModule,
     HashtagModule,
+    forwardRef(() => ReactionModule),
   ],
   controllers: [CommentController],
   providers: [CommentService],
   exports: [CommentService],
 })
-export class CommentModule { }
+export class CommentModule {}

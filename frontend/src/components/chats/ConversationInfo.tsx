@@ -57,11 +57,16 @@ import {
     Description as DescriptionIcon,
     GroupAdd as GroupAddIcon,
     Visibility as VisibilityIcon,
+    Block as BlockIcon,
+    PersonOff as PersonOffIcon,
 } from '@mui/icons-material';
 import { useConversationDetail } from '@/queries/useConversationQueries';
 import { useSocket } from '@/contexts/SocketContext';
 import { useDisplayListFriends } from '@/queries/useRelationshipQueries';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@/constants/query-keys';
 import { chatService } from '@/services/chat.service';
+import { relationshipService } from '@/services/relationship.service';
 import { MessageResponse } from '@/types/chat';
 import { ConversationParticipant } from '@/types/conversation';
 import { FriendType } from '@/types/account';
@@ -97,8 +102,9 @@ interface ConversationInfoProps {
 
 export default function ConversationInfo({ conversationId, userId, onClose }: ConversationInfoProps) {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { data: conversationData, isLoading } = useConversationDetail(conversationId);
-    const { socketChat } = useSocket();
+    const { socketChat, socketRelationship } = useSocket();
 
     // Online status store
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
@@ -160,6 +166,12 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
     // Settings Dialog State
     const [settingsOpen, setSettingsOpen] = useState(false);
+
+    // Block/Restrict Dialog State
+    const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+    const [isBlocking, setIsBlocking] = useState(false);
+    const [privacyOpen, setPrivacyOpen] = useState(false);
+    const [isRestricting, setIsRestricting] = useState(false);
 
     const conversation = conversationData?.data;
     const themeColor = conversation?.theme || '#0084ff';
@@ -556,6 +568,63 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         setAvatarDialogOpen(false);
     };
 
+    // Block user handler
+    const handleBlockUser = async () => {
+        if (!otherUser || isBlocking) return;
+
+        setIsBlocking(true);
+        try {
+            // Use socket for real-time update
+            if (socketRelationship) {
+                socketRelationship.emit('user:block', { targetUserId: otherUser._id }, (response: { success: boolean; error?: string }) => {
+                    if (response.success) {
+                        toast.success(`Đã chặn ${otherUser.firstName} ${otherUser.lastName}`);
+                        setBlockDialogOpen(false);
+                        // Invalidate queries to refresh data
+                        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
+                        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+                    } else {
+                        toast.error(response.error || 'Không thể chặn người dùng');
+                    }
+                    setIsBlocking(false);
+                });
+            } else {
+                // Fallback to REST API
+                await relationshipService.blockUser(otherUser._id);
+                toast.success(`Đã chặn ${otherUser.firstName} ${otherUser.lastName}`);
+                setBlockDialogOpen(false);
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+                setIsBlocking(false);
+            }
+        } catch (error) {
+            console.error('Failed to block user:', error);
+            toast.error('Không thể chặn người dùng');
+            setIsBlocking(false);
+        }
+    };
+
+    // Restrict user handler
+    const handleRestrictUser = async () => {
+        if (!otherUser || isRestricting) return;
+
+        setIsRestricting(true);
+        try {
+            await relationshipService.restrictUser(otherUser._id);
+            toast.success(`Đã hạn chế ${otherUser.firstName} ${otherUser.lastName}`);
+            // Invalidate queries to refresh data
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+            onClose();
+            router.push(CLIENT_PATH.CHAT);
+        } catch (error) {
+            console.error('Failed to restrict user:', error);
+            toast.error('Không thể hạn chế người dùng');
+        } finally {
+            setIsRestricting(false);
+        }
+    };
+
     const getFileIcon = (attachment: { url: string; fileName: string }) => {
         const url = attachment.url;
         const fileName = attachment.fileName;
@@ -941,7 +1010,129 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         </Box>
                     </Box>
                 )}
+
+                {/* Privacy & Support Section - Only for DIRECT chat */}
+                {!isGroup && otherUser && (
+                    <>
+                        <Divider sx={{ my: 1 }} />
+                        <Box sx={{ px: 1 }}>
+                            <ListItemButton onClick={() => setPrivacyOpen(!privacyOpen)} sx={{ borderRadius: 2 }}>
+                                <ListItemText
+                                    primary={<Typography fontWeight={600} color="#050505">Quyền riêng tư & hỗ trợ</Typography>}
+                                />
+                                {privacyOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            </ListItemButton>
+                            <Collapse in={privacyOpen}>
+                                <List disablePadding sx={{ pl: 1 }}>
+                                    <ListItemButton
+                                        sx={{ borderRadius: 2, py: 1 }}
+                                        onClick={() => setBlockDialogOpen(true)}
+                                    >
+                                        <BlockIcon sx={{ mr: 2, color: '#dc3545' }} />
+                                        <ListItemText
+                                            primary={<Typography fontSize={14} color="#050505">Chặn {otherUser.firstName}</Typography>}
+                                            secondary={<Typography fontSize={12} color="#65676b">Các bạn sẽ không thể nhắn tin cho nhau</Typography>}
+                                        />
+                                    </ListItemButton>
+                                    <ListItemButton
+                                        sx={{ borderRadius: 2, py: 1 }}
+                                        onClick={() => handleRestrictUser()}
+                                    >
+                                        <PersonOffIcon sx={{ mr: 2, color: '#f59e0b' }} />
+                                        <ListItemText
+                                            primary={<Typography fontSize={14} color="#050505">Hạn chế {otherUser.firstName}</Typography>}
+                                            secondary={<Typography fontSize={12} color="#65676b">Ẩn cuộc trò chuyện nhưng vẫn là bạn bè</Typography>}
+                                        />
+                                    </ListItemButton>
+                                </List>
+                            </Collapse>
+                        </Box>
+                    </>
+                )}
             </Box>
+
+            {/* Block User Confirmation Dialog */}
+            <Dialog
+                open={blockDialogOpen}
+                onClose={() => !isBlocking && setBlockDialogOpen(false)}
+                PaperProps={{
+                    sx: {
+                        borderRadius: 3,
+                        maxWidth: 400,
+                        overflow: 'hidden',
+                    }
+                }}
+            >
+                <Box sx={{
+                    background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+                    p: 3,
+                    textAlign: 'center',
+                }}>
+                    <Box sx={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: '50%',
+                        bgcolor: 'rgba(255,255,255,0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mx: 'auto',
+                        mb: 2,
+                    }}>
+                        <BlockIcon sx={{ fontSize: 32, color: 'white' }} />
+                    </Box>
+                    <Typography variant="h6" fontWeight={700} color="white">
+                        Chặn {otherUser?.firstName} {otherUser?.lastName}?
+                    </Typography>
+                </Box>
+                <DialogContent sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography color="text.secondary" sx={{ mb: 2 }}>
+                        Khi chặn người dùng này:
+                    </Typography>
+                    <Box sx={{ textAlign: 'left', bgcolor: '#f8f9fa', p: 2, borderRadius: 2 }}>
+                        <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            • Các bạn sẽ không thể nhắn tin cho nhau trong cuộc trò chuyện riêng
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            • Cuộc trò chuyện này sẽ bị ẩn khỏi danh sách của bạn
+                        </Typography>
+                        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            • Bạn vẫn có thể thấy tin nhắn trong nhóm chat chung
+                        </Typography>
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ p: 2, pt: 0, gap: 1 }}>
+                    <Button
+                        fullWidth
+                        variant="outlined"
+                        onClick={() => setBlockDialogOpen(false)}
+                        disabled={isBlocking}
+                        sx={{
+                            borderRadius: 2,
+                            py: 1.2,
+                            textTransform: 'none',
+                            fontWeight: 600,
+                        }}
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        fullWidth
+                        variant="contained"
+                        color="error"
+                        onClick={handleBlockUser}
+                        disabled={isBlocking}
+                        sx={{
+                            borderRadius: 2,
+                            py: 1.2,
+                            textTransform: 'none',
+                            fontWeight: 600,
+                        }}
+                    >
+                        {isBlocking ? <CircularProgress size={20} color="inherit" /> : 'Chặn'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             {/* Leave Group Confirmation Dialog */}
             <Dialog

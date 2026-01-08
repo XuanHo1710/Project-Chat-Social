@@ -9,6 +9,7 @@ import { AuthModule } from 'src/auth/auth.module';
 import { ConversationModule } from 'src/conversation/conversation.module';
 import { Account, AccountSchema } from 'src/account/entities/account.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
+import { RelationshipModule } from 'src/relationship/relationship.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
     AuthModule,
     ConversationModule,
     CloudinaryModule,
+    RelationshipModule,
   ],
   controllers: [ChatController],
   providers: [ChatGateway, ChatService],

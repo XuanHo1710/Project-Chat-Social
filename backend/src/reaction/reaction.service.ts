@@ -389,6 +389,13 @@ export class ReactionService implements OnModuleInit {
   }
 
   /**
+   * Legacy: Get reaction summary for comments
+   */
+  async getCommentsReactionsSummary(commentIds: string[], userId: string) {
+    return this.getReactionsSummary(commentIds, TypeFactor.COMMENT, userId);
+  }
+
+  /**
    * Migrate old reactions (postId-based) to new schema (factorId-based)
    */
   async migrateOldReactions() {

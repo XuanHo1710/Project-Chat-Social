@@ -25,6 +25,9 @@ export default function RightSidebar() {
                 if (!existing) {
                     if (friend.status === 'ACTIVE') {
                         setUserOnline(friend._id);
+                    } else if (friend.status === 'HIDDEN') {
+                        // User has hidden activity status - show as offline without lastActive
+                        setUserOffline(friend._id, undefined);
                     } else if (friend.lastActive) {
                         setUserOffline(friend._id, friend.lastActive);
                     }
@@ -40,6 +43,13 @@ export default function RightSidebar() {
             return {
                 isOnline: storeStatus.isOnline,
                 lastActive: storeStatus.lastActive
+            };
+        }
+        // Handle HIDDEN status - show as offline without lastActive
+        if (friendStatus === 'HIDDEN') {
+            return {
+                isOnline: false,
+                lastActive: undefined
             };
         }
         return {

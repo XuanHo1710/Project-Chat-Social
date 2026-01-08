@@ -82,6 +82,9 @@ export default function ChatSidebar({
                 if (!existing) {
                     if (p.user.status === 'ACTIVE') {
                         setUserOnline(p.user._id);
+                    } else if (p.user.status === 'HIDDEN') {
+                        // User has hidden activity status - show as offline without lastActive
+                        setUserOffline(p.user._id, undefined);
                     } else if (p.user.lastActive) {
                         setUserOffline(p.user._id, p.user.lastActive);
                     }
@@ -157,6 +160,13 @@ export default function ChatSidebar({
             return {
                 isOnline: storeStatus.isOnline,
                 lastActive: typeof storeStatus.lastActive === 'string' ? storeStatus.lastActive : storeStatus.lastActive?.toISOString()
+            };
+        }
+        // Handle HIDDEN status - show as offline without lastActive
+        if (originalStatus === 'HIDDEN') {
+            return {
+                isOnline: false,
+                lastActive: undefined
             };
         }
         return {

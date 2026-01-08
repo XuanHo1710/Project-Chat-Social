@@ -19,5 +19,6 @@ import { AccountModule } from 'src/account/account.module';
   ],
   controllers: [RelationshipController],
   providers: [RelationshipGateway, RelationshipService],
+  exports: [RelationshipService],
 })
 export class RelationshipModule {}

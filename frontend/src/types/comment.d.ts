@@ -50,6 +50,7 @@ export interface Comment {
   updatedAt: string;
   // Client-side fields for reaction display
   userReaction?: CommentReactionType | null;
+  topReactions?: { type: CommentReactionType; count: number }[];
 }
 
 export interface CreateCommentPayload {

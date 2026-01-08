@@ -183,4 +183,89 @@ export class AccountService {
 
     return account;
   }
+
+  // Toggle activity status visibility
+  async toggleActivityStatus(userId: string, show: boolean) {
+    const account = await this.accountModel
+      .findByIdAndUpdate(userId, { showActivityStatus: show }, { new: true })
+      .select('-password -accessToken -resetPasswordToken -resetPasswordExpires');
+
+    if (!account) {
+      throw new BadRequestException('Không tìm thấy người dùng');
+    }
+
+    return account;
+  }
+
+  // Get user settings
+  async getSettings(userId: string) {
+    const account = await this.accountModel
+      .findById(userId)
+      .select('showActivityStatus isActive selfBlockedAt selfBlockExpireAt');
+
+    if (!account) {
+      throw new BadRequestException('Không tìm thấy người dùng');
+    }
+
+    return {
+      showActivityStatus: account.showActivityStatus ?? true,
+      isActive: account.isActive ?? true,
+      isSelfBlocked:
+        account.selfBlockedAt &&
+        account.selfBlockExpireAt &&
+        new Date() < account.selfBlockExpireAt,
+      selfBlockExpireAt: account.selfBlockExpireAt,
+    };
+  }
+
+  // Self-block account for 30 days
+  async selfBlockAccount(userId: string) {
+    const now = new Date();
+    const expireDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    const account = await this.accountModel
+      .findByIdAndUpdate(
+        userId,
+        {
+          selfBlockedAt: now,
+          selfBlockExpireAt: expireDate,
+          isActive: false,
+        },
+        { new: true }
+      )
+      .select('-password -accessToken -resetPasswordToken -resetPasswordExpires');
+
+    if (!account) {
+      throw new BadRequestException('Không tìm thấy người dùng');
+    }
+
+    return {
+      message: 'Tài khoản đã được tạm khóa trong 30 ngày',
+      selfBlockedAt: now,
+      selfBlockExpireAt: expireDate,
+    };
+  }
+
+  // Unblock self (cancel self-block early)
+  async unblockSelfAccount(userId: string) {
+    const account = await this.accountModel
+      .findByIdAndUpdate(
+        userId,
+        {
+          selfBlockedAt: null,
+          selfBlockExpireAt: null,
+          isActive: true,
+        },
+        { new: true }
+      )
+      .select('-password -accessToken -resetPasswordToken -resetPasswordExpires');
+
+    if (!account) {
+      throw new BadRequestException('Không tìm thấy người dùng');
+    }
+
+    return {
+      message: 'Tài khoản đã được mở khóa',
+    };
+  }
 }

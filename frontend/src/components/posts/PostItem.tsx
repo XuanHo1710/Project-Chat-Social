@@ -154,11 +154,14 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                             </Typography>
                         )}
                         <Box sx={{ mb: 2 }}>
-                            <SharedPostPreview
-                                sharedPost={post.sharedPostId}
-                                onHashtagClick={handleHashtagClick}
-                                renderPostMedia={renderPostMedia}
-                            />
+                            {post && post.sharedPostId &&
+                                <SharedPostPreview
+                                    sharedPost={post.sharedPostId}
+                                    onHashtagClick={handleHashtagClick}
+                                    renderPostMedia={renderPostMedia}
+                                    onClick={() => handleOpenComments(post.sharedPostId)}
+                                />
+                            }
                         </Box>
                     </>
                 )}

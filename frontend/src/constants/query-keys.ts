@@ -2,6 +2,7 @@ export const QUERY_KEYS = {
   // CONVERSATIONS
   CONVERSATIONS: "conversations",
   CONVERSATION_BY_USER: "conversation_by_user",
+  CONVERSATION_DETAIL: "conversation_detail",
 
   ACCOUNTS_PAGINATED: "accounts-paginated",
   ACCOUNT_BY_ID: "account-by-id",

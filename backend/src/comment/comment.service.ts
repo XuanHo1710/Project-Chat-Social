@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Comment, CommentDocument } from './entities/comment.entity';
@@ -9,6 +15,7 @@ import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { HashtagService } from 'src/hashtag/hashtag.service';
 import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 import { Reaction, ReactionDocument, TypeFactor } from 'src/reaction/entities/reaction.entity';
+import { ReactionService } from 'src/reaction/reaction.service';
 
 @Injectable()
 export class CommentService {
@@ -18,7 +25,9 @@ export class CommentService {
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
     private cloudinaryService: CloudinaryService,
     private hashtagService: HashtagService,
-  ) { }
+    @Inject(forwardRef(() => ReactionService))
+    private reactionService: ReactionService
+  ) {}
 
   async create(createCommentDto: CreateCommentDto, userId: string) {
     const { postId, parentId, ...rest } = createCommentDto;
@@ -57,7 +66,7 @@ export class CommentService {
         createCommentDto.content,
         comment._id.toString(),
         HashtagEntityType.COMMENT,
-        userId,
+        userId
       );
     }
 
@@ -72,7 +81,12 @@ export class CommentService {
     return comment;
   }
 
-  async findByPostId(postId: string, page: number = 1, limit: number = 10): Promise<any> {
+  async findByPostId(
+    postId: string,
+    userId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<any> {
     const skip = (page - 1) * limit;
 
     // Get top-level comments (no parent)
@@ -91,8 +105,22 @@ export class CommentService {
       }),
     ]);
 
+    // Get top reactions for comments
+    const commentIds = comments.map((c) => c._id.toString());
+    const reactionsSummary = await this.reactionService.getCommentsReactionsSummary(
+      commentIds,
+      userId
+    );
+
+    // Add topReactions to each comment
+    const commentsWithReactions = comments.map((comment) => ({
+      ...comment,
+      topReactions: reactionsSummary[comment._id.toString()]?.topReactions || [],
+      userReaction: reactionsSummary[comment._id.toString()]?.userReaction || null,
+    }));
+
     return {
-      data: comments,
+      data: commentsWithReactions,
       pagination: {
         page,
         limit,
@@ -102,7 +130,12 @@ export class CommentService {
     };
   }
 
-  async findReplies(commentId: string, page: number = 1, limit: number = 5): Promise<any> {
+  async findReplies(
+    commentId: string,
+    userId: string,
+    page: number = 1,
+    limit: number = 5
+  ): Promise<any> {
     const skip = (page - 1) * limit;
 
     const [replies, total] = await Promise.all([
@@ -119,8 +152,22 @@ export class CommentService {
       }),
     ]);
 
+    // Get top reactions for replies
+    const replyIds = replies.map((r) => r._id.toString());
+    const reactionsSummary = await this.reactionService.getCommentsReactionsSummary(
+      replyIds,
+      userId
+    );
+
+    // Add topReactions to each reply
+    const repliesWithReactions = replies.map((reply) => ({
+      ...reply,
+      topReactions: reactionsSummary[reply._id.toString()]?.topReactions || [],
+      userReaction: reactionsSummary[reply._id.toString()]?.userReaction || null,
+    }));
+
     return {
-      data: replies,
+      data: repliesWithReactions,
       pagination: {
         page,
         limit,
@@ -141,11 +188,7 @@ export class CommentService {
     }
 
     const updated = await this.commentModel
-      .findByIdAndUpdate(
-        id,
-        { ...updateCommentDto, isEdited: true },
-        { new: true }
-      )
+      .findByIdAndUpdate(id, { ...updateCommentDto, isEdited: true }, { new: true })
       .populate('userId', 'firstName lastName avatar');
 
     // Update hashtags if content changed
@@ -154,7 +197,7 @@ export class CommentService {
         updateCommentDto.content || '',
         id,
         HashtagEntityType.COMMENT,
-        userId,
+        userId
       );
     }
 
@@ -197,7 +240,7 @@ export class CommentService {
     // Delete all reactions for this comment using unified Reaction model
     await this.reactionModel.deleteMany({
       factorId: new Types.ObjectId(id),
-      typeFactor: TypeFactor.COMMENT
+      typeFactor: TypeFactor.COMMENT,
     });
 
     // Remove hashtag mappings

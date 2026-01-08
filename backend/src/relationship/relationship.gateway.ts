@@ -219,4 +219,78 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       return { success: false, error: err.message || 'Failed to accept friend request' };
     }
   }
+
+  // Block a user
+  @SubscribeMessage('user:block')
+  async handleBlockUser(
+    @MessageBody() data: { targetUserId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      await this.relationshipService.blockUser(userId, data.targetUserId);
+
+      // Notify both users about the block
+      this.server.to(userId).emit('user:blocked', {
+        blockedUserId: data.targetUserId,
+        blockedByUserId: userId,
+      });
+
+      // Notify the blocked user that they were blocked (so they can update UI)
+      this.server.to(data.targetUserId).emit('user:blockedBy', {
+        blockedByUserId: userId,
+      });
+
+      // Update friends list for both (blocking removes friendship)
+      const [friendsForUser, friendsForTarget] = await Promise.all([
+        this.relationshipService.getFriendsList(userId),
+        this.relationshipService.getFriendsList(data.targetUserId),
+      ]);
+
+      this.server.to(userId).emit('friend:friends', friendsForUser);
+      this.server.to(data.targetUserId).emit('friend:friends', friendsForTarget);
+
+      return { success: true };
+    } catch (err) {
+      this.logger.error('Failed to block user', err);
+      return { success: false, error: err.message || 'Failed to block user' };
+    }
+  }
+
+  // Unblock a user
+  @SubscribeMessage('user:unblock')
+  async handleUnblockUser(
+    @MessageBody() data: { targetUserId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      await this.relationshipService.unblockUser(userId, data.targetUserId);
+
+      // Notify both users about the unblock
+      this.server.to(userId).emit('user:unblocked', {
+        unblockedUserId: data.targetUserId,
+      });
+
+      // Notify the unblocked user
+      this.server.to(data.targetUserId).emit('user:unblockedBy', {
+        unblockedByUserId: userId,
+      });
+
+      return { success: true };
+    } catch (err) {
+      this.logger.error('Failed to unblock user', err);
+      return { success: false, error: err.message || 'Failed to unblock user' };
+    }
+  }
 }

@@ -30,6 +30,7 @@ export interface ConversationResponseData {
   _id: string;
   type: ConversationTypeEnum;
   isBlocked: boolean;
+  blockedByMe?: boolean; // Current user has blocked the other user (DIRECT only)
   isDeleted?: boolean; // Nhóm đã bị giải tán
   deletedAt?: Date; // Thời điểm giải tán
   creator: string; // ID của người tạo nhóm

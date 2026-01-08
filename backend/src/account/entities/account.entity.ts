@@ -108,6 +108,15 @@ export class Account {
   @Prop({ default: true })
   isActive: boolean; // Người dùng có thể deactive tài khoản nếu muốn
 
+  @Prop({ default: true })
+  showActivityStatus: boolean; // Hiển thị trạng thái hoạt động cho người khác
+
+  @Prop()
+  selfBlockedAt: Date; // Ngày tự khóa tài khoản
+
+  @Prop()
+  selfBlockExpireAt: Date; // Ngày hết hạn tự khóa (30 ngày)
+
   @Prop()
   createdAt: Date;
 

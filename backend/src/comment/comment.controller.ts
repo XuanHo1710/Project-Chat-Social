@@ -18,7 +18,7 @@ import { UserInfo } from 'decorators/customize';
 @Controller('comment')
 @UseGuards(JwtAuthGuard)
 export class CommentController {
-  constructor(private readonly commentService: CommentService) { }
+  constructor(private readonly commentService: CommentService) {}
 
   @Post()
   create(@Body() createCommentDto: CreateCommentDto, @UserInfo() user: any) {
@@ -28,11 +28,13 @@ export class CommentController {
   @Get('post/:postId')
   findByPostId(
     @Param('postId') postId: string,
+    @UserInfo() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string
   ) {
     return this.commentService.findByPostId(
       postId,
+      user._id,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 10
     );
@@ -41,11 +43,13 @@ export class CommentController {
   @Get(':commentId/replies')
   findReplies(
     @Param('commentId') commentId: string,
+    @UserInfo() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string
   ) {
     return this.commentService.findReplies(
       commentId,
+      user._id,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 5
     );

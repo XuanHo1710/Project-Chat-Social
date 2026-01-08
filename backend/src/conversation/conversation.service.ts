@@ -3,17 +3,22 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { Model, Types } from 'mongoose';
 import { Conversation, ConversationDocument } from 'src/conversation/entities/conversation.entity';
 import { InjectModel } from '@nestjs/mongoose';
+import { RelationshipService } from 'src/relationship/relationship.service';
 
 @Injectable()
 export class ConversationService {
   constructor(
-    @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>
+    @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
+    @Inject(forwardRef(() => RelationshipService))
+    private readonly relationshipService: RelationshipService
   ) {}
 
   async create(createConversationDto: CreateConversationDto) {
@@ -63,17 +68,51 @@ export class ConversationService {
     return await this.conversationModel.find().exec();
   }
 
-  async findById(id: string): Promise<any> {
+  async findById(id: string, currentUserId?: string): Promise<any> {
     const conv = await this.conversationModel
       .findById(id)
-      .populate('participants.user', 'firstName lastName username avatar status lastActive')
+      .populate(
+        'participants.user',
+        'firstName lastName username avatar status lastActive showActivityStatus'
+      )
       .lean()
       .exec();
 
     if (!conv) return null;
 
+    // Hide status and lastActive for users who have showActivityStatus = false
+    const transformedParticipants = conv.participants.map((p: any) => {
+      if (p.user && p.user.showActivityStatus === false) {
+        return {
+          ...p,
+          user: {
+            ...p.user,
+            status: 'HIDDEN',
+            lastActive: null,
+          },
+        };
+      }
+      return p;
+    });
+
+    // Check if current user has blocked the other user (only for DIRECT)
+    let blockedByMe = false;
+    if (currentUserId && conv.type === 'DIRECT') {
+      const blockedUsers = await this.relationshipService.getBlockedUsers(currentUserId);
+      const blockedUserIds = blockedUsers.map((u: any) => u._id.toString());
+      const otherParticipant = conv.participants.find(
+        (p: any) => p.user._id.toString() !== currentUserId
+      ) as any;
+      if (otherParticipant) {
+        const otherUserId = otherParticipant.user._id.toString();
+        blockedByMe = blockedUserIds.includes(otherUserId);
+      }
+    }
+
     return {
       ...conv,
+      blockedByMe,
+      participants: transformedParticipants,
       unreadCount:
         conv.unreadCount instanceof Map
           ? Object.fromEntries(conv.unreadCount)
@@ -86,7 +125,10 @@ export class ConversationService {
       .find({
         'participants.user': userId,
       })
-      .populate('participants.user', 'firstName lastName username avatar status lastActive')
+      .populate(
+        'participants.user',
+        'firstName lastName username avatar status lastActive showActivityStatus'
+      )
       .populate('lastMessage', 'content type createdAt senderId attachments')
       .sort({ lastMessageAt: -1 })
       .lean()
@@ -98,14 +140,67 @@ export class ConversationService {
         index === self.findIndex((c) => c._id.toString() === conv._id.toString())
     );
 
+    // Get list of users blocked and restricted by current user
+    const [blockedUsers, restrictedUsers] = await Promise.all([
+      this.relationshipService.getBlockedUsers(userId),
+      this.relationshipService.getRestrictedUsers(userId),
+    ]);
+    const blockedUserIds = blockedUsers.map((u: any) => u._id.toString());
+    const restrictedUserIds = restrictedUsers.map((u: any) => u._id.toString());
+
+    // Filter out DIRECT conversations where the other user is RESTRICTED by current user
+    const filteredConversations = uniqueConversations.filter((conv: any) => {
+      // Group conversations are always shown
+      if (conv.type === 'GROUP') return true;
+
+      // For DIRECT conversations, check if the other user is restricted by current user
+      const otherParticipant = conv.participants.find((p: any) => p.user._id.toString() !== userId);
+      if (!otherParticipant) return true;
+
+      const otherUserId = otherParticipant.user._id.toString();
+
+      // Hide conversation if current user RESTRICTED the other user
+      return !restrictedUserIds.includes(otherUserId);
+    });
+
     // Transform Map to plain object for unreadCount
-    return uniqueConversations.map((conv) => ({
-      ...conv,
-      unreadCount:
-        conv.unreadCount instanceof Map
-          ? Object.fromEntries(conv.unreadCount)
-          : conv.unreadCount || {},
-    }));
+    // Hide status and lastActive for users who have showActivityStatus = false
+    // Add blockedByMe flag for DIRECT conversations
+    return filteredConversations.map((conv) => {
+      // Check if current user has blocked the other user (only for DIRECT)
+      let blockedByMe = false;
+      if (conv.type === 'DIRECT') {
+        const otherParticipant = conv.participants.find(
+          (p: any) => p.user._id.toString() !== userId
+        ) as any;
+        if (otherParticipant) {
+          const otherUserId = otherParticipant.user._id.toString();
+          blockedByMe = blockedUserIds.includes(otherUserId);
+        }
+      }
+
+      return {
+        ...conv,
+        blockedByMe, // Add block status to response
+        participants: conv.participants.map((p: any) => {
+          if (p.user && p.user.showActivityStatus === false) {
+            return {
+              ...p,
+              user: {
+                ...p.user,
+                status: 'HIDDEN',
+                lastActive: null,
+              },
+            };
+          }
+          return p;
+        }),
+        unreadCount:
+          conv.unreadCount instanceof Map
+            ? Object.fromEntries(conv.unreadCount)
+            : conv.unreadCount || {},
+      };
+    });
   }
 
   async updateLastMessage(id: string, lastMessage: string) {
@@ -326,7 +421,10 @@ export class ConversationService {
             arrayFilters: [{ 'elem.user': newUserObjectId }],
           }
         )
-        .populate('participants.user', 'firstName lastName username avatar status lastActive')
+        .populate(
+          'participants.user',
+          'firstName lastName username avatar status lastActive showActivityStatus'
+        )
         .exec();
       return updated;
     }
@@ -347,7 +445,10 @@ export class ConversationService {
         },
         { new: true }
       )
-      .populate('participants.user', 'firstName lastName username avatar status lastActive')
+      .populate(
+        'participants.user',
+        'firstName lastName username avatar status lastActive showActivityStatus'
+      )
       .exec();
 
     return updated;
@@ -505,7 +606,10 @@ export class ConversationService {
           },
           { new: true }
         )
-        .populate('participants.user', 'firstName lastName username avatar status lastActive')
+        .populate(
+          'participants.user',
+          'firstName lastName username avatar status lastActive showActivityStatus'
+        )
         .exec();
     }
 
@@ -542,7 +646,10 @@ export class ConversationService {
         { $set: { 'participants.$.leftAt': leftAt } },
         { new: true }
       )
-      .populate('participants.user', 'firstName lastName username avatar status lastActive')
+      .populate(
+        'participants.user',
+        'firstName lastName username avatar status lastActive showActivityStatus'
+      )
       .exec();
   }
 

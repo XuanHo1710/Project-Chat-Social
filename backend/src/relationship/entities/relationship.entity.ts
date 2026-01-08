@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose, { HydratedDocument } from 'mongoose';
+import mongoose, { Types, HydratedDocument } from 'mongoose';
 import { Account } from 'src/account/entities/account.entity';
 export type RelationshipDocument = HydratedDocument<Relationship>;
 
@@ -25,14 +25,28 @@ export class Relationship {
   status: RelationshipStatus; // PENDING, ACCEPTED, BLOCKED, REJECTED
 
   @Prop({
-    type: { isBlocked: Boolean, blockedAt: Date, userBlockedId: mongoose.Schema.Types.ObjectId },
+    type: { isBlocked: Boolean, blockedAt: Date, userBlockedId: Types.ObjectId },
     default: { isBlocked: false, blockedAt: null, userBlockedId: null },
   })
   block: {
     isBlocked: boolean;
     blockedAt: Date;
-    userBlockedId: mongoose.Schema.Types.ObjectId;
+    userBlockedId: Types.ObjectId;
   }; // Block thằng bạn
+
+  @Prop({
+    type: {
+      isRestricted: Boolean,
+      restrictedAt: Date || null,
+      userRestrictedId: Types.ObjectId || null,
+    },
+    default: { isRestricted: false, restrictedAt: null, userRestrictedId: null },
+  })
+  restrict: {
+    isRestricted: boolean;
+    restrictedAt: Date | null;
+    userRestrictedId: Types.ObjectId | null;
+  }; // Restrict (hạn chế) - ẩn conversation nhưng vẫn là bạn bè
 
   // Ngày gửi lời mời kết bạn
   @Prop()

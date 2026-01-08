@@ -51,6 +51,10 @@ export interface Comment {
   // Client-side fields for reaction display
   userReaction?: CommentReactionType | null;
   topReactions?: { type: CommentReactionType; count: number }[];
+  reactInfo?: {
+    isReact: boolean;
+    type: string | null;
+  };
 }
 
 export interface CreateCommentPayload {

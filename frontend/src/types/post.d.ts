@@ -1,4 +1,4 @@
-export type PostPrivacy = "PRIVATE" | "PUBLIC" | "FRIEND";
+export type PostPrivacy = "PRIVATE" | "PUBLIC" | "FRIEND" | "GROUP";
 export type MediaType = "IMAGE" | "VIDEO";
 
 export interface MediaItem {
@@ -18,11 +18,20 @@ export interface PostAuthor {
   username: string;
 }
 
+export interface GroupInfo {
+  _id: string;
+  name: string;
+  avatar?: string;
+  privacy: string;
+}
+
 export interface PostType {
   _id: string;
   content: string;
   privacy: PostPrivacy;
   userId: PostAuthor;
+  groupId?: GroupInfo | string | null; // Reference to group
+  isAnonymous?: boolean; // Anonymous post in group
   sharedPostId?: PostType | null; // Reference to shared post
   media: MediaItem[];
   background: string | null;
@@ -41,6 +50,10 @@ export interface PostType {
     isReact: boolean;
     type: string | null;
   };
+  // Toggle features
+  allowComments?: boolean;
+  allowShares?: boolean;
+  allowReactions?: boolean;
 }
 
 export interface CreatePostRequest {
@@ -50,6 +63,8 @@ export interface CreatePostRequest {
   media?: MediaItem[];
   background?: string | null;
   sharedPostId?: string | null;
+  groupId?: string | null;
+  isAnonymous?: boolean;
 }
 
 export interface UpdatePostRequest {
@@ -57,6 +72,9 @@ export interface UpdatePostRequest {
   privacy?: PostPrivacy;
   media?: MediaItem[];
   background?: string | null;
+  allowComments?: boolean;
+  allowShares?: boolean;
+  allowReactions?: boolean;
 }
 
 export interface PostPageResponse {

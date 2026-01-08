@@ -17,6 +17,13 @@ import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 import { Reaction, ReactionDocument, TypeFactor } from 'src/reaction/entities/reaction.entity';
 import { ReactionService } from 'src/reaction/reaction.service';
 
+interface CommentWithReactInfo extends Comment {
+  reactInfo?: {
+    isReact: boolean;
+    type: string | null;
+  };
+}
+
 @Injectable()
 export class CommentService {
   constructor(
@@ -36,6 +43,11 @@ export class CommentService {
     const post = await this.postModel.findById(postId);
     if (!post) {
       throw new NotFoundException('Post not found');
+    }
+
+    // Check if comments are allowed on this post
+    if (post.allowComments === false) {
+      throw new BadRequestException('Bình luận đã bị tắt cho bài viết này');
     }
 
     // If it's a reply, check parent comment exists
@@ -106,14 +118,29 @@ export class CommentService {
     ]);
 
     // Get top reactions for comments
+    const commentIdsObj = comments.map((c) => c._id);
     const commentIds = comments.map((c) => c._id.toString());
-    const reactionsSummary = await this.reactionService.getCommentsReactionsSummary(
-      commentIds,
-      userId
-    );
+
+    // Get user reactions and top reactions summary in parallel
+    const [userReactions, reactionsSummary] = await Promise.all([
+      this.reactionService.userReactions(commentIdsObj, userId),
+      this.reactionService.getCommentsReactionsSummary(commentIds, userId),
+    ]);
+
+    // convert về map để tra O(1)
+    const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
+
+    (comments as CommentWithReactInfo[]).forEach((comment) => {
+      const commentIdStr = comment._id.toString();
+      const r = reactionMap.get(commentIdStr) as any;
+      comment.reactInfo = {
+        isReact: !!r,
+        type: r ? r.type : null,
+      };
+    });
 
     // Add topReactions to each comment
-    const commentsWithReactions = comments.map((comment) => ({
+    const commentsWithReactions = (comments as CommentWithReactInfo[]).map((comment) => ({
       ...comment,
       topReactions: reactionsSummary[comment._id.toString()]?.topReactions || [],
       userReaction: reactionsSummary[comment._id.toString()]?.userReaction || null,

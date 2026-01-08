@@ -23,6 +23,7 @@ import { ReactionModule } from './reaction/reaction.module';
 import { HashtagModule } from './hashtag/hashtag.module';
 import { StoryModule } from './story/story.module';
 import { GroupModule } from './group/group.module';
+import { NotificationModule } from './notification/notification.module';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 @Module({
   imports: [
@@ -50,6 +51,7 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     HashtagModule,
     StoryModule,
     GroupModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [

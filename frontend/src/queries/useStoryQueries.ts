@@ -47,7 +47,8 @@ export const useCreateStory = () => {
   return useMutation({
     mutationFn: (payload: CreateStoryPayload) =>
       storyService.createStory(payload),
-    onSuccess: () => {
+    onSuccess: (newStory) => {
+      // Immediately invalidate to refetch - story will appear instantly
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.STORIES_FEED] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.MY_STORIES] });
     },

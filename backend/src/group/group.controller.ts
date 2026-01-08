@@ -160,4 +160,13 @@ export class GroupController {
   ) {
     return this.groupService.inviteMember(user._id, groupId, dto.userId);
   }
+
+  @Post(':groupId/transfer-ownership')
+  transferOwnership(
+    @UserInfo() user: any,
+    @Param('groupId') groupId: string,
+    @Body() dto: InviteMemberDto
+  ) {
+    return this.groupService.transferOwnership(user._id, groupId, dto.userId);
+  }
 }

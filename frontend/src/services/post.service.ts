@@ -101,6 +101,20 @@ class PostService {
     );
     return response.data;
   }
+
+  /**
+   * Get posts by group ID
+   */
+  async getPostsByGroupId(
+    groupId: string,
+    params?: { page?: number; limit?: number }
+  ) {
+    const response = await axios.get<APIResponse<PostPageResponse>>(
+      `/${PREFIX}/group/${groupId}`,
+      { params }
+    );
+    return response.data.data;
+  }
 }
 
 export const postService = new PostService();

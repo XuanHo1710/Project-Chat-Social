@@ -1,14 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppBar, Toolbar, Box, InputBase, IconButton, Avatar, Badge, ClickAwayListener } from '@mui/material';
+import { AppBar, Toolbar, Box, InputBase, IconButton, Avatar, Badge, ClickAwayListener, Tooltip } from '@mui/material';
 import {
     Search as SearchIcon,
     Home as HomeIcon,
+    HomeOutlined as HomeOutlinedIcon,
     People as PeopleIcon,
-    Storefront as StorefrontIcon,
-    Group as GroupIcon,
-    Gamepad as GamepadIcon,
+    PeopleOutline as PeopleOutlinedIcon,
+    OndemandVideo as OndemandVideoIcon,
+    OndemandVideoOutlined as OndemandVideoOutlinedIcon,
+    Groups as GroupsIcon,
+    GroupsOutlined as GroupsOutlinedIcon,
+    SportsEsports as GamesIcon,
+    SportsEsportsOutlined as GamesOutlinedIcon,
     Apps as AppsIcon,
     Message as MessageIcon,
     Notifications as NotificationsIcon
@@ -179,65 +184,86 @@ export default function Header() {
                         justifyContent: 'center'
                     }}
                 >
-                    <Link href="/" style={{ textDecoration: 'none' }}>
-                        <IconButton
-                            sx={{
-                                px: 4,
-                                borderRadius: pathname === '/' ? 0 : 2,
-                                borderBottom: pathname === '/' ? '3px solid #1877f2' : 'none',
-                                color: pathname === '/' ? '#1877f2' : '#65676b',
-                                '&:hover': { bgcolor: '#f0f2f5' }
-                            }}
-                        >
-                            <HomeIcon />
-                        </IconButton>
-                    </Link>
-                    <Link href="/friends" style={{ textDecoration: 'none' }}>
-                        <IconButton
-                            sx={{
-                                px: 4,
-                                borderRadius: pathname === '/friends' ? 0 : 2,
-                                borderBottom: pathname === '/friends' ? '3px solid #1877f2' : 'none',
-                                color: pathname === '/friends' ? '#1877f2' : '#65676b',
-                                '&:hover': { bgcolor: '#f0f2f5' }
-                            }}
-                        >
-                            <PeopleIcon />
-                        </IconButton>
-                    </Link>
-                    <IconButton
-                        sx={{
-                            px: 4,
-                            borderRadius: 2,
-                            color: '#65676b',
-                            '&:hover': { bgcolor: '#f0f2f5' }
-                        }}
-                    >
-                        <StorefrontIcon />
-                    </IconButton>
-                    <Link href="/groups" style={{ textDecoration: 'none' }}>
-                        <IconButton
-                            sx={{
-                                px: 4,
-                                borderRadius: pathname?.startsWith('/groups') ? 0 : 2,
-                                borderBottom: pathname?.startsWith('/groups') ? '3px solid #1877f2' : 'none',
-                                color: pathname?.startsWith('/groups') ? '#1877f2' : '#65676b',
-                                '&:hover': { bgcolor: '#f0f2f5' }
-                            }}
-                        >
-                            <GroupIcon />
-                        </IconButton>
-                    </Link>
-                    <IconButton
-                        sx={{
-                            px: 4,
-                            borderRadius: 2,
-                            color: '#65676b',
-                            '&:hover': { bgcolor: '#f0f2f5' }
-                        }}
-                    >
-                        <GamepadIcon />
-                    </IconButton>
+                    <Tooltip title="Trang chủ" arrow placement="bottom">
+                        <Link href="/" style={{ textDecoration: 'none' }}>
+                            <IconButton
+                                sx={{
+                                    px: 4,
+                                    py: 1.5,
+                                    borderRadius: pathname === '/' ? 0 : 2,
+                                    borderBottom: pathname === '/' ? '3px solid #1877f2' : 'none',
+                                    color: pathname === '/' ? '#1877f2' : '#65676b',
+                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                }}
+                            >
+                                {pathname === '/' ? <HomeIcon sx={{ fontSize: 28 }} /> : <HomeOutlinedIcon sx={{ fontSize: 28 }} />}
+                            </IconButton>
+                        </Link>
+                    </Tooltip>
+                    <Tooltip title="Bạn bè" arrow placement="bottom">
+                        <Link href="/friends" style={{ textDecoration: 'none' }}>
+                            <IconButton
+                                sx={{
+                                    px: 4,
+                                    py: 1.5,
+                                    borderRadius: pathname === '/friends' ? 0 : 2,
+                                    borderBottom: pathname === '/friends' ? '3px solid #1877f2' : 'none',
+                                    color: pathname === '/friends' ? '#1877f2' : '#65676b',
+                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                }}
+                            >
+                                {pathname === '/friends' ? <PeopleIcon sx={{ fontSize: 28 }} /> : <PeopleOutlinedIcon sx={{ fontSize: 28 }} />}
+                            </IconButton>
+                        </Link>
+                    </Tooltip>
+                    <Tooltip title="Thước phim" arrow placement="bottom">
+                        <Link href="/reels" style={{ textDecoration: 'none' }}>
+                            <IconButton
+                                sx={{
+                                    px: 4,
+                                    py: 1.5,
+                                    borderRadius: pathname === '/reels' ? 0 : 2,
+                                    borderBottom: pathname === '/reels' ? '3px solid #1877f2' : 'none',
+                                    color: pathname === '/reels' ? '#1877f2' : '#65676b',
+                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                }}
+                            >
+                                {pathname === '/reels' ? <OndemandVideoIcon sx={{ fontSize: 28 }} /> : <OndemandVideoOutlinedIcon sx={{ fontSize: 28 }} />}
+                            </IconButton>
+                        </Link>
+                    </Tooltip>
+                    <Tooltip title="Nhóm" arrow placement="bottom">
+                        <Link href="/groups" style={{ textDecoration: 'none' }}>
+                            <IconButton
+                                sx={{
+                                    px: 4,
+                                    py: 1.5,
+                                    borderRadius: pathname?.startsWith('/groups') ? 0 : 2,
+                                    borderBottom: pathname?.startsWith('/groups') ? '3px solid #1877f2' : 'none',
+                                    color: pathname?.startsWith('/groups') ? '#1877f2' : '#65676b',
+                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                }}
+                            >
+                                {pathname?.startsWith('/groups') ? <GroupsIcon sx={{ fontSize: 28 }} /> : <GroupsOutlinedIcon sx={{ fontSize: 28 }} />}
+                            </IconButton>
+                        </Link>
+                    </Tooltip>
+                    <Tooltip title="Trò chơi" arrow placement="bottom">
+                        <Link href="/games" style={{ textDecoration: 'none' }}>
+                            <IconButton
+                                sx={{
+                                    px: 4,
+                                    py: 1.5,
+                                    borderRadius: pathname === '/games' ? 0 : 2,
+                                    borderBottom: pathname === '/games' ? '3px solid #1877f2' : 'none',
+                                    color: pathname === '/games' ? '#1877f2' : '#65676b',
+                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                }}
+                            >
+                                {pathname === '/games' ? <GamesIcon sx={{ fontSize: 28 }} /> : <GamesOutlinedIcon sx={{ fontSize: 28 }} />}
+                            </IconButton>
+                        </Link>
+                    </Tooltip>
                 </Box>
 
                 {/* Right Section - Icons & Avatar */}

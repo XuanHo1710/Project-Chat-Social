@@ -47,6 +47,20 @@ export const useGetUserPosts = (
 };
 
 /**
+ * Hook to fetch posts by group ID
+ */
+export const useGetGroupPosts = (
+  groupId: string,
+  params?: { page?: number; limit?: number }
+) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.GROUP_POSTS, groupId, params],
+    queryFn: () => postService.getPostsByGroupId(groupId, params),
+    enabled: !!groupId,
+  });
+};
+
+/**
  * Hook to fetch a single post
  */
 export const useGetPostById = (postId: string) => {
@@ -70,6 +84,7 @@ export const useCreatePost = () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.NEWS_FEED] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POSTS_PAGINATED] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER_POSTS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.GROUP_POSTS] });
       toast.success("Đăng bài thành công!");
     },
     onError: (error: Error) => {

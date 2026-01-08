@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, OnModuleInit, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, ObjectId, Types } from 'mongoose';
 import { Reaction, ReactionDocument, ReactionType, TypeFactor } from './entities/reaction.entity';
@@ -54,10 +60,10 @@ export class ReactionService implements OnModuleInit {
     }
   }
 
-  async userReactions(postIds: ObjectId[], currentUserId: string): Promise<any> {
+  async userReactions(factorIds: ObjectId[], currentUserId: string): Promise<any> {
     return await this.reactionModel
       .find({
-        factorId: { $in: postIds },
+        factorId: { $in: factorIds },
         userId: currentUserId,
       })
       .lean();
@@ -185,6 +191,10 @@ export class ReactionService implements OnModuleInit {
       case TypeFactor.POST:
         const post = await this.postModel.findById(id);
         if (!post) throw new NotFoundException('Post not found');
+        // Check if reactions are allowed
+        if (post.allowReactions === false) {
+          throw new BadRequestException('Tương tác đã bị tắt cho bài viết này');
+        }
         break;
       case TypeFactor.COMMENT:
         const comment = await this.commentModel.findById(id);

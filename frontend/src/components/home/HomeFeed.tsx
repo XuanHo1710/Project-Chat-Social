@@ -348,6 +348,11 @@ export default function HomeFeed() {
                 const PrivacyIconComponent = getPrivacyIcon(post.privacy);
                 const isHighlighted = post._id === highlightedPostIdFromUrl; // Use URL param for animation
                 const isTargetPost = post._id === highlightedPostId; // Use persisted ID for ref
+
+                // Check if post belongs to a group
+                const groupInfo = post.groupId && typeof post.groupId === 'object' ? post.groupId : null;
+                const isGroupPost = !!groupInfo;
+
                 return (
                     <PostItem
                         key={post._id}
@@ -360,12 +365,23 @@ export default function HomeFeed() {
                         renderPostMedia={renderPostMedia}
                         PrivacyIconComponent={PrivacyIconComponent}
                         isHighlighted={isHighlighted}
+                        isGroupPost={isGroupPost}
+                        groupName={groupInfo?.name}
+                        groupAvatar={groupInfo?.avatar}
+                        groupId={groupInfo?._id}
                     />
                 );
             })}
 
             {/* Create Post Modal */}
-            <CreatePostModal open={openCreatePost} onClose={handleCloseCreatePost} />
+            <CreatePostModal
+                open={openCreatePost}
+                onClose={handleCloseCreatePost}
+                onPostCreated={(newPost) => {
+                    // Add new post to store for instant update
+                    usePostStore.getState().addPost(newPost);
+                }}
+            />
 
             {/* Edit Post Modal */}
             {editingPost && (

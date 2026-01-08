@@ -91,6 +91,16 @@ export class Post {
 
   @Prop()
   deletedAt: Date;
+
+  // Toggle features
+  @Prop({ type: Boolean, default: true })
+  allowComments: boolean;
+
+  @Prop({ type: Boolean, default: true })
+  allowShares: boolean;
+
+  @Prop({ type: Boolean, default: true })
+  allowReactions: boolean;
 }
 
 export const PostSchema = SchemaFactory.createForClass(Post);

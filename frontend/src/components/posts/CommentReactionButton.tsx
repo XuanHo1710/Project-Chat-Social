@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Box, Typography, Tooltip, Grow, ClickAwayListener } from "@mui/material";
 import { useGetUserCommentReaction } from "@/queries/useCommentQueries";
-import { CommentReactionType } from "@/types/comment";
+import { Comment, CommentReactionType } from "@/types/comment";
 import { useSocket } from "@/contexts/SocketContext";
 import { useCommentReactionStore, CommentReactionType as StoreReactionType } from "@/stores/useCommentReactionStore";
 
@@ -18,12 +18,12 @@ const REACTIONS = [
 ];
 
 interface CommentReactionButtonProps {
-    commentId: string;
+    comment: Comment;
     initialTotalLikes?: number;
 }
 
 export default function CommentReactionButton({
-    commentId,
+    comment,
     initialTotalLikes = 0
 }: CommentReactionButtonProps) {
     const [showReactions, setShowReactions] = useState(false);
@@ -32,25 +32,25 @@ export default function CommentReactionButton({
 
     // Use global store for reaction state
     const { commentReactions, setCommentReaction, initCommentReaction, setFromApi, setFromServer } = useCommentReactionStore();
-    const reactionState = commentReactions[commentId];
+    const reactionState = commentReactions[comment._id];
 
     // Local state derived from global store
     const localReaction = reactionState?.userReaction ?? null;
 
     // Fetch user's reaction for this comment (initial load)
-    const { data: userReactionData, isLoading } = useGetUserCommentReaction(commentId);
+    // const { data: userReactionData, isLoading } = useGetUserCommentReaction(comment._id);
     const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
     const leaveTimeout = useRef<NodeJS.Timeout | null>(null);
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     // Initialize store with comment data
     useEffect(() => {
-        initCommentReaction(commentId, initialTotalLikes);
-    }, [commentId, initialTotalLikes, initCommentReaction]);
+        initCommentReaction(comment._id, initialTotalLikes);
+    }, [comment._id, initialTotalLikes, initCommentReaction]);
 
     // Subscribe to comment reaction updates
     useEffect(() => {
-        if (!socketReaction || !commentId) return;
+        if (!socketReaction || !comment._id) return;
 
         // Listen for own reaction result
         const handleCommentReactionResult = (data: {
@@ -59,9 +59,9 @@ export default function CommentReactionButton({
             action: string;
             totalLikes: number;
         }) => {
-            if (data.commentId === commentId && data.success) {
+            if (data.commentId === comment._id && data.success) {
                 // Server confirmed - use authoritative count
-                setFromServer(commentId, data.totalLikes);
+                setFromServer(comment._id, data.totalLikes);
             }
         };
 
@@ -70,15 +70,15 @@ export default function CommentReactionButton({
         return () => {
             socketReaction.off('comment:reaction:result', handleCommentReactionResult);
         };
-    }, [socketReaction, commentId, setFromServer]);
+    }, [socketReaction, comment._id, setFromServer]);
 
     // Set initial reaction from API (ONLY if no local updates)
     useEffect(() => {
-        if (!isLoading && userReactionData) {
+        if (comment.reactInfo) {
             // Use setFromApi which won't overwrite if hasInteracted is true
-            setFromApi(commentId, userReactionData.type as StoreReactionType);
+            setFromApi(comment._id, comment.reactInfo.type as StoreReactionType);
         }
-    }, [userReactionData, isLoading, commentId, setFromApi]);
+    }, [comment, setFromApi]);
 
     const handleMouseEnter = () => {
         if (leaveTimeout.current) {
@@ -104,7 +104,7 @@ export default function CommentReactionButton({
         setShowReactions(false);
 
         // Get current state from store (always up to date)
-        const currentState = useCommentReactionStore.getState().commentReactions[commentId];
+        const currentState = useCommentReactionStore.getState().commentReactions[comment._id];
         const currentReaction = currentState?.userReaction;
         const currentTotal = currentState?.totalLikes ?? initialTotalLikes;
 
@@ -127,7 +127,7 @@ export default function CommentReactionButton({
         }
 
         // Update global store immediately (optimistic)
-        setCommentReaction(commentId, {
+        setCommentReaction(comment._id, {
             userReaction: newReaction,
             totalLikes: newTotal
         });
@@ -141,12 +141,12 @@ export default function CommentReactionButton({
         debounceRef.current = setTimeout(() => {
             if (socketReaction?.connected) {
                 socketReaction.emit('comment:reaction:toggle', {
-                    commentId,
+                    commentId: comment._id,
                     type
                 });
             }
         }, 400);
-    }, [commentId, socketReaction, setCommentReaction, initialTotalLikes]);
+    }, [comment._id, socketReaction, setCommentReaction, initialTotalLikes]);
 
     const handleClick = () => {
         handleReactionSelect("LIKE");

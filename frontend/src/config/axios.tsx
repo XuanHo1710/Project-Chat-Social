@@ -39,7 +39,7 @@ instance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// let isRefreshing = false;
+let isRefreshing = false;
 let failedQueue: {
   resolve: (value?: unknown) => void;
   reject: (error: unknown) => void;
@@ -67,15 +67,15 @@ instance.interceptors.response.use(
     };
 
     // // 👉 Ẩn lỗi 401 trong lúc đang refresh token
-    // if (error.response?.status === 401 && originalRequest.isSecure) {
-    //   console.debug("Token expired, refreshing...");
-    //   // Không console.error nữa
-    // } else if (error.response?.status === 500 && originalRequest.isSecure) {
-    //   console.debug("Temporary 500 while refreshing, ignore.");
-    // } else {
-    //   // Chỉ log các lỗi thực sự quan trọng
-    //   console.error("Request error:", error);
-    // }
+    if (error.response?.status === 401 && originalRequest.isSecure) {
+      console.debug("Token expired, refreshing...");
+      // Không console.error nữa
+    } else if (error.response?.status === 500 && originalRequest.isSecure) {
+      console.debug("Temporary 500 while refreshing, ignore.");
+    } else {
+      // Chỉ log các lỗi thực sự quan trọng
+      console.error("Request error:", error);
+    }
 
     if (error.response) {
       const status = error.response.status;
@@ -85,79 +85,79 @@ instance.interceptors.response.use(
         data?: unknown;
       };
 
-      // // 🔄 Nếu accessToken hết hạn → refresh (only for secure endpoints)
-      // if (
-      //   status === 401 &&
-      //   !originalRequest._retry &&
-      //   originalRequest.isSecure
-      // ) {
-      //   originalRequest._retry = true;
+      // 🔄 Nếu accessToken hết hạn → refresh (only for secure endpoints)
+      if (
+        status === 401 &&
+        !originalRequest._retry &&
+        originalRequest.isSecure
+      ) {
+        originalRequest._retry = true;
 
-      //   if (isRefreshing) {
-      //     return new Promise((resolve, reject) => {
-      //       failedQueue.push({ resolve, reject });
-      //     })
-      //       .then((token) => {
-      //         if (originalRequest.headers) {
-      //           originalRequest.headers["Authorization"] = `Bearer ${token}`;
-      //         }
-      //         return instance(originalRequest);
-      //       })
-      //       .catch((err) => Promise.reject(err));
-      //   }
+        if (isRefreshing) {
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
+          })
+            .then((token) => {
+              if (originalRequest.headers) {
+                originalRequest.headers["Authorization"] = `Bearer ${token}`;
+              }
+              return instance(originalRequest);
+            })
+            .catch((err) => Promise.reject(err));
+        }
 
-      //   isRefreshing = true;
+        isRefreshing = true;
 
-      //   try {
-      //     // const refreshToken = useAuthStore.getState().refreshToken;
-      //     if (!refreshToken) {
-      //       return;
-      //     }
+        try {
+          const refreshToken = useAuthStore.getState().accessToken;
+          if (!refreshToken) {
+            return;
+          }
 
-      //     // ✅ Gọi API refresh-token
-      //     const response = await axios.post(
-      //       `${baseURL}/auth/refresh`,
-      //       { refreshToken: refreshToken }
-      //     );
+          // ✅ Gọi API refresh-token
+          const response = await axios.post(
+            `${baseURL}/auth/refresh`,
+            { refreshToken: refreshToken }
+          );
 
 
-      //     if (!response.data?.data?.accessToken) {
-      //       toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
-      //       return;
-      //     }
+          if (!response.data?.data?.accessToken) {
+            toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+            return;
+          }
 
-      //     const newAccessToken = response.data.data.accessToken;
-      //     localStorage.setItem("accessToken", newAccessToken);
-      //     // useAuthStore.getState().setAccessToken(newAccessToken);
+          const newAccessToken = response.data.data.accessToken;
+          localStorage.setItem("accessToken", newAccessToken);
+          // useAuthStore.getState().setAccessToken(newAccessToken);
 
-      //     // Gửi lại các request đang chờ
-      //     processQueue(null, newAccessToken);
+          // Gửi lại các request đang chờ
+          processQueue(null, newAccessToken);
 
-      //     if (originalRequest.headers) {
-      //       originalRequest.headers[
-      //         "Authorization"
-      //       ] = `Bearer ${newAccessToken}`;
-      //     }
+          if (originalRequest.headers) {
+            originalRequest.headers[
+              "Authorization"
+            ] = `Bearer ${newAccessToken}`;
+          }
 
-      //     return instance(originalRequest);
-      //   } catch (err) {
-      //     processQueue(err, null);
-      //     // useAuthStore.getState().clearAuth();
-      //     toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
-      //     if (typeof window !== "undefined") {
-      //       const pathname = window.location.pathname;
-      //       localStorage.removeItem("accessToken");
-      //       if (pathname.startsWith("/admin")) {
-      //         window.location.href = ADMIN_PATH.LOGIN;
-      //       } else {
-      //         // window.location.href = CLIENT_PATH.AUTH;
-      //       }
-      //     }
-      //     return Promise.reject(err);
-      //   } finally {
-      //     isRefreshing = false;
-      //   }
-      // }
+          return instance(originalRequest);
+        } catch (err) {
+          processQueue(err, null);
+          // useAuthStore.getState().clearAuth();
+          toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+          if (typeof window !== "undefined") {
+            // const pathname = window.location.pathname;
+            // localStorage.removeItem("accessToken");
+            // if (pathname.startsWith("/admin")) {
+            //   window.location.href = ADMIN_PATH.LOGIN;
+            // } else {
+            //   // window.location.href = CLIENT_PATH.AUTH;
+            // }
+          }
+          return Promise.reject(err);
+        } finally {
+          isRefreshing = false;
+        }
+      }
 
       switch (status) {
         case 400:

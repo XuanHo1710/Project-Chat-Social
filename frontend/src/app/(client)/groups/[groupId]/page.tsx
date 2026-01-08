@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     Box,
@@ -13,7 +13,6 @@ import {
     IconButton,
     Tab,
     Tabs,
-    TextField,
     Menu,
     MenuItem,
     ListItemIcon,
@@ -24,35 +23,60 @@ import {
     DialogContent,
     DialogActions,
     CircularProgress,
-    Badge,
+    Skeleton,
+    Modal,
 } from '@mui/material';
 import {
     Lock as LockIcon,
     Public as PublicIcon,
     Visibility as VisibilityIcon,
-    LocationOn as LocationIcon,
     MoreHoriz as MoreHorizIcon,
     Add as AddIcon,
     Share as ShareIcon,
     ExitToApp as ExitToAppIcon,
-    Poll as PollIcon,
-    EmojiEmotions as EmojiIcon,
     VisibilityOff as VisibilityOffIcon,
     Info as InfoIcon,
     Search as SearchIcon,
     CameraAlt as CameraAltIcon,
     Groups as GroupsIcon,
+    Poll as PollIcon,
+    EmojiEmotions as MoodIcon,
+    KeyboardArrowDown as ArrowDownIcon,
+    PlayCircle as PlayIcon,
 } from '@mui/icons-material';
 import Header from '@/components/home/Header';
 import { groupService } from '@/services/group.service';
 import { Group, GroupPrivacy, GroupCreator, GroupRole } from '@/types/group';
 import { useAuthStore } from '@/stores/useAuthStore';
+import CreatePostModal from '@/components/posts/CreatePostModal';
+import { useGetGroupPosts, useDeletePost } from '@/queries/usePostQueries';
+import { useGroupPostStore } from '@/stores/useGroupPostStore';
+import { PostType, MediaItem, PostPrivacy as PPrivacy } from '@/types/post';
+import PostItem from '@/components/posts/PostItem';
+import EditPostModal from '@/components/posts/EditPostModal';
+import ImageViewer from '@/components/posts/ImageViewer';
+import CommentContentModal from '@/components/posts/CommentContentModal';
+import ShareContentModal from '@/components/posts/ShareContentModal';
+import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
+import { deleteCloudinaryMedia } from '@/services/cloudinary.service';
+import { getPrivacyIcon } from '@/utils/formatPost';
+import { toast } from 'sonner';
+import InviteFriendsDialog from '@/components/groups/InviteFriendsDialog';
+import GroupMembersDialog from '@/components/groups/GroupMembersDialog';
+import GroupSettingsDialog from '@/components/groups/GroupSettingsDialog';
+import TransferOwnershipDialog from '@/components/groups/TransferOwnershipDialog';
+import PhotoMenuButton from '@/components/groups/PhotoMenuButton';
+import { postService } from '@/services/post.service';
+import { io, Socket } from 'socket.io-client';
 
 export default function GroupDetailPage() {
     const params = useParams();
     const router = useRouter();
     const groupId = params.groupId as string;
     const { user, accessToken } = useAuthStore();
+
+    // Group post store
+    const { groupPosts, setGroupPosts, addGroupPost } = useGroupPostStore();
 
     const [group, setGroup] = useState<Group | null>(null);
     const [topMembers, setTopMembers] = useState<GroupCreator[]>([]);
@@ -62,11 +86,59 @@ export default function GroupDetailPage() {
     const [openLeaveDialog, setOpenLeaveDialog] = useState(false);
     const [isLeaving, setIsLeaving] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
-    const [isUploadingCover, setIsUploadingCover] = useState(false);
-    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [openCreatePost, setOpenCreatePost] = useState(false);
+    const [openSettingsDialog, setOpenSettingsDialog] = useState(false);
+    const [openTransferDialog, setOpenTransferDialog] = useState(false);
+    const [openCoverViewer, setOpenCoverViewer] = useState(false);
+    const [openAvatarViewer, setOpenAvatarViewer] = useState(false);
+    const [moreMenuAnchor, setMoreMenuAnchor] = useState<null | HTMLElement>(null);
 
-    const coverInputRef = useRef<HTMLInputElement>(null);
-    const avatarInputRef = useRef<HTMLInputElement>(null);
+    // Post-related states
+    const [openEditPost, setOpenEditPost] = useState(false);
+    const [editingPost, setEditingPost] = useState<PostType | null>(null);
+    const [openImageViewer, setOpenImageViewer] = useState(false);
+    const [viewerMedia, setViewerMedia] = useState<MediaItem[]>([]);
+    const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
+    const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+    const [menuPost, setMenuPost] = useState<PostType | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [openCommentModal, setOpenCommentModal] = useState(false);
+    const [commentingPost, setCommentingPost] = useState<PostType | null>(null);
+    const [openShareModal, setOpenShareModal] = useState(false);
+    const [sharingPost, setSharingPost] = useState<PostType | null>(null);
+    const [shareCaption, setShareCaption] = useState('');
+    const [sharePrivacy, setSharePrivacy] = useState<PPrivacy>('PUBLIC');
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+    // Invite and Members dialogs
+    const [openInviteDialog, setOpenInviteDialog] = useState(false);
+    const [openMembersDialog, setOpenMembersDialog] = useState(false);
+
+    // Fetch group posts
+    const { data: postsData, isLoading: isLoadingPosts } = useGetGroupPosts(groupId, { page: 1, limit: 20 });
+    const deletePostMutation = useDeletePost();
+
+    // Sync API data with store
+    useEffect(() => {
+        if (postsData?.data && groupId) {
+            setGroupPosts(groupId, postsData.data);
+        }
+    }, [postsData, groupId, setGroupPosts]);
+
+    // Get posts from store
+    const posts = useMemo(() => {
+        const storePosts = groupPosts[groupId] || [];
+        const apiPosts = postsData?.data || [];
+        const apiPostIds = new Set(apiPosts.map(p => p._id));
+        const newStorePosts = storePosts.filter(p => !apiPostIds.has(p._id));
+        return [
+            ...newStorePosts,
+            ...apiPosts.map(apiPost => {
+                const storePost = storePosts.find(sp => sp._id === apiPost._id);
+                return storePost || apiPost;
+            })
+        ];
+    }, [postsData, groupPosts, groupId]);
 
     const loadGroupData = useCallback(async () => {
         setIsLoading(true);
@@ -91,6 +163,86 @@ export default function GroupDetailPage() {
         }
     }, [groupId, loadGroupData]);
 
+    // Socket connection for real-time updates
+    useEffect(() => {
+        if (!groupId || !accessToken) return;
+
+        const socket: Socket = io(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
+            auth: { token: accessToken },
+            transports: ['websocket'],
+        });
+
+        socket.on('connect', () => {
+            console.log('Connected to group socket');
+            socket.emit('joinGroupRoom', groupId);
+        });
+
+        // Listen for member count updates
+        socket.on('memberCountUpdate', (data: { groupId: string; memberCount: number }) => {
+            if (data.groupId === groupId) {
+                setGroup(prev => prev ? { ...prev, memberCount: data.memberCount } : null);
+            }
+        });
+
+        // Listen for role updates
+        socket.on('memberRoleUpdate', (data: { groupId: string; userId: string; newRole: string; updatedBy: string }) => {
+            if (data.groupId === groupId && data.userId === user?.id) {
+                setGroup(prev => prev ? { ...prev, myRole: data.newRole as GroupRole } : null);
+                toast.info(`Vai trò của bạn trong nhóm đã được thay đổi thành ${data.newRole === 'ADMIN' ? 'Quản trị viên' : data.newRole === 'MODERATOR' ? 'Người kiểm duyệt' : 'Thành viên'}`);
+            }
+        });
+
+        // Listen for ownership transfer
+        socket.on('ownershipTransfer', (data: { groupId: string; oldOwnerId: string; newOwnerId: string }) => {
+            if (data.groupId === groupId) {
+                // Reload group data to get updated creator info
+                loadGroupData();
+                if (data.oldOwnerId === user?.id) {
+                    toast.info('Bạn đã nhượng quyền sở hữu nhóm');
+                } else if (data.newOwnerId === user?.id) {
+                    toast.success('Bạn đã trở thành chủ sở hữu của nhóm');
+                }
+            }
+        });
+
+        // Listen for group settings updates
+        socket.on('groupSettingsUpdate', (data: { groupId: string; settings: any }) => {
+            if (data.groupId === groupId) {
+                setGroup(prev => prev ? { ...prev, ...data.settings } : null);
+            }
+        });
+
+        // Listen for new member
+        socket.on('newMember', (data: { groupId: string; member: any }) => {
+            if (data.groupId === groupId) {
+                setTopMembers(prev => {
+                    // Add new member to top if not already there
+                    if (!prev.find(m => m._id === data.member._id)) {
+                        return [...prev, data.member].slice(0, 12);
+                    }
+                    return prev;
+                });
+            }
+        });
+
+        // Listen for member left
+        socket.on('memberLeft', (data: { groupId: string; userId: string }) => {
+            if (data.groupId === groupId) {
+                setTopMembers(prev => prev.filter(m => m._id !== data.userId));
+            }
+        });
+
+        return () => {
+            socket.emit('leaveGroupRoom', groupId);
+            socket.disconnect();
+        };
+    }, [groupId, accessToken, user?.id, loadGroupData]);
+
+    // Handle new post created - instant update
+    const handlePostCreated = useCallback((newPost: PostType) => {
+        addGroupPost(groupId, newPost);
+    }, [groupId, addGroupPost]);
+
     const handleJoinGroup = async () => {
         setIsJoining(true);
         try {
@@ -111,7 +263,6 @@ export default function GroupDetailPage() {
             router.push('/groups');
         } catch (error) {
             console.error('Failed to leave group:', error);
-            alert('Không thể rời nhóm. Vui lòng thử lại.');
         } finally {
             setIsLeaving(false);
         }
@@ -126,69 +277,114 @@ export default function GroupDetailPage() {
         }
     };
 
-    const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    // Post handlers
+    const handleOpenMenu = (event: React.MouseEvent<HTMLElement>, post: PostType) => {
+        setMenuAnchor(event.currentTarget);
+        setMenuPost(post);
+    };
 
-        setIsUploadingCover(true);
+    const handleCloseMenu = () => {
+        setMenuAnchor(null);
+        setMenuPost(null);
+    };
+
+    const handleDeletePost = async () => {
+        if (!menuPost) return;
+        setIsDeleting(true);
         try {
-            // Create FormData and upload to cloudinary via backend
-            const formData = new FormData();
-            formData.append('files', file);
-
-            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/cloudinary/upload`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                },
-                body: formData,
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success && data.results && data.results.length > 0) {
-                    // Update group cover image
-                    await groupService.updateGroup(groupId, { coverImage: data.results[0].url });
-                    loadGroupData();
+            if (menuPost.media && menuPost.media.length > 0) {
+                const mediaItems = menuPost.media
+                    .filter(m => m.publicId)
+                    .map(m => ({ publicId: m.publicId, mediaType: m.mediaType }));
+                if (mediaItems.length > 0) {
+                    await deleteCloudinaryMedia(mediaItems);
                 }
             }
+            await deletePostMutation.mutateAsync(menuPost._id);
+            useGroupPostStore.getState().deleteGroupPost(groupId, menuPost._id);
+            handleCloseMenu();
         } catch (error) {
-            console.error('Failed to upload cover:', error);
+            console.error('Error deleting post:', error);
         } finally {
-            setIsUploadingCover(false);
+            setIsDeleting(false);
         }
     };
 
-    const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setIsUploadingAvatar(true);
-        try {
-            const formData = new FormData();
-            formData.append('files', file);
-
-            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/cloudinary/upload`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                },
-                body: formData,
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success && data.results && data.results.length > 0) {
-                    // Update group avatar
-                    await groupService.updateGroup(groupId, { avatar: data.results[0].url });
-                    loadGroupData();
-                }
-            }
-        } catch (error) {
-            console.error('Failed to upload avatar:', error);
-        } finally {
-            setIsUploadingAvatar(false);
+    const handleEditPost = () => {
+        if (menuPost) {
+            setEditingPost(menuPost);
+            setOpenEditPost(true);
+            handleCloseMenu();
         }
+    };
+
+    const handleOpenImageViewer = (media: MediaItem[], index: number) => {
+        setViewerMedia(media);
+        setViewerInitialIndex(index);
+        setOpenImageViewer(true);
+    };
+
+    const handleOpenComments = (post: PostType) => {
+        setCommentingPost(post);
+        setOpenCommentModal(true);
+    };
+
+    const handleOpenShare = (post: PostType) => {
+        setSharingPost(post);
+        setOpenShareModal(true);
+    };
+
+    const handleCloseShare = () => {
+        setOpenShareModal(false);
+        setSharingPost(null);
+        setShareCaption('');
+    };
+
+    const handleEmojiSelect = (emoji: { native: string }) => {
+        setShareCaption(prev => prev + emoji.native);
+    };
+
+    // Render post media
+    const renderPostMedia = (post: PostType) => {
+        if (!post.media || post.media.length === 0) return null;
+        const mediaCount = post.media.length;
+        if (mediaCount === 1) {
+            const media = post.media[0];
+            return (
+                <Box sx={{ mb: 2, position: 'relative' }}>
+                    {media.mediaType === 'VIDEO' ? (
+                        <Box sx={{ position: 'relative' }} onClick={() => handleOpenImageViewer(post.media, 0)}>
+                            <video src={media.url} controls style={{ width: '100%', maxHeight: 500, objectFit: 'cover', borderRadius: 4 }} />
+                        </Box>
+                    ) : (
+                        <Box component="img" src={media.url} alt="Post media" onClick={() => handleOpenImageViewer(post.media, 0)} sx={{ width: '100%', maxHeight: 500, objectFit: 'cover', borderRadius: 1, cursor: 'pointer' }} />
+                    )}
+                </Box>
+            );
+        }
+        return (
+            <Box sx={{ mb: 2, display: 'grid', gridTemplateColumns: mediaCount === 2 ? '1fr 1fr' : 'repeat(2, 1fr)', gap: 0.5, borderRadius: 1, overflow: 'hidden' }}>
+                {post.media.slice(0, 4).map((media, index) => (
+                    <Box key={index} onClick={() => handleOpenImageViewer(post.media, index)} sx={{ position: 'relative', height: mediaCount === 2 ? 300 : 200, gridColumn: mediaCount === 3 && index === 0 ? 'span 2' : 'span 1', cursor: 'pointer' }}>
+                        {media.mediaType === 'VIDEO' ? (
+                            <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+                                <video src={media.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bgcolor: 'rgba(0,0,0,0.6)', borderRadius: '50%', p: 1 }}>
+                                    <PlayIcon sx={{ color: 'white', fontSize: 32 }} />
+                                </Box>
+                            </Box>
+                        ) : (
+                            <Box component="img" src={media.url} alt={'Media ' + (index + 1)} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        )}
+                        {index === 3 && mediaCount > 4 && (
+                            <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Typography sx={{ color: 'white', fontSize: 32, fontWeight: 700 }}>+{mediaCount - 4}</Typography>
+                            </Box>
+                        )}
+                    </Box>
+                ))}
+            </Box>
+        );
     };
 
     const isAdmin = group?.myRole === GroupRole.ADMIN;
@@ -196,460 +392,409 @@ export default function GroupDetailPage() {
     const canEdit = isAdmin || isModerator;
 
     if (isLoading) {
-        return (
-            <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
-                <Header />
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                    <CircularProgress />
-                </Box>
-            </Box>
-        );
+        return (<Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}><Header /><Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><CircularProgress /></Box></Box>);
     }
 
     if (!group) {
-        return (
-            <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
-                <Header />
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                    <Typography>Không tìm thấy nhóm</Typography>
-                </Box>
-            </Box>
-        );
+        return (<Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}><Header /><Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><Typography>Khong tim thay nhom</Typography></Box></Box>);
     }
 
     return (
         <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
             <Header />
-
-            {/* Cover Image Section */}
-            <Box sx={{ maxWidth: 1100, mx: 'auto', pt: 7 }}>
-                <Box
-                    sx={{
-                        height: 350,
-                        background: group.coverImage
-                            ? `url(${group.coverImage}) center/cover`
-                            : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        borderRadius: '0 0 12px 12px',
-                        position: 'relative',
-                    }}
-                >
-                    {/* Upload Cover Button (Admin/Moderator only) */}
+            <Box sx={{ maxWidth: 1250, mx: 'auto', pt: 8, px: { xs: 0, md: 2 } }}>
+                {/* Cover Image */}
+                <Box sx={{ height: { xs: 200, sm: 300, md: 350 }, background: group.coverImage ? 'url(' + group.coverImage + ') center/cover' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: { xs: 0, md: '0 0 12px 12px' }, position: 'relative' }}>
                     {canEdit && (
-                        <>
-                            <input
-                                ref={coverInputRef}
-                                type="file"
-                                accept="image/*"
-                                hidden
-                                onChange={handleCoverUpload}
-                            />
-                            <Button
-                                variant="contained"
-                                startIcon={isUploadingCover ? <CircularProgress size={16} color="inherit" /> : <CameraAltIcon />}
-                                onClick={() => coverInputRef.current?.click()}
-                                disabled={isUploadingCover}
-                                sx={{
-                                    position: 'absolute',
-                                    bottom: 16,
-                                    right: 16,
-                                    bgcolor: 'white',
-                                    color: '#050505',
-                                    textTransform: 'none',
-                                    '&:hover': { bgcolor: '#f0f2f5' },
+                        <Box sx={{ position: 'absolute', bottom: 16, right: 16 }}>
+                            <PhotoMenuButton
+                                type="cover"
+                                currentImage={group.coverImage}
+                                onImageUpdated={async (url) => {
+                                    await groupService.updateGroup(groupId, { coverImage: url });
+                                    setGroup(prev => prev ? { ...prev, coverImage: url } : null);
                                 }}
+                                onViewImage={() => setOpenCoverViewer(true)}
                             >
-                                Chỉnh sửa ảnh bìa
-                            </Button>
-                        </>
+                                <Button
+                                    variant="contained"
+                                    startIcon={<CameraAltIcon />}
+                                    sx={{
+                                        bgcolor: 'white',
+                                        color: '#050505',
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                    }}
+                                >
+                                    Chỉnh sửa ảnh bìa
+                                </Button>
+                            </PhotoMenuButton>
+                        </Box>
                     )}
+                </Box>
 
-                    {/* Pink banner label */}
-                    <Box
-                        sx={{
-                            position: 'absolute',
-                            bottom: -20,
-                            left: 20,
-                            bgcolor: '#e91e63',
-                            color: 'white',
-                            px: 2,
-                            py: 0.5,
-                            borderRadius: 1,
-                            fontSize: 14,
-                        }}
-                    >
-                        {group.privacy === GroupPrivacy.PRIVATE
-                            ? `Nhóm của ${group.name}`
-                            : `Nhóm công khai`
-                        }
+                {/* Group Info Header */}
+                <Box sx={{ bgcolor: 'white', borderRadius: { xs: 0, md: '0 0 12px 12px' }, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', px: { xs: 2, md: 4 }, pb: 0 }}>
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'center', md: 'flex-start' }, gap: 2, pt: 3, pb: 2 }}>
+                        <Box sx={{ position: 'relative', mt: { xs: 0, md: -10 } }}>
+                            <Avatar src={group.avatar || undefined} sx={{ width: { xs: 100, md: 168 }, height: { xs: 100, md: 168 }, border: '4px solid white', bgcolor: '#e4e6eb', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}><GroupsIcon sx={{ fontSize: { xs: 50, md: 80 }, color: '#65676b' }} /></Avatar>
+                            {canEdit && (
+                                <Box sx={{ position: 'absolute', bottom: 8, right: 8 }}>
+                                    <PhotoMenuButton
+                                        type="avatar"
+                                        currentImage={group.avatar}
+                                        onImageUpdated={async (url) => {
+                                            await groupService.updateGroup(groupId, { avatar: url });
+                                            setGroup(prev => prev ? { ...prev, avatar: url } : null);
+                                        }}
+                                        onViewImage={() => setOpenAvatarViewer(true)}
+                                    >
+                                        <IconButton sx={{ bgcolor: '#e4e6eb', '&:hover': { bgcolor: '#d8dadf' }, width: 36, height: 36 }}>
+                                            <CameraAltIcon fontSize="small" />
+                                        </IconButton>
+                                    </PhotoMenuButton>
+                                </Box>
+                            )}
+                            <Box sx={{ position: 'absolute', top: { xs: -10, md: 8 }, left: { xs: '50%', md: -16 }, transform: { xs: 'translateX(-50%)', md: 'none' }, bgcolor: '#e91e63', color: 'white', px: 1.5, py: 0.5, borderRadius: 1, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', zIndex: 1 }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Nhóm riêng tư' : 'Nhóm công khai'}</Box>
+                        </Box>
+                        <Box sx={{ flex: 1, textAlign: { xs: 'center', md: 'left' }, minWidth: 0 }}>
+                            <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: 24, md: 28 }, color: '#050505' }}>{group.name}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, justifyContent: { xs: 'center', md: 'flex-start' }, flexWrap: 'wrap' }}>
+                                {group.privacy === GroupPrivacy.PRIVATE ? <LockIcon sx={{ fontSize: 14, color: '#65676b' }} /> : <PublicIcon sx={{ fontSize: 14, color: '#65676b' }} />}
+                                <Typography variant="body2" sx={{ color: '#65676b', fontSize: 15 }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Nhóm Riêng tư' : 'Nhóm Công khai'}</Typography>
+                                <Typography variant="body2" sx={{ color: '#65676b', fontSize: 15 }}>· {group.memberCount.toLocaleString()} thành viên</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: { xs: 'center', md: 'flex-start' }, mt: 1.5 }}>
+                                <AvatarGroup max={12} sx={{ '& .MuiAvatar-root': { width: 32, height: 32, border: '2px solid white', fontSize: 14 } }}>{topMembers.map((member) => (<Avatar key={member._id} src={member.avatar} alt={member.firstName}>{member.firstName?.[0]}</Avatar>))}</AvatarGroup>
+                            </Box>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: { xs: 'center', md: 'flex-end' }, alignSelf: { xs: 'center', md: 'center' } }}>
+                            {group.isMember ? (
+                                <>
+                                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenInviteDialog(true)} sx={{ bgcolor: '#1877f2', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: '#166fe5' } }}>Mời</Button>
+                                    <Button variant="contained" startIcon={<ShareIcon />} sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}>Chia sẻ</Button>
+                                    <Button variant="contained" endIcon={<ArrowDownIcon />} onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}>Đã tham gia</Button>
+                                    {isAdmin && (
+                                        <IconButton onClick={(e) => setMoreMenuAnchor(e.currentTarget)} sx={{ bgcolor: '#e4e6eb', '&:hover': { bgcolor: '#d8dadf' } }}>
+                                            <MoreHorizIcon />
+                                        </IconButton>
+                                    )}
+                                </>
+                            ) : group.isPending ? (
+                                <Button variant="contained" onClick={handleCancelRequest} sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}>Hủy yêu cầu</Button>
+                            ) : (
+                                <Button variant="contained" onClick={handleJoinGroup} disabled={isJoining} sx={{ bgcolor: '#1877f2', textTransform: 'none', fontWeight: 600, px: 3, borderRadius: 1, '&:hover': { bgcolor: '#166fe5' } }}>{isJoining ? <CircularProgress size={20} color="inherit" /> : '+ Tham gia nhóm'}</Button>
+                            )}
+
+                            {/* "Đã tham gia" dropdown menu - only Leave option */}
+                            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} PaperProps={{ sx: { borderRadius: 2, minWidth: 200 } }}>
+                                <MenuItem onClick={() => { setAnchorEl(null); setOpenLeaveDialog(true); }}>
+                                    <ListItemIcon><ExitToAppIcon /></ListItemIcon>
+                                    <ListItemText primary="Rời nhóm" />
+                                </MenuItem>
+                            </Menu>
+
+                            {/* Three-dot menu - Settings and Transfer ownership (admin only) */}
+                            <Menu anchorEl={moreMenuAnchor} open={Boolean(moreMenuAnchor)} onClose={() => setMoreMenuAnchor(null)} PaperProps={{ sx: { borderRadius: 2, minWidth: 200 } }}>
+                                {isAdmin && (
+                                    <MenuItem onClick={() => { setMoreMenuAnchor(null); setOpenSettingsDialog(true); }}>
+                                        <ListItemIcon><InfoIcon /></ListItemIcon>
+                                        <ListItemText primary="Cài đặt nhóm" />
+                                    </MenuItem>
+                                )}
+                                {group.createdBy?._id === user?.id && (
+                                    <MenuItem onClick={() => { setMoreMenuAnchor(null); setOpenTransferDialog(true); }}>
+                                        <ListItemIcon><ShareIcon /></ListItemIcon>
+                                        <ListItemText primary="Chuyển quyền sở hữu" />
+                                    </MenuItem>
+                                )}
+                            </Menu>
+                        </Box>
+                    </Box>
+                    <Divider />
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Tabs value={tabValue} onChange={(_, newValue) => { if (newValue === 2) { setOpenMembersDialog(true); } else { setTabValue(newValue); } }} sx={{ '& .MuiTab-root': { textTransform: 'none', fontSize: 15, fontWeight: 600, color: '#65676b', minHeight: 52, px: 2, '&.Mui-selected': { color: '#1877f2' } }, '& .MuiTabs-indicator': { bgcolor: '#1877f2', height: 3, borderRadius: '3px 3px 0 0' } }}><Tab label="Thảo luận" /><Tab label="Đáng chú ý" /><Tab label="Mọi người" /><Tab label="Sự kiện" /><Tab label="File phương tiện" /><Tab label="File" /></Tabs>
+                        <Box sx={{ display: 'flex', gap: 1, pr: 1 }}><IconButton sx={{ bgcolor: '#f0f2f5' }}><SearchIcon /></IconButton><IconButton sx={{ bgcolor: '#f0f2f5' }}><MoreHorizIcon /></IconButton></Box>
                     </Box>
                 </Box>
 
-                {/* Group Info Section */}
-                <Card sx={{ mt: -3, mx: 2, borderRadius: 2 }}>
-                    <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
-                            {/* Group Avatar */}
-                            <Box sx={{ position: 'relative' }}>
-                                <Badge
-                                    overlap="circular"
-                                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                                    badgeContent={
-                                        canEdit && (
-                                            <>
-                                                <input
-                                                    ref={avatarInputRef}
-                                                    type="file"
-                                                    accept="image/*"
-                                                    hidden
-                                                    onChange={handleAvatarUpload}
-                                                />
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => avatarInputRef.current?.click()}
-                                                    disabled={isUploadingAvatar}
-                                                    sx={{
-                                                        bgcolor: 'white',
-                                                        border: '2px solid #f0f2f5',
-                                                        '&:hover': { bgcolor: '#e4e6eb' },
-                                                    }}
-                                                >
-                                                    {isUploadingAvatar ? (
-                                                        <CircularProgress size={16} />
-                                                    ) : (
-                                                        <CameraAltIcon fontSize="small" />
-                                                    )}
-                                                </IconButton>
-                                            </>
-                                        )
-                                    }
-                                >
-                                    <Avatar
-                                        src={group.avatar || undefined}
-                                        sx={{ width: 120, height: 120, border: '4px solid white', boxShadow: 2 }}
-                                    >
-                                        <GroupsIcon sx={{ fontSize: 60 }} />
-                                    </Avatar>
-                                </Badge>
-                            </Box>
-
-                            {/* Group Info */}
-                            <Box sx={{ flex: 1 }}>
-                                <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-                                    {group.name}
-                                </Typography>
-
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                                    {group.privacy === GroupPrivacy.PRIVATE ? (
-                                        <LockIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                    ) : (
-                                        <PublicIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                    )}
-                                    <Typography variant="body2" color="text.secondary">
-                                        {group.privacy === GroupPrivacy.PRIVATE ? 'Nhóm Riêng tư' : 'Nhóm Công khai'}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        • {group.memberCount.toLocaleString()} thành viên
-                                    </Typography>
-                                </Box>
-
-                                {/* Member Avatars */}
-                                <AvatarGroup max={12} sx={{ justifyContent: 'flex-start', '& .MuiAvatar-root': { width: 32, height: 32 } }}>
-                                    {topMembers.map((member) => (
-                                        <Avatar key={member._id} src={member.avatar} alt={member.firstName}>
-                                            {member.firstName?.[0]}
-                                        </Avatar>
-                                    ))}
-                                </AvatarGroup>
-                            </Box>
-
-                            {/* Action Buttons */}
-                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                                {group.isMember ? (
-                                    <>
-                                        <Button
-                                            variant="contained"
-                                            startIcon={<AddIcon />}
-                                            sx={{ textTransform: 'none' }}
-                                        >
-                                            + Mời
-                                        </Button>
-                                        <Button
-                                            variant="outlined"
-                                            startIcon={<ShareIcon />}
-                                            sx={{ textTransform: 'none' }}
-                                        >
-                                            Chia sẻ
-                                        </Button>
-                                        <Button
-                                            variant="contained"
-                                            sx={{
-                                                bgcolor: '#e4e6eb',
-                                                color: '#050505',
-                                                textTransform: 'none',
-                                                '&:hover': { bgcolor: '#d8dadf' },
-                                            }}
-                                        >
-                                            👥 Đã tham gia ▼
-                                        </Button>
-                                        <IconButton
-                                            sx={{ bgcolor: '#e4e6eb' }}
-                                            onClick={(e) => setAnchorEl(e.currentTarget)}
-                                        >
-                                            <MoreHorizIcon />
-                                        </IconButton>
-                                    </>
-                                ) : group.isPending ? (
-                                    <Button variant="outlined" onClick={handleCancelRequest} sx={{ textTransform: 'none' }}>
-                                        Hủy yêu cầu
-                                    </Button>
-                                ) : (
-                                    <Button
-                                        variant="contained"
-                                        onClick={handleJoinGroup}
-                                        disabled={isJoining}
-                                        sx={{ textTransform: 'none' }}
-                                    >
-                                        {isJoining ? <CircularProgress size={20} /> : '+ Tham gia nhóm'}
-                                    </Button>
-                                )}
-
-                                {/* Dropdown Menu */}
-                                <Menu
-                                    anchorEl={anchorEl}
-                                    open={Boolean(anchorEl)}
-                                    onClose={() => setAnchorEl(null)}
-                                >
-                                    <MenuItem onClick={() => { setAnchorEl(null); setOpenLeaveDialog(true); }}>
-                                        <ListItemIcon>
-                                            <ExitToAppIcon />
-                                        </ListItemIcon>
-                                        <ListItemText primary="Rời nhóm" />
-                                    </MenuItem>
-                                </Menu>
-                            </Box>
-                        </Box>
-                    </CardContent>
-                </Card>
-
-                {/* Tabs */}
-                <Card sx={{ mx: 2, mt: 2, borderRadius: 2 }}>
-                    <Tabs
-                        value={tabValue}
-                        onChange={(_, newValue) => setTabValue(newValue)}
-                        sx={{
-                            px: 2,
-                            '& .MuiTab-root': { textTransform: 'none', fontSize: 15, fontWeight: 600 },
-                        }}
-                    >
-                        <Tab label="Thảo luận" />
-                        <Tab label="Đáng chú ý" />
-                        <Tab label="Thành viên" />
-                        <Tab label="File phương tiện" />
-                        <Tab label="File" />
-                    </Tabs>
-                </Card>
-
-                {/* Main Content */}
-                <Box sx={{ display: 'flex', gap: 2, p: 2 }}>
-                    {/* Left Column - Posts */}
-                    <Box sx={{ flex: 1 }}>
+                {/* Content Area */}
+                <Box sx={{ display: 'flex', gap: 2, mt: 2, flexDirection: { xs: 'column', md: 'row' }, pb: 4 }}>
+                    {/* Main Content */}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
                         {/* Create Post Card */}
                         {group.isMember && (
-                            <Card sx={{ mb: 2, borderRadius: 2 }}>
-                                <CardContent>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                                        <Avatar src={user?.avatar}>
-                                            {user?.fullName?.[0]}
-                                        </Avatar>
-                                        <TextField
-                                            fullWidth
-                                            placeholder="Bạn viết gì đi..."
-                                            variant="outlined"
-                                            sx={{
-                                                '& .MuiOutlinedInput-root': {
-                                                    bgcolor: '#f0f2f5',
-                                                    borderRadius: 20,
-                                                    '& fieldset': { border: 'none' },
-                                                },
-                                            }}
-                                        />
+                            <Card sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                                        <Avatar sx={{ width: 40, height: 40 }} src={user?.avatar}>{user?.fullName?.[0]}</Avatar>
+                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ flex: 1, bgcolor: '#f0f2f5', borderRadius: '20px', display: 'flex', alignItems: 'center', px: 2, py: 1, cursor: 'pointer', '&:hover': { bgcolor: '#e4e6eb' } }}>
+                                            <Typography sx={{ color: '#65676b', fontSize: 17 }}>Bạn viết gì đi...</Typography>
+                                        </Box>
                                     </Box>
-                                    <Divider sx={{ my: 2 }} />
+                                    <Divider sx={{ mb: 1.5 }} />
                                     <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
-                                        <Button
-                                            startIcon={<VisibilityOffIcon />}
-                                            sx={{ color: 'text.secondary', textTransform: 'none' }}
-                                        >
-                                            Bài viết ẩn danh
-                                        </Button>
-                                        <Button
-                                            startIcon={<PollIcon sx={{ color: '#f7b928' }} />}
-                                            sx={{ color: 'text.secondary', textTransform: 'none' }}
-                                        >
-                                            Thăm dò ý kiến
-                                        </Button>
-                                        <Button
-                                            startIcon={<EmojiIcon sx={{ color: '#f7b928' }} />}
-                                            sx={{ color: 'text.secondary', textTransform: 'none' }}
-                                        >
-                                            Cảm xúc/hoạt động
-                                        </Button>
+                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                                            <VisibilityOffIcon sx={{ color: '#45bd62' }} />
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#65676b' }}>Bài viết ẩn danh</Typography>
+                                        </Box>
+                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                                            <PollIcon sx={{ color: '#f7b928' }} />
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#65676b' }}>Thăm dò ý kiến</Typography>
+                                        </Box>
+                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                                            <MoodIcon sx={{ color: '#f7b928' }} />
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#65676b' }}>Cảm xúc/hoạt động</Typography>
+                                        </Box>
                                     </Box>
                                 </CardContent>
                             </Card>
                         )}
 
-                        {/* Featured Notice */}
-                        <Card sx={{ mb: 2, borderRadius: 2 }}>
-                            <CardContent>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <Box>
-                                        <Typography variant="subtitle1" fontWeight={600}>
-                                            Đáng chú ý
-                                        </Typography>
-                                        <Typography variant="body2" sx={{ color: '#1877f2' }}>
-                                            5 mục mới •
-                                        </Typography>
+                        {/* Loading Posts */}
+                        {isLoadingPosts && (
+                            <Card sx={{ mb: 2, borderRadius: 2, p: 2 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                                    <Skeleton variant="circular" width={40} height={40} />
+                                    <Box sx={{ flex: 1 }}>
+                                        <Skeleton variant="text" width="60%" />
+                                        <Skeleton variant="text" width="30%" />
                                     </Box>
-                                    <IconButton>
-                                        <InfoIcon sx={{ color: 'text.secondary' }} />
-                                    </IconButton>
                                 </Box>
-                            </CardContent>
-                        </Card>
+                                <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
+                            </Card>
+                        )}
 
-                        {/* Activity Section */}
-                        <Box sx={{ mb: 2 }}>
-                            <Typography variant="body2" sx={{ color: '#e91e63', fontWeight: 600 }}>
-                                Hoạt động mới đây ▼
-                            </Typography>
-                        </Box>
+                        {/* Empty Posts */}
+                        {!isLoadingPosts && posts.length === 0 && (
+                            <Card sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                                <CardContent sx={{ py: 6 }}>
+                                    <Typography variant="body1" sx={{ color: '#65676b', textAlign: 'center' }}>Chưa có bài viết nào trong nhóm này</Typography>
+                                </CardContent>
+                            </Card>
+                        )}
 
-                        {/* Sample Post */}
-                        <Card sx={{ mb: 2, borderRadius: 2 }}>
-                            <CardContent>
-                                <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center', py: 4 }}>
-                                    Chưa có bài viết nào trong nhóm này
-                                </Typography>
-                            </CardContent>
-                        </Card>
+                        {/* Posts List */}
+                        {posts.map((post) => {
+                            const PrivacyIconComponent = getPrivacyIcon(post.privacy);
+                            return (
+                                <PostItem
+                                    key={post._id}
+                                    post={post}
+                                    userId={user?.id || ''}
+                                    handleOpenMenu={handleOpenMenu}
+                                    handleOpenComments={handleOpenComments}
+                                    handleOpenShare={handleOpenShare}
+                                    renderPostMedia={renderPostMedia}
+                                    PrivacyIconComponent={PrivacyIconComponent}
+                                    isHighlighted={false}
+                                    isGroupPost={true}
+                                    groupName={group.name}
+                                    groupAvatar={group.avatar || undefined}
+                                    groupId={group._id}
+                                />
+                            );
+                        })}
                     </Box>
 
-                    {/* Right Column - Group Info */}
-                    <Box sx={{ width: 360, flexShrink: 0 }}>
-                        {/* About Card */}
-                        <Card sx={{ mb: 2, borderRadius: 2 }}>
-                            <CardContent>
-                                <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
-                                    Giới thiệu
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                    {group.description || 'Chưa có mô tả'}
-                                </Typography>
-
+                    {/* Sidebar */}
+                    <Box sx={{ width: { xs: '100%', md: 360 }, flexShrink: 0 }}>
+                        <Card sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                            <CardContent sx={{ p: 2 }}>
+                                <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color: '#050505' }}>Giới thiệu</Typography>
+                                {group.description && <Typography variant="body2" sx={{ color: '#050505', mb: 2 }}>{group.description}</Typography>}
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-                                    {group.privacy === GroupPrivacy.PRIVATE ? (
-                                        <LockIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
-                                    ) : (
-                                        <PublicIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
-                                    )}
+                                    <PublicIcon sx={{ color: '#65676b', mt: 0.5 }} />
                                     <Box>
-                                        <Typography variant="body1" fontWeight={600}>
-                                            {group.privacy === GroupPrivacy.PRIVATE ? 'Riêng tư' : 'Công khai'}
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary">
-                                            {group.privacy === GroupPrivacy.PRIVATE
-                                                ? 'Chỉ thành viên mới nhìn thấy mọi người trong nhóm và những gì họ đăng.'
-                                                : 'Bất kỳ ai cũng có thể nhìn thấy mọi người trong nhóm và những gì họ đăng.'
-                                            }
-                                        </Typography>
+                                        <Typography variant="body1" fontWeight={600} sx={{ color: '#050505' }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Riêng tư' : 'Công khai'}</Typography>
+                                        <Typography variant="body2" sx={{ color: '#65676b' }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Chỉ thành viên mới nhìn thấy mọi người trong nhóm và những gì họ đăng.' : 'Bất kỳ ai cũng có thể nhìn thấy mọi người trong nhóm và những gì họ đăng.'}</Typography>
                                     </Box>
                                 </Box>
-
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-                                    <VisibilityIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
+                                    <VisibilityIcon sx={{ color: '#65676b', mt: 0.5 }} />
                                     <Box>
-                                        <Typography variant="body1" fontWeight={600}>
-                                            Hiển thị
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary">
-                                            Ai cũng có thể tìm thấy nhóm này.
-                                        </Typography>
+                                        <Typography variant="body1" fontWeight={600} sx={{ color: '#050505' }}>Hiển thị</Typography>
+                                        <Typography variant="body2" sx={{ color: '#65676b' }}>Ai cũng có thể tìm thấy nhóm này.</Typography>
                                     </Box>
                                 </Box>
-
-                                {group.location && (
-                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-                                        <LocationIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
-                                        <Box>
-                                            <Typography variant="body1" fontWeight={600}>
-                                                {group.location}
-                                            </Typography>
-                                        </Box>
-                                    </Box>
-                                )}
-
-                                <Button
-                                    fullWidth
-                                    variant="contained"
-                                    sx={{
-                                        bgcolor: '#e4e6eb',
-                                        color: '#050505',
-                                        textTransform: 'none',
-                                        mt: 2,
-                                        '&:hover': { bgcolor: '#d8dadf' },
-                                    }}
-                                >
-                                    Tìm hiểu thêm về nhóm này
-                                </Button>
+                                <Button fullWidth variant="contained" sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontWeight: 600, mt: 1, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}>Tìm hiểu thêm về nhóm này</Button>
                             </CardContent>
                         </Card>
-
-                        {/* Recent Media Card */}
-                        <Card sx={{ borderRadius: 2 }}>
-                            <CardContent>
+                        <Card sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                            <CardContent sx={{ p: 2 }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                    <Typography variant="h6" fontWeight={600}>
-                                        File phương tiện mới đây
-                                    </Typography>
-                                    <IconButton sx={{ bgcolor: '#e4e6eb' }} size="small">
-                                        <SearchIcon fontSize="small" />
-                                    </IconButton>
+                                    <Typography variant="h6" fontWeight={700} sx={{ color: '#050505' }}>File phương tiện mới đây</Typography>
+                                    <IconButton size="small" sx={{ bgcolor: '#f0f2f5' }}><SearchIcon fontSize="small" /></IconButton>
                                 </Box>
-                                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
-                                    Chưa có file phương tiện nào
-                                </Typography>
+                                <Typography variant="body2" sx={{ color: '#65676b', textAlign: 'center', py: 3 }}>Chưa có file phương tiện nào</Typography>
                             </CardContent>
                         </Card>
                     </Box>
                 </Box>
             </Box>
 
-            {/* Leave Group Dialog */}
-            <Dialog
-                open={openLeaveDialog}
-                onClose={() => setOpenLeaveDialog(false)}
-            >
-                <DialogTitle>Rời nhóm?</DialogTitle>
-                <DialogContent>
-                    <Typography>
-                        Bạn có chắc chắn muốn rời khỏi nhóm &quot;{group.name}&quot;?
-                    </Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpenLeaveDialog(false)}>
-                        Hủy
-                    </Button>
-                    <Button
-                        onClick={handleLeaveGroup}
-                        disabled={isLeaving}
-                        variant="contained"
-                        color="error"
-                    >
-                        {isLeaving ? <CircularProgress size={20} /> : 'Rời nhóm'}
-                    </Button>
+            {/* Dialogs & Modals */}
+            <Dialog open={openLeaveDialog} onClose={() => setOpenLeaveDialog(false)} PaperProps={{ sx: { borderRadius: 2 } }}>
+                <DialogTitle sx={{ fontWeight: 700 }}>Rời nhóm?</DialogTitle>
+                <DialogContent><Typography>Bạn có chắc chắn muốn rời khỏi nhóm {group.name}?</Typography></DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={() => setOpenLeaveDialog(false)} sx={{ textTransform: 'none' }}>Hủy</Button>
+                    <Button onClick={handleLeaveGroup} disabled={isLeaving} variant="contained" color="error" sx={{ textTransform: 'none' }}>{isLeaving ? <CircularProgress size={20} color="inherit" /> : 'Rời nhóm'}</Button>
                 </DialogActions>
             </Dialog>
+
+            <CreatePostModal
+                open={openCreatePost}
+                onClose={() => setOpenCreatePost(false)}
+                groupId={groupId}
+                groupName={group.name}
+                onPostCreated={handlePostCreated}
+            />
+
+            {editingPost && (
+                <EditPostModal
+                    open={openEditPost}
+                    onClose={() => { setOpenEditPost(false); setEditingPost(null); }}
+                    post={editingPost}
+                    onPostUpdated={(updatedPost) => {
+                        useGroupPostStore.getState().updateGroupPost(groupId, updatedPost._id, updatedPost);
+                    }}
+                />
+            )}
+
+            <ImageViewer
+                open={openImageViewer}
+                onClose={() => setOpenImageViewer(false)}
+                media={viewerMedia}
+                initialIndex={viewerInitialIndex}
+            />
+
+            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleCloseMenu} PaperProps={{ sx: { width: 320, borderRadius: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.15)', mt: 1 } }}>
+                <PostOptionContentMenu
+                    handleDeletePost={handleDeletePost}
+                    handleEditPost={handleEditPost}
+                    isDeleting={isDeleting}
+                    menuPost={menuPost}
+                    user={user}
+                    onToggleComments={async (allow) => {
+                        if (!menuPost) return;
+                        try {
+                            await postService.updatePost(menuPost._id, { allowComments: allow });
+                            useGroupPostStore.getState().updateGroupPost(groupId, menuPost._id, { ...menuPost, allowComments: allow });
+                            setMenuPost(prev => prev ? { ...prev, allowComments: allow } : null);
+                            toast.success(allow ? 'Đã bật bình luận' : 'Đã tắt bình luận');
+                        } catch (error) {
+                            toast.error('Không thể cập nhật cài đặt');
+                        }
+                    }}
+                    onToggleShares={async (allow) => {
+                        if (!menuPost) return;
+                        try {
+                            await postService.updatePost(menuPost._id, { allowShares: allow });
+                            useGroupPostStore.getState().updateGroupPost(groupId, menuPost._id, { ...menuPost, allowShares: allow });
+                            setMenuPost(prev => prev ? { ...prev, allowShares: allow } : null);
+                            toast.success(allow ? 'Đã bật chia sẻ' : 'Đã tắt chia sẻ');
+                        } catch (error) {
+                            toast.error('Không thể cập nhật cài đặt');
+                        }
+                    }}
+                    onToggleReactions={async (allow) => {
+                        if (!menuPost) return;
+                        try {
+                            await postService.updatePost(menuPost._id, { allowReactions: allow });
+                            useGroupPostStore.getState().updateGroupPost(groupId, menuPost._id, { ...menuPost, allowReactions: allow });
+                            setMenuPost(prev => prev ? { ...prev, allowReactions: allow } : null);
+                            toast.success(allow ? 'Đã bật tương tác' : 'Đã tắt tương tác');
+                        } catch (error) {
+                            toast.error('Không thể cập nhật cài đặt');
+                        }
+                    }}
+                />
+            </Menu>
+
+            <Modal open={openCommentModal} onClose={() => setOpenCommentModal(false)}>
+                <CommentContentModal
+                    setOpenCommentModal={setOpenCommentModal}
+                    commentingPost={commentingPost}
+                    renderPostMedia={renderPostMedia}
+                    handleOpenShare={handleOpenShare}
+                />
+            </Modal>
+
+            <Modal open={openShareModal} onClose={handleCloseShare}>
+                <ShareContentModal
+                    handleCloseShare={handleCloseShare}
+                    handleEmojiSelect={handleEmojiSelect}
+                    setShareCaption={setShareCaption}
+                    setShowEmojiPicker={setShowEmojiPicker}
+                    shareCaption={shareCaption}
+                    sharePrivacy={sharePrivacy}
+                    showEmojiPicker={showEmojiPicker}
+                    user={user}
+                    sharingPost={sharingPost}
+                />
+            </Modal>
+
+            {/* Invite Friends Dialog */}
+            <InviteFriendsDialog
+                open={openInviteDialog}
+                onClose={() => setOpenInviteDialog(false)}
+                groupId={groupId}
+                groupName={group?.name || ''}
+            />
+
+            {/* Group Members Dialog */}
+            <GroupMembersDialog
+                open={openMembersDialog}
+                onClose={() => setOpenMembersDialog(false)}
+                groupId={groupId}
+                groupName={group?.name || ''}
+                currentUserRole={group?.myRole}
+                isCreator={group?.createdBy?._id === user?.id}
+            />
+
+            {/* Group Settings Dialog */}
+            {group && (
+                <GroupSettingsDialog
+                    open={openSettingsDialog}
+                    onClose={() => setOpenSettingsDialog(false)}
+                    group={group}
+                    onGroupUpdated={(updatedData) => {
+                        setGroup(prev => prev ? { ...prev, ...updatedData } : null);
+                    }}
+                />
+            )}
+
+            {/* Transfer Ownership Dialog */}
+            <TransferOwnershipDialog
+                open={openTransferDialog}
+                onClose={() => setOpenTransferDialog(false)}
+                groupId={groupId}
+                groupName={group?.name || ''}
+                onTransferred={() => {
+                    loadGroupData();
+                }}
+            />
+
+            {/* Image Viewers for Avatar and Cover */}
+            {openCoverViewer && group?.coverImage && (
+                <ImageViewer
+                    open={openCoverViewer}
+                    onClose={() => setOpenCoverViewer(false)}
+                    media={[{ url: group.coverImage, mediaType: 'IMAGE', publicId: '' }]}
+                    initialIndex={0}
+                />
+            )}
+
+            {openAvatarViewer && group?.avatar && (
+                <ImageViewer
+                    open={openAvatarViewer}
+                    onClose={() => setOpenAvatarViewer(false)}
+                    media={[{ url: group.avatar, mediaType: 'IMAGE', publicId: '' }]}
+                    initialIndex={0}
+                />
+            )}
         </Box>
     );
 }

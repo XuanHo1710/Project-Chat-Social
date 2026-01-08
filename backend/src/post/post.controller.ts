@@ -72,6 +72,21 @@ export class PostController {
     );
   }
 
+  @Get('group/:groupId')
+  findByGroupId(
+    @UserInfo() user: any,
+    @Param('groupId') groupId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.postService.findByGroupId(
+      groupId,
+      user._id,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 10
+    );
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.postService.findOne(id);

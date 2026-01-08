@@ -7,14 +7,6 @@ import {
     Button,
     TextField,
     InputAdornment,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
     CircularProgress,
     Avatar,
     List,
@@ -29,14 +21,12 @@ import {
     Search as SearchIcon,
     Add as AddIcon,
     Groups as GroupsIcon,
-    Lock as LockIcon,
-    Public as PublicIcon,
     Settings as SettingsIcon,
     MoreHoriz as MoreHorizIcon,
 } from '@mui/icons-material';
 import Header from '@/components/home/Header';
 import { groupService } from '@/services/group.service';
-import { Group, GroupPrivacy, GroupWithMembership, CreateGroupData } from '@/types/group';
+import { Group, GroupWithMembership } from '@/types/group';
 import { useRouter } from 'next/navigation';
 
 export default function GroupsPage() {
@@ -45,13 +35,6 @@ export default function GroupsPage() {
     const [suggestedGroups, setSuggestedGroups] = useState<Group[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
-    const [openCreateDialog, setOpenCreateDialog] = useState(false);
-    const [createForm, setCreateForm] = useState<CreateGroupData>({
-        name: '',
-        description: '',
-        privacy: GroupPrivacy.PUBLIC,
-    });
-    const [isCreating, setIsCreating] = useState(false);
 
     useEffect(() => {
         loadGroups();
@@ -73,20 +56,6 @@ export default function GroupsPage() {
         }
     };
 
-    const handleCreateGroup = async () => {
-        if (!createForm.name.trim()) return;
-        setIsCreating(true);
-        try {
-            const newGroup = await groupService.createGroup(createForm);
-            setOpenCreateDialog(false);
-            setCreateForm({ name: '', description: '', privacy: GroupPrivacy.PUBLIC });
-            router.push(`/groups/${newGroup._id}`);
-        } catch (error) {
-            console.error('Failed to create group:', error);
-        } finally {
-            setIsCreating(false);
-        }
-    };
 
     const handleJoinGroup = async (groupId: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -190,7 +159,7 @@ export default function GroupsPage() {
                         fullWidth
                         variant="contained"
                         startIcon={<AddIcon />}
-                        onClick={() => setOpenCreateDialog(true)}
+                        onClick={() => router.push('/groups/create')}
                         sx={{
                             bgcolor: '#e7f3ff',
                             color: '#1877f2',
@@ -339,7 +308,7 @@ export default function GroupsPage() {
                             </Typography>
                             <Button
                                 variant="contained"
-                                onClick={() => setOpenCreateDialog(true)}
+                                onClick={() => router.push('/groups/create')}
                                 sx={{ textTransform: 'none' }}
                             >
                                 KHÁM PHÁ NHÓM
@@ -403,86 +372,6 @@ export default function GroupsPage() {
                 </Box>
             </Box>
 
-            {/* Create Group Dialog */}
-            <Dialog
-                open={openCreateDialog}
-                onClose={() => setOpenCreateDialog(false)}
-                maxWidth="sm"
-                fullWidth
-            >
-                <DialogTitle sx={{ fontWeight: 600 }}>Tạo nhóm mới</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        autoFocus
-                        margin="dense"
-                        label="Tên nhóm"
-                        fullWidth
-                        value={createForm.name}
-                        onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                        sx={{ mb: 2 }}
-                    />
-                    <TextField
-                        margin="dense"
-                        label="Mô tả"
-                        fullWidth
-                        multiline
-                        rows={3}
-                        value={createForm.description}
-                        onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                        sx={{ mb: 2 }}
-                    />
-                    <FormControl fullWidth sx={{ mb: 2 }}>
-                        <InputLabel>Quyền riêng tư</InputLabel>
-                        <Select
-                            value={createForm.privacy}
-                            label="Quyền riêng tư"
-                            onChange={(e) =>
-                                setCreateForm({ ...createForm, privacy: e.target.value as GroupPrivacy })
-                            }
-                        >
-                            <MenuItem value={GroupPrivacy.PUBLIC}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <PublicIcon />
-                                    <Box>
-                                        <Typography>Công khai</Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            Ai cũng có thể xem bài đăng và tham gia
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                            </MenuItem>
-                            <MenuItem value={GroupPrivacy.PRIVATE}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <LockIcon />
-                                    <Box>
-                                        <Typography>Riêng tư</Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            Chỉ thành viên mới có thể xem bài đăng
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                            </MenuItem>
-                        </Select>
-                    </FormControl>
-                    <TextField
-                        margin="dense"
-                        label="Vị trí (tùy chọn)"
-                        fullWidth
-                        value={createForm.location || ''}
-                        onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
-                    />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpenCreateDialog(false)}>Hủy</Button>
-                    <Button
-                        variant="contained"
-                        onClick={handleCreateGroup}
-                        disabled={!createForm.name.trim() || isCreating}
-                    >
-                        {isCreating ? <CircularProgress size={20} /> : 'Tạo nhóm'}
-                    </Button>
-                </DialogActions>
-            </Dialog>
         </Box>
     );
 }

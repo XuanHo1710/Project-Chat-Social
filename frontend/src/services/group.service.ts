@@ -39,9 +39,8 @@ class GroupService {
   }
 
   async getMyGroups(): Promise<GroupWithMembership[]> {
-    const response = await axios.get<APIResponse<GroupWithMembership[]>>(
-      "/group/my-groups"
-    );
+    const response =
+      await axios.get<APIResponse<GroupWithMembership[]>>("/group/my-groups");
     return response.data.data;
   }
 
@@ -161,6 +160,17 @@ class GroupService {
   ): Promise<{ message: string }> {
     const response = await axios.post<APIResponse<{ message: string }>>(
       `/group/${groupId}/invite`,
+      { userId }
+    );
+    return response.data.data;
+  }
+
+  async transferOwnership(
+    groupId: string,
+    userId: string
+  ): Promise<{ message: string }> {
+    const response = await axios.post<APIResponse<{ message: string }>>(
+      `/group/${groupId}/transfer-ownership`,
       { userId }
     );
     return response.data.data;

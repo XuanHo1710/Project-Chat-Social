@@ -817,7 +817,7 @@ export default function CommentItem({
                 {!isEditing && (
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 0.5, px: 1 }}>
                         <CommentReactionButton
-                            commentId={comment._id}
+                            comment={comment}
                             initialTotalLikes={comment.totalLikes || 0}
                         />
                         <Typography

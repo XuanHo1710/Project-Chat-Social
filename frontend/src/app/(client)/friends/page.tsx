@@ -1,10 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Box, Card, CardContent, Typography, Avatar, Button, IconButton } from '@mui/material';
+import { Box, Typography, IconButton, Divider, List, ListItemButton, ListItemIcon, ListItemText } from '@mui/material';
 import {
+    Home as HomeIcon,
     PersonAdd as PersonAddIcon,
-    Close as CloseIcon,
+    Lightbulb as LightbulbIcon,
+    People as PeopleIcon,
+    Cake as CakeIcon,
+    Settings as SettingsIcon,
 } from '@mui/icons-material';
 import Header from '@/components/home/Header';
 import CardFriendShowAllComponent from '@/components/friends/CardFriendShowAll';
@@ -19,55 +23,22 @@ import CardFriendReceivedComponent from '@/components/friends/CardFriendReceived
 import { useSocket } from '@/contexts/SocketContext';
 import { FriendType } from '@/types/account';
 import { APIResponse } from '@/types/common';
+import Link from 'next/link';
 
-// Mock data
-const friendRequests = [
-    {
-        id: 1,
-        name: 'Nguyễn Văn A',
-        mutualFriends: 5,
-        avatar: '/avatar1.jpg',
-        time: '1 tuần',
-    },
-    {
-        id: 2,
-        name: 'Trần Thị B',
-        mutualFriends: 12,
-        avatar: '/avatar2.jpg',
-        time: '2 ngày',
-    },
-    {
-        id: 3,
-        name: 'Lê Văn C',
-        mutualFriends: 3,
-        avatar: '/avatar3.jpg',
-        time: '5 giờ',
-    },
+const menuItems = [
+    { id: 0, label: 'Trang chủ', icon: <HomeIcon /> },
+    { id: 1, label: 'Lời mời kết bạn', icon: <PersonAddIcon /> },
+    { id: 2, label: 'Gợi ý', icon: <LightbulbIcon /> },
+    { id: 3, label: 'Tất cả bạn bè', icon: <PeopleIcon /> },
+    { id: 4, label: 'Sinh nhật', icon: <CakeIcon /> },
+    { id: 5, label: 'Danh sách tùy chỉnh', icon: <SettingsIcon /> },
 ];
-
-const pendingRequests = [
-    {
-        id: 1,
-        name: 'Phạm Minh D',
-        avatar: '/avatar4.jpg',
-        time: '3 ngày',
-    },
-    {
-        id: 2,
-        name: 'Hoàng Thị E',
-        avatar: '/avatar5.jpg',
-        time: '1 tuần',
-    },
-];
-
 
 export default function FriendsPage() {
     const [tabValue, setTabValue] = useState(0);
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
     const { socketRelationship } = useSocket();
-
-
 
     const { data: allAccounts, isLoading: isLoadingAccounts } = useAccountsByPage(user?.id || "", { page: 1, size: 12 });
     const { data: sentRequests, isLoading: isLoadingSentRequests } = useSentRequestFriends(user?.id || "");
@@ -80,42 +51,34 @@ export default function FriendsPage() {
         });
     }, [tabValue, queryClient]);
 
-
-    // Listen for new received friend requests via socket
+    // Listen for friend events via socket
     useEffect(() => {
         if (!socketRelationship) return;
 
         const handleNewReceivedRequest = (data: FriendType[]) => {
             queryClient.setQueryData<APIResponse<FriendType[]>>(
                 [QUERY_KEYS.RECEIVED_REQUEST_FRIENDS, user?.id || ""],
-                () => {
-                    return { ...data, data: [...data] };
-                }
+                () => ({ ...data, data: [...data] })
             );
         };
 
         const handleNewSentRequest = (data: FriendType[]) => {
             queryClient.setQueryData<APIResponse<FriendType[]>>(
                 [QUERY_KEYS.SENT_REQUEST_FRIENDS, user?.id || ""],
-                () => {
-                    return { ...data, data: [...data] };
-                }
+                () => ({ ...data, data: [...data] })
             );
-        }
+        };
 
         const handleListFriendsUpdate = (data: FriendType[]) => {
             queryClient.setQueryData<APIResponse<FriendType[]>>(
                 [QUERY_KEYS.FRIENDS, user?.id || ""],
-                () => {
-                    return { ...data, data: [...data] };
-                }
+                () => ({ ...data, data: [...data] })
             );
-        }
+        };
 
         socketRelationship.on("friend:received", handleNewReceivedRequest);
         socketRelationship.on("friend:sent", handleNewSentRequest);
         socketRelationship.on("friend:friends", handleListFriendsUpdate);
-
 
         return () => {
             socketRelationship.off("friend:received", handleNewReceivedRequest);
@@ -139,280 +102,218 @@ export default function FriendsPage() {
                         bgcolor: 'white',
                         boxShadow: '2px 0 4px rgba(0,0,0,0.1)',
                         overflowY: 'auto',
-                        p: 2,
+                        p: 1,
                     }}
                 >
-                    <Typography variant="h5" fontWeight={700} sx={{ mb: 2, color: '#050505', px: 1 }}>
-                        Bạn bè
-                    </Typography>
-
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        <Box
-                            onClick={() => setTabValue(0)}
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                p: 1.5,
-                                borderRadius: 2,
-                                cursor: 'pointer',
-                                bgcolor: tabValue === 0 ? '#e7f3ff' : 'transparent',
-                                '&:hover': {
-                                    bgcolor: tabValue === 0 ? '#e7f3ff' : '#f0f2f5',
-                                },
-                            }}
-                        >
-                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: tabValue === 0 ? '#1877f2' : '#050505' }}>
-                                Trang chủ
-                            </Typography>
-                        </Box>
-
-                        <Box
-                            onClick={() => setTabValue(1)}
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                p: 1.5,
-                                borderRadius: 2,
-                                cursor: 'pointer',
-                                bgcolor: tabValue === 1 ? '#e7f3ff' : 'transparent',
-                                '&:hover': {
-                                    bgcolor: tabValue === 1 ? '#e7f3ff' : '#f0f2f5',
-                                },
-                            }}
-                        >
-                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: tabValue === 1 ? '#1877f2' : '#050505' }}>
-                                Lời mời kết bạn
-                            </Typography>
-                        </Box>
-
-                        <Box
-                            onClick={() => setTabValue(2)}
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                p: 1.5,
-                                borderRadius: 2,
-                                cursor: 'pointer',
-                                bgcolor: tabValue === 2 ? '#e7f3ff' : 'transparent',
-                                '&:hover': {
-                                    bgcolor: tabValue === 2 ? '#e7f3ff' : '#f0f2f5',
-                                },
-                            }}
-                        >
-                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: tabValue === 2 ? '#1877f2' : '#050505' }}>
-                                Gợi ý
-                            </Typography>
-                        </Box>
-
-                        <Box
-                            onClick={() => setTabValue(3)}
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                p: 1.5,
-                                borderRadius: 2,
-                                cursor: 'pointer',
-                                bgcolor: tabValue === 3 ? '#e7f3ff' : 'transparent',
-                                '&:hover': {
-                                    bgcolor: tabValue === 3 ? '#e7f3ff' : '#f0f2f5',
-                                },
-                            }}
-                        >
-                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: tabValue === 3 ? '#1877f2' : '#050505' }}>
-                                Tất cả bạn bè
-                            </Typography>
-                        </Box>
-
-                        <Box
-                            onClick={() => setTabValue(4)}
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                p: 1.5,
-                                borderRadius: 2,
-                                cursor: 'pointer',
-                                bgcolor: tabValue === 4 ? '#e7f3ff' : 'transparent',
-                                '&:hover': {
-                                    bgcolor: tabValue === 4 ? '#e7f3ff' : '#f0f2f5',
-                                },
-                            }}
-                        >
-                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: tabValue === 4 ? '#1877f2' : '#050505' }}>
-                                Đang chờ phản hồi
-                            </Typography>
-                        </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, py: 1.5 }}>
+                        <Typography variant="h5" fontWeight={700} sx={{ color: '#050505' }}>
+                            Bạn bè
+                        </Typography>
+                        <IconButton sx={{ bgcolor: '#e4e6eb' }}>
+                            <SettingsIcon />
+                        </IconButton>
                     </Box>
+
+                    <List sx={{ p: 0 }}>
+                        {menuItems.map((item) => (
+                            <ListItemButton
+                                key={item.id}
+                                onClick={() => setTabValue(item.id)}
+                                sx={{
+                                    borderRadius: 2,
+                                    mb: 0.5,
+                                    bgcolor: tabValue === item.id ? '#e7f3ff' : 'transparent',
+                                    '&:hover': {
+                                        bgcolor: tabValue === item.id ? '#e7f3ff' : '#f0f2f5',
+                                    },
+                                }}
+                            >
+                                <ListItemIcon sx={{
+                                    minWidth: 36,
+                                    color: tabValue === item.id ? '#1877f2' : '#050505'
+                                }}>
+                                    {item.icon}
+                                </ListItemIcon>
+                                <ListItemText
+                                    primary={item.label}
+                                    primaryTypographyProps={{
+                                        fontWeight: 500,
+                                        fontSize: 15,
+                                        color: tabValue === item.id ? '#1877f2' : '#050505'
+                                    }}
+                                />
+                            </ListItemButton>
+                        ))}
+                    </List>
                 </Box>
 
                 {/* Main Content */}
-                <Box sx={{ flex: 1, p: 4, maxWidth: 1100, mx: 'auto' }}>
-                    <Box sx={{ bgcolor: 'white', borderRadius: 2, p: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                        {/* Tab 0: Trang chủ */}
-                        {tabValue === 0 && (
-                            <Box>
-                                {/* Friend Requests Section */}
-                                {!isLoadingAccounts && allAccounts && allAccounts?.items?.length > 0 && (
-                                    <Box sx={{ mb: 4 }}>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                            <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
-                                                Người dùng khác...
-                                            </Typography>
-                                            <Button
-                                                sx={{
-                                                    color: '#1877f2',
-                                                    textTransform: 'none',
-                                                    fontSize: '15px',
-                                                    fontWeight: 500,
-                                                }}
-                                            >
-                                                Xem tất cả
-                                            </Button>
-                                        </Box>
-
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                                            {allAccounts.items.map((account, index) => (
-                                                <CardFriendShowAllComponent key={index} friend={account} />
-                                            ))}
-                                        </Box>
-                                    </Box>
-                                )}
-                            </Box>
-                        )}
-
-                        {/* Tab 1: Lời mời kết bạn */}
-                        {tabValue === 1 && (
-                            <Box>
-                                {/* Friend Requests Section */}
-                                <Box sx={{ mb: 4 }}>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                        <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
-                                            Lời mời kết bạn
-                                        </Typography>
-                                        <Button
-                                            sx={{
-                                                color: '#1877f2',
-                                                textTransform: 'none',
-                                                fontSize: '15px',
-                                                fontWeight: 500,
-                                            }}
-                                        >
-                                            Xem tất cả
-                                        </Button>
-                                    </Box>
-
-                                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                                        {!isLoadingReceivedRequests && receivedRequests && receivedRequests?.data.length > 0
-                                            &&
-                                            receivedRequests.data.map((request) => (
-                                                <CardFriendReceivedComponent friend={request} key={request._id} />
-                                            ))}
-                                    </Box>
-                                </Box>
-                            </Box>
-                        )}
-
-                        {/* Tab 2: Gợi ý */}
-                        {tabValue === 2 && (
-                            <Box>
-                                <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
-                                    Những người bạn có thể biết
+                <Box sx={{ flex: 1, p: 3, overflowY: 'auto' }}>
+                    {/* Tab 0 & 1: Lời mời kết bạn */}
+                    {(tabValue === 0 || tabValue === 1) && (
+                        <Box sx={{ mb: 4 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                <Typography variant="h6" fontWeight={600} color="#050505">
+                                    Lời mời kết bạn
                                 </Typography>
+                                <Link href="/friends?tab=received" style={{ textDecoration: 'none' }}>
+                                    <Typography
+                                        sx={{
+                                            color: '#1877f2',
+                                            fontSize: 15,
+                                            cursor: 'pointer',
+                                            '&:hover': { textDecoration: 'underline' }
+                                        }}
+                                    >
+                                        Xem tất cả
+                                    </Typography>
+                                </Link>
+                            </Box>
 
-                                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                                    {[...friendRequests, ...pendingRequests].map((suggestion, index) => (
-                                        <Card key={index} sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                                            <CardContent sx={{ p: 0 }}>
-                                                <Box sx={{ position: 'relative', pb: '100%', bgcolor: '#f0f2f5' }}>
-                                                    <Avatar
-                                                        src={`https://ui-avatars.com/api/?name=${suggestion.name}&background=1877f2&color=fff`}
-                                                        sx={{
-                                                            position: 'absolute',
-                                                            top: 0,
-                                                            left: 0,
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            borderRadius: 0,
-                                                        }}
-                                                    />
-                                                    <IconButton
-                                                        sx={{
-                                                            position: 'absolute',
-                                                            top: 8,
-                                                            right: 8,
-                                                            bgcolor: 'white',
-                                                            '&:hover': { bgcolor: '#f0f2f5' },
-                                                        }}
-                                                    >
-                                                        <CloseIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Box>
-                                                <Box sx={{ p: 2 }}>
-                                                    <Typography fontWeight={600} fontSize={15} color="#050505" sx={{ mb: 0.5 }}>
-                                                        {suggestion.name}
-                                                    </Typography>
-                                                    <Typography variant="body2" color="#65676b" fontSize={13} sx={{ mb: 2 }}>
-                                                        {'mutualFriends' in suggestion ? `${suggestion.mutualFriends} bạn chung` : 'Bạn bè gợi ý'}
-                                                    </Typography>
-
-                                                    <Button
-                                                        fullWidth
-                                                        variant="contained"
-                                                        startIcon={<PersonAddIcon />}
-                                                        sx={{
-                                                            bgcolor: '#1877f2',
-                                                            textTransform: 'none',
-                                                            fontWeight: 600,
-                                                            fontSize: 15,
-                                                            py: 1,
-                                                            boxShadow: 'none',
-                                                            '&:hover': {
-                                                                bgcolor: '#166fe5',
-                                                                boxShadow: 'none',
-                                                            },
-                                                        }}
-                                                    >
-                                                        Thêm bạn bè
-                                                    </Button>
-                                                </Box>
-                                            </CardContent>
-                                        </Card>
+                            {!isLoadingReceivedRequests && receivedRequests?.data && receivedRequests.data.length > 0 ? (
+                                <Box sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                    gap: 2
+                                }}>
+                                    {receivedRequests.data.map((request) => (
+                                        <CardFriendReceivedComponent friend={request} key={request._id} />
                                     ))}
                                 </Box>
-                            </Box>
-                        )}
-
-                        {/* Tab 3: Tất cả bạn bè */}
-                        {tabValue === 3 && (
-                            <Box>
-                                <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
-                                    Tất cả bạn bè ({listFriends?.data.length || 0})
+                            ) : (
+                                <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                    Không có lời mời kết bạn nào
                                 </Typography>
+                            )}
+                        </Box>
+                    )}
 
-                                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                                    {!isLoadingListFriends && listFriends && listFriends.data.length > 0 &&
-                                        listFriends.data.map(friend => <CardListFriendComponent key={friend._id} friend={friend} />)
-                                    }
-                                </Box>
-                            </Box>
-                        )}
-
-                        {/* Tab 4: Đang chờ phản hồi */}
-                        {tabValue === 4 && (
-                            <Box>
-                                <Typography variant="h5" fontWeight={700} color="#050505" sx={{ mb: 3 }}>
-                                    Đang chờ phản hồi
+                    {/* Tab 0: Những người bạn có thể biết */}
+                    {tabValue === 0 && (
+                        <Box sx={{ mb: 4 }}>
+                            <Divider sx={{ my: 3 }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                <Typography variant="h6" fontWeight={600} color="#050505">
+                                    Những người bạn có thể biết
                                 </Typography>
-
-                                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                                    {!isLoadingSentRequests && sentRequests && sentRequests.data.length > 0 &&
-                                        sentRequests.data.map((request) => (
-                                            <CardFriendSentRequestComponent key={request._id} friend={request} />
-                                        ))
-                                    }
-                                </Box>
+                                <Link href="/friends?tab=suggestions" style={{ textDecoration: 'none' }}>
+                                    <Typography
+                                        sx={{
+                                            color: '#1877f2',
+                                            fontSize: 15,
+                                            cursor: 'pointer',
+                                            '&:hover': { textDecoration: 'underline' }
+                                        }}
+                                    >
+                                        Xem tất cả
+                                    </Typography>
+                                </Link>
                             </Box>
-                        )}
-                    </Box>
+
+                            {!isLoadingAccounts && allAccounts?.items && allAccounts.items.length > 0 ? (
+                                <Box sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                    gap: 2
+                                }}>
+                                    {allAccounts.items.slice(0, 10).map((account, index) => (
+                                        <CardFriendShowAllComponent key={index} friend={account} />
+                                    ))}
+                                </Box>
+                            ) : (
+                                <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                    Không có gợi ý nào
+                                </Typography>
+                            )}
+                        </Box>
+                    )}
+
+                    {/* Tab 2: Gợi ý */}
+                    {tabValue === 2 && (
+                        <Box>
+                            <Typography variant="h6" fontWeight={600} color="#050505" sx={{ mb: 2 }}>
+                                Những người bạn có thể biết
+                            </Typography>
+
+                            {!isLoadingAccounts && allAccounts?.items && allAccounts.items.length > 0 ? (
+                                <Box sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                    gap: 2
+                                }}>
+                                    {allAccounts.items.map((account, index) => (
+                                        <CardFriendShowAllComponent key={index} friend={account} />
+                                    ))}
+                                </Box>
+                            ) : (
+                                <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                    Không có gợi ý nào
+                                </Typography>
+                            )}
+                        </Box>
+                    )}
+
+                    {/* Tab 3: Tất cả bạn bè */}
+                    {tabValue === 3 && (
+                        <Box>
+                            <Typography variant="h6" fontWeight={600} color="#050505" sx={{ mb: 2 }}>
+                                Tất cả bạn bè ({listFriends?.data?.length || 0})
+                            </Typography>
+
+                            {!isLoadingListFriends && listFriends?.data && listFriends.data.length > 0 ? (
+                                <Box sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                                    gap: 2
+                                }}>
+                                    {listFriends.data.map(friend => (
+                                        <CardListFriendComponent key={friend._id} friend={friend} />
+                                    ))}
+                                </Box>
+                            ) : (
+                                <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                    Bạn chưa có bạn bè nào
+                                </Typography>
+                            )}
+                        </Box>
+                    )}
+
+                    {/* Tab 4: Sinh nhật */}
+                    {tabValue === 4 && (
+                        <Box>
+                            <Typography variant="h6" fontWeight={600} color="#050505" sx={{ mb: 2 }}>
+                                Sinh nhật
+                            </Typography>
+                            <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                Không có sinh nhật nào hôm nay
+                            </Typography>
+                        </Box>
+                    )}
+
+                    {/* Tab 5: Đang chờ phản hồi (Danh sách tùy chỉnh) */}
+                    {tabValue === 5 && (
+                        <Box>
+                            <Typography variant="h6" fontWeight={600} color="#050505" sx={{ mb: 2 }}>
+                                Lời mời đã gửi
+                            </Typography>
+
+                            {!isLoadingSentRequests && sentRequests?.data && sentRequests.data.length > 0 ? (
+                                <Box sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                    gap: 2
+                                }}>
+                                    {sentRequests.data.map((request) => (
+                                        <CardFriendSentRequestComponent key={request._id} friend={request} />
+                                    ))}
+                                </Box>
+                            ) : (
+                                <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                    Bạn chưa gửi lời mời kết bạn nào
+                                </Typography>
+                            )}
+                        </Box>
+                    )}
                 </Box>
             </Box>
         </Box>

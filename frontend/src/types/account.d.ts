@@ -2,7 +2,7 @@ export type RoleEnum = "USER" | "ADMIN";
 
 export type GenderEnum = "MALE" | "FEMALE" | "OTHER";
 
-export type StatusEnum = "ACTIVE" | "DEACTIVE";
+export type StatusEnum = "ACTIVE" | "DEACTIVE" | "HIDDEN";
 
 export interface AddressType {
   _id?: string;
@@ -46,6 +46,7 @@ export interface FriendType {
   time: Date;
   avatar?: string;
   lastActive?: string;
+  mutualFriends?: number;
 }
 
 export interface AccountType {

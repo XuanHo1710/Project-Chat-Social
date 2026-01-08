@@ -3,10 +3,12 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Group, GroupDocument, GroupPrivacy } from './entities/group.entity';
+import { Group, GroupDocument, GroupPrivacy, GroupVisibility } from './entities/group.entity';
 import {
   GroupMember,
   GroupMemberDocument,
@@ -14,12 +16,19 @@ import {
   MemberStatus,
 } from './entities/group-member.entity';
 import { CreateGroupDto, UpdateGroupDto } from './dto/group.dto';
+import { NotificationService } from 'src/notification/notification.service';
+import { Account, AccountDocument } from 'src/account/entities/account.entity';
+import { GroupGateway } from './group.gateway';
 
 @Injectable()
 export class GroupService {
   constructor(
     @InjectModel(Group.name) private groupModel: Model<GroupDocument>,
-    @InjectModel(GroupMember.name) private groupMemberModel: Model<GroupMemberDocument>
+    @InjectModel(GroupMember.name) private groupMemberModel: Model<GroupMemberDocument>,
+    @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
+    @Inject(forwardRef(() => NotificationService))
+    private notificationService: NotificationService,
+    private groupGateway: GroupGateway
   ) {}
 
   // ==================== GROUP CRUD ====================
@@ -65,6 +74,16 @@ export class GroupService {
 
     Object.assign(group, dto);
     await group.save();
+
+    // Emit socket event for group settings update
+    this.groupGateway.emitGroupSettingsUpdate(groupId, {
+      name: group.name,
+      description: group.description,
+      privacy: group.privacy,
+      visibility: group.visibility,
+      avatar: group.avatar,
+      coverImage: group.coverImage,
+    });
 
     return group;
   }
@@ -189,26 +208,45 @@ export class GroupService {
   }
 
   async getSuggestedGroups(userId: string, limit = 10): Promise<any> {
-    // Get groups user is NOT a member of
-    const myMemberships = await this.groupMemberModel
-      .find({ userId: new Types.ObjectId(userId) })
+    // Get groups user is NOT an approved member of
+    const myApprovedMemberships = await this.groupMemberModel
+      .find({
+        userId: new Types.ObjectId(userId),
+        status: MemberStatus.APPROVED,
+      })
       .select('groupId')
       .lean();
 
-    const myGroupIds = myMemberships.map((m) => m.groupId);
+    const myGroupIds = myApprovedMemberships.map((m) => m.groupId);
 
     const groups = await this.groupModel
       .find({
         _id: { $nin: myGroupIds },
         isActive: true,
         privacy: GroupPrivacy.PUBLIC,
+        visibility: GroupVisibility.VISIBLE,
       })
       .populate('createdBy', 'firstName lastName avatar')
       .sort({ memberCount: -1 }) // Sort by popularity
       .limit(limit)
       .lean();
 
-    return groups;
+    // Add pending status for each group
+    const groupIds = groups.map((g) => g._id);
+    const pendingMemberships = await this.groupMemberModel
+      .find({
+        groupId: { $in: groupIds },
+        userId: new Types.ObjectId(userId),
+        status: MemberStatus.PENDING,
+      })
+      .lean();
+
+    const pendingMap = new Map(pendingMemberships.map((m) => [m.groupId.toString(), true]));
+
+    return groups.map((group) => ({
+      ...group,
+      isPending: pendingMap.has(group._id.toString()),
+    }));
   }
 
   // ==================== MEMBERSHIP ====================
@@ -260,6 +298,27 @@ export class GroupService {
         { _id: new Types.ObjectId(groupId) },
         { $inc: { memberCount: 1 } }
       );
+
+      // Get updated member count and emit socket event
+      const updatedGroup = await this.groupModel.findById(groupId).lean();
+      if (updatedGroup) {
+        this.groupGateway.emitMemberCountUpdate(groupId, updatedGroup.memberCount);
+
+        // Emit new member event
+        const newMemberInfo = await this.accountModel
+          .findById(userId)
+          .select('firstName lastName avatar')
+          .lean();
+        if (newMemberInfo) {
+          this.groupGateway.emitNewMember(groupId, {
+            odId: userId,
+            firstName: newMemberInfo.firstName,
+            lastName: newMemberInfo.lastName,
+            avatar: newMemberInfo.avatar,
+            role: GroupRole.MEMBER,
+          });
+        }
+      }
     }
 
     return {
@@ -307,6 +366,13 @@ export class GroupService {
       { _id: new Types.ObjectId(groupId) },
       { $inc: { memberCount: -1 } }
     );
+
+    // Get updated member count and emit socket event
+    const updatedGroup = await this.groupModel.findById(groupId).lean();
+    if (updatedGroup) {
+      this.groupGateway.emitMemberCountUpdate(groupId, updatedGroup.memberCount);
+      this.groupGateway.emitMemberLeft(groupId, userId);
+    }
 
     return { message: 'Đã rời khỏi nhóm' };
   }
@@ -541,8 +607,23 @@ export class GroupService {
       throw new ForbiddenException('Chỉ người tạo nhóm mới có thể thay đổi vai trò admin');
     }
 
+    const oldRole = targetMember.role;
     targetMember.role = newRole;
     await targetMember.save();
+
+    // Send notification about role change if role actually changed
+    if (oldRole !== newRole && group) {
+      await this.notificationService.createRoleChangedNotification(
+        targetUserId,
+        groupId,
+        group.name,
+        newRole,
+        userId
+      );
+
+      // Emit socket event for role update
+      this.groupGateway.emitRoleUpdate(groupId, targetUserId, newRole, userId);
+    }
 
     return { message: 'Đã cập nhật vai trò' };
   }
@@ -622,6 +703,12 @@ export class GroupService {
       throw new BadRequestException('Đã có yêu cầu tham gia từ người này');
     }
 
+    // Get inviter and group info for notification
+    const [inviter, group] = await Promise.all([
+      this.accountModel.findById(userId).select('firstName lastName').lean(),
+      this.groupModel.findById(groupId).select('name').lean(),
+    ]);
+
     // Create pending membership with invite
     const newMember = new this.groupMemberModel({
       groupId: new Types.ObjectId(groupId),
@@ -632,6 +719,114 @@ export class GroupService {
     });
     await newMember.save();
 
+    // Send notification to invited user
+    if (inviter && group) {
+      const inviterName = `${inviter.firstName} ${inviter.lastName}`;
+      await this.notificationService.createGroupInvitationNotification(
+        userId,
+        targetUserId,
+        groupId,
+        group.name,
+        inviterName
+      );
+    }
+
     return { message: 'Đã gửi lời mời' };
+  }
+
+  // Accept group invitation (called from notification response)
+  async acceptInvitation(userId: string, groupId: string) {
+    const member = await this.groupMemberModel.findOne({
+      groupId: new Types.ObjectId(groupId),
+      userId: new Types.ObjectId(userId),
+      status: MemberStatus.PENDING,
+    });
+
+    if (!member) {
+      throw new NotFoundException('Không tìm thấy lời mời');
+    }
+
+    member.status = MemberStatus.APPROVED;
+    member.joinedAt = new Date();
+    await member.save();
+
+    await this.groupModel.updateOne(
+      { _id: new Types.ObjectId(groupId) },
+      { $inc: { memberCount: 1 } }
+    );
+
+    return { message: 'Đã tham gia nhóm' };
+  }
+
+  // Reject group invitation (called from notification response)
+  async rejectInvitation(userId: string, groupId: string) {
+    const result = await this.groupMemberModel.deleteOne({
+      groupId: new Types.ObjectId(groupId),
+      userId: new Types.ObjectId(userId),
+      status: MemberStatus.PENDING,
+    });
+
+    if (result.deletedCount === 0) {
+      throw new NotFoundException('Không tìm thấy lời mời');
+    }
+
+    return { message: 'Đã từ chối lời mời' };
+  }
+
+  // Transfer group ownership
+  async transferOwnership(userId: string, groupId: string, newOwnerId: string) {
+    const group = await this.groupModel.findById(groupId);
+    if (!group) {
+      throw new NotFoundException('Không tìm thấy nhóm');
+    }
+
+    // Only creator can transfer ownership
+    if (group.createdBy.toString() !== userId) {
+      throw new ForbiddenException('Chỉ người tạo nhóm mới có thể nhượng quyền');
+    }
+
+    // Check if new owner is a member
+    const newOwnerMember = await this.groupMemberModel.findOne({
+      groupId: new Types.ObjectId(groupId),
+      userId: new Types.ObjectId(newOwnerId),
+      status: MemberStatus.APPROVED,
+    });
+
+    if (!newOwnerMember) {
+      throw new BadRequestException('Người được chọn phải là thành viên của nhóm');
+    }
+
+    // Update group creator
+    await this.groupModel.updateOne(
+      { _id: new Types.ObjectId(groupId) },
+      { $set: { createdBy: new Types.ObjectId(newOwnerId) } }
+    );
+
+    // Make new owner an admin
+    newOwnerMember.role = GroupRole.ADMIN;
+    await newOwnerMember.save();
+
+    // Demote old owner to regular member
+    await this.groupMemberModel.updateOne(
+      {
+        groupId: new Types.ObjectId(groupId),
+        userId: new Types.ObjectId(userId),
+        status: MemberStatus.APPROVED,
+      },
+      { $set: { role: GroupRole.MEMBER } }
+    );
+
+    // Send notification to new owner
+    await this.notificationService.createOwnershipTransferredNotification(
+      newOwnerId,
+      userId,
+      groupId,
+      group.name
+    );
+
+    // Emit socket event for ownership transfer
+    this.groupGateway.emitOwnershipTransfer(groupId, userId, newOwnerId);
+
+    return { message: 'Đã nhượng quyền sở hữu nhóm' };
   }
 }

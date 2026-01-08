@@ -63,7 +63,7 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
             <CardContent sx={{ p: 0 }}>
                 <Box sx={{ position: 'relative', pb: '100%', bgcolor: '#e4e6eb', borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
                     <Avatar
-                        src={`https://ui-avatars.com/api/?name=${friend.name.charAt(0)}&background=1877f2&color=fff&size=200`}
+                        src={friend.avatar || ""}
                         sx={{
                             position: 'absolute',
                             top: 0,

@@ -88,12 +88,16 @@ interface CreatePostModalProps {
     open: boolean;
     onClose: () => void;
     onPostCreated?: (post: PostType) => void;
+    groupId?: string; // For group posts
+    groupName?: string; // Group name for display
 }
 
 export default function CreatePostModal({
     open,
     onClose,
     onPostCreated,
+    groupId,
+    groupName,
 }: CreatePostModalProps) {
     const { user } = useAuthStore();
     const {
@@ -116,6 +120,7 @@ export default function CreatePostModal({
     const [selectedBackground, setSelectedBackground] = useState("none");
     const [showBackgrounds, setShowBackgrounds] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [isAnonymous, setIsAnonymous] = useState(false);
 
     // Post mutation
     const createPostMutation = useCreatePost();
@@ -129,6 +134,7 @@ export default function CreatePostModal({
                 setSelectedBackground("none");
                 setShowBackgrounds(false);
                 setShowEmojiPicker(false);
+                setIsAnonymous(false);
                 resetMedia();
                 setModalView("create");
             }
@@ -166,12 +172,14 @@ export default function CreatePostModal({
             const result = await createPostMutation.mutateAsync({
                 userId: user.id,
                 content: postContent.trim() || undefined,
-                privacy: selectedPrivacy,
+                privacy: groupId ? "GROUP" : selectedPrivacy,
                 media: mediaToPost.length > 0 ? mediaToPost : undefined,
                 background:
                     selectedBackground !== "none" && mediaToPost.length === 0
                         ? backgroundColors.find((b) => b.id === selectedBackground)?.color
                         : null,
+                groupId: groupId || undefined,
+                isAnonymous: groupId ? isAnonymous : undefined,
             });
 
             // Call callback with new post if provided
@@ -192,6 +200,8 @@ export default function CreatePostModal({
         selectedPrivacy,
         selectedBackground,
         uploadAllMedia,
+        groupId,
+        isAnonymous,
         createPostMutation,
         onClose,
         onPostCreated,
@@ -258,7 +268,7 @@ export default function CreatePostModal({
                         </IconButton>
                     )}
                     <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#050505' }}>
-                        {modalView === "create" ? "Tạo bài viết" : "Đối tượng của bài viết"}
+                        {modalView === "create" ? (groupName ? `Đăng trong ${groupName}` : "Tạo bài viết") : "Đối tượng của bài viết"}
                     </Typography>
                     <IconButton onClick={onClose} sx={{ position: "absolute", right: 8 }}>
                         <CloseIcon />
@@ -270,31 +280,54 @@ export default function CreatePostModal({
                     <Box sx={{ flex: 1, overflow: "auto" }}>
                         {/* User Info & Privacy */}
                         <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 1.5 }}>
-                            <Avatar sx={{ width: 40, height: 40 }} src={user?.avatar} />
-                            <Box>
+                            <Avatar sx={{ width: 40, height: 40 }} src={isAnonymous ? undefined : user?.avatar}>
+                                {isAnonymous ? '?' : undefined}
+                            </Avatar>
+                            <Box sx={{ flex: 1 }}>
                                 <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
-                                    {user?.fullName || user?.username}
+                                    {isAnonymous ? 'Ẩn danh' : (user?.fullName || user?.username)}
                                 </Typography>
-                                <Button
-                                    size="small"
-                                    onClick={() => setModalView("privacy")}
-                                    sx={{
-                                        bgcolor: "#e4e6eb",
-                                        color: "#050505",
-                                        textTransform: "none",
-                                        fontSize: 13,
-                                        fontWeight: 600,
-                                        px: 1,
-                                        py: 0.25,
-                                        minHeight: 0,
-                                        borderRadius: 1,
-                                        "&:hover": { bgcolor: "#d8dadf" },
-                                    }}
-                                    startIcon={<PrivacyIcon sx={{ fontSize: 14 }} />}
-                                    endIcon={<ArrowDownIcon sx={{ fontSize: 16 }} />}
-                                >
-                                    {getPrivacyLabel()}
-                                </Button>
+                                {!groupId ? (
+                                    <Button
+                                        size="small"
+                                        onClick={() => setModalView("privacy")}
+                                        sx={{
+                                            bgcolor: "#e4e6eb",
+                                            color: "#050505",
+                                            textTransform: "none",
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            px: 1,
+                                            py: 0.25,
+                                            minHeight: 0,
+                                            borderRadius: 1,
+                                            "&:hover": { bgcolor: "#d8dadf" },
+                                        }}
+                                        startIcon={<PrivacyIcon sx={{ fontSize: 14 }} />}
+                                        endIcon={<ArrowDownIcon sx={{ fontSize: 16 }} />}
+                                    >
+                                        {getPrivacyLabel()}
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        size="small"
+                                        onClick={() => setIsAnonymous(!isAnonymous)}
+                                        sx={{
+                                            bgcolor: isAnonymous ? "#1877f2" : "#e4e6eb",
+                                            color: isAnonymous ? "white" : "#050505",
+                                            textTransform: "none",
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            px: 1.5,
+                                            py: 0.25,
+                                            minHeight: 0,
+                                            borderRadius: 1,
+                                            "&:hover": { bgcolor: isAnonymous ? "#166fe5" : "#d8dadf" },
+                                        }}
+                                    >
+                                        {isAnonymous ? '✓ Ẩn danh' : 'Đăng ẩn danh?'}
+                                    </Button>
+                                )}
                             </Box>
                         </Box>
 

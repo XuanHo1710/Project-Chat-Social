@@ -51,4 +51,20 @@ export class CreatePostDto {
   @IsOptional()
   @IsString()
   sharedPostId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  groupId?: string | null;
+
+  @IsOptional()
+  isAnonymous?: boolean;
+
+  @IsOptional()
+  allowComments?: boolean;
+
+  @IsOptional()
+  allowShares?: boolean;
+
+  @IsOptional()
+  allowReactions?: boolean;
 }

@@ -35,6 +35,10 @@ interface PostItemProps {
     renderPostMedia: (post: PostType) => React.ReactNode;
     PrivacyIconComponent: React.ElementType;
     isHighlighted?: boolean;
+    isGroupPost?: boolean;
+    groupName?: string;
+    groupAvatar?: string;
+    groupId?: string;
 }
 
 const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
@@ -45,7 +49,11 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
     handleOpenShare,
     renderPostMedia,
     PrivacyIconComponent,
-    isHighlighted = false
+    isHighlighted = false,
+    isGroupPost = false,
+    groupName,
+    groupAvatar,
+    groupId,
 }, ref) {
     const router = useRouter();
     const [reactionListOpen, setReactionListOpen] = useState(false);
@@ -74,6 +82,12 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
         }
     };
 
+    const handleGroupClick = () => {
+        if (groupId) {
+            router.push(`/groups/${groupId}`);
+        }
+    };
+
     return (
         <Card
             ref={ref}
@@ -90,45 +104,126 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
         >
             <CardContent sx={{ p: 2 }}>
                 {/* Post Header */}
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Avatar
-                        sx={{
-                            width: 40,
-                            height: 40,
-                            mr: 1.5,
-                            cursor: 'pointer',
-                            '&:hover': { opacity: 0.8 }
-                        }}
-                        src={post.userId?.avatar}
-                        onClick={handleProfileClick}
-                    />
-                    <Box sx={{ flex: 1 }}>
-                        <Typography
-                            sx={{
-                                fontSize: '15px',
-                                fontWeight: 600,
-                                color: '#050505',
-                                cursor: 'pointer',
-                                '&:hover': { textDecoration: 'underline' }
-                            }}
-                            onClick={handleProfileClick}
-                        >
-                            {getAuthorName(post)}
-                            {/* Show shared indicator */}
-                            {post.sharedPostId && (
-                                <Typography component="span" sx={{ fontWeight: 400, color: '#65676b', fontSize: '14px' }}>
-                                    {' đã chia sẻ một bài viết'}
-                                </Typography>
-                            )}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Typography sx={{ fontSize: '13px', color: '#65676b' }}>{formatPostTime(post.createdAt)}</Typography>
-                            <Typography sx={{ fontSize: '13px', color: '#65676b' }}> · </Typography>
-                            <PrivacyIconComponent sx={{ fontSize: '12px', color: '#65676b' }} />
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
+                    {/* Avatar container - Group post shows group avatar with user avatar overlay */}
+                    {isGroupPost ? (
+                        <Box sx={{ position: 'relative', mr: 1.5 }}>
+                            {/* Group Avatar - main */}
+                            <Avatar
+                                sx={{
+                                    width: 40,
+                                    height: 40,
+                                    cursor: 'pointer',
+                                    '&:hover': { opacity: 0.9 },
+                                    bgcolor: '#e4e6eb',
+                                }}
+                                src={groupAvatar}
+                                onClick={handleGroupClick}
+                            />
+                            {/* User Avatar - small overlay at bottom right */}
+                            <Avatar
+                                sx={{
+                                    width: 24,
+                                    height: 24,
+                                    position: 'absolute',
+                                    bottom: -4,
+                                    right: -4,
+                                    border: '2px solid white',
+                                    cursor: post.isAnonymous ? 'default' : 'pointer',
+                                    '&:hover': { opacity: post.isAnonymous ? 1 : 0.8 },
+                                    bgcolor: post.isAnonymous ? '#65676b' : undefined,
+                                    fontSize: 10,
+                                }}
+                                src={post.isAnonymous ? undefined : post.userId?.avatar}
+                                onClick={post.isAnonymous ? undefined : handleProfileClick}
+                            >
+                                {post.isAnonymous ? '?' : undefined}
+                            </Avatar>
                         </Box>
+                    ) : (
+                        <Avatar
+                            sx={{
+                                width: 40,
+                                height: 40,
+                                mr: 1.5,
+                                cursor: post.isAnonymous ? 'default' : 'pointer',
+                                '&:hover': { opacity: post.isAnonymous ? 1 : 0.8 },
+                                bgcolor: post.isAnonymous ? '#65676b' : undefined,
+                            }}
+                            src={post.isAnonymous ? undefined : post.userId?.avatar}
+                            onClick={post.isAnonymous ? undefined : handleProfileClick}
+                        >
+                            {post.isAnonymous ? '?' : undefined}
+                        </Avatar>
+                    )}
+
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                        {/* Group post: Show group name first, then user name below */}
+                        {isGroupPost && groupName ? (
+                            <>
+                                <Typography
+                                    sx={{
+                                        fontSize: '15px',
+                                        fontWeight: 600,
+                                        color: '#050505',
+                                        cursor: 'pointer',
+                                        '&:hover': { textDecoration: 'underline' },
+                                        lineHeight: 1.2,
+                                    }}
+                                    onClick={handleGroupClick}
+                                >
+                                    {groupName}
+                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                                    <Typography
+                                        component="span"
+                                        sx={{
+                                            fontSize: '13px',
+                                            fontWeight: 500,
+                                            color: '#65676b',
+                                            cursor: post.isAnonymous ? 'default' : 'pointer',
+                                            '&:hover': { textDecoration: post.isAnonymous ? 'none' : 'underline' },
+                                        }}
+                                        onClick={post.isAnonymous ? undefined : handleProfileClick}
+                                    >
+                                        {post.isAnonymous ? 'Thành viên ẩn danh' : getAuthorName(post)}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>·</Typography>
+                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>{formatPostTime(post.createdAt)}</Typography>
+                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>·</Typography>
+                                    <PrivacyIconComponent sx={{ fontSize: '12px', color: '#65676b' }} />
+                                </Box>
+                            </>
+                        ) : (
+                            <>
+                                <Typography
+                                    sx={{
+                                        fontSize: '15px',
+                                        fontWeight: 600,
+                                        color: '#050505',
+                                        cursor: post.isAnonymous ? 'default' : 'pointer',
+                                        '&:hover': { textDecoration: post.isAnonymous ? 'none' : 'underline' }
+                                    }}
+                                    onClick={post.isAnonymous ? undefined : handleProfileClick}
+                                >
+                                    {post.isAnonymous ? 'Thành viên ẩn danh' : getAuthorName(post)}
+                                    {/* Show shared indicator */}
+                                    {post.sharedPostId && (
+                                        <Typography component="span" sx={{ fontWeight: 400, color: '#65676b', fontSize: '14px' }}>
+                                            {' đã chia sẻ một bài viết'}
+                                        </Typography>
+                                    )}
+                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>{formatPostTime(post.createdAt)}</Typography>
+                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}> · </Typography>
+                                    <PrivacyIconComponent sx={{ fontSize: '12px', color: '#65676b' }} />
+                                </Box>
+                            </>
+                        )}
                     </Box>
-                    <IconButton onClick={(e) => handleOpenMenu(e, post)}><MoreIcon /></IconButton>
-                    <IconButton><CloseIcon /></IconButton>
+                    <IconButton onClick={(e) => handleOpenMenu(e, post)} sx={{ mt: -0.5 }}><MoreIcon /></IconButton>
+                    <IconButton sx={{ mt: -0.5 }}><CloseIcon /></IconButton>
                 </Box>
 
                 {/* Post Content with Hashtag Highlighting - Only show if not a share or has caption */}
@@ -159,7 +254,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                     sharedPost={post.sharedPostId}
                                     onHashtagClick={handleHashtagClick}
                                     renderPostMedia={renderPostMedia}
-                                    onClick={() => handleOpenComments(post.sharedPostId)}
+                                    onClick={() => handleOpenComments(post.sharedPostId as PostType)}
                                 />
                             }
                         </Box>
@@ -233,17 +328,64 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                 {/* Post Actions with Reaction Picker */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-around', position: 'relative' }}>
                     {/* Reaction Button - uses global store automatically */}
-                    <ReactionButton
-                        post={post}
-                        initialTotalReacts={post.totalReacts}
-                    />
+                    {post.allowReactions !== false ? (
+                        <ReactionButton
+                            post={post}
+                            initialTotalReacts={post.totalReacts}
+                        />
+                    ) : (
+                        <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            py: 1,
+                            px: 2,
+                            flex: 1,
+                            justifyContent: 'center',
+                            opacity: 0.5,
+                            cursor: 'not-allowed'
+                        }}>
+                            <ThumbUpIcon sx={{ fontSize: '20px', color: '#65676b' }} />
+                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#65676b' }}>Thích</Typography>
+                        </Box>
+                    )}
 
-                    <Box onClick={() => handleOpenComments(post)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, flex: 1, justifyContent: 'center', '&:hover': { bgcolor: '#f0f2f5' } }}>
+                    <Box
+                        onClick={() => post.allowComments !== false && handleOpenComments(post)}
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            py: 1,
+                            px: 2,
+                            cursor: post.allowComments !== false ? 'pointer' : 'not-allowed',
+                            borderRadius: 2,
+                            flex: 1,
+                            justifyContent: 'center',
+                            opacity: post.allowComments !== false ? 1 : 0.5,
+                            '&:hover': { bgcolor: post.allowComments !== false ? '#f0f2f5' : 'transparent' }
+                        }}
+                    >
                         <CommentIcon sx={{ fontSize: '20px', color: '#65676b' }} />
                         <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#65676b' }}>Bình luận</Typography>
                     </Box>
 
-                    <Box onClick={() => handleOpenShare(post)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, flex: 1, justifyContent: 'center', '&:hover': { bgcolor: '#f0f2f5' } }}>
+                    <Box
+                        onClick={() => post.allowShares !== false && handleOpenShare(post)}
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            py: 1,
+                            px: 2,
+                            cursor: post.allowShares !== false ? 'pointer' : 'not-allowed',
+                            borderRadius: 2,
+                            flex: 1,
+                            justifyContent: 'center',
+                            opacity: post.allowShares !== false ? 1 : 0.5,
+                            '&:hover': { bgcolor: post.allowShares !== false ? '#f0f2f5' : 'transparent' }
+                        }}
+                    >
                         <ShareIcon sx={{ fontSize: '20px', color: '#65676b' }} />
                         <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#65676b' }}>Chia sẻ</Typography>
                     </Box>

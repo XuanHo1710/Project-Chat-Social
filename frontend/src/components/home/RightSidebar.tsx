@@ -170,7 +170,7 @@ export default function RightSidebar() {
                                     }}
                                 >
                                     <Avatar
-                                        src={friend.avatar}
+                                        src={friend.avatar || ""}
                                         sx={{ width: 36, height: 36 }}
                                     >
                                         {friend.firstName?.[0]}

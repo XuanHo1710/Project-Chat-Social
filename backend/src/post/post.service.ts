@@ -39,8 +39,15 @@ export class PostService {
       throw new BadRequestException('Post must have content, media, or be a shared post');
     }
 
-    // If sharing a post, increment the original post's share count
+    // If sharing a post, check if sharing is allowed and increment share count
     if (createPostDto.sharedPostId) {
+      const originalPost = await this.postModel.findById(createPostDto.sharedPostId);
+      if (!originalPost) {
+        throw new NotFoundException('Bài viết gốc không tồn tại');
+      }
+      if (originalPost.allowShares === false) {
+        throw new BadRequestException('Chia sẻ đã bị tắt cho bài viết này');
+      }
       await this.postModel.findByIdAndUpdate(createPostDto.sharedPostId, {
         $inc: { totalShares: 1 },
       });
@@ -52,7 +59,11 @@ export class PostService {
       sharedPostId: createPostDto.sharedPostId
         ? new Types.ObjectId(createPostDto.sharedPostId)
         : null,
-      privacy: createPostDto.privacy || PostPrivacy.PUBLIC,
+      groupId: createPostDto.groupId ? new Types.ObjectId(createPostDto.groupId) : null,
+      isAnonymous: createPostDto.isAnonymous || false,
+      privacy: createPostDto.groupId
+        ? PostPrivacy.GROUP
+        : createPostDto.privacy || PostPrivacy.PUBLIC,
       isActive: true,
     });
 
@@ -141,6 +152,7 @@ export class PostService {
       this.postModel
         .find(filter)
         .populate('userId', 'firstName lastName avatar username')
+        .populate('groupId', 'name avatar privacy')
         .populate({
           path: 'sharedPostId',
           populate: { path: 'userId', select: 'firstName lastName avatar username' },
@@ -384,5 +396,68 @@ export class PostService {
 
   async incrementShares(id: string): Promise<void> {
     await this.postModel.findByIdAndUpdate(id, { $inc: { totalShares: 1 } });
+  }
+
+  // Get posts by group
+  async findByGroupId(
+    groupId: string,
+    currentUserId: string,
+    page = 1,
+    limit = 10
+  ): Promise<{ data: PostWithReactInfo[]; total: number; page: number; totalPages: number }> {
+    const skip = (page - 1) * limit;
+
+    const filter = {
+      isDeleted: false,
+      isActive: true,
+      groupId: new Types.ObjectId(groupId),
+    };
+
+    const [data, total] = await Promise.all([
+      this.postModel
+        .find(filter)
+        .populate('userId', 'firstName lastName avatar username')
+        .populate('groupId', 'name avatar privacy')
+        .populate({
+          path: 'sharedPostId',
+          populate: { path: 'userId', select: 'firstName lastName avatar username' },
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.postModel.countDocuments(filter),
+    ]);
+
+    const postIds = data.map((p) => p._id);
+    const postIdStrings = postIds.map((id) => id.toString());
+
+    // Get user reactions and top reactions summary in parallel
+    const [userReactions, reactionsSummary] = await Promise.all([
+      this.reactionService.userReactions(postIds, currentUserId),
+      this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+    ]);
+
+    const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
+
+    (data as PostWithReactInfo[]).forEach((post) => {
+      const postIdStr = post._id.toString();
+      const r = reactionMap.get(postIdStr) as any;
+      const summary = reactionsSummary[postIdStr];
+
+      post.reactInfo = {
+        isReact: !!r,
+        type: r ? r.type : null,
+      };
+      (post as any).topReactions = summary?.topReactions || [];
+    });
+
+    return {
+      data,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 }

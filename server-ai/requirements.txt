@@ -1,0 +1,20 @@
+# AI Server Dependencies
+
+fastapi
+uvicorn[standard]
+ollama
+sentence-transformers
+torch
+transformers
+accelerate
+datasets
+chromadb
+pymongo
+python-dotenv
+pydantic>=2.0.0
+pydantic-settings
+loguru
+httpx
+python-multipart
+tqdm
+janus

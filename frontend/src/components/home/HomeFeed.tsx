@@ -1,7 +1,7 @@
 'use client';
 import {
     Box, Card, CardContent, Avatar, Typography, Divider,
-    Modal, Menu, Skeleton
+    Modal, Menu, Skeleton, CircularProgress
 } from '@mui/material';
 import {
     VideoCall as VideoIcon,
@@ -11,9 +11,9 @@ import {
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { usePostStore } from '@/stores/usePostStore';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useGetNewsFeed, useDeletePost } from '@/queries/usePostQueries';
+import { useGetNewsFeedInfinite, useDeletePost } from '@/queries/usePostQueries';
 import { PostType, PostPrivacy, MediaItem } from '@/types/post';
 import { postService } from '@/services/post.service';
 import CreatePostModal from '../posts/CreatePostModal';
@@ -51,9 +51,18 @@ export default function HomeFeed() {
     // Use persisted ID for sorting, URL param for highlight animation
     const highlightedPostId = persistedHighlightedPostId.current || highlightedPostIdFromUrl;
 
-    // Fetch posts from API
-    const { data: postsData, isLoading: isLoadingPosts } = useGetNewsFeed({ page: 1, limit: 20 });
+    // Fetch posts from API with infinite scroll
+    const {
+        data: postsData,
+        isLoading: isLoadingPosts,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useGetNewsFeedInfinite(20);
     const deletePostMutation = useDeletePost();
+
+    // Ref for infinite scroll observer
+    const loadMoreRef = useRef<HTMLDivElement>(null);
 
     // Create Post Modal
     const [openCreatePost, setOpenCreatePost] = useState(false);
@@ -85,28 +94,33 @@ export default function HomeFeed() {
     // Emoji Picker
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+    // Flatten all pages into single array
+    const allApiPosts = useMemo(() => {
+        if (!postsData?.pages) return [];
+        return postsData.pages.flatMap((page) => page.data || []);
+    }, [postsData]);
+
     // Sync API data with store
     useEffect(() => {
-        if (postsData?.data) {
-            setStorePosts(postsData.data);
+        if (allApiPosts.length > 0) {
+            setStorePosts(allApiPosts);
         }
-    }, [postsData, setStorePosts]);
+    }, [allApiPosts, setStorePosts]);
 
     // Get posts from store - sort to put highlighted post first (use persisted ID)
     const posts = useMemo(() => {
         // Merge store posts with API data (store posts take precedence for new posts)
-        const apiPosts = postsData?.data || [];
-        const storePostIds = new Set(storePosts.map(p => p._id));
-        const apiPostIds = new Set(apiPosts.map(p => p._id));
+        const apiPosts = allApiPosts;
+        const apiPostIds = new Set(apiPosts.map((p: PostType) => p._id));
 
         // Get new posts from store that aren't in API yet
-        const newStorePosts = storePosts.filter(p => !apiPostIds.has(p._id));
+        const newStorePosts = storePosts.filter((p: PostType) => !apiPostIds.has(p._id));
 
         // Merge: new store posts + API posts (using store version if exists)
-        const allPosts = [
+        const allPosts: PostType[] = [
             ...newStorePosts,
-            ...apiPosts.map(apiPost => {
-                const storePost = storePosts.find(sp => sp._id === apiPost._id);
+            ...apiPosts.map((apiPost: PostType) => {
+                const storePost = storePosts.find((sp: PostType) => sp._id === apiPost._id);
                 return storePost || apiPost;
             })
         ];
@@ -114,12 +128,12 @@ export default function HomeFeed() {
         if (!highlightedPostId) return allPosts;
 
         // Move highlighted post to the top
-        const highlightedPost = allPosts.find(p => p._id === highlightedPostId);
+        const highlightedPost = allPosts.find((p: PostType) => p._id === highlightedPostId);
         if (!highlightedPost) return allPosts;
 
-        const otherPosts = allPosts.filter(p => p._id !== highlightedPostId);
+        const otherPosts = allPosts.filter((p: PostType) => p._id !== highlightedPostId);
         return [highlightedPost, ...otherPosts];
-    }, [postsData, storePosts, highlightedPostId]);
+    }, [allApiPosts, storePosts, highlightedPostId]);
 
     // Scroll to highlighted post and clear URL after viewing
     useEffect(() => {
@@ -135,6 +149,29 @@ export default function HomeFeed() {
             }, 300);
         }
     }, [highlightedPostIdFromUrl, isLoadingPosts, posts.length, router]);
+
+    // Infinite scroll: Intersection Observer to load more when reaching bottom
+    useEffect(() => {
+        const element = loadMoreRef.current;
+        if (!element) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const first = entries[0];
+                if (first.isIntersecting && hasNextPage && !isFetchingNextPage) {
+                    console.log('📥 Loading more posts...');
+                    fetchNextPage();
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+
+        observer.observe(element);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     const handleOpenMenu = (event: React.MouseEvent<HTMLElement>, post: PostType) => {
         setMenuAnchor(event.currentTarget);
@@ -441,6 +478,21 @@ export default function HomeFeed() {
                     />
                 );
             })}
+
+            {/* Load More Trigger & Indicator */}
+            <Box ref={loadMoreRef} sx={{ py: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: 1 }}>
+                {isFetchingNextPage && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <CircularProgress size={24} sx={{ color: '#1877f2' }} />
+                        <Typography sx={{ color: '#65676b', fontSize: 14 }}>Đang tải thêm bài viết...</Typography>
+                    </Box>
+                )}
+                {!hasNextPage && posts.length > 0 && !isFetchingNextPage && (
+                    <Typography sx={{ color: '#65676b', fontSize: 14, textAlign: 'center' }}>
+                        🎉 Đã hết bài viết. Bạn đã xem tất cả!
+                    </Typography>
+                )}
+            </Box>
 
             {/* Create Post Modal */}
             <CreatePostModal

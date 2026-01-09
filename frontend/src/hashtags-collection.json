@@ -1,0 +1,752 @@
+[
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000000"
+    },
+    "tagTextLowercase": "phim",
+    "displayText": "Phim",
+    "usageCount": 13,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000001"
+    },
+    "tagTextLowercase": "dienanh",
+    "displayText": "Dienanh",
+    "usageCount": 14,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000002"
+    },
+    "tagTextLowercase": "xinema",
+    "displayText": "Xinema",
+    "usageCount": 24,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000003"
+    },
+    "tagTextLowercase": "movie",
+    "displayText": "Movie",
+    "usageCount": 13,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000004"
+    },
+    "tagTextLowercase": "film",
+    "displayText": "Film",
+    "usageCount": 11,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000005"
+    },
+    "tagTextLowercase": "gamer",
+    "displayText": "Gamer",
+    "usageCount": 19,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000006"
+    },
+    "tagTextLowercase": "esport",
+    "displayText": "Esport",
+    "usageCount": 12,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000007"
+    },
+    "tagTextLowercase": "playstation",
+    "displayText": "PlayStation",
+    "usageCount": 8,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000008"
+    },
+    "tagTextLowercase": "gaming",
+    "displayText": "Gaming",
+    "usageCount": 14,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000009"
+    },
+    "tagTextLowercase": "game",
+    "displayText": "Game",
+    "usageCount": 23,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000000a"
+    },
+    "tagTextLowercase": "dongvat",
+    "displayText": "Dongvat",
+    "usageCount": 26,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000000b"
+    },
+    "tagTextLowercase": "pet",
+    "displayText": "Pet",
+    "usageCount": 20,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000000c"
+    },
+    "tagTextLowercase": "thucung",
+    "displayText": "Thucung",
+    "usageCount": 11,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000000d"
+    },
+    "tagTextLowercase": "cuocsonghoangda",
+    "displayText": "Cuocsonghoangda",
+    "usageCount": 10,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000000e"
+    },
+    "tagTextLowercase": "animals",
+    "displayText": "Animals",
+    "usageCount": 9,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000000f"
+    },
+    "tagTextLowercase": "congnghe",
+    "displayText": "Congnghe",
+    "usageCount": 20,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000010"
+    },
+    "tagTextLowercase": "innovation",
+    "displayText": "Innovation",
+    "usageCount": 10,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000011"
+    },
+    "tagTextLowercase": "tech",
+    "displayText": "Tech",
+    "usageCount": 16,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000012"
+    },
+    "tagTextLowercase": "digital",
+    "displayText": "Digital",
+    "usageCount": 8,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000013"
+    },
+    "tagTextLowercase": "smartphone",
+    "displayText": "Smartphone",
+    "usageCount": 22,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000014"
+    },
+    "tagTextLowercase": "automotive",
+    "displayText": "Automotive",
+    "usageCount": 15,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000015"
+    },
+    "tagTextLowercase": "car",
+    "displayText": "Car",
+    "usageCount": 17,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000016"
+    },
+    "tagTextLowercase": "xeco",
+    "displayText": "Xeco",
+    "usageCount": 24,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000017"
+    },
+    "tagTextLowercase": "oto",
+    "displayText": "Oto",
+    "usageCount": 8,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000018"
+    },
+    "tagTextLowercase": "xemay",
+    "displayText": "Xemay",
+    "usageCount": 10,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000019"
+    },
+    "tagTextLowercase": "dulich",
+    "displayText": "Dulich",
+    "usageCount": 18,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000001a"
+    },
+    "tagTextLowercase": "explore",
+    "displayText": "Explore",
+    "usageCount": 11,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000001b"
+    },
+    "tagTextLowercase": "vacation",
+    "displayText": "Vacation",
+    "usageCount": 16,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000001c"
+    },
+    "tagTextLowercase": "phuot",
+    "displayText": "Phuot",
+    "usageCount": 16,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000001d"
+    },
+    "tagTextLowercase": "travel",
+    "displayText": "Travel",
+    "usageCount": 14,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000001e"
+    },
+    "tagTextLowercase": "thethao",
+    "displayText": "Thethao",
+    "usageCount": 27,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000001f"
+    },
+    "tagTextLowercase": "football",
+    "displayText": "Football",
+    "usageCount": 6,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000020"
+    },
+    "tagTextLowercase": "gym",
+    "displayText": "Gym",
+    "usageCount": 13,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000021"
+    },
+    "tagTextLowercase": "fitness",
+    "displayText": "Fitness",
+    "usageCount": 15,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000022"
+    },
+    "tagTextLowercase": "sport",
+    "displayText": "Sport",
+    "usageCount": 13,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000023"
+    },
+    "tagTextLowercase": "laptop",
+    "displayText": "Laptop",
+    "usageCount": 18,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000024"
+    },
+    "tagTextLowercase": "macbook",
+    "displayText": "Macbook",
+    "usageCount": 16,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000025"
+    },
+    "tagTextLowercase": "computer",
+    "displayText": "Computer",
+    "usageCount": 11,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000026"
+    },
+    "tagTextLowercase": "wfh",
+    "displayText": "WFH",
+    "usageCount": 20,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000027"
+    },
+    "tagTextLowercase": "productivity",
+    "displayText": "Productivity",
+    "usageCount": 13,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000028"
+    },
+    "tagTextLowercase": "ai",
+    "displayText": "AI",
+    "usageCount": 21,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000029"
+    },
+    "tagTextLowercase": "machinelearning",
+    "displayText": "MachineLearning",
+    "usageCount": 15,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000002a"
+    },
+    "tagTextLowercase": "future",
+    "displayText": "Future",
+    "usageCount": 12,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000002b"
+    },
+    "tagTextLowercase": "deeplearning",
+    "displayText": "DeepLearning",
+    "usageCount": 14,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000002c"
+    },
+    "tagTextLowercase": "robot",
+    "displayText": "Robot",
+    "usageCount": 11,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000002d"
+    },
+    "tagTextLowercase": "fashion",
+    "displayText": "Fashion",
+    "usageCount": 11,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000002e"
+    },
+    "tagTextLowercase": "thoitrang",
+    "displayText": "Thoitrang",
+    "usageCount": 16,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a960000002f"
+    },
+    "tagTextLowercase": "style",
+    "displayText": "Style",
+    "usageCount": 14,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000030"
+    },
+    "tagTextLowercase": "outfit",
+    "displayText": "Outfit",
+    "usageCount": 14,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "692d7b7589c43a9600000031"
+    },
+    "tagTextLowercase": "ootd",
+    "displayText": "OOTD",
+    "usageCount": 16,
+    "createdAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-09T09:13:13.481Z"
+    },
+    "__v": 0
+  }
+]

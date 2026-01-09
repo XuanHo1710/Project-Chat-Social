@@ -58,12 +58,12 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
     const router = useRouter();
     const [reactionListOpen, setReactionListOpen] = useState(false);
 
-    // Use global store for reaction state
-    const { postReactions, initPostReaction } = useReactionStore();
-    const reactionState = postReactions[post._id];
+    // Use selector to get specific post reaction state - ensures re-render on change
+    const totalReacts = useReactionStore(state => state.postReactions[post._id]?.totalReacts);
+    const initPostReaction = useReactionStore(state => state.initPostReaction);
 
     // Get totalReacts from global store, fallback to post data
-    const displayTotalReacts = reactionState?.totalReacts ?? post.totalReacts;
+    const displayTotalReacts = totalReacts ?? post.totalReacts;
 
     // Initialize store with post data on mount
     useEffect(() => {

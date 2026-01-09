@@ -1,3 +1,4 @@
+import { CLIENT_PATH } from "@/constants/paths";
 import { useAuthStore } from "@/stores/useAuthStore";
 import axios, {
   AxiosError,
@@ -109,49 +110,51 @@ instance.interceptors.response.use(
         isRefreshing = true;
 
         try {
-          const refreshToken = useAuthStore.getState().accessToken;
-          if (!refreshToken) {
-            return;
-          }
 
           // ✅ Gọi API refresh-token
-          const response = await axios.post(
-            `${baseURL}/auth/refresh`,
-            { refreshToken: refreshToken }
-          );
+          const response = await axios.post("/api/auth/token");
+          const pathname = window.location.pathname;
 
+          if (response.status === 200 && response.data !== null) {
+            const { accessToken, data } = response.data;
+            const { account } = data;
+            // Cập nhật access token mới (nếu có refresh)
+            if (accessToken) {
+              useAuthStore.setState({
+                accessToken: accessToken, user: {
+                  id: account._id || account.username,
+                  username: account.username,
+                  fullName: account.fullname || `${account.firstName || ''} ${account.lastName || ''}`.trim(),
+                  email: account.email,
+                  avatar: account.avatar,
+                  role: account.role,
+                  gender: account.gender,
+                }
+              });
+              // Redirect logic
+              if (pathname === CLIENT_PATH.LOGIN && account) {
+                window.location.href = CLIENT_PATH.HOME;
+              }
+              // Gửi lại các request đang chờ
+              processQueue(null, accessToken);
+              if (originalRequest.headers) {
+                originalRequest.headers[
+                  "Authorization"
+                ] = `Bearer ${accessToken}`;
+              }
 
-          if (!response.data?.data?.accessToken) {
-            toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
-            return;
+              return instance(originalRequest);
+            }
           }
-
-          const newAccessToken = response.data.data.accessToken;
-          localStorage.setItem("accessToken", newAccessToken);
-          // useAuthStore.getState().setAccessToken(newAccessToken);
-
-          // Gửi lại các request đang chờ
-          processQueue(null, newAccessToken);
-
-          if (originalRequest.headers) {
-            originalRequest.headers[
-              "Authorization"
-            ] = `Bearer ${newAccessToken}`;
-          }
-
-          return instance(originalRequest);
         } catch (err) {
           processQueue(err, null);
-          // useAuthStore.getState().clearAuth();
+          useAuthStore.setState({ accessToken: null, user: null });
           toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
           if (typeof window !== "undefined") {
-            // const pathname = window.location.pathname;
-            // localStorage.removeItem("accessToken");
-            // if (pathname.startsWith("/admin")) {
-            //   window.location.href = ADMIN_PATH.LOGIN;
-            // } else {
-            //   // window.location.href = CLIENT_PATH.AUTH;
-            // }
+            const pathname = window.location.pathname;
+            if (pathname.startsWith("/")) {
+              window.location.href = CLIENT_PATH.LOGIN;
+            }
           }
           return Promise.reject(err);
         } finally {

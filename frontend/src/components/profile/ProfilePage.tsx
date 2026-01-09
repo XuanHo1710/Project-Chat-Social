@@ -86,7 +86,7 @@ interface ProfilePageProps {
 }
 
 export default function ProfilePage({ userName }: ProfilePageProps) {
-    const { user } = useAuthStore();
+    const { user, isLoading: authLoading } = useAuthStore();
     const router = useRouter();
     const deletePostMutation = useDeletePost();
     const { addPost, deletePost: deletePostFromStore } = usePostStore();
@@ -169,6 +169,9 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     useEffect(() => {
         const fetchProfile = async () => {
+            // Wait for auth to be ready before fetching profile
+            if (authLoading) return;
+
             try {
                 setLoading(true);
                 const data = await accountService.getProfileByUsername(userName);
@@ -183,7 +186,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         if (userName) {
             fetchProfile();
         }
-    }, [userName]);
+    }, [userName, authLoading]);
 
     // Fetch friends list of the profile user
     useEffect(() => {
@@ -425,6 +428,41 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     const handleEmojiSelect = (emoji: { native: string }) => {
         setShareCaption(prev => prev + emoji.native);
+    };
+
+    // Toggle post settings handlers
+    const handleToggleComments = async (allow: boolean) => {
+        if (!menuPost) return;
+        try {
+            await postService.updatePost(menuPost._id, { allowComments: allow });
+            // Update local posts state
+            setPosts(prev => prev.map(p => p._id === menuPost._id ? { ...p, allowComments: allow } : p));
+            setMenuPost({ ...menuPost, allowComments: allow });
+        } catch (error) {
+            console.error('Error toggling comments:', error);
+        }
+    };
+
+    const handleToggleShares = async (allow: boolean) => {
+        if (!menuPost) return;
+        try {
+            await postService.updatePost(menuPost._id, { allowShares: allow });
+            setPosts(prev => prev.map(p => p._id === menuPost._id ? { ...p, allowShares: allow } : p));
+            setMenuPost({ ...menuPost, allowShares: allow });
+        } catch (error) {
+            console.error('Error toggling shares:', error);
+        }
+    };
+
+    const handleToggleReactions = async (allow: boolean) => {
+        if (!menuPost) return;
+        try {
+            await postService.updatePost(menuPost._id, { allowReactions: allow });
+            setPosts(prev => prev.map(p => p._id === menuPost._id ? { ...p, allowReactions: allow } : p));
+            setMenuPost({ ...menuPost, allowReactions: allow });
+        } catch (error) {
+            console.error('Error toggling reactions:', error);
+        }
     };
 
     // Friend menu handlers (for friend list items)
@@ -1769,6 +1807,9 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                         isDeleting={isDeleting}
                         menuPost={menuPost}
                         user={user}
+                        onToggleComments={handleToggleComments}
+                        onToggleShares={handleToggleShares}
+                        onToggleReactions={handleToggleReactions}
                     />
                 </Menu>
 

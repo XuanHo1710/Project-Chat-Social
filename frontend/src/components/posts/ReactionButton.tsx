@@ -29,13 +29,17 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
     const [showReactions, setShowReactions] = useState(false);
     const { socketReaction } = useSocket();
 
-    // Use global store for reaction state
-    const { postReactions, setPostReaction, initPostReaction, setFromApi, setFromServer } = useReactionStore();
-    const reactionState = postReactions[post._id];
+    // Use selectors to get specific post reaction state - ensures re-render on change
+    const userReaction = useReactionStore(state => state.postReactions[post._id]?.userReaction);
+    const totalReacts = useReactionStore(state => state.postReactions[post._id]?.totalReacts);
+    const setPostReaction = useReactionStore(state => state.setPostReaction);
+    const initPostReaction = useReactionStore(state => state.initPostReaction);
+    const setFromApi = useReactionStore(state => state.setFromApi);
+    const setFromServer = useReactionStore(state => state.setFromServer);
 
     // Local state derived from global store
-    const localReaction = reactionState?.userReaction ?? null;
-    const localTotalReacts = reactionState?.totalReacts ?? initialTotalReacts;
+    const localReaction = userReaction ?? null;
+    const localTotalReacts = totalReacts ?? initialTotalReacts;
 
     const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
     const leaveTimeout = useRef<NodeJS.Timeout | null>(null);

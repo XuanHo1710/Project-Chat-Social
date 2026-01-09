@@ -15,6 +15,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useGetNewsFeed, useDeletePost } from '@/queries/usePostQueries';
 import { PostType, PostPrivacy, MediaItem } from '@/types/post';
+import { postService } from '@/services/post.service';
 import CreatePostModal from '../posts/CreatePostModal';
 import EditPostModal from '../posts/EditPostModal';
 import ImageViewer from '../posts/ImageViewer';
@@ -223,6 +224,44 @@ export default function HomeFeed() {
 
     const handleEmojiSelect = (emoji: { native: string }) => {
         setShareCaption(prev => prev + emoji.native);
+    };
+
+    // Toggle post settings handlers
+    const handleToggleComments = async (allow: boolean) => {
+        if (!menuPost) return;
+        try {
+            await postService.updatePost(menuPost._id, { allowComments: allow });
+            // Update local state
+            const updatedPost = { ...menuPost, allowComments: allow };
+            usePostStore.getState().updatePost(menuPost._id, updatedPost);
+            setMenuPost(updatedPost);
+        } catch (error) {
+            console.error('Error toggling comments:', error);
+        }
+    };
+
+    const handleToggleShares = async (allow: boolean) => {
+        if (!menuPost) return;
+        try {
+            await postService.updatePost(menuPost._id, { allowShares: allow });
+            const updatedPost = { ...menuPost, allowShares: allow };
+            usePostStore.getState().updatePost(menuPost._id, updatedPost);
+            setMenuPost(updatedPost);
+        } catch (error) {
+            console.error('Error toggling shares:', error);
+        }
+    };
+
+    const handleToggleReactions = async (allow: boolean) => {
+        if (!menuPost) return;
+        try {
+            await postService.updatePost(menuPost._id, { allowReactions: allow });
+            const updatedPost = { ...menuPost, allowReactions: allow };
+            usePostStore.getState().updatePost(menuPost._id, updatedPost);
+            setMenuPost(updatedPost);
+        } catch (error) {
+            console.error('Error toggling reactions:', error);
+        }
     };
 
     // Render media grid for post
@@ -445,6 +484,9 @@ export default function HomeFeed() {
                     isDeleting={isDeleting}
                     menuPost={menuPost}
                     user={user}
+                    onToggleComments={handleToggleComments}
+                    onToggleShares={handleToggleShares}
+                    onToggleReactions={handleToggleReactions}
                 />
             </Menu>
 

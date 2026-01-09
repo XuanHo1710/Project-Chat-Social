@@ -39,6 +39,7 @@ export const QUERY_KEYS = {
   POSTS_PAGINATED: "posts_paginated",
   POST_DETAIL: "post_detail",
   NEWS_FEED: "news_feed",
+  SEARCH_FEED: "search_feed",
   USER_POSTS: "user_posts",
   GROUP_POSTS: "group_posts",
 

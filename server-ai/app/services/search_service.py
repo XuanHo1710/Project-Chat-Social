@@ -40,7 +40,7 @@ class SearchRecommendationService:
     
     # ==================== SEARCH ====================
     
-    async def search_posts(self, request: SearchQuery) -> SearchResponse:
+    async def search(self, request: SearchQuery) -> SearchResponse:
         """
         Search posts using semantic search
         Returns REAL posts from database
@@ -56,19 +56,23 @@ class SearchRecommendationService:
                 return SearchResponse(
                     query=request.query,
                     results=[],
-                    total=0,
-                    search_time_ms=(time.time() - start_time) * 1000
+                    page=request.page,
+                    limit=request.limit,
+                    has_more=False,
+                    search_time_ms=(time.time() - start_time) * 1000    
                 )
             
             # Search vector DB
             raw_results = self.vector_db.search_posts(
                 query_embedding=query_embedding,
-                n_results=request.limit
+                n_results=request.limit + 1
             )
             
             # Build response with enriched data
+            has_more = len(raw_results) > request.limit
+            page_results = raw_results[:request.limit]
             results = []
-            for r in raw_results:
+            for r in page_results:
                 # Extract hashtags from metadata
                 hashtags = r.get("metadata", {}).get("hashtags", "").split(",")
                 hashtags = [h.strip() for h in hashtags if h.strip()]
@@ -95,7 +99,9 @@ class SearchRecommendationService:
             return SearchResponse(
                 query=request.query,
                 results=results,
-                total=len(results),
+                page=request.page,
+                limit=request.limit,
+                has_more=has_more,
                 search_time_ms=search_time
             )
             
@@ -104,7 +110,9 @@ class SearchRecommendationService:
             return SearchResponse(
                 query=request.query,
                 results=[],
-                total=0,
+                page=request.page,
+                limit=request.limit,
+                has_more=has_more,
                 search_time_ms=(time.time() - start_time) * 1000
             )
     

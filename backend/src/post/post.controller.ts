@@ -38,6 +38,24 @@ export class PostController {
     );
   }
 
+  @Get('search')
+  searchPostWithModelAIServer(
+    @UserInfo() user: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('friendIds') friendIds?: string,
+    @Query('keyword') keyword?: string
+  ) {
+    const friends = friendIds ? friendIds.split(',') : [];
+    return this.postService.searchWithModelAIServer(
+      user._id,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 10,
+      friends,
+      keyword
+    );
+  }
+
   @Get('news-feed')
   getNewsFeed(
     @UserInfo() user: any,

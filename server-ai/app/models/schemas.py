@@ -61,6 +61,7 @@ class SearchQuery(BaseModel):
     query: str
     limit: int = 20
     user_id: Optional[str] = None
+    page: int = 1
 
 
 class SearchResult(BaseModel):
@@ -76,7 +77,9 @@ class SearchResponse(BaseModel):
     """Search response"""
     query: str
     results: List[SearchResult]
-    total: int
+    page: int = 1
+    limit: int = 20,
+    has_more: bool = False
     search_time_ms: float
 
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     Box,
@@ -18,7 +18,10 @@ import {
     MoreHoriz as MoreIcon,
     VolumeUp as VolumeIcon,
     VolumeOff as MuteIcon,
-    ArrowBack as BackIcon,
+    ThumbUp as ThumbUpIcon,
+    PlayArrow as PlayIcon,
+    Pause as PauseIcon,
+    Close as CloseIcon,
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { postService } from '@/services/post.service';
@@ -31,15 +34,19 @@ import ShareContentModal from '@/components/posts/ShareContentModal';
 import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
 import { PostType, PostPrivacy } from '@/types/post';
 import { toast } from 'sonner';
+import { useReactionStore } from '@/stores/useReactionStore';
+import HashtagContent from '@/utils/hashtagParser';
+import ReactionListDialog from '@/components/posts/ReactionListDialog';
+import Header from '@/components/home/Header';
 
 // Reaction emoji mapping
-const reactionEmoji: Record<string, string> = {
-    LIKE: '👍',
-    LOVE: '❤️',
-    HAHA: '😆',
-    WOW: '😮',
-    SAD: '😢',
-    ANGRY: '😡',
+const reactionEmoji: Record<string, { emoji: string; bg: string }> = {
+    LIKE: { emoji: '👍', bg: '#1877f2' },
+    LOVE: { emoji: '❤️', bg: '#f33e58' },
+    HAHA: { emoji: '😆', bg: '#f7b125' },
+    WOW: { emoji: '😮', bg: '#f7b125' },
+    SAD: { emoji: '😢', bg: '#f7b125' },
+    ANGRY: { emoji: '😡', bg: '#e9710f' },
 };
 
 export default function ReelDetailPage() {
@@ -48,6 +55,9 @@ export default function ReelDetailPage() {
     const { user } = useAuthStore();
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isMuted, setIsMuted] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+
 
     // Share modal state
     const [openShareModal, setOpenShareModal] = useState(false);
@@ -57,6 +67,13 @@ export default function ReelDetailPage() {
 
     // Menu state
     const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+
+
+    // Reaction list dialog
+    const [reactionListOpen, setReactionListOpen] = useState(false);
+
+    // Reaction store
+    const { postReactions, initPostReaction } = useReactionStore();
 
     const postId = params.id as string;
 
@@ -70,12 +87,39 @@ export default function ReelDetailPage() {
     // Use totalComments from post data
     const totalComments = post?.totalComments ?? 0;
 
+    // Get reaction state from store
+    const reactionState = post ? postReactions[post._id] : null;
+    const displayTotalReacts = reactionState?.totalReacts ?? post?.totalReacts ?? 0;
+
+    useEffect(() => {
+        if (post) {
+            initPostReaction(post._id, post.totalReacts);
+        }
+    }, [post, initPostReaction]);
+
+
     useEffect(() => {
         if (videoRef.current) {
             videoRef.current.play().catch(() => { });
             videoRef.current.muted = isMuted;
         }
     }, [isMuted]);
+
+    // Toggle play/pause
+    const togglePlayPause = useCallback(() => {
+        const currentVideo = videoRef.current;
+        if (currentVideo) {
+            if (isPaused) {
+                currentVideo.play().catch(() => { });
+            } else {
+                currentVideo.pause();
+            }
+            setIsPaused(!isPaused);
+        }
+    }, [isPaused]);
+
+
+
 
     const handleProfileClick = () => {
         if (post?.userId?.username) {
@@ -143,281 +187,444 @@ export default function ReelDetailPage() {
             display: 'flex',
             overflow: 'hidden',
         }}>
-            {/* Video Area */}
-            <Box sx={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-            }}>
-                {/* Back Button */}
-                <IconButton
-                    onClick={() => router.back()}
-                    sx={{
-                        position: 'absolute',
-                        top: 16,
-                        left: 16,
-                        bgcolor: 'rgba(255,255,255,0.15)',
-                        color: 'white',
-                        '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' }
-                    }}
-                >
-                    <BackIcon />
-                </IconButton>
-
-                {/* Video Container */}
+            {/* Header */}
+            <Header />
+            {/* Main Content - Fullscreen by default */}
+            <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', mt: '56px' }}>
+                {/* Video Area - Full width khi không show comments */}
                 <Box sx={{
-                    width: 'auto',
-                    maxWidth: 500,
-                    height: 'calc(100vh - 80px)',
-                    position: 'relative',
-                    borderRadius: 2,
-                    overflow: 'hidden',
-                }}>
-                    <video
-                        ref={videoRef}
-                        src={getVideoUrl(post)}
-                        loop
-                        playsInline
-                        autoPlay
-                        onClick={() => setIsMuted(!isMuted)}
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'contain',
-                            cursor: 'pointer',
-                        }}
-                    />
-
-                    {/* Mute Button */}
-                    <IconButton
-                        onClick={() => setIsMuted(!isMuted)}
-                        sx={{
-                            position: 'absolute',
-                            top: 16,
-                            right: 16,
-                            bgcolor: 'rgba(0,0,0,0.5)',
-                            color: 'white',
-                            '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
-                        }}
-                    >
-                        {isMuted ? <MuteIcon /> : <VolumeIcon />}
-                    </IconButton>
-                </Box>
-
-                {/* Sidebar Actions */}
-                <Box sx={{
-                    position: 'absolute',
-                    right: 16,
-                    bottom: '20%',
+                    flex: 1,
                     display: 'flex',
-                    flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 2,
+                    justifyContent: 'center',
+                    position: 'relative',
+                    bgcolor: '#000',
+                    minWidth: 0,
                 }}>
-                    {/* Reaction with hover popup */}
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <ReactionButton
-                            post={post}
-                            initialTotalReacts={post.totalReacts}
-                            variant="reels"
-                        />
-                    </Box>
+                    {/* Video Container - Contains video and all overlays */}
+                    <Box sx={{
+                        width: '100%',
+                        maxWidth: 420,
+                        height: 'calc(100vh - 56px)',
+                        position: 'relative',
+                        borderRadius: 3,
+                        bgcolor: '#000',
+                        mx: 'auto',
+                    }}>
 
-                    {/* Comments */}
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <IconButton
+                        <Box
+                            key={post._id}
                             sx={{
-                                bgcolor: 'rgba(255,255,255,0.15)',
-                                color: 'white',
-                                width: 48,
-                                height: 48,
-                                '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' }
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: '#000',
                             }}
                         >
-                            <CommentIcon />
-                        </IconButton>
-                        <Typography sx={{ color: 'white', fontSize: 13, mt: 0.5 }}>
-                            {totalComments || ''}
-                        </Typography>
-                    </Box>
+                            <video
+                                ref={el => { videoRef.current = el; }}
+                                src={getVideoUrl(post)}
+                                loop
+                                playsInline
+                                muted={isMuted}
+                                autoPlay={!isPaused}
+                                onClick={togglePlayPause}
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    cursor: 'pointer',
+                                }}
+                            />
 
-                    {/* Share */}
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <IconButton
-                            onClick={() => setOpenShareModal(true)}
-                            sx={{
-                                bgcolor: 'rgba(255,255,255,0.15)',
-                                color: 'white',
-                                width: 48,
-                                height: 48,
-                                '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' }
-                            }}
-                        >
-                            <ShareIcon />
-                        </IconButton>
-                        <Typography sx={{ color: 'white', fontSize: 13, mt: 0.5 }}>
-                            {post.totalShares || ''}
-                        </Typography>
-                    </Box>
-
-                    {/* More Options */}
-                    <IconButton
-                        onClick={(e) => setMenuAnchor(e.currentTarget)}
-                        sx={{
-                            bgcolor: 'rgba(255,255,255,0.15)',
-                            color: 'white',
-                            width: 48,
-                            height: 48,
-                            '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' }
-                        }}
-                    >
-                        <MoreIcon />
-                    </IconButton>
-                </Box>
-            </Box>
-
-            {/* Comments Panel */}
-            <Box sx={{
-                width: 400,
-                bgcolor: 'white',
-                borderLeft: '1px solid #e4e6eb',
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100vh',
-            }}>
-                {/* Post Info Header */}
-                <Box sx={{ p: 2, borderBottom: '1px solid #e4e6eb' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                        <Avatar
-                            src={post.userId?.avatar || ''}
-                            sx={{ width: 40, height: 40, cursor: 'pointer' }}
-                            onClick={handleProfileClick}
-                        />
-                        <Box sx={{ flex: 1 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography
+                            {/* Pause overlay */}
+                            {isPaused && (
+                                <Box
+                                    onClick={togglePlayPause}
                                     sx={{
-                                        fontWeight: 600,
+                                        position: 'absolute',
+                                        top: '50%',
+                                        left: '50%',
+                                        transform: 'translate(-50%, -50%)',
+                                        width: 80,
+                                        height: 80,
+                                        borderRadius: '50%',
+                                        bgcolor: 'rgba(0,0,0,0.6)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
                                         cursor: 'pointer',
-                                        '&:hover': { textDecoration: 'underline' }
-                                    }}
-                                    onClick={handleProfileClick}
-                                >
-                                    {getAuthorName(post)}
-                                </Typography>
-                                <Typography sx={{ color: '#65676b', fontSize: 12 }}>·</Typography>
-                                <Button
-                                    size="small"
-                                    sx={{
-                                        textTransform: 'none',
-                                        p: 0,
-                                        minWidth: 'auto',
-                                        fontWeight: 600,
-                                        color: '#1877f2'
+                                        transition: 'transform 0.2s',
+                                        '&:hover': { transform: 'translate(-50%, -50%) scale(1.1)' }
                                     }}
                                 >
-                                    Theo dõi
-                                </Button>
-                            </Box>
-                            <Typography sx={{ color: '#65676b', fontSize: 12 }}>
-                                {formatPostTime(post.createdAt)}
-                            </Typography>
-                        </Box>
-                    </Box>
-
-                    {/* Content */}
-                    {post.content && (
-                        <Typography sx={{ fontSize: 14, mb: 2 }}>
-                            {post.content}
-                        </Typography>
-                    )}
-
-                    {/* Reactions Summary */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            {post.topReactions && post.topReactions.length > 0 ? (
-                                <Box sx={{ display: 'flex' }}>
-                                    {post.topReactions.slice(0, 3).map((reaction, index) => (
-                                        <Box
-                                            key={reaction.type}
-                                            sx={{
-                                                fontSize: 18,
-                                                ml: index > 0 ? -0.5 : 0,
-                                                zIndex: 3 - index,
-                                            }}
-                                        >
-                                            {reactionEmoji[reaction.type] || '👍'}
-                                        </Box>
-                                    ))}
+                                    <PlayIcon sx={{ fontSize: 50, color: 'white' }} />
                                 </Box>
-                            ) : null}
-                            {(post.totalReacts ?? 0) > 0 && (
-                                <Typography sx={{ fontSize: 14, color: '#65676b', ml: 0.5 }}>
-                                    {post.totalReacts}
-                                </Typography>
                             )}
                         </Box>
-                        <Typography sx={{ fontSize: 14, color: '#65676b' }}>
-                            {totalComments} bình luận
-                        </Typography>
-                    </Box>
 
-                    <Divider sx={{ my: 1 }} />
 
-                    {/* Action Buttons */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
-                        <ReactionButton post={post} initialTotalReacts={post.totalReacts} />
+                        {/* Gradient overlay for better text visibility */}
                         <Box sx={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: '40%',
+                            background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)',
+                            pointerEvents: 'none',
+                            zIndex: 2,
+                        }} />
+
+                        {/* Author info overlay - Bottom */}
+                        {post && (
+                            <Box sx={{
+                                position: 'absolute',
+                                bottom: 80,
+                                left: 16,
+                                right: 80,
+                                zIndex: 5,
+                            }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                                    <Avatar
+                                        src={post.userId?.avatar || ''}
+                                        sx={{ width: 44, height: 44, cursor: 'pointer', border: '2px solid white' }}
+                                        onClick={handleProfileClick}
+                                    />
+                                    <Box sx={{ flex: 1 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Typography
+                                                sx={{
+                                                    color: 'white',
+                                                    fontWeight: 700,
+                                                    fontSize: 15,
+                                                    cursor: 'pointer',
+                                                    textShadow: '0 1px 4px rgba(0,0,0,0.9)',
+                                                    '&:hover': { textDecoration: 'underline' }
+                                                }}
+                                                onClick={handleProfileClick}
+                                            >
+                                                {getAuthorName(post)}
+                                            </Typography>
+                                            <Typography sx={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
+                                                · Theo dõi
+                                            </Typography>
+                                        </Box>
+                                        <Typography sx={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
+                                            {formatPostTime(post.createdAt)}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                                {post.content && (
+                                    <Typography sx={{
+                                        color: 'white',
+                                        fontSize: 14,
+                                        textShadow: '0 1px 4px rgba(0,0,0,0.9)',
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        lineHeight: 1.4,
+                                    }}>
+                                        {post.content}
+                                    </Typography>
+                                )}
+                            </Box>
+                        )}
+
+                        {/* Control buttons - Top left */}
+                        <Box sx={{
+                            position: 'absolute',
+                            top: 16,
+                            left: 16,
                             display: 'flex',
-                            alignItems: 'center',
                             gap: 1,
-                            py: 1,
-                            px: 2,
-                            borderRadius: 2,
-                            cursor: 'pointer',
-                            '&:hover': { bgcolor: '#f0f2f5' }
+                            zIndex: 5,
                         }}>
-                            <CommentIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                            <Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>Bình luận</Typography>
+                            {/* Play/Pause */}
+                            <IconButton
+                                onClick={togglePlayPause}
+                                sx={{
+                                    bgcolor: 'rgba(255,255,255,0.2)',
+                                    color: 'white',
+                                    width: 40,
+                                    height: 40,
+                                    '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
+                                }}
+                            >
+                                {isPaused ? <PlayIcon /> : <PauseIcon />}
+                            </IconButton>
+                            {/* Mute */}
+                            <IconButton
+                                onClick={() => setIsMuted(!isMuted)}
+                                sx={{
+                                    bgcolor: 'rgba(255,255,255,0.2)',
+                                    color: 'white',
+                                    width: 40,
+                                    height: 40,
+                                    '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
+                                }}
+                            >
+                                {isMuted ? <MuteIcon /> : <VolumeIcon />}
+                            </IconButton>
                         </Box>
-                        <Box sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            py: 1,
-                            px: 2,
-                            borderRadius: 2,
-                            cursor: 'pointer',
-                            '&:hover': { bgcolor: '#f0f2f5' }
-                        }}
-                            onClick={() => setOpenShareModal(true)}
-                        >
-                            <ShareIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                            <Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>Chia sẻ</Typography>
-                        </Box>
+
+                        {/* Sidebar Actions - Right side inside video */}
+                        {post && (
+                            <Box sx={{
+                                position: 'absolute',
+                                right: 12,
+                                bottom: 100,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 2,
+                                zIndex: 100,
+                            }}>
+                                {/* Reaction */}
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1000 }}>
+                                    <ReactionButton
+                                        post={post}
+                                        initialTotalReacts={post.totalReacts}
+                                        variant="reels"
+                                    />
+                                </Box>
+
+                                {/* Comments */}
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1000 }}>
+                                    <IconButton
+                                        onClick={() => setShowComments(!showComments)}
+                                        sx={{
+                                            bgcolor: showComments ? 'rgba(24,119,242,0.8)' : 'rgba(255,255,255,0.15)',
+                                            color: 'white',
+                                            width: 44,
+                                            height: 44,
+                                            '&:hover': { bgcolor: showComments ? 'rgba(24,119,242,0.9)' : 'rgba(255,255,255,0.25)' }
+                                        }}
+                                    >
+                                        <CommentIcon sx={{ fontSize: 22 }} />
+                                    </IconButton>
+                                    <Typography sx={{ color: 'white', fontSize: 12, mt: 0.5, fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                                        {post.totalComments || 0}
+                                    </Typography>
+                                </Box>
+
+                                {/* Share */}
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <IconButton
+                                        onClick={() => setOpenShareModal(true)}
+                                        sx={{
+                                            bgcolor: 'rgba(255,255,255,0.15)',
+                                            color: 'white',
+                                            width: 44,
+                                            height: 44,
+                                            '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' }
+                                        }}
+                                    >
+                                        <ShareIcon sx={{ fontSize: 22 }} />
+                                    </IconButton>
+                                    <Typography sx={{ color: 'white', fontSize: 12, mt: 0.5, fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                                        {post.totalShares || 0}
+                                    </Typography>
+                                </Box>
+
+                                {/* More Options */}
+                                <IconButton
+                                    onClick={(e) => setMenuAnchor(e.currentTarget)}
+                                    sx={{
+                                        bgcolor: 'rgba(255,255,255,0.15)',
+                                        color: 'white',
+                                        width: 44,
+                                        height: 44,
+                                        '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' }
+                                    }}
+                                >
+                                    <MoreIcon sx={{ fontSize: 22 }} />
+                                </IconButton>
+                            </Box>
+                        )}
                     </Box>
                 </Box>
 
-                {/* Comments Header */}
-                <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e4e6eb' }}>
-                    <Typography sx={{ color: '#65676b', fontSize: 14 }}>
-                        Tất cả bình luận ▼
-                    </Typography>
-                </Box>
+                {/* Right Panel - Comments (chỉ hiện khi bấm nút comment) */}
+                {showComments && post && (
+                    <Box sx={{
+                        width: 420,
+                        minWidth: 420,
+                        maxWidth: 420,
+                        bgcolor: 'white',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        height: 'calc(100vh - 56px)',
+                        borderLeft: '1px solid #e4e6eb',
+                        flexShrink: 0,
+                    }}>
+                        {/* Post Header */}
+                        <Box sx={{ p: 2, borderBottom: '1px solid #e4e6eb' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
+                                <Avatar
+                                    src={post.userId?.avatar || ''}
+                                    sx={{ width: 40, height: 40, mr: 1.5, cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                                    onClick={handleProfileClick}
+                                />
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography
+                                        sx={{
+                                            fontSize: '15px',
+                                            fontWeight: 600,
+                                            color: '#050505',
+                                            cursor: 'pointer',
+                                            '&:hover': { textDecoration: 'underline' }
+                                        }}
+                                        onClick={handleProfileClick}
+                                    >
+                                        {getAuthorName(post)}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>
+                                        {formatPostTime(post.createdAt)}
+                                    </Typography>
+                                </Box>
+                                <IconButton onClick={() => setShowComments(false)} sx={{ mt: -0.5 }}>
+                                    <CloseIcon />
+                                </IconButton>
+                            </Box>
 
-                {/* Comments List */}
-                <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-                    <CommentSection
-                        postId={post._id}
-                        onChangeTotalComments={() => { }}
-                    />
-                </Box>
+                            {/* Post Content */}
+                            {post.content && (
+                                <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#050505' }}>
+                                    <HashtagContent content={post.content} />
+                                </Typography>
+                            )}
+
+                            {/* Reactions Count */}
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.5,
+                                        cursor: displayTotalReacts > 0 ? 'pointer' : 'default',
+                                        '&:hover': displayTotalReacts > 0 ? { textDecoration: 'underline' } : {}
+                                    }}
+                                    onClick={() => displayTotalReacts > 0 && setReactionListOpen(true)}
+                                >
+                                    {post.topReactions && post.topReactions.length > 0 ? (
+                                        <Box sx={{ display: 'flex', ml: -0.5 }}>
+                                            {post.topReactions.slice(0, 3).map((reaction, index) => {
+                                                const reactionData = reactionEmoji[reaction.type] || { emoji: '👍', bg: '#1877f2' };
+                                                return (
+                                                    <Box
+                                                        key={reaction.type}
+                                                        sx={{
+                                                            width: 22,
+                                                            height: 22,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            fontSize: 16,
+                                                            ml: index > 0 ? -0.5 : 0,
+                                                            zIndex: 3 - index,
+                                                        }}
+                                                    >
+                                                        {reactionData.emoji}
+                                                    </Box>
+                                                );
+                                            })}
+                                        </Box>
+                                    ) : displayTotalReacts > 0 ? (
+                                        <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: '#1877f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <ThumbUpIcon sx={{ fontSize: 12, color: 'white' }} />
+                                        </Box>
+                                    ) : null}
+                                    {displayTotalReacts > 0 && (
+                                        <Typography sx={{ fontSize: 14, color: '#65676b' }}>{displayTotalReacts}</Typography>
+                                    )}
+                                </Box>
+                                <Box sx={{ display: 'flex', gap: 2 }}>
+                                    <Typography sx={{ fontSize: 14, color: '#65676b' }}>
+                                        {post.totalComments} bình luận
+                                    </Typography>
+                                    <Typography sx={{ fontSize: 14, color: '#65676b' }}>
+                                        {post.totalShares} chia sẻ
+                                    </Typography>
+                                </Box>
+                            </Box>
+
+                            <Divider sx={{ my: 1 }} />
+
+                            {/* Action Buttons */}
+                            <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
+                                <ReactionButton
+                                    post={post}
+                                    initialTotalReacts={post.totalReacts}
+                                />
+
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1,
+                                        py: 1,
+                                        px: 2,
+                                        cursor: 'pointer',
+                                        borderRadius: 2,
+                                        flex: 1,
+                                        justifyContent: 'center',
+                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                    }}
+                                >
+                                    <CommentIcon sx={{ fontSize: '20px', color: '#65676b' }} />
+                                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#65676b' }}>Bình luận</Typography>
+                                </Box>
+
+                                <Box
+                                    onClick={() => setOpenShareModal(true)}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1,
+                                        py: 1,
+                                        px: 2,
+                                        cursor: 'pointer',
+                                        borderRadius: 2,
+                                        flex: 1,
+                                        justifyContent: 'center',
+                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                    }}
+                                >
+                                    <ShareIcon sx={{ fontSize: '20px', color: '#65676b' }} />
+                                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#65676b' }}>Chia sẻ</Typography>
+                                </Box>
+                            </Box>
+                        </Box>
+
+                        {/* Comments Section */}
+                        <Box sx={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+                            <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e4e6eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 15 }}>Bình luận</Typography>
+                                <Typography sx={{ color: '#65676b', fontSize: 14, cursor: 'pointer' }}>
+                                    Tất cả bình luận ▼
+                                </Typography>
+                            </Box>
+
+                            <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+                                <CommentSection
+                                    postId={post._id}
+                                    onChangeTotalComments={() => { }}
+                                />
+                            </Box>
+                        </Box>
+                    </Box>
+                )}
             </Box>
 
             {/* Share Modal */}
-            {openShareModal && (
+            {openShareModal && post && (
                 <ShareContentModal
                     handleCloseShare={() => setOpenShareModal(false)}
                     user={user}
@@ -444,23 +651,35 @@ export default function ReelDetailPage() {
                     }
                 }}
             >
-                <PostOptionContentMenu
-                    menuPost={post}
-                    user={user}
-                    handleEditPost={() => {
-                        setMenuAnchor(null);
-                        toast.info('Chức năng chỉnh sửa');
-                    }}
-                    handleDeletePost={() => {
-                        setMenuAnchor(null);
-                        toast.info('Chức năng xóa');
-                    }}
-                    isDeleting={false}
-                    onToggleComments={handleToggleComments}
-                    onToggleShares={handleToggleShares}
-                    onToggleReactions={handleToggleReactions}
-                />
+                {post && (
+                    <PostOptionContentMenu
+                        menuPost={post}
+                        user={user}
+                        handleEditPost={() => {
+                            setMenuAnchor(null);
+                            toast.info('Chức năng chỉnh sửa');
+                        }}
+                        handleDeletePost={() => {
+                            setMenuAnchor(null);
+                            toast.info('Chức năng xóa');
+                        }}
+                        isDeleting={false}
+                        onToggleComments={handleToggleComments}
+                        onToggleShares={handleToggleShares}
+                        onToggleReactions={handleToggleReactions}
+                    />
+                )}
             </Menu>
+
+            {/* Reaction List Dialog */}
+            {post && (
+                <ReactionListDialog
+                    open={reactionListOpen}
+                    onClose={() => setReactionListOpen(false)}
+                    postId={post._id}
+                    userId={user?.id || ''}
+                />
+            )}
         </Box>
     );
 }

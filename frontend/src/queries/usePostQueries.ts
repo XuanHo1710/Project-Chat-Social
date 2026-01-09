@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  useInfiniteQuery,
+} from "@tanstack/react-query";
 import { postService } from "@/services/post.service";
 import { QUERY_KEYS } from "@/constants/query-keys";
 import { CreatePostRequest, UpdatePostRequest } from "@/types/post";
@@ -37,8 +42,9 @@ export const useGetNewsFeed = (params?: {
  */
 export const useGetNewsFeedInfinite = (limit: number = 20) => {
   return useInfiniteQuery({
-    queryKey: [QUERY_KEYS.NEWS_FEED, 'infinite', limit],
-    queryFn: ({ pageParam = 1 }) => postService.getNewsFeed({ page: pageParam, limit }),
+    queryKey: [QUERY_KEYS.NEWS_FEED, "infinite", limit],
+    queryFn: ({ pageParam = 1 }) =>
+      postService.getNewsFeed({ page: pageParam, limit }),
     getNextPageParam: (lastPage, allPages) => {
       // Check if there are more posts to load
       // PostPageResponse returns { data: PostType[], total, page, totalPages }
@@ -50,6 +56,29 @@ export const useGetNewsFeedInfinite = (limit: number = 20) => {
       return allPages.length + 1;
     },
     initialPageParam: 1,
+  });
+};
+
+/**
+ * Hook to fetch news feed posts with infinite scroll
+ */
+export const useSearchFeedInfinite = (limit: number = 10, keyword: string) => {
+  return useInfiniteQuery({
+    queryKey: [QUERY_KEYS.SEARCH_FEED, "infinite", limit, keyword],
+    queryFn: ({ pageParam = 1 }) =>
+      postService.searchFeed({ page: pageParam, limit, keyword }),
+    getNextPageParam: (lastPage, allPages) => {
+      // Check if there are more posts to load
+      // PostPageResponse returns { data: PostType[], total, page, totalPages }
+      const totalPosts = lastPage?.data?.length || 0;
+      if (totalPosts < limit) {
+        // No more posts
+        return undefined;
+      }
+      return allPages.length + 1;
+    },
+    initialPageParam: 1,
+    enabled: !!keyword,
   });
 };
 

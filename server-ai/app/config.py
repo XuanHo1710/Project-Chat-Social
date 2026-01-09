@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = True
     
-    mongodb_uri: str = "mongodb://localhost:27017"
-    mongodb_database: str = "social_media"
+    mongodb_uri: str = "mongodb+srv://xuanhodcbas:0984232310ho.@cluster0.f7sbfkn.mongodb.net/project-chat-social"
+    mongodb_database: str = "project-chat-social"
     
     # Model Config (HYBRID TRAINED MODEL)
     embedding_provider: str = "custom"
@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     
     # ChromaDB (Local)
     chroma_persist_dir: str = "./chroma_db"
+    chroma_host: Optional[str] = None  # Optional remote host
+    chroma_port: int = 8000
+    chroma_ssl: bool = False
+    chroma_api_token: Optional[str] = None
     
     chroma_collection_posts: str = "posts_embeddings"
     chroma_collection_hashtags: str = "hashtags_embeddings"
@@ -31,11 +35,13 @@ class Settings(BaseSettings):
 
     search_top_k: int = 20
     recommendation_limit: int = 20
+    sync_batch_size: int = 100
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields from .env
 
 @lru_cache()
 def get_settings() -> Settings:

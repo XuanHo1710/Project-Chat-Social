@@ -1,0 +1,6 @@
+{
+  "model_name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "chroma_path": "./chroma_db",
+  "collection_name": "hybrid_recommendations",
+  "trained_at": "2026-01-09T20:13:27.129124"
+}

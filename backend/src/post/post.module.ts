@@ -7,6 +7,7 @@ import { HashtagModule } from 'src/hashtag/hashtag.module';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { ReactionModule } from 'src/reaction/reaction.module';
 import { Reaction, ReactionSchema } from 'src/reaction/entities/reaction.entity';
+import { HttpModule, HttpService } from '@nestjs/axios';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { Reaction, ReactionSchema } from 'src/reaction/entities/reaction.entity'
     HashtagModule,
     CloudinaryModule,
     ReactionModule,
+    HttpModule,
   ],
   controllers: [PostController],
   providers: [PostService],

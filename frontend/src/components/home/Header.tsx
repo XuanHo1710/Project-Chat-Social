@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppBar, Toolbar, Box, InputBase, IconButton, Avatar, Badge, ClickAwayListener, Tooltip } from '@mui/material';
+import { AppBar, Toolbar, Box, InputBase, IconButton, Avatar, Badge, ClickAwayListener, Tooltip, Typography } from '@mui/material';
 import {
     Search as SearchIcon,
     Home as HomeIcon,
@@ -148,31 +148,32 @@ export default function Header() {
                         </Box>
                     </Link>
 
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            bgcolor: '#f0f2f5',
-                            borderRadius: '50px',
-                            px: 2,
-                            py: 1,
-                            maxWidth: 240,
-                            width: '100%'
-                        }}
-                    >
-                        <SearchIcon sx={{ color: '#65676b', mr: 1 }} />
-                        <InputBase
-                            placeholder="Tìm kiếm trên Facebook"
+                    <Link href="/search" style={{ textDecoration: 'none' }}>
+                        <Box
                             sx={{
-                                flex: 1,
-                                color: '#050505',
-                                '& input::placeholder': {
-                                    color: '#65676b',
-                                    opacity: 1
-                                }
+                                display: 'flex',
+                                alignItems: 'center',
+                                bgcolor: '#f0f2f5',
+                                borderRadius: '50px',
+                                px: 2,
+                                py: 1,
+                                maxWidth: 240,
+                                width: '100%',
+                                cursor: 'pointer',
+                                '&:hover': { bgcolor: '#e4e6eb' }
                             }}
-                        />
-                    </Box>
+                        >
+                            <SearchIcon sx={{ color: '#65676b', mr: 1 }} />
+                            <Typography
+                                sx={{
+                                    color: '#65676b',
+                                    fontSize: 15
+                                }}
+                            >
+                                Tìm kiếm trên Facebook
+                            </Typography>
+                        </Box>
+                    </Link>
                 </Box>
 
                 {/* Center Section - Navigation */}

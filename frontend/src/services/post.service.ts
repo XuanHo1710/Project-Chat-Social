@@ -53,6 +53,27 @@ class PostService {
   }
 
   /**
+   * Get news feed posts (public + friends' posts + own posts)
+   */
+  async searchFeed(params?: {
+    page?: number;
+    limit?: number;
+    friendIds?: string[];
+    keyword?: string;
+  }) {
+    const queryParams = {
+      page: params?.page,
+      limit: params?.limit,
+      friendIds: params?.friendIds?.join(","),
+      keyword: params?.keyword,
+    };
+    const response = await axios.get<APIResponse<PostPageResponse>>(
+      `/${PREFIX}/search`,
+      { params: queryParams }
+    );
+    return response.data.data;
+  }
+  /**
    * Get posts by user ID with privacy filtering
    */
   async getPostsByUserId(

@@ -49,7 +49,7 @@ coverage.xml
 *.pot
 
 # Environments
-.env
+# .env
 .venv
 env/
 venv/

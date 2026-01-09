@@ -18,3 +18,10 @@ httpx
 python-multipart
 tqdm
 janus
+
+# Hybrid Recommendation System
+scikit-learn
+scipy
+pandas
+numpy
+nltk

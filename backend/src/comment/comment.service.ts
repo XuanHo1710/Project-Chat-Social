@@ -34,7 +34,7 @@ export class CommentService {
     private hashtagService: HashtagService,
     @Inject(forwardRef(() => ReactionService))
     private reactionService: ReactionService
-  ) {}
+  ) { }
 
   async create(createCommentDto: CreateCommentDto, userId: string) {
     const { postId, parentId, ...rest } = createCommentDto;
@@ -45,7 +45,7 @@ export class CommentService {
       throw new NotFoundException('Post not found');
     }
 
-    // Check if comments are allowed on this post
+    // Check if comments are allowed
     if (post.allowComments === false) {
       throw new BadRequestException('Bình luận đã bị tắt cho bài viết này');
     }

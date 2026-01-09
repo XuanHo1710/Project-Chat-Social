@@ -35,7 +35,6 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
 
       //  Lúc vô là join room theo userId để gửi request dễ hơn.
       client.join(userId);
-      console.log(`Client ${client.id} joined room ${userId}`);
 
       if (!userId) {
         this.logger.warn(`Client ${client.id} connected without userId`);

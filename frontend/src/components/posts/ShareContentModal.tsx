@@ -108,7 +108,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
 
 
     return (
-        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 550, bgcolor: 'white', borderRadius: 2, boxShadow: 24, overflow: 'hidden' }}>
+        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 550, bgcolor: 'white', borderRadius: 2, boxShadow: 24, overflow: 'hidden', zIndex: 100 }}>
             {/* Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, borderBottom: '1px solid #e4e6eb', position: 'relative' }}>
                 <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#050505' }}>Chia sẻ</Typography>

@@ -173,7 +173,6 @@ export default function GroupDetailPage() {
         });
 
         socket.on('connect', () => {
-            console.log('Connected to group socket');
             socket.emit('joinGroupRoom', groupId);
         });
 
@@ -348,13 +347,22 @@ export default function GroupDetailPage() {
     const renderPostMedia = (post: PostType) => {
         if (!post.media || post.media.length === 0) return null;
         const mediaCount = post.media.length;
+
+        // Handler to open video in Reels
+        const handleVideoClick = () => {
+            router.push(`/reels/${post._id}`);
+        };
+
         if (mediaCount === 1) {
             const media = post.media[0];
             return (
                 <Box sx={{ mb: 2, position: 'relative' }}>
                     {media.mediaType === 'VIDEO' ? (
-                        <Box sx={{ position: 'relative' }} onClick={() => handleOpenImageViewer(post.media, 0)}>
-                            <video src={media.url} controls style={{ width: '100%', maxHeight: 500, objectFit: 'cover', borderRadius: 4 }} />
+                        <Box sx={{ position: 'relative', cursor: 'pointer' }} onClick={handleVideoClick}>
+                            <video src={media.url} style={{ width: '100%', maxHeight: 500, objectFit: 'cover', borderRadius: 4 }} />
+                            <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bgcolor: 'rgba(0,0,0,0.6)', borderRadius: '50%', p: 1.5 }}>
+                                <PlayIcon sx={{ color: 'white', fontSize: 48 }} />
+                            </Box>
                         </Box>
                     ) : (
                         <Box component="img" src={media.url} alt="Post media" onClick={() => handleOpenImageViewer(post.media, 0)} sx={{ width: '100%', maxHeight: 500, objectFit: 'cover', borderRadius: 1, cursor: 'pointer' }} />
@@ -365,7 +373,11 @@ export default function GroupDetailPage() {
         return (
             <Box sx={{ mb: 2, display: 'grid', gridTemplateColumns: mediaCount === 2 ? '1fr 1fr' : 'repeat(2, 1fr)', gap: 0.5, borderRadius: 1, overflow: 'hidden' }}>
                 {post.media.slice(0, 4).map((media, index) => (
-                    <Box key={index} onClick={() => handleOpenImageViewer(post.media, index)} sx={{ position: 'relative', height: mediaCount === 2 ? 300 : 200, gridColumn: mediaCount === 3 && index === 0 ? 'span 2' : 'span 1', cursor: 'pointer' }}>
+                    <Box
+                        key={index}
+                        onClick={() => media.mediaType === 'VIDEO' ? handleVideoClick() : handleOpenImageViewer(post.media, index)}
+                        sx={{ position: 'relative', height: mediaCount === 2 ? 300 : 200, gridColumn: mediaCount === 3 && index === 0 ? 'span 2' : 'span 1', cursor: 'pointer' }}
+                    >
                         {media.mediaType === 'VIDEO' ? (
                             <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
                                 <video src={media.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />

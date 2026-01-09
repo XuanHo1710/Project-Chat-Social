@@ -31,10 +31,10 @@ import { useRouter } from 'next/navigation';
 
 export default function GroupsPage() {
     const router = useRouter();
-    const [myGroups, setMyGroups] = useState<GroupWithMembership[]>([]);
     const [suggestedGroups, setSuggestedGroups] = useState<Group[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const [myGroups, setMyGroups] = useState<GroupWithMembership[]>([]);
 
     useEffect(() => {
         loadGroups();

@@ -362,11 +362,6 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                                 <Typography noWrap fontWeight={600} fontSize={15} color="#050505">
                                                     {displayName}
                                                 </Typography>
-                                                {isGroup && (
-                                                    <Typography fontSize={12} color="#65676b">
-                                                        ({conversation.participants.filter(p => !p.kickedAt && !p.leftAt).length})
-                                                    </Typography>
-                                                )}
                                             </Box>
                                         }
                                         secondaryTypographyProps={{ component: 'div' }}

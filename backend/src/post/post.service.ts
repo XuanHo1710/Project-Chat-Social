@@ -135,6 +135,7 @@ export class PostService {
     // 1. PUBLIC posts from anyone
     // 2. FRIEND posts from friends
     // 3. Own posts (any privacy)
+    // 4. GROUP posts from public groups
     const currentUserObjId = new Types.ObjectId(currentUserId);
     const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
 
@@ -145,6 +146,8 @@ export class PostService {
         { privacy: PostPrivacy.PUBLIC },
         { privacy: PostPrivacy.FRIEND, userId: { $in: friendObjIds } },
         { userId: currentUserObjId },
+        // Include GROUP posts where the group is public
+        { privacy: PostPrivacy.GROUP, groupId: { $ne: null } },
       ],
     };
 
@@ -159,13 +162,30 @@ export class PostService {
         })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit)
+        .limit(limit + 20) // Fetch extra to account for filtered private groups
         .lean()
         .exec(),
       this.postModel.countDocuments(filter),
     ]);
 
-    const postIds = data.map((p) => p._id);
+    // Filter out private group posts where user is not the author
+    // For public groups, show all posts
+    // For private groups, only show if user is the post author
+    const filteredData = data
+      .filter((post) => {
+        // Non-group posts pass through
+        if (!post.groupId) return true;
+
+        const group = post.groupId as any;
+        // If group is public, show the post
+        if (group.privacy === 'PUBLIC') return true;
+
+        // If group is private, only show if user is the author
+        return post.userId && (post.userId as any)._id?.toString() === currentUserId;
+      })
+      .slice(0, limit); // Limit to requested amount
+
+    const postIds = filteredData.map((p) => p._id);
     const postIdStrings = postIds.map((id) => id.toString());
 
     // Get user reactions and top reactions summary in parallel
@@ -177,7 +197,7 @@ export class PostService {
     // convert về map để tra O(1)
     const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
 
-    (data as PostWithReactInfo[]).forEach((post) => {
+    (filteredData as PostWithReactInfo[]).forEach((post) => {
       const postIdStr = post._id.toString();
       const r = reactionMap.get(postIdStr) as any;
       const summary = reactionsSummary[postIdStr];
@@ -191,7 +211,92 @@ export class PostService {
     });
 
     return {
-      data,
+      data: filteredData,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * Get video reels - posts that contain VIDEO media type
+   */
+  async findVideoReels(
+    currentUserId: string,
+    page = 1,
+    limit = 10,
+    friendIds: string[] = []
+  ): Promise<{ data: PostWithReactInfo[]; total: number; page: number; totalPages: number }> {
+    const skip = (page - 1) * limit;
+
+    const currentUserObjId = new Types.ObjectId(currentUserId);
+    const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
+
+    // Filter for posts with VIDEO media and proper privacy
+    const filter = {
+      isDeleted: false,
+      isActive: true,
+      'media.mediaType': 'VIDEO', // Only posts with VIDEO media
+      $or: [
+        { privacy: PostPrivacy.PUBLIC },
+        { privacy: PostPrivacy.FRIEND, userId: { $in: friendObjIds } },
+        { userId: currentUserObjId },
+        { privacy: PostPrivacy.GROUP, groupId: { $ne: null } },
+      ],
+    };
+
+    const [data, total] = await Promise.all([
+      this.postModel
+        .find(filter)
+        .populate('userId', 'firstName lastName avatar username')
+        .populate('groupId', 'name avatar privacy')
+        .populate({
+          path: 'sharedPostId',
+          populate: { path: 'userId', select: 'firstName lastName avatar username' },
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit + 10) // Extra for filtering
+        .lean()
+        .exec(),
+      this.postModel.countDocuments(filter),
+    ]);
+
+    // Filter out private group posts where user is not the author
+    const filteredData = data
+      .filter((post) => {
+        if (!post.groupId) return true;
+        const group = post.groupId as any;
+        if (group.privacy === 'PUBLIC') return true;
+        return post.userId && (post.userId as any)._id?.toString() === currentUserId;
+      })
+      .slice(0, limit);
+
+    const postIds = filteredData.map((p) => p._id);
+    const postIdStrings = postIds.map((id) => id.toString());
+
+    // Get user reactions and top reactions summary in parallel
+    const [userReactions, reactionsSummary] = await Promise.all([
+      this.reactionService.userReactions(postIds, currentUserId),
+      this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+    ]);
+
+    const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
+
+    (filteredData as PostWithReactInfo[]).forEach((post) => {
+      const postIdStr = post._id.toString();
+      const r = reactionMap.get(postIdStr) as any;
+      const summary = reactionsSummary[postIdStr];
+
+      post.reactInfo = {
+        isReact: !!r,
+        type: r ? r.type : null,
+      };
+      (post as any).topReactions = summary?.topReactions || [];
+    });
+
+    return {
+      data: filteredData,
       total,
       page,
       totalPages: Math.ceil(total / limit),

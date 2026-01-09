@@ -12,17 +12,13 @@ import {
     Avatar,
     ListItemText,
     Badge,
-    Divider,
     Button,
     CircularProgress,
     Skeleton,
 } from '@mui/material';
 import {
-    Settings as SettingsIcon,
     MoreHoriz as MoreIcon,
     Groups as GroupsIcon,
-    Check as CheckIcon,
-    Close as CloseIcon,
 } from '@mui/icons-material';
 import { notificationService } from '@/services/notification.service';
 import { Notification, NotificationType, NotificationStatus } from '@/types/notification';
@@ -186,7 +182,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
             case NotificationType.GROUP_INVITATION:
             case NotificationType.GROUP_ROLE_CHANGED:
             case NotificationType.GROUP_OWNERSHIP_TRANSFERRED:
-                return <GroupsIcon sx={{ color: '#1877f2' }} />;
+                return <GroupsIcon sx={{ color: 'white', fontSize: 14 }} />;
             default:
                 return null;
         }
@@ -196,6 +192,135 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     const filteredNotifications = activeTab === 'unread'
         ? notifications.filter(n => n.status === NotificationStatus.UNREAD)
         : notifications;
+
+    // Group notifications by time
+    const groupNotificationsByTime = () => {
+        const now = new Date();
+        const today: Notification[] = [];
+        const earlier: Notification[] = [];
+
+        filteredNotifications.forEach(n => {
+            const notifDate = new Date(n.createdAt);
+            const diffHours = (now.getTime() - notifDate.getTime()) / (1000 * 60 * 60);
+            if (diffHours < 24) {
+                today.push(n);
+            } else {
+                earlier.push(n);
+            }
+        });
+
+        return { today, earlier };
+    };
+
+    const { today, earlier } = groupNotificationsByTime();
+
+    // Render notification item
+    const renderNotificationItem = (notification: Notification) => (
+        <ListItemButton
+            key={notification._id}
+            onClick={() => handleNotificationClick(notification)}
+            sx={{
+                py: 1.5,
+                px: 1.5,
+                mx: 1,
+                borderRadius: '8px',
+                bgcolor: notification.status === NotificationStatus.UNREAD ? 'rgba(24, 119, 242, 0.08)' : 'transparent',
+                '&:hover': {
+                    bgcolor: notification.status === NotificationStatus.UNREAD ? 'rgba(24, 119, 242, 0.12)' : '#f0f2f5',
+                },
+            }}
+        >
+            <ListItemAvatar sx={{ minWidth: 64 }}>
+                <Box sx={{ position: 'relative' }}>
+                    <Avatar
+                        src={
+                            notification.groupId?.avatar ||
+                            notification.senderId?.avatar ||
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                notification.senderId?.firstName || 'U'
+                            )}&background=1877f2&color=fff`
+                        }
+                        sx={{ width: 60, height: 60 }}
+                    />
+                    {getNotificationIcon(notification.type) && (
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                bottom: -2,
+                                right: -2,
+                                bgcolor: '#1877f2',
+                                borderRadius: '50%',
+                                width: 24,
+                                height: 24,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '2px solid white',
+                            }}
+                        >
+                            {getNotificationIcon(notification.type)}
+                        </Box>
+                    )}
+                </Box>
+            </ListItemAvatar>
+            <ListItemText
+                primary={
+                    <Typography
+                        sx={{
+                            fontSize: 15,
+                            fontWeight: notification.status === NotificationStatus.UNREAD ? 600 : 400,
+                            color: '#050505',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            lineHeight: 1.3,
+                        }}
+                    >
+                        {notification.message}
+                    </Typography>
+                }
+                secondary={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                        <Typography
+                            sx={{
+                                fontSize: 13,
+                                color: notification.status === NotificationStatus.UNREAD ? '#1877f2' : '#65676b',
+                                fontWeight: notification.status === NotificationStatus.UNREAD ? 600 : 400,
+                            }}
+                        >
+                            {formatTime(notification.createdAt)}
+                        </Typography>
+                        {notification.type === NotificationType.GROUP_INVITATION && notification.actionStatus === 'PENDING' && (
+                            <>
+                                <Typography sx={{ color: '#65676b', fontSize: 13 }}>·</Typography>
+                                <Typography sx={{ color: '#65676b', fontSize: 13 }}>
+                                    {notification.totalReacts || 0} cảm xúc
+                                </Typography>
+                                <Typography sx={{ color: '#65676b', fontSize: 13 }}>·</Typography>
+                                <Typography sx={{ color: '#65676b', fontSize: 13 }}>
+                                    {notification.totalComments || 0} bình luận
+                                </Typography>
+                            </>
+                        )}
+                    </Box>
+                }
+            />
+            {notification.status === NotificationStatus.UNREAD && (
+                <Box
+                    sx={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        bgcolor: '#1877f2',
+                        ml: 1,
+                        flexShrink: 0,
+                    }}
+                />
+            )}
+        </ListItemButton>
+    );
+
     return (
         <Paper
             elevation={8}
@@ -203,63 +328,52 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 position: 'absolute',
                 top: 56,
                 right: 0,
-                width: 360,
-                maxHeight: 600,
+                width: 400,
+                maxHeight: 'calc(100vh - 70px)',
                 bgcolor: 'white',
-                borderRadius: 2,
+                borderRadius: '8px',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                boxShadow: '0 12px 28px 0 rgba(0, 0, 0, 0.2), 0 2px 4px 0 rgba(0, 0, 0, 0.1), inset 0 0 0 1px rgba(255,255,255,0.5)',
                 zIndex: 1300,
             }}
         >
             {/* Header */}
-            <Box sx={{ p: 2, borderBottom: '1px solid #e4e6eb' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Typography variant="h6" fontWeight={700} color="#050505">
+            <Box sx={{ px: 2, pt: 2.5, pb: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                    <Typography sx={{ fontSize: 24, fontWeight: 700, color: '#050505' }}>
                         Thông báo
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                        <IconButton
-                            size="small"
-                            onClick={handleMarkAllAsRead}
-                            title="Đánh dấu tất cả đã đọc"
-                            sx={{
-                                color: '#65676b',
-                                bgcolor: '#f0f2f5',
-                                '&:hover': { bgcolor: '#e4e6eb' },
-                            }}
-                        >
-                            <CheckIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                            size="small"
-                            sx={{
-                                color: '#65676b',
-                                bgcolor: '#f0f2f5',
-                                '&:hover': { bgcolor: '#e4e6eb' },
-                            }}
-                        >
-                            <SettingsIcon fontSize="small" />
-                        </IconButton>
-                    </Box>
+                    <IconButton
+                        size="small"
+                        onClick={handleMarkAllAsRead}
+                        sx={{
+                            width: 36,
+                            height: 36,
+                            bgcolor: '#e4e6eb',
+                            '&:hover': { bgcolor: '#d8dadf' },
+                        }}
+                    >
+                        <MoreIcon sx={{ fontSize: 20, color: '#050505' }} />
+                    </IconButton>
                 </Box>
 
                 {/* Tabs */}
-                <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                <Box sx={{ display: 'flex', gap: 1.5 }}>
                     <Box
                         onClick={() => setActiveTab('all')}
                         sx={{
                             px: 2,
-                            py: 0.75,
-                            borderRadius: 5,
-                            bgcolor: activeTab === 'all' ? '#e7f3ff' : '#f0f2f5',
+                            py: 1,
+                            borderRadius: '20px',
+                            bgcolor: activeTab === 'all' ? '#e7f3ff' : 'transparent',
                             color: activeTab === 'all' ? '#1877f2' : '#65676b',
-                            fontSize: '15px',
+                            fontSize: 15,
                             fontWeight: 600,
                             cursor: 'pointer',
-                            '&:hover': { bgcolor: activeTab === 'all' ? '#e7f3ff' : '#e4e6eb' },
+                            transition: 'all 0.15s ease',
+                            '&:hover': { bgcolor: activeTab === 'all' ? '#e7f3ff' : '#f0f2f5' },
                         }}
                     >
                         Tất cả
@@ -268,17 +382,18 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         onClick={() => setActiveTab('unread')}
                         sx={{
                             px: 2,
-                            py: 0.75,
-                            borderRadius: 5,
-                            bgcolor: activeTab === 'unread' ? '#e7f3ff' : '#f0f2f5',
+                            py: 1,
+                            borderRadius: '20px',
+                            bgcolor: activeTab === 'unread' ? '#e7f3ff' : 'transparent',
                             color: activeTab === 'unread' ? '#1877f2' : '#65676b',
-                            fontSize: '15px',
+                            fontSize: 15,
                             fontWeight: 600,
                             cursor: 'pointer',
-                            '&:hover': { bgcolor: activeTab === 'unread' ? '#e7f3ff' : '#e4e6eb' },
+                            transition: 'all 0.15s ease',
+                            '&:hover': { bgcolor: activeTab === 'unread' ? '#e7f3ff' : '#f0f2f5' },
                         }}
                     >
-                        Chưa đọc {unreadCount > 0 && `(${unreadCount})`}
+                        Chưa đọc
                     </Box>
                 </Box>
             </Box>
@@ -288,225 +403,90 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 sx={{
                     flex: 1,
                     overflow: 'auto',
-                    '&::-webkit-scrollbar': { width: '8px' },
+                    '&::-webkit-scrollbar': { width: 8 },
                     '&::-webkit-scrollbar-thumb': {
-                        backgroundColor: '#c4c4c4',
-                        borderRadius: '4px',
+                        backgroundColor: 'rgba(0,0,0,0.2)',
+                        borderRadius: 4,
                     },
                 }}
             >
                 {isLoading ? (
-                    <Box sx={{ p: 2 }}>
-                        {[1, 2, 3].map(i => (
-                            <Box key={i} sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                    <Box sx={{ p: 1 }}>
+                        {[1, 2, 3, 4].map(i => (
+                            <Box key={i} sx={{ display: 'flex', gap: 1.5, p: 1, mx: 1 }}>
                                 <Skeleton variant="circular" width={56} height={56} />
                                 <Box sx={{ flex: 1 }}>
-                                    <Skeleton variant="text" width="80%" />
-                                    <Skeleton variant="text" width="60%" />
+                                    <Skeleton variant="text" width="90%" height={20} />
+                                    <Skeleton variant="text" width="70%" height={20} />
+                                    <Skeleton variant="text" width="40%" height={16} />
                                 </Box>
                             </Box>
                         ))}
                     </Box>
                 ) : filteredNotifications.length === 0 ? (
                     <Box sx={{ p: 4, textAlign: 'center' }}>
-                        <Typography color="#65676b">
+                        <Typography sx={{ color: '#65676b', fontSize: 15 }}>
                             {activeTab === 'unread' ? 'Không có thông báo chưa đọc' : 'Chưa có thông báo nào'}
                         </Typography>
                     </Box>
                 ) : (
                     <List disablePadding>
-                        {filteredNotifications.map((notification, index) => (
-                            <React.Fragment key={notification._id}>
-                                <ListItemButton
-                                    onClick={() => handleNotificationClick(notification)}
+                        {/* New notifications */}
+                        {today.length > 0 && (
+                            <>
+                                <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <Typography sx={{ fontWeight: 600, fontSize: 17, color: '#050505' }}>
+                                        Mới
+                                    </Typography>
+                                    <Typography
+                                        onClick={() => router.push('/notifications')}
+                                        sx={{
+                                            color: '#1877f2',
+                                            fontSize: 15,
+                                            cursor: 'pointer',
+                                            '&:hover': { textDecoration: 'underline' }
+                                        }}
+                                    >
+                                        Xem tất cả
+                                    </Typography>
+                                </Box>
+                                {today.map(notification => renderNotificationItem(notification))}
+                            </>
+                        )}
+
+                        {/* Earlier notifications */}
+                        {earlier.length > 0 && (
+                            <>
+                                <Box sx={{ px: 2, py: 1, mt: 1 }}>
+                                    <Typography sx={{ fontWeight: 600, fontSize: 17, color: '#050505' }}>
+                                        Trước đó
+                                    </Typography>
+                                </Box>
+                                {earlier.map(notification => renderNotificationItem(notification))}
+                            </>
+                        )}
+
+                        {/* If no today notifications but has earlier */}
+                        {today.length === 0 && earlier.length > 0 && (
+                            <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 17, color: '#050505' }}>
+                                    Tất cả thông báo
+                                </Typography>
+                                <Typography
+                                    onClick={() => router.push('/notifications')}
                                     sx={{
-                                        py: 1.5,
-                                        px: 2,
-                                        bgcolor: notification.status === NotificationStatus.UNREAD ? '#e7f3ff' : 'transparent',
-                                        '&:hover': {
-                                            bgcolor: notification.status === NotificationStatus.UNREAD ? '#d8e9ff' : '#f0f2f5',
-                                        },
-                                        flexDirection: 'column',
-                                        alignItems: 'flex-start',
+                                        color: '#1877f2',
+                                        fontSize: 15,
+                                        cursor: 'pointer',
+                                        '&:hover': { textDecoration: 'underline' }
                                     }}
                                 >
-                                    <Box sx={{ display: 'flex', width: '100%', alignItems: 'flex-start' }}>
-                                        <ListItemAvatar>
-                                            <Box sx={{ position: 'relative' }}>
-                                                <Avatar
-                                                    src={
-                                                        notification.groupId?.avatar ||
-                                                        notification.senderId?.avatar ||
-                                                        `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                                            notification.senderId?.firstName || 'U'
-                                                        )}&background=1877f2&color=fff`
-                                                    }
-                                                    sx={{ width: 56, height: 56 }}
-                                                />
-                                                {getNotificationIcon(notification.type) && (
-                                                    <Box
-                                                        sx={{
-                                                            position: 'absolute',
-                                                            bottom: -4,
-                                                            right: -4,
-                                                            bgcolor: 'white',
-                                                            borderRadius: '50%',
-                                                            p: 0.5,
-                                                            display: 'flex',
-                                                        }}
-                                                    >
-                                                        {getNotificationIcon(notification.type)}
-                                                    </Box>
-                                                )}
-                                            </Box>
-                                        </ListItemAvatar>
-                                        <ListItemText
-                                            primary={
-                                                <Typography
-                                                    fontSize={15}
-                                                    fontWeight={notification.status === NotificationStatus.UNREAD ? 600 : 400}
-                                                    color="#050505"
-                                                    sx={{
-                                                        display: '-webkit-box',
-                                                        WebkitLineClamp: 3,
-                                                        WebkitBoxOrient: 'vertical',
-                                                        overflow: 'hidden',
-                                                    }}
-                                                >
-                                                    {notification.message}
-                                                </Typography>
-                                            }
-                                            secondary={
-                                                <Typography
-                                                    variant="body2"
-                                                    color={notification.status === NotificationStatus.UNREAD ? '#1877f2' : '#65676b'}
-                                                    fontSize={13}
-                                                    fontWeight={notification.status === NotificationStatus.UNREAD ? 600 : 400}
-                                                    sx={{ mt: 0.5 }}
-                                                >
-                                                    {formatTime(notification.createdAt)}
-                                                </Typography>
-                                            }
-                                        />
-                                        {notification.status === NotificationStatus.UNREAD && (
-                                            <Badge
-                                                badgeContent=" "
-                                                sx={{
-                                                    ml: 1,
-                                                    mt: 2,
-                                                    '& .MuiBadge-badge': {
-                                                        backgroundColor: '#1877f2',
-                                                        width: 12,
-                                                        height: 12,
-                                                        borderRadius: '50%',
-                                                        minWidth: 12,
-                                                    },
-                                                }}
-                                            />
-                                        )}
-                                    </Box>
-
-                                    {/* Action buttons for group invitation */}
-                                    {notification.type === NotificationType.GROUP_INVITATION &&
-                                        notification.actionStatus === 'PENDING' && (
-                                            <Box
-                                                sx={{
-                                                    display: 'flex',
-                                                    gap: 1,
-                                                    mt: 1.5,
-                                                    ml: 9,
-                                                    width: 'calc(100% - 72px)',
-                                                }}
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <Button
-                                                    variant="contained"
-                                                    size="small"
-                                                    onClick={() => handleRespondToInvitation(notification._id, 'ACCEPT')}
-                                                    disabled={respondingId === notification._id}
-                                                    sx={{
-                                                        flex: 1,
-                                                        bgcolor: '#1877f2',
-                                                        textTransform: 'none',
-                                                        fontWeight: 600,
-                                                        '&:hover': { bgcolor: '#166fe5' },
-                                                    }}
-                                                >
-                                                    {respondingId === notification._id ? (
-                                                        <CircularProgress size={20} color="inherit" />
-                                                    ) : (
-                                                        'Tham gia'
-                                                    )}
-                                                </Button>
-                                                <Button
-                                                    variant="outlined"
-                                                    size="small"
-                                                    onClick={() => handleRespondToInvitation(notification._id, 'REJECT')}
-                                                    disabled={respondingId === notification._id}
-                                                    sx={{
-                                                        flex: 1,
-                                                        borderColor: '#e4e6eb',
-                                                        color: '#050505',
-                                                        bgcolor: '#e4e6eb',
-                                                        textTransform: 'none',
-                                                        fontWeight: 600,
-                                                        '&:hover': { bgcolor: '#d8dadf', borderColor: '#d8dadf' },
-                                                    }}
-                                                >
-                                                    Từ chối
-                                                </Button>
-                                            </Box>
-                                        )}
-
-                                    {/* Show status for responded invitations */}
-                                    {notification.type === NotificationType.GROUP_INVITATION &&
-                                        notification.actionStatus !== 'PENDING' && (
-                                            <Typography
-                                                sx={{
-                                                    ml: 9,
-                                                    mt: 1,
-                                                    fontSize: 13,
-                                                    color: notification.actionStatus === 'ACCEPTED' ? '#42b72a' : '#65676b',
-                                                    fontStyle: 'italic',
-                                                }}
-                                            >
-                                                {notification.actionStatus === 'ACCEPTED'
-                                                    ? 'Đã tham gia nhóm'
-                                                    : 'Đã từ chối lời mời'}
-                                            </Typography>
-                                        )}
-                                </ListItemButton>
-                                {index < filteredNotifications.length - 1 && (
-                                    <Divider sx={{ borderColor: '#e4e6eb', mx: 2 }} />
-                                )}
-                            </React.Fragment>
-                        ))}
+                                    Xem tất cả
+                                </Typography>
+                            </Box>
+                        )}
                     </List>
                 )}
-            </Box>
-
-            {/* Footer */}
-            <Box
-                sx={{
-                    p: 1.5,
-                    borderTop: '1px solid #e4e6eb',
-                    textAlign: 'center',
-                }}
-            >
-                <Typography
-                    onClick={() => router.push('/notifications')}
-                    sx={{
-                        color: '#1877f2',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        '&:hover': {
-                            textDecoration: 'underline',
-                        },
-                    }}
-                >
-                    Xem tất cả thông báo
-                </Typography>
             </Box>
         </Paper>
     );

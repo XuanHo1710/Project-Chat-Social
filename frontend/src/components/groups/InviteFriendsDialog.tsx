@@ -17,6 +17,7 @@ import {
     ListItemText,
     IconButton,
     CircularProgress,
+    Chip,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -43,21 +44,45 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
     const [searchQuery, setSearchQuery] = useState('');
     const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
     const [invitingId, setInvitingId] = useState<string | null>(null);
+    const [existingMemberIds, setExistingMemberIds] = useState<Set<string>>(new Set());
+    const [pendingInviteIds, setPendingInviteIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (open && user?.id) {
-            loadFriends();
+            loadData();
         }
-    }, [open, user?.id]);
+    }, [open, user?.id, groupId]);
 
-    const loadFriends = async () => {
+    const loadData = async () => {
         if (!user?.id) return;
         setIsLoading(true);
         try {
-            const response = await relationshipService.getFriends();
-            setFriends(response.data || []);
+            // Load friends and existing members in parallel
+            const [friendsResponse, membersResponse] = await Promise.all([
+                relationshipService.getFriends(),
+                groupService.getMembers(groupId, 1, 100)
+            ]);
+
+            setFriends(friendsResponse.data || []);
+
+            // Get IDs of existing members
+            const memberIds = new Set<string>(
+                (membersResponse.members || []).map((m: any) => m._id || m.userId?._id)
+            );
+            setExistingMemberIds(memberIds);
+
+            // Get pending invites
+            try {
+                const pendingResponse = await groupService.getPendingMembers(groupId, 1, 100);
+                const pendingIds = new Set<string>(
+                    (pendingResponse.members || []).map((m: any) => m.userId?._id || m._id)
+                );
+                setPendingInviteIds(pendingIds);
+            } catch {
+                // Ignore if user doesn't have permission to view pending
+            }
         } catch (error) {
-            console.error('Failed to load friends:', error);
+            console.error('Failed to load data:', error);
         } finally {
             setIsLoading(false);
         }
@@ -77,6 +102,13 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
         }
     };
 
+    const getButtonStatus = (friendId: string): 'invited' | 'member' | 'pending' | 'available' => {
+        if (existingMemberIds.has(friendId)) return 'member';
+        if (invitedIds.has(friendId)) return 'invited';
+        if (pendingInviteIds.has(friendId)) return 'pending';
+        return 'available';
+    };
+
     const filteredFriends = friends.filter(friend => {
         const fullName = `${friend.firstName} ${friend.lastName}`.toLowerCase();
         return fullName.includes(searchQuery.toLowerCase());
@@ -91,7 +123,6 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
             PaperProps={{
                 sx: { borderRadius: 2, maxHeight: '80vh' }
             }}
-
         >
             <DialogTitle sx={{
                 display: 'flex',
@@ -134,7 +165,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                 </Box>
 
                 {/* Friends List */}
-                <Box sx={{ maxHeight: 400, overflow: 'hidden', padding: 2 }}>
+                <Box sx={{ maxHeight: 400, overflowY: 'auto', p: 1 }}>
                     {isLoading ? (
                         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                             <CircularProgress />
@@ -145,57 +176,64 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                         </Typography>
                     ) : (
                         <List>
-                            {filteredFriends.map((friend) => (
-                                <ListItem
-                                    key={friend._id}
-                                    secondaryAction={
-                                        invitedIds.has(friend._id) ? (
-                                            <Button
-                                                disabled
-                                                startIcon={<CheckIcon />}
-                                                sx={{
-                                                    textTransform: 'none',
-                                                    color: '#65676b'
-                                                }}
-                                            >
-                                                Đã mời
-                                            </Button>
-                                        ) : (
-                                            <Button
-                                                variant="contained"
-                                                onClick={() => handleInvite(friend._id)}
-                                                disabled={invitingId === friend._id}
-                                                sx={{
-                                                    textTransform: 'none',
-                                                    bgcolor: '#1877f2',
-                                                    '&:hover': { bgcolor: '#166fe5' }
-                                                }}
-                                            >
-                                                {invitingId === friend._id ? (
-                                                    <CircularProgress size={20} color="inherit" />
-                                                ) : (
-                                                    'Mời'
-                                                )}
-                                            </Button>
-                                        )
-                                    }
-                                    sx={{
-                                        '&:hover': { bgcolor: '#f0f2f5' },
-                                        borderRadius: 1,
-                                        mx: 1
-                                    }}
-                                >
-                                    <ListItemAvatar>
-                                        <Avatar
-                                            src={friend.avatar || ""}
+                            {filteredFriends.map((friend) => {
+                                const status = getButtonStatus(friend._id);
+
+                                return (
+                                    <ListItem
+                                        key={friend._id}
+                                        secondaryAction={
+                                            status === 'member' ? (
+                                                <Chip
+                                                    label="Đã là thành viên"
+                                                    size="small"
+                                                    sx={{ bgcolor: '#e4e6eb', color: '#65676b' }}
+                                                />
+                                            ) : status === 'invited' || status === 'pending' ? (
+                                                <Button
+                                                    disabled
+                                                    startIcon={<CheckIcon />}
+                                                    sx={{
+                                                        textTransform: 'none',
+                                                        color: '#65676b'
+                                                    }}
+                                                >
+                                                    {status === 'pending' ? 'Đang chờ' : 'Đã mời'}
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    variant="contained"
+                                                    onClick={() => handleInvite(friend._id)}
+                                                    disabled={invitingId === friend._id}
+                                                    sx={{
+                                                        textTransform: 'none',
+                                                        bgcolor: '#1877f2',
+                                                        '&:hover': { bgcolor: '#166fe5' }
+                                                    }}
+                                                >
+                                                    {invitingId === friend._id ? (
+                                                        <CircularProgress size={20} color="inherit" />
+                                                    ) : (
+                                                        'Mời'
+                                                    )}
+                                                </Button>
+                                            )
+                                        }
+                                        sx={{
+                                            '&:hover': { bgcolor: '#f0f2f5' },
+                                            borderRadius: 1,
+                                        }}
+                                    >
+                                        <ListItemAvatar>
+                                            <Avatar src={friend.avatar || ""} />
+                                        </ListItemAvatar>
+                                        <ListItemText
+                                            primary={`${friend.firstName} ${friend.lastName}`}
+                                            primaryTypographyProps={{ fontWeight: 500 }}
                                         />
-                                    </ListItemAvatar>
-                                    <ListItemText
-                                        primary={`${friend.firstName} ${friend.lastName}`}
-                                        primaryTypographyProps={{ fontWeight: 500 }}
-                                    />
-                                </ListItem>
-                            ))}
+                                    </ListItem>
+                                );
+                            })}
                         </List>
                     )}
                 </Box>

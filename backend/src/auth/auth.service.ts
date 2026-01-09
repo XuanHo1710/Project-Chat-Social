@@ -147,7 +147,6 @@ export class AuthService {
   };
 
   async logout(response: Response) {
-    console.log('Logout backend nè');
     response.clearCookie('refresh_token');
     // response.clearCookie("access_token");
     return { message: 'Success Logout' };

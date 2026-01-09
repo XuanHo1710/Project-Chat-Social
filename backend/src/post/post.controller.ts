@@ -72,6 +72,22 @@ export class PostController {
     );
   }
 
+  @Get('reels')
+  getReels(
+    @UserInfo() user: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('friendIds') friendIds?: string
+  ) {
+    const friends = friendIds ? friendIds.split(',') : [];
+    return this.postService.findVideoReels(
+      user._id,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 10,
+      friends
+    );
+  }
+
   @Get('group/:groupId')
   findByGroupId(
     @UserInfo() user: any,

@@ -3,11 +3,11 @@ import {
     Box, Typography, IconButton, Divider,
 } from '@mui/material';
 import {
-
     ThumbUp as ThumbUpIcon,
     ChatBubbleOutline as CommentIcon,
     Share as ShareIcon,
     Close as CloseIcon,
+    Lock as LockIcon,
 } from '@mui/icons-material';
 import { getAuthorName } from '@/utils/formatPost';
 import ReactionButton from '@/components/posts/ReactionButton';
@@ -16,6 +16,8 @@ import { PostType } from '@/types/post';
 import { useState, useEffect } from 'react';
 import { HashtagContent } from '@/utils/hashtagParser';
 import { useReactionStore } from '@/stores/useReactionStore';
+import ReactionListDialog from '@/components/posts/ReactionListDialog';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 interface CommentContentModalProps {
     setOpenCommentModal: React.Dispatch<React.SetStateAction<boolean>>;
@@ -30,7 +32,10 @@ export default function CommentContentModal({
     renderPostMedia,
     handleOpenShare
 }: CommentContentModalProps) {
+    const { user } = useAuthStore();
     const [totalComments, setTotalComments] = useState<number>(commentingPost?.totalComments || 0);
+
+    const [reactionListOpen, setReactionListOpen] = useState(false);
 
 
     // Use global store for reaction state
@@ -39,6 +44,11 @@ export default function CommentContentModal({
 
     // Get totalReacts from global store
     const displayTotalReacts = reactionState?.totalReacts ?? commentingPost?.totalReacts ?? 0;
+
+    // Check if features are allowed
+    const allowComments = commentingPost?.allowComments !== false;
+    const allowShares = commentingPost?.allowShares !== false;
+    const allowReactions = commentingPost?.allowReactions !== false;
 
     // Initialize store with post data on mount
     useEffect(() => {
@@ -63,9 +73,52 @@ export default function CommentContentModal({
                 )}
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: '#1877f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ThumbUpIcon sx={{ fontSize: 12, color: 'white' }} /></Box>
-                        <Typography sx={{ fontSize: 15, color: '#65676b' }}>{displayTotalReacts}</Typography>
+                    <Box sx={{
+                        display: 'flex', alignItems: 'center', gap: 0.5, cursor: displayTotalReacts > 0 ? 'pointer' : 'default',
+                        '&:hover': displayTotalReacts > 0 ? { textDecoration: 'underline' } : {}
+                    }}
+                        onClick={() => displayTotalReacts > 0 && setReactionListOpen(true)}
+                    >
+                        {/* Show top 3 reactions */}
+                        {commentingPost?.topReactions && commentingPost.topReactions.length > 0 ? (
+                            <Box sx={{ display: 'flex', ml: -0.5 }}>
+                                {commentingPost.topReactions.slice(0, 3).map((reaction, index) => {
+                                    const reactionEmoji: Record<string, { emoji: string; bg: string }> = {
+                                        LIKE: { emoji: '👍', bg: '#1877f2' },
+                                        LOVE: { emoji: '❤️', bg: '#f33e58' },
+                                        HAHA: { emoji: '😆', bg: '#f7b125' },
+                                        WOW: { emoji: '😮', bg: '#f7b125' },
+                                        SAD: { emoji: '😢', bg: '#f7b125' },
+                                        ANGRY: { emoji: '😡', bg: '#e9710f' },
+                                    };
+                                    const reactionData = reactionEmoji[reaction.type] || { emoji: '👍', bg: '#1877f2' };
+                                    return (
+                                        <Box
+                                            key={reaction.type}
+                                            sx={{
+                                                width: 25,
+                                                height: 25,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: 20,
+                                                ml: index > 0 ? -0.5 : 0,
+                                                zIndex: 3 - index,
+                                            }}
+                                        >
+                                            {reactionData.emoji}
+                                        </Box>
+                                    );
+                                })}
+                            </Box>
+                        ) : displayTotalReacts > 0 ? (
+                            <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: '#1877f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <ThumbUpIcon sx={{ fontSize: 12, color: 'white' }} />
+                            </Box>
+                        ) : null}
+                        {displayTotalReacts > 0 && (
+                            <Typography sx={{ fontSize: 15, color: '#65676b' }}>{displayTotalReacts}</Typography>
+                        )}
                     </Box>
                     <Typography sx={{ fontSize: 15, color: '#65676b' }}>{totalComments} bình luận · {commentingPost?.totalShares} lượt chia sẻ</Typography>
                 </Box>
@@ -73,23 +126,93 @@ export default function CommentContentModal({
                 <Divider sx={{ my: 1 }} />
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-around', mb: 2 }}>
-                    {commentingPost && (
+                    {/* Reaction Button - disabled if not allowed */}
+                    {commentingPost && allowReactions ? (
                         <ReactionButton
                             post={commentingPost}
                             initialTotalReacts={commentingPost.totalReacts}
                         />
+                    ) : (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, justifyContent: 'center', py: 1, opacity: 0.5 }}>
+                            <LockIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                            <Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>Đã tắt</Typography>
+                        </Box>
                     )}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', flex: 1, justifyContent: 'center', py: 1, borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}><CommentIcon sx={{ fontSize: 20, color: '#65676b' }} /><Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>Bình luận</Typography></Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', flex: 1, justifyContent: 'center', py: 1, borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }} onClick={() => commentingPost && handleOpenShare(commentingPost)}><ShareIcon sx={{ fontSize: 20, color: '#65676b' }} /><Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>Chia sẻ</Typography></Box>
+
+                    {/* Comment Button - disabled if not allowed */}
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            cursor: allowComments ? 'pointer' : 'default',
+                            flex: 1,
+                            justifyContent: 'center',
+                            py: 1,
+                            borderRadius: 2,
+                            opacity: allowComments ? 1 : 0.5,
+                            '&:hover': { bgcolor: allowComments ? '#f0f2f5' : 'transparent' }
+                        }}
+                    >
+                        {allowComments ? (
+                            <CommentIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                        ) : (
+                            <LockIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                        )}
+                        <Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>
+                            {allowComments ? 'Bình luận' : 'Đã tắt bình luận'}
+                        </Typography>
+                    </Box>
+
+                    {/* Share Button - disabled if not allowed */}
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            cursor: allowShares ? 'pointer' : 'default',
+                            flex: 1,
+                            justifyContent: 'center',
+                            py: 1,
+                            borderRadius: 2,
+                            opacity: allowShares ? 1 : 0.5,
+                            '&:hover': { bgcolor: allowShares ? '#f0f2f5' : 'transparent' }
+                        }}
+                        onClick={() => allowShares && commentingPost && handleOpenShare(commentingPost)}
+                    >
+                        {allowShares ? (
+                            <ShareIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                        ) : (
+                            <LockIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                        )}
+                        <Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>
+                            {allowShares ? 'Chia sẻ' : 'Đã tắt chia sẻ'}
+                        </Typography>
+                    </Box>
                 </Box>
 
                 <Divider sx={{ mb: 2 }} />
 
-                {/* Comment Section */}
-                {commentingPost && (
+                {/* Comment Section - only show if comments are allowed */}
+                {commentingPost && allowComments ? (
                     <CommentSection onChangeTotalComments={setTotalComments} postId={commentingPost._id} />
+                ) : (
+                    <Box sx={{ textAlign: 'center', py: 4, color: '#65676b' }}>
+                        <LockIcon sx={{ fontSize: 48, mb: 1 }} />
+                        <Typography>Chủ bài viết đã tắt bình luận</Typography>
+                    </Box>
                 )}
             </Box>
+            {commentingPost &&
+                <ReactionListDialog
+                    open={reactionListOpen}
+                    onClose={() => setReactionListOpen(false)}
+                    postId={commentingPost._id}
+                    userId={user?.id || ""}
+                />
+
+            }
         </Box>
+
     );
 }

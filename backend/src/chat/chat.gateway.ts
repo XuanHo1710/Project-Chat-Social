@@ -94,7 +94,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const conversations = await this.conversationService.findConversationByUserId(userId);
       conversations.forEach((conv) => {
         client.join(`room:${conv._id.toString()}`);
-        console.log(`User ${userId} joined room: room:${conv._id.toString()}`);
       });
     } catch (error) {
       this.logger.error('Connection error:', error);
@@ -959,7 +958,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       .lean();
 
     const visibleOnlineUsers = users.map((u) => u._id.toString());
-    console.log('📋 Online users requested:', visibleOnlineUsers);
     return { onlineUsers: visibleOnlineUsers };
   }
 

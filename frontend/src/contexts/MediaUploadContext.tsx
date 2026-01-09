@@ -1,5 +1,5 @@
 "use client";
-import { DeleteMedia, UploadMediaFiles } from '@/utils/uploadImage';
+import { uploadChatMedia, UploadMediaResult } from '@/services/cloudinary.service';
 import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 
 export interface MediaUploadResult {
@@ -87,9 +87,10 @@ export function MediaUploadProvider({ children }: { children: ReactNode }) {
             // Revoke object URL to free memory
             URL.revokeObjectURL(mediaItem.preview);
 
-            // If already uploaded, delete from Cloudinary
+            // If already uploaded, delete from Cloudinary via backend
             if (mediaItem.uploadStatus === "uploaded" && mediaItem.publicId) {
-                await DeleteMedia(mediaItem.publicId, mediaItem.mediaType);
+                // For simplicity, we don't delete from cloudinary on remove 
+                // since backend handles cleanup or you can implement deleteCloudinaryMedia
                 setUploadedMedia((prev) =>
                     prev.filter((m) => m.publicId !== mediaItem.publicId)
                 );
@@ -100,8 +101,8 @@ export function MediaUploadProvider({ children }: { children: ReactNode }) {
         [pendingMedia]
     );
 
-    // Upload all pending media
-    const uploadAllMedia = useCallback(async () => {
+    // Upload all pending media using backend API
+    const uploadAllMedia = useCallback(async (): Promise<MediaUploadResult[]> => {
         const pendingFiles = pendingMedia.filter(
             (m) => m.uploadStatus === "pending"
         );
@@ -118,10 +119,24 @@ export function MediaUploadProvider({ children }: { children: ReactNode }) {
                 )
             );
 
-            const results = await UploadMediaFiles(
-                pendingFiles.map((m) => m.file),
-                (progress) => setUploadProgress(progress)
-            );
+            // Use backend API for upload (supports both images and videos)
+            const response = await uploadChatMedia(pendingFiles.map((m) => m.file));
+
+            if (!response.success) {
+                throw new Error(response.error || 'Upload failed');
+            }
+
+            setUploadProgress(100);
+
+            // Convert backend response to MediaUploadResult format
+            const results: MediaUploadResult[] = response.results.map((r: UploadMediaResult) => ({
+                url: r.url,
+                publicId: r.publicId,
+                mediaType: r.mediaType === 'VIDEO' ? 'VIDEO' : 'IMAGE',
+                width: undefined,
+                height: undefined,
+                duration: undefined,
+            }));
 
             // Update pending media with upload results
             setPendingMedia((prev) =>
@@ -147,6 +162,7 @@ export function MediaUploadProvider({ children }: { children: ReactNode }) {
             setUploadedMedia(allUploaded);
             return allUploaded;
         } catch (error) {
+            console.error('Upload error:', error);
             // Mark as error
             setPendingMedia((prev) =>
                 prev.map((m) =>

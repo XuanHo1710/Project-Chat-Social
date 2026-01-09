@@ -190,7 +190,18 @@ export default function HomeFeed() {
         setOpenImageViewer(true);
     };
 
+    // Open video in Reels
+    const handleOpenVideoReel = (post: PostType) => {
+        router.push(`/reels/${post._id}`);
+    };
+
     const handleOpenComments = (post: PostType) => {
+        // If post has video, open in Reels view
+        const hasVideo = post.media?.some(m => m.mediaType === 'VIDEO');
+        if (hasVideo) {
+            handleOpenVideoReel(post);
+            return;
+        }
         setCommentingPost(post);
         setOpenCommentModal(true);
     };
@@ -225,12 +236,25 @@ export default function HomeFeed() {
             return (
                 <Box sx={{ mb: 2, position: 'relative' }}>
                     {media.mediaType === 'VIDEO' ? (
-                        <Box sx={{ position: 'relative' }} onClick={() => handleOpenImageViewer(post.media, 0)}>
+                        <Box
+                            sx={{ position: 'relative', cursor: 'pointer' }}
+                            onClick={() => handleOpenVideoReel(post)}
+                        >
                             <video
                                 src={media.url}
-                                controls
                                 style={{ width: '100%', maxHeight: 500, objectFit: 'cover', borderRadius: 4 }}
                             />
+                            <Box sx={{
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                bgcolor: 'rgba(0,0,0,0.6)',
+                                borderRadius: '50%',
+                                p: 1.5
+                            }}>
+                                <PlayIcon sx={{ color: 'white', fontSize: 48 }} />
+                            </Box>
                         </Box>
                     ) : (
                         <Box
@@ -251,7 +275,13 @@ export default function HomeFeed() {
                 {post.media.slice(0, 4).map((media, index) => (
                     <Box
                         key={index}
-                        onClick={() => handleOpenImageViewer(post.media, index)}
+                        onClick={() => {
+                            if (media.mediaType === 'VIDEO') {
+                                handleOpenVideoReel(post);
+                            } else {
+                                handleOpenImageViewer(post.media, index);
+                            }
+                        }}
                         sx={{
                             position: 'relative',
                             height: mediaCount === 2 ? 300 : 200,

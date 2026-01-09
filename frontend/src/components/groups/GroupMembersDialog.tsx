@@ -77,7 +77,6 @@ export default function GroupMembersDialog({
         setIsLoading(true);
         try {
             const response = await groupService.getMembers(groupId, 1, 100);
-            console.log(response);
             if (response && response.members) {
                 setMembers(response.members || []);
             }

@@ -415,8 +415,6 @@ export class ReactionService implements OnModuleInit {
         $or: [{ factorId: { $exists: false } }, { typeFactor: { $exists: false } }],
       });
 
-      console.log(`Found ${oldReactions.length} old reactions to migrate`);
-
       let migratedCount = 0;
       for (const reaction of oldReactions) {
         const reactionObj = reaction.toObject() as any;
@@ -439,7 +437,6 @@ export class ReactionService implements OnModuleInit {
       // Drop old index and create new one
       try {
         await this.reactionModel.collection.dropIndex('postId_1_userId_1');
-        console.log('Dropped old index: postId_1_userId_1');
       } catch (e: any) {
         console.log('Old index may not exist:', e.message);
       }
@@ -450,7 +447,6 @@ export class ReactionService implements OnModuleInit {
           { factorId: 1, typeFactor: 1, userId: 1 },
           { unique: true }
         );
-        console.log('Created new index: factorId_1_typeFactor_1_userId_1');
       } catch (e: any) {
         console.log('New index may already exist:', e.message);
       }

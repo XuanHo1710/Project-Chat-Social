@@ -22,9 +22,10 @@ const REACTIONS = [
 interface ReactionButtonProps {
     post: PostType;
     initialTotalReacts?: number;
+    variant?: 'default' | 'reels';
 }
 
-export default function ReactionButton({ post, initialTotalReacts = 0 }: ReactionButtonProps) {
+export default function ReactionButton({ post, initialTotalReacts = 0, variant = 'default' }: ReactionButtonProps) {
     const [showReactions, setShowReactions] = useState(false);
     const { socketReaction } = useSocket();
 
@@ -167,6 +168,93 @@ export default function ReactionButton({ post, initialTotalReacts = 0 }: Reactio
 
     const currentReactionData = REACTIONS.find((r) => r.type === localReaction);
 
+    // Reels variant
+    if (variant === 'reels') {
+        return (
+            <ClickAwayListener onClickAway={() => setShowReactions(false)}>
+                <Box
+                    sx={{ position: "relative", display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 999 }}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
+                >
+                    {/* Reaction Picker Popup for Reels */}
+                    <Grow in={showReactions}>
+                        <Box
+                            sx={{
+                                position: "absolute",
+                                bottom: "100%",
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                mb: 1,
+                                display: "flex",
+                                gap: 1,
+                                bgcolor: "white",
+                                borderRadius: 5,
+                                px: 1,
+                                py: 0.5,
+                                boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+                                zIndex: 1000,
+                            }}
+                            onMouseEnter={() => {
+                                if (leaveTimeout.current) {
+                                    clearTimeout(leaveTimeout.current);
+                                    leaveTimeout.current = null;
+                                }
+                            }}
+                            onMouseLeave={handleMouseLeave}
+                        >
+                            {REACTIONS.map((reaction) => (
+                                <Tooltip key={reaction.type} title={reaction.label} placement="top">
+                                    <Box
+                                        onClick={() => handleReactionSelect(reaction.type)}
+                                        sx={{
+                                            fontSize: 28,
+                                            cursor: "pointer",
+                                            transition: "transform 0.2s",
+                                            "&:hover": {
+                                                transform: "scale(1.3)",
+                                            },
+                                        }}
+                                    >
+                                        {reaction.emoji}
+                                    </Box>
+                                </Tooltip>
+                            ))}
+                        </Box>
+                    </Grow>
+
+                    {/* Reels Icon Button */}
+                    <Box
+                        onClick={handleClick}
+                        sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            bgcolor: 'rgba(255,255,255,0.15)',
+                            color: 'white',
+                            width: 48,
+                            height: 48,
+                            borderRadius: '50%',
+                            cursor: "pointer",
+                            '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' },
+                            userSelect: "none",
+                        }}
+                    >
+                        {localReaction ? (
+                            <Typography sx={{ fontSize: 24 }}>{currentReactionData?.emoji}</Typography>
+                        ) : (
+                            <ThumbUpOutlinedIcon sx={{ fontSize: 24, color: 'white' }} />
+                        )}
+                    </Box>
+                    <Typography sx={{ color: 'white', fontSize: 13, mt: 0.5 }}>
+                        {localTotalReacts > 0 ? localTotalReacts.toLocaleString() : ''}
+                    </Typography>
+                </Box>
+            </ClickAwayListener>
+        );
+    }
+
+    // Default variant
     return (
         <ClickAwayListener onClickAway={() => setShowReactions(false)}>
             <Box

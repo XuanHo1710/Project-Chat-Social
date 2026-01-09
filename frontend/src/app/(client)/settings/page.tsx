@@ -6,8 +6,6 @@ import {
     Typography,
     Switch,
     Button,
-    Card,
-    CardContent,
     Avatar,
     IconButton,
     Dialog,
@@ -15,11 +13,7 @@ import {
     DialogContent,
     DialogActions,
     CircularProgress,
-    List,
-    ListItem,
-    ListItemAvatar,
-    ListItemText,
-    ListItemSecondaryAction,
+    Divider,
 } from '@mui/material';
 import {
     Visibility as VisibilityIcon,
@@ -27,6 +21,7 @@ import {
     Lock as LockIcon,
     PersonOff as PersonOffIcon,
     ArrowBack as ArrowBackIcon,
+    ChevronRight as ChevronRightIcon,
 } from '@mui/icons-material';
 import { accountService, UserSettings } from '@/services/account.service';
 import { relationshipService, BlockedUser, RestrictedUser } from '@/services/relationship.service';
@@ -65,6 +60,10 @@ export default function SettingsPage() {
     const [showBlockConfirm, setShowBlockConfirm] = useState(false);
     const [savingActivity, setSavingActivity] = useState(false);
     const [blockingAccount, setBlockingAccount] = useState(false);
+
+    // Expanded sections
+    const [expandedBlocked, setExpandedBlocked] = useState(false);
+    const [expandedRestricted, setExpandedRestricted] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -157,187 +156,425 @@ export default function SettingsPage() {
         }
     };
 
+    const handleUnrestrictUser = async (userId: string) => {
+        try {
+            await relationshipService.unrestrictUser(userId);
+            setRestrictedUsers(restrictedUsers.filter(u => u._id !== userId));
+            toast.success('Đã bỏ hạn chế người dùng');
+        } catch (error) {
+            console.error('Failed to unrestrict user:', error);
+            toast.error('Không thể bỏ hạn chế người dùng');
+        }
+    };
+
     if (loading) {
         return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', bgcolor: '#f0f2f5' }}>
                 <CircularProgress />
             </Box>
         );
     }
 
     return (
-        <Box sx={{ maxWidth: 800, mx: 'auto', p: 3 }}>
+        <Box sx={{ minHeight: '100vh', bgcolor: '#f0f2f5' }}>
             {/* Header */}
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <IconButton onClick={() => router.back()} sx={{ mr: 1 }}>
-                    <ArrowBackIcon />
-                </IconButton>
-                <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                    Cài đặt
-                </Typography>
+            <Box sx={{
+                bgcolor: 'white',
+                borderBottom: '1px solid #dddfe2',
+                position: 'sticky',
+                top: 0,
+                zIndex: 100,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            }}>
+                <Box sx={{ maxWidth: 680, mx: 'auto', px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <IconButton onClick={() => router.back()} sx={{ color: '#050505' }}>
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#050505' }}>
+                        Cài đặt & quyền riêng tư
+                    </Typography>
+                </Box>
             </Box>
 
-            {/* Activity Status Section */}
-            <Card sx={{ mb: 3 }}>
-                <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                        <VisibilityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                        Trạng thái hoạt động
-                    </Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Box>
-                            <Typography>Hiển thị khi bạn đang hoạt động</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Người khác có thể thấy khi bạn đang online
+            {/* Content */}
+            <Box sx={{ maxWidth: 680, mx: 'auto', py: 2, px: 2 }}>
+                {/* Activity Status Section */}
+                <Box sx={{
+                    bgcolor: 'white',
+                    borderRadius: '8px',
+                    mb: 2,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    overflow: 'hidden',
+                    border: '1px solid #dddfe2',
+                }}>
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e4e6eb' }}>
+                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: '#050505' }}>
+                            Trạng thái hoạt động
+                        </Typography>
+                    </Box>
+                    <Box sx={{
+                        p: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: '#f7f8fa' },
+                        transition: 'background 0.15s',
+                    }}>
+                        <Box sx={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: '50%',
+                            bgcolor: '#e7f3ff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}>
+                            <VisibilityIcon sx={{ color: '#1877f2', fontSize: 22 }} />
+                        </Box>
+                        <Box sx={{ flex: 1 }}>
+                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                Hiển thị trạng thái hoạt động
+                            </Typography>
+                            <Typography sx={{ fontSize: 13, color: '#65676b', mt: 0.25 }}>
+                                Cho phép người khác thấy khi bạn đang online
                             </Typography>
                         </Box>
                         <Switch
                             checked={settings?.showActivityStatus ?? true}
                             onChange={handleToggleActivityStatus}
                             disabled={savingActivity}
+                            sx={{
+                                '& .MuiSwitch-switchBase.Mui-checked': {
+                                    color: '#1877f2',
+                                },
+                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                    backgroundColor: '#1877f2',
+                                },
+                            }}
                         />
                     </Box>
-                </CardContent>
-            </Card>
+                </Box>
 
-            {/* Blocked Users Section */}
-            <Card sx={{ mb: 3 }}>
-                <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                        <BlockIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                        Người dùng đã chặn ({blockedUsers.length})
-                    </Typography>
-                    {blockedUsers.length === 0 ? (
-                        <Typography color="text.secondary">Bạn chưa chặn ai</Typography>
-                    ) : (
-                        <List>
-                            {blockedUsers.map((user) => (
-                                <ListItem key={user._id}>
-                                    <ListItemAvatar>
-                                        <Avatar src={user.avatar}>
+                {/* Blocked Users Section */}
+                <Box sx={{
+                    bgcolor: 'white',
+                    borderRadius: '8px',
+                    mb: 2,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    overflow: 'hidden',
+                    border: '1px solid #dddfe2',
+                }}>
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e4e6eb' }}>
+                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: '#050505' }}>
+                            Chặn
+                        </Typography>
+                    </Box>
+                    <Box
+                        onClick={() => setExpandedBlocked(!expandedBlocked)}
+                        sx={{
+                            p: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            cursor: 'pointer',
+                            '&:hover': { bgcolor: '#f7f8fa' },
+                            transition: 'background 0.15s',
+                        }}
+                    >
+                        <Box sx={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: '50%',
+                            bgcolor: '#ffe8e8',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}>
+                            <BlockIcon sx={{ color: '#be4b49', fontSize: 22 }} />
+                        </Box>
+                        <Box sx={{ flex: 1 }}>
+                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                Người dùng đã chặn
+                            </Typography>
+                            <Typography sx={{ fontSize: 13, color: '#65676b', mt: 0.25 }}>
+                                {blockedUsers.length === 0 ? 'Bạn chưa chặn ai' : `${blockedUsers.length} người dùng`}
+                            </Typography>
+                        </Box>
+                        <ChevronRightIcon sx={{
+                            color: '#65676b',
+                            fontSize: 24,
+                            transform: expandedBlocked ? 'rotate(90deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s',
+                        }} />
+                    </Box>
+
+                    {expandedBlocked && blockedUsers.length > 0 && (
+                        <Box sx={{ borderTop: '1px solid #e4e6eb', bgcolor: '#f7f8fa' }}>
+                            {blockedUsers.map((user, index) => (
+                                <Box key={user._id}>
+                                    <Box sx={{
+                                        px: 2,
+                                        py: 1.5,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 2,
+                                        '&:hover': { bgcolor: '#f0f2f5' },
+                                    }}>
+                                        <Avatar src={user.avatar} sx={{ width: 48, height: 48 }}>
                                             {user.firstName?.[0]}
                                         </Avatar>
-                                    </ListItemAvatar>
-                                    <ListItemText
-                                        primary={`${user.firstName} ${user.lastName}`}
-                                        secondary={`Đã chặn ${formatDate(user.blockedAt)}`}
-                                    />
-                                    <ListItemSecondaryAction>
+                                        <Box sx={{ flex: 1 }}>
+                                            <Typography sx={{ fontWeight: 600, fontSize: 15 }}>
+                                                {user.firstName} {user.lastName}
+                                            </Typography>
+                                            <Typography sx={{ fontSize: 13, color: '#65676b' }}>
+                                                Đã chặn {formatDate(user.blockedAt)}
+                                            </Typography>
+                                        </Box>
                                         <Button
                                             size="small"
-                                            variant="outlined"
                                             onClick={() => handleUnblockUser(user._id)}
+                                            sx={{
+                                                bgcolor: '#e4e6eb',
+                                                color: '#050505',
+                                                textTransform: 'none',
+                                                fontWeight: 600,
+                                                px: 2,
+                                                '&:hover': { bgcolor: '#d8dadf' },
+                                            }}
                                         >
                                             Bỏ chặn
                                         </Button>
-                                    </ListItemSecondaryAction>
-                                </ListItem>
+                                    </Box>
+                                    {index < blockedUsers.length - 1 && <Divider sx={{ mx: 2 }} />}
+                                </Box>
                             ))}
-                        </List>
+                        </Box>
                     )}
-                </CardContent>
-            </Card>
+                </Box>
 
-            {/* Restricted Users Section */}
-            <Card sx={{ mb: 3 }}>
-                <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                        <PersonOffIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                        Tài khoản hạn chế ({restrictedUsers.length})
-                    </Typography>
-                    {restrictedUsers.length === 0 ? (
-                        <Typography color="text.secondary">Không có tài khoản nào bị hạn chế</Typography>
-                    ) : (
-                        <List>
-                            {restrictedUsers.map((user) => (
-                                <ListItem
-                                    key={user._id}
-                                    secondaryAction={
+                {/* Restricted Users Section */}
+                <Box sx={{
+                    bgcolor: 'white',
+                    borderRadius: '8px',
+                    mb: 2,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    overflow: 'hidden',
+                    border: '1px solid #dddfe2',
+                }}>
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e4e6eb' }}>
+                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: '#050505' }}>
+                            Hạn chế
+                        </Typography>
+                    </Box>
+                    <Box
+                        onClick={() => setExpandedRestricted(!expandedRestricted)}
+                        sx={{
+                            p: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            cursor: 'pointer',
+                            '&:hover': { bgcolor: '#f7f8fa' },
+                            transition: 'background 0.15s',
+                        }}
+                    >
+                        <Box sx={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: '50%',
+                            bgcolor: '#fff3cd',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}>
+                            <PersonOffIcon sx={{ color: '#856404', fontSize: 22 }} />
+                        </Box>
+                        <Box sx={{ flex: 1 }}>
+                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                Tài khoản bị hạn chế
+                            </Typography>
+                            <Typography sx={{ fontSize: 13, color: '#65676b', mt: 0.25 }}>
+                                {restrictedUsers.length === 0 ? 'Không có tài khoản nào bị hạn chế' : `${restrictedUsers.length} tài khoản`}
+                            </Typography>
+                        </Box>
+                        <ChevronRightIcon sx={{
+                            color: '#65676b',
+                            fontSize: 24,
+                            transform: expandedRestricted ? 'rotate(90deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s',
+                        }} />
+                    </Box>
+
+                    {expandedRestricted && restrictedUsers.length > 0 && (
+                        <Box sx={{ borderTop: '1px solid #e4e6eb', bgcolor: '#f7f8fa' }}>
+                            {restrictedUsers.map((user, index) => (
+                                <Box key={user._id}>
+                                    <Box sx={{
+                                        px: 2,
+                                        py: 1.5,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 2,
+                                        '&:hover': { bgcolor: '#f0f2f5' },
+                                    }}>
+                                        <Avatar src={user.avatar} sx={{ width: 48, height: 48 }}>
+                                            {user.firstName?.[0]}
+                                        </Avatar>
+                                        <Box sx={{ flex: 1 }}>
+                                            <Typography sx={{ fontWeight: 600, fontSize: 15 }}>
+                                                {user.firstName} {user.lastName}
+                                            </Typography>
+                                            <Typography sx={{ fontSize: 13, color: '#65676b' }}>
+                                                Bị hạn chế ngày {formatDate(user.restrictedAt)}
+                                            </Typography>
+                                        </Box>
                                         <Button
                                             size="small"
-                                            variant="outlined"
-                                            onClick={async () => {
-                                                try {
-                                                    await relationshipService.unrestrictUser(user._id);
-                                                    setRestrictedUsers(prev => prev.filter(u => u._id !== user._id));
-                                                } catch (error) {
-                                                    console.error('Failed to unrestrict user:', error);
-                                                }
+                                            onClick={() => handleUnrestrictUser(user._id)}
+                                            sx={{
+                                                bgcolor: '#e4e6eb',
+                                                color: '#050505',
+                                                textTransform: 'none',
+                                                fontWeight: 600,
+                                                px: 2,
+                                                '&:hover': { bgcolor: '#d8dadf' },
                                             }}
                                         >
                                             Bỏ hạn chế
                                         </Button>
-                                    }
-                                >
-                                    <ListItemAvatar>
-                                        <Avatar src={user.avatar}>
-                                            {user.firstName?.[0]}
-                                        </Avatar>
-                                    </ListItemAvatar>
-                                    <ListItemText
-                                        primary={`${user.firstName} ${user.lastName}`}
-                                        secondary={`Bị hạn chế ngày ${new Date(user.restrictedAt).toLocaleDateString('vi-VN')}`}
-                                    />
-                                </ListItem>
+                                    </Box>
+                                    {index < restrictedUsers.length - 1 && <Divider sx={{ mx: 2 }} />}
+                                </Box>
                             ))}
-                        </List>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* Self Block Section */}
-            <Card sx={{ mb: 3, bgcolor: '#fff5f5' }}>
-                <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'error.main' }}>
-                        <LockIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                        Tạm khóa tài khoản
-                    </Typography>
-                    <Typography sx={{ mb: 2 }}>
-                        Tạm khóa tài khoản của bạn trong 30 ngày. Trong thời gian này, bạn sẽ không thể đăng nhập
-                        và người khác sẽ không thể xem trang cá nhân của bạn.
-                    </Typography>
-                    {settings?.isSelfBlocked ? (
-                        <Box sx={{ p: 2, bgcolor: 'error.light', borderRadius: 1, color: 'white' }}>
-                            <Typography>
-                                Tài khoản đã bị khóa đến{' '}
-                                {settings.selfBlockExpireAt
-                                    ? formatDateTime(settings.selfBlockExpireAt)
-                                    : 'N/A'}
-                            </Typography>
                         </Box>
-                    ) : (
-                        <Button
-                            variant="contained"
-                            color="error"
-                            startIcon={<LockIcon />}
-                            onClick={() => setShowBlockConfirm(true)}
-                        >
-                            Tạm khóa tài khoản 30 ngày
-                        </Button>
                     )}
-                </CardContent>
-            </Card>
+                </Box>
+
+                {/* Self Block Section */}
+                <Box sx={{
+                    bgcolor: 'white',
+                    borderRadius: '8px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    overflow: 'hidden',
+                    border: '1px solid #dddfe2',
+                }}>
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e4e6eb' }}>
+                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: '#050505' }}>
+                            Bảo mật tài khoản
+                        </Typography>
+                    </Box>
+                    <Box sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                            <Box sx={{
+                                width: 44,
+                                height: 44,
+                                borderRadius: '50%',
+                                bgcolor: '#fee2e2',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                            }}>
+                                <LockIcon sx={{ color: '#dc2626', fontSize: 22 }} />
+                            </Box>
+                            <Box sx={{ flex: 1 }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                    Tạm khóa tài khoản
+                                </Typography>
+                                <Typography sx={{ fontSize: 13, color: '#65676b', mt: 0.5, lineHeight: 1.5 }}>
+                                    Tạm khóa tài khoản của bạn trong 30 ngày. Trong thời gian này, bạn sẽ không thể đăng nhập
+                                    và người khác sẽ không thể xem trang cá nhân của bạn.
+                                </Typography>
+
+                                {settings?.isSelfBlocked ? (
+                                    <Box sx={{
+                                        p: 2,
+                                        bgcolor: '#fef2f2',
+                                        borderRadius: '8px',
+                                        border: '1px solid #fecaca',
+                                        mt: 2,
+                                    }}>
+                                        <Typography sx={{ color: '#dc2626', fontWeight: 500, fontSize: 14 }}>
+                                            Tài khoản đã bị khóa đến{' '}
+                                            {settings.selfBlockExpireAt
+                                                ? formatDateTime(settings.selfBlockExpireAt)
+                                                : 'N/A'}
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    <Button
+                                        variant="contained"
+                                        startIcon={<LockIcon />}
+                                        onClick={() => setShowBlockConfirm(true)}
+                                        sx={{
+                                            mt: 2,
+                                            bgcolor: '#dc2626',
+                                            color: 'white',
+                                            textTransform: 'none',
+                                            fontWeight: 600,
+                                            px: 3,
+                                            py: 1,
+                                            borderRadius: '6px',
+                                            '&:hover': { bgcolor: '#b91c1c' },
+                                        }}
+                                    >
+                                        Tạm khóa 30 ngày
+                                    </Button>
+                                )}
+                            </Box>
+                        </Box>
+                    </Box>
+                </Box>
+            </Box>
 
             {/* Confirm Dialog */}
-            <Dialog open={showBlockConfirm} onClose={() => setShowBlockConfirm(false)}>
-                <DialogTitle>Xác nhận tạm khóa tài khoản</DialogTitle>
+            <Dialog
+                open={showBlockConfirm}
+                onClose={() => setShowBlockConfirm(false)}
+                PaperProps={{
+                    sx: { borderRadius: '12px', maxWidth: 420, width: '100%' }
+                }}
+            >
+                <DialogTitle sx={{ fontWeight: 600, fontSize: 18, pb: 1 }}>
+                    Xác nhận tạm khóa tài khoản?
+                </DialogTitle>
                 <DialogContent>
-                    <Typography>
+                    <Typography sx={{ color: '#65676b', fontSize: 14, lineHeight: 1.5 }}>
                         Bạn có chắc chắn muốn tạm khóa tài khoản trong 30 ngày không?
                         Bạn sẽ không thể đăng nhập trong thời gian này.
                     </Typography>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setShowBlockConfirm(false)}>
+                <DialogActions sx={{ p: 2, pt: 1.5, gap: 1 }}>
+                    <Button
+                        onClick={() => setShowBlockConfirm(false)}
+                        sx={{
+                            bgcolor: '#e4e6eb',
+                            color: '#050505',
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            px: 3,
+                            borderRadius: '6px',
+                            '&:hover': { bgcolor: '#d8dadf' },
+                        }}
+                    >
                         Hủy
                     </Button>
                     <Button
                         variant="contained"
-                        color="error"
                         onClick={handleSelfBlock}
                         disabled={blockingAccount}
+                        sx={{
+                            bgcolor: '#dc2626',
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            px: 3,
+                            borderRadius: '6px',
+                            '&:hover': { bgcolor: '#b91c1c' },
+                        }}
                     >
-                        {blockingAccount ? <CircularProgress size={24} /> : 'Xác nhận'}
+                        {blockingAccount ? <CircularProgress size={24} color="inherit" /> : 'Xác nhận khóa'}
                     </Button>
                 </DialogActions>
             </Dialog>

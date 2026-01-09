@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Box, Typography, Tooltip, Grow, ClickAwayListener } from "@mui/material";
-import { useGetUserCommentReaction } from "@/queries/useCommentQueries";
 import { Comment, CommentReactionType } from "@/types/comment";
 import { useSocket } from "@/contexts/SocketContext";
 import { useCommentReactionStore, CommentReactionType as StoreReactionType } from "@/stores/useCommentReactionStore";

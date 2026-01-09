@@ -115,6 +115,26 @@ class PostService {
     );
     return response.data.data;
   }
+
+  /**
+   * Get video reels (posts with VIDEO media only)
+   */
+  async getVideoReels(params?: {
+    page?: number;
+    limit?: number;
+    friendIds?: string[];
+  }) {
+    const queryParams = {
+      page: params?.page,
+      limit: params?.limit,
+      friendIds: params?.friendIds?.join(","),
+    };
+    const response = await axios.get<APIResponse<PostPageResponse>>(
+      `/${PREFIX}/reels`,
+      { params: queryParams }
+    );
+    return response.data.data;
+  }
 }
 
 export const postService = new PostService();

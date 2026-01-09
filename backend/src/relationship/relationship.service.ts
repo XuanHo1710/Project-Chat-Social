@@ -41,7 +41,6 @@ export class RelationshipService {
       if (isExistingRelationship.status === RelationshipStatus.PENDING)
         throw new ConflictException('Đã gửi lời mời kết bạn cho đối tượng này rồi');
       else {
-        console.log('Chạy vô đây nè');
         return await this.relationshipModel
           .findByIdAndUpdate(isExistingRelationship._id, {
             status: RelationshipStatus.PENDING,
@@ -269,7 +268,6 @@ export class RelationshipService {
 
   // Get blocked users list
   async getBlockedUsers(userId: string) {
-    console.log('UserId in getBlockedUsers:', userId);
     const blockedRelationships = await this.relationshipModel
       .find({
         status: RelationshipStatus.BLOCKED,
@@ -303,10 +301,6 @@ export class RelationshipService {
 
   // Restrict a user (hide conversation but still friends)
   async restrictUser(userId: string, targetUserId: string) {
-    // Find existing relationship
-    console.log('UserId in restrictUser:', userId);
-    console.log('TargetUserId in restrictUser:', targetUserId);
-
     const relationship = await this.relationshipModel.findOne({
       $or: [
         { userId: new Types.ObjectId(userId), friendId: new Types.ObjectId(targetUserId) },

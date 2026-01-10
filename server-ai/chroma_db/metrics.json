@@ -1,8 +1,9 @@
 {
-  "user_coverage": 0.75,
-  "avg_similarity": 0.5696304440498352,
-  "max_similarity": 1.0000003576278687,
-  "min_similarity": 0.0,
-  "friend_avg_similarity": 0.4677009582519531,
-  "non_friend_avg_similarity": 0.5845428109169006
+  "user_coverage": 1.0,
+  "avg_similarity": 0.49135908484458923,
+  "max_similarity": 0.9969779849052429,
+  "min_similarity": 0.2952278256416321,
+  "sample_size": 200,
+  "friend_avg_similarity": 0.4945624219986027,
+  "non_friend_avg_similarity": 0.48847826758027074
 }

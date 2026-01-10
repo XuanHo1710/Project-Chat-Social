@@ -54,7 +54,7 @@ CHROMA_PATH = "./chroma_db"
 COLLECTION_NAME = "posts"
 USER_VECTORS_COLLECTION = "user_vectors"
 FRIEND_GRAPH_COLLECTION = "friend_graph"
-LIMIT = 100  # Giới hạn posts để train
+LIMIT = 200  # Giới hạn posts để train
 
 # Weights cho các interaction types
 REACTION_WEIGHTS = {
@@ -172,9 +172,9 @@ def build_user_vectors(reactions_df, shares_df, post_embeddings_dict, post_owner
 
 def evaluate_model(embeddings, df, user_vectors, friend_graph):
     """
-    Đánh giá chất lượng model:
+    Đánh giá chất lượng model (với sampling để tránh OOM):
     1. Coverage: % users có vector
-    2. Embedding Quality: average cosine similarity trong cùng nhóm
+    2. Embedding Quality: average cosine similarity (sampled)
     3. Friend Correlation: posts từ bạn bè có similarity cao hơn không
     """
     metrics = {}
@@ -184,40 +184,63 @@ def evaluate_model(embeddings, df, user_vectors, friend_graph):
     users_with_vectors = len([u for u in unique_users if u in user_vectors])
     metrics['user_coverage'] = users_with_vectors / len(unique_users) if len(unique_users) > 0 else 0
     
-    # 2. Embedding Quality - Intra-cluster similarity
-    if len(embeddings) > 1:
-        sim_matrix = cosine_similarity(embeddings)
-        np.fill_diagonal(sim_matrix, 0)
-        metrics['avg_similarity'] = sim_matrix.mean()
-        metrics['max_similarity'] = sim_matrix.max()
-        metrics['min_similarity'] = sim_matrix.min()
+    # 2. Embedding Quality - Sample để tránh OOM
+    # Với 100k posts, full matrix = 100k x 100k = 40GB RAM
+    # Sample 1000 posts thì chỉ cần 1k x 1k = 4MB
+    SAMPLE_SIZE = min(1000, len(embeddings))
     
-    # 3. Friend Correlation
+    if len(embeddings) > 1:
+        # Random sample indices
+        np.random.seed(42)
+        sample_indices = np.random.choice(len(embeddings), size=SAMPLE_SIZE, replace=False)
+        sample_embeddings = embeddings[sample_indices]
+        
+        sim_matrix = cosine_similarity(sample_embeddings)
+        np.fill_diagonal(sim_matrix, 0)
+        metrics['avg_similarity'] = float(sim_matrix.mean())
+        metrics['max_similarity'] = float(sim_matrix.max())
+        metrics['min_similarity'] = float(sim_matrix[sim_matrix > 0].min()) if (sim_matrix > 0).any() else 0.0
+        metrics['sample_size'] = SAMPLE_SIZE
+    
+    # 3. Friend Correlation - Sample để tránh OOM
+    # Chỉ lấy 500 users có friend graph để tính
     friend_sims = []
     non_friend_sims = []
     
-    for i, row in df.iterrows():
-        user_id = row['userId']
-        if user_id not in friend_graph:
-            continue
+    users_with_friends = [u for u in df['userId'].unique() if u in friend_graph]
+    sample_users = users_with_friends[:min(100, len(users_with_friends))]
+    
+    if sample_users:
+        sample_df = df[df['userId'].isin(sample_users)].head(500).reset_index(drop=True)
+        sample_emb_indices = sample_df.index.tolist()
         
-        friends = friend_graph[user_id]
-        for j, other_row in df.iterrows():
-            if i == j:
+        for idx, (i, row) in enumerate(sample_df.iterrows()):
+            user_id = row['userId']
+            if user_id not in friend_graph:
                 continue
             
-            other_user = other_row['userId']
-            sim = cosine_similarity([embeddings[i]], [embeddings[j]])[0][0]
+            friends = friend_graph[user_id]
             
-            if other_user in friends:
-                friend_sims.append(sim)
-            else:
-                non_friend_sims.append(sim)
+            # Chỉ so sánh với 50 posts khác để tiết kiệm thời gian
+            other_samples = sample_df.sample(min(50, len(sample_df))).iterrows()
+            for j, other_row in other_samples:
+                if i == j:
+                    continue
+                
+                other_user = other_row['userId']
+                # Chỉ tính similarity cho cặp này
+                sim = float(np.dot(embeddings[i], embeddings[j]) / 
+                           (np.linalg.norm(embeddings[i]) * np.linalg.norm(embeddings[j]) + 1e-8))
+                
+                if other_user in friends:
+                    friend_sims.append(sim)
+                else:
+                    non_friend_sims.append(sim)
     
     if friend_sims:
-        metrics['friend_avg_similarity'] = np.mean(friend_sims)
+        metrics['friend_avg_similarity'] = float(np.mean(friend_sims))
     if non_friend_sims:
-        metrics['non_friend_avg_similarity'] = np.mean(non_friend_sims)
+        metrics['non_friend_avg_similarity'] = float(np.mean(non_friend_sims[:1000]))  # Limit
     
     return metrics
 
@@ -235,7 +258,7 @@ def train():
     cursor = db.posts.find(
         {"isDeleted": {"$ne": True}},
         {"_id": 1, "userId": 1, "groupId": 1, "content": 1, "privacy": 1, "sharedPostId": 1}
-    )
+    ).limit(LIMIT)
     
     data = list(cursor)
     logger.info(f"   ✅ Đã lấy {len(data)} posts")
@@ -273,6 +296,16 @@ def train():
     )
     relationships_data = list(relationships_cursor)
     logger.info(f"   ✅ Đã lấy {len(relationships_data)} friend relationships")
+    
+    # 5. Lấy TẤT CẢ accounts từ MongoDB
+    logger.info("📥 Lấy tất cả accounts từ MongoDB...")
+    accounts_cursor = db.accounts.find(
+        {},
+        {"_id": 1}
+    )
+    all_accounts = list(accounts_cursor)
+    all_user_ids = [str(acc['_id']) for acc in all_accounts]
+    logger.info(f"   ✅ Đã lấy {len(all_user_ids)} accounts")
     
     client.close()
     
@@ -376,19 +409,51 @@ def train():
         friend_graph,
         embedding_dim
     )
-    logger.info(f"   ✅ Đã tạo {len(user_vectors)} user vectors")
+    logger.info(f"   ✅ Đã tạo {len(user_vectors)} user vectors từ interactions")
     
-    # 13. Hybrid Score
+    # 13. Tạo DEFAULT User Vectors cho users chưa có tương tác
+    # QUAN TRỌNG: Mỗi user cần vector KHÁC NHAU để có feed khác nhau
+    logger.info("👤 Tạo default vectors cho users chưa có tương tác...")
+    mean_embedding = embeddings.mean(axis=0)  # Base vector
+    
+    import hashlib
+    
+    users_without_vectors = 0
+    for user_id in all_user_ids:
+        if user_id not in user_vectors:
+            # Tạo noise dựa trên hash của user_id để mỗi user có vector khác nhau
+            user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+            np.random.seed(user_hash % (2**32))
+            
+            # Thêm small noise vào mean embedding (±5% mỗi dimension)
+            noise = np.random.uniform(-0.05, 0.05, embedding_dim)
+            user_vector = mean_embedding + noise
+            
+            # Normalize vector
+            norm = np.linalg.norm(user_vector)
+            if norm > 0:
+                user_vector = user_vector / norm
+            
+            user_vectors[user_id] = user_vector
+            users_without_vectors += 1
+    
+    # Reset random seed
+    np.random.seed(None)
+    
+    logger.info(f"   ✅ Đã tạo default vectors cho {users_without_vectors} users")
+    logger.info(f"   📊 Tổng: {len(user_vectors)} user vectors")
+    
+    # 14. Hybrid Score
     logger.info("🔀 Tính Hybrid Score...")
     hybrid_scores = 0.6 * content_scores + 0.4 * cf_scores
     
-    # 14. Evaluate Model
+    # 15. Evaluate Model
     logger.info("📈 Đánh giá Model...")
     metrics = evaluate_model(embeddings, df, user_vectors, friend_graph)
     for key, value in metrics.items():
         logger.info(f"   {key}: {value:.4f}" if isinstance(value, float) else f"   {key}: {value}")
     
-    # 15. Lưu ChromaDB
+    # 16. Lưu ChromaDB
     logger.info("💾 Lưu Posts vào ChromaDB...")
     os.makedirs(CHROMA_PATH, exist_ok=True)
     chroma = chromadb.PersistentClient(path=CHROMA_PATH, settings=ChromaSettings(anonymized_telemetry=False))

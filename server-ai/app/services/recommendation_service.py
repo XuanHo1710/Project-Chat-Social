@@ -1,45 +1,69 @@
 """
-RECOMMENDATION SERVICE
-======================
-Functions:
-1. search(query, ...) - Tìm posts theo query với filter privacy + LLM enhancement
-2. recommend(user_id, ...) - Gợi ý cho user dựa trên user vectors (full list, kể cả negative)
+RECOMMENDATION SERVICE - OPTIMIZED
+===================================
+Chỉ giữ các hàm cần thiết:
+1. search(query, ...) - Tìm posts theo query
+2. recommend(user_id, ...) - Gợi ý cho user dựa trên interactions từ MongoDB
 3. similar(post_id, ...) - Tìm posts tương tự
-4. get_newsfeed(user_id, friend_ids, ...) - Lấy newsfeed với filter privacy + AI ranking
-5. smart_search(query, ...) - Search thông minh với LLM
+4. get_newsfeed(user_id, ...) - Alias cho recommend
+
+Sử dụng COSINE SIMILARITY (góc tọa độ):
+- Cosine = 1: Cùng hướng (giống nhau hoàn toàn)
+- Cosine = 0: Vuông góc (không liên quan)
+- Cosine = -1: Ngược hướng (đối lập)
 """
 
 import os
-import json
-from typing import List, Dict, Optional, Tuple, Set
+import hashlib
+from typing import List, Dict, Optional, Tuple
 from loguru import logger
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 from sentence_transformers import SentenceTransformer
+from pymongo import MongoClient
+from bson import ObjectId
 import numpy as np
 
-CHROMA_PATH = "./chroma_db"
+# Đường dẫn tuyệt đối đến thư mục chứa chroma_db
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CHROMA_PATH = os.path.join(BASE_DIR, "chroma_db")
 COLLECTION_NAME = "posts"
-USER_VECTORS_COLLECTION = "user_vectors"
 MODEL_NAME = "BAAI/bge-m3"
+
+# MongoDB Config
+MONGO_URI = "mongodb+srv://xuanhodcbas:0984232310ho.@cluster0.f7sbfkn.mongodb.net/project-chat-social"
+DB_NAME = "project-chat-social"
+
+# Interaction weights (Share > Comment > Love > Like > ...)
+INTERACTION_WEIGHTS = {
+    "SHARE": 2.5,      # Chia sẻ = quan tâm nhất
+    "COMMENT": 1.5,    # Bình luận = quan tâm cao
+    "LOVE": 1.3,
+    "LIKE": 1.0,
+    "HAHA": 0.8,
+    "WOW": 0.7,
+    "SAD": 0.3,
+    "ANGRY": -0.5
+}
 
 
 class RecommendationService:
     def __init__(self):
-        self._client = None
         self._collection = None
-        self._user_vectors_collection = None
         self._model = None
-        self._friend_graph = None
-        self._llm_service = None
+        self._mongo_client = None
     
     @property
     def collection(self):
+        """Lazy load ChromaDB collection"""
         if self._collection is None:
             if not os.path.exists(CHROMA_PATH):
                 logger.error("❌ Chưa train! Chạy: python train.py")
                 return None
-            client = chromadb.PersistentClient(path=CHROMA_PATH, settings=ChromaSettings(anonymized_telemetry=False))
+            client = chromadb.PersistentClient(
+                path=CHROMA_PATH, 
+                settings=ChromaSettings(anonymized_telemetry=False)
+            )
             try:
                 self._collection = client.get_collection(COLLECTION_NAME)
                 logger.info(f"✅ Loaded {self._collection.count()} posts từ ChromaDB")
@@ -49,349 +73,348 @@ class RecommendationService:
         return self._collection
     
     @property
-    def user_vectors_collection(self):
-        if self._user_vectors_collection is None:
-            if not os.path.exists(CHROMA_PATH):
-                return None
-            client = chromadb.PersistentClient(path=CHROMA_PATH, settings=ChromaSettings(anonymized_telemetry=False))
-            try:
-                self._user_vectors_collection = client.get_collection(USER_VECTORS_COLLECTION)
-                logger.info(f"✅ Loaded {self._user_vectors_collection.count()} user vectors từ ChromaDB")
-            except:
-                logger.warning("⚠️ User vectors collection không tồn tại")
-                return None
-        return self._user_vectors_collection
-    
-    @property
-    def friend_graph(self) -> Dict[str, List[str]]:
-        """Load friend graph từ file JSON"""
-        if self._friend_graph is None:
-            friend_graph_path = os.path.join(CHROMA_PATH, "friend_graph.json")
-            if os.path.exists(friend_graph_path):
-                try:
-                    with open(friend_graph_path, 'r') as f:
-                        self._friend_graph = json.load(f)
-                    logger.info(f"✅ Loaded friend graph với {len(self._friend_graph)} users")
-                except Exception as e:
-                    logger.warning(f"⚠️ Không load được friend graph: {e}")
-                    self._friend_graph = {}
-            else:
-                self._friend_graph = {}
-        return self._friend_graph
-    
-    @property
-    def llm_service(self):
-        """Lazy load LLM service"""
-        if self._llm_service is None:
-            try:
-                from app.services.llm_service import get_llm_service
-                self._llm_service = get_llm_service()
-            except Exception as e:
-                logger.warning(f"⚠️ Không load được LLM service: {e}")
-                self._llm_service = None
-        return self._llm_service
-    
-    @property
     def model(self):
+        """Lazy load SentenceTransformer model"""
         if self._model is None:
             logger.info(f"⬇️ Loading model {MODEL_NAME}...")
             self._model = SentenceTransformer(MODEL_NAME)
             logger.info("✅ Model loaded!")
         return self._model
     
+    @property
+    def mongo_client(self):
+        """Lazy load MongoDB client - reuse connection"""
+        if self._mongo_client is None:
+            self._mongo_client = MongoClient(MONGO_URI, maxPoolSize=10)
+        return self._mongo_client
+    
     def is_ready(self) -> bool:
         return self.collection is not None and self.collection.count() > 0
     
     def get_total_posts(self) -> int:
-        """Lấy tổng số posts trong collection"""
         if not self.is_ready():
             return 0
         return self.collection.count()
     
-    def is_llm_available(self) -> bool:
-        """Check if LLM service is available"""
-        return self.llm_service is not None and self.llm_service.is_available()
+    # ========================================
+    # CORE: Lấy User Vector từ MongoDB interactions
+    # ========================================
+    def get_user_vector(self, user_id: str) -> Tuple[Optional[np.ndarray], int]:
+        """
+        Lấy user preference vector từ MongoDB dựa trên TẤT CẢ interactions.
+        
+        Returns:
+            Tuple (user_vector, total_interactions)
+            - user_vector: None nếu không có interactions
+            - total_interactions: Số posts đã tương tác
+        """
+        try:
+            db = self.mongo_client[DB_NAME]
+            user_oid = ObjectId(user_id)
+            
+            # Dict để track post_id -> max_weight (tránh duplicate)
+            post_weights: Dict[str, float] = {}
+            
+            # 1. REACTIONS
+            reactions = db.reactions.find({
+                "userId": user_oid,
+                "typeFactor": "POST"
+            }, {"factorId": 1, "type": 1})
+            
+            for r in reactions:
+                post_id = str(r.get('factorId', ''))
+                if not post_id:
+                    continue
+                reaction_type = r.get('type', 'LIKE')
+                weight = INTERACTION_WEIGHTS.get(reaction_type, 0.5)
+                # Lấy weight cao nhất nếu có nhiều reactions cho cùng post
+                post_weights[post_id] = max(post_weights.get(post_id, 0), weight)
+            
+            # 2. COMMENTS
+            comments = db.comments.find({"userId": user_oid}, {"postId": 1})
+            for c in comments:
+                post_id = str(c.get('postId', ''))
+                if not post_id:
+                    continue
+                weight = INTERACTION_WEIGHTS["COMMENT"]
+                post_weights[post_id] = max(post_weights.get(post_id, 0), weight)
+            
+            # 3. SHARES (posts có sharedPostId)
+            shares = db.posts.find({
+                "userId": user_oid,
+                "sharedPostId": {"$exists": True, "$ne": None}
+            }, {"sharedPostId": 1})
+            
+            for s in shares:
+                shared_id = s.get('sharedPostId')
+                if not shared_id:
+                    continue
+                post_id = str(shared_id)
+                weight = INTERACTION_WEIGHTS["SHARE"]
+                post_weights[post_id] = max(post_weights.get(post_id, 0), weight)
+            
+            if not post_weights:
+                logger.info(f"👤 User {user_id}: Không có interactions")
+                return None, 0
+            
+            logger.info(f"👤 User {user_id}: Found {len(post_weights)} interacted posts")
+            
+            # Lấy embeddings từ ChromaDB (batch query)
+            post_ids = list(post_weights.keys())
+            try:
+                result = self.collection.get(ids=post_ids, include=["embeddings"])
+            except Exception as e:
+                logger.warning(f"ChromaDB get error: {e}")
+                return None, 0
+            
+            embeddings = result.get('embeddings')
+            ids = result.get('ids', [])
+            
+            # Check embeddings có tồn tại không (tránh numpy array truth value error)
+            if embeddings is None or len(embeddings) == 0:
+                logger.info(f"👤 User {user_id}: Không tìm thấy embeddings trong ChromaDB")
+                return None, 0
+            
+            # Tính weighted average
+            weighted_sum = None
+            total_weight = 0.0
+            found_count = 0
+            
+            for i, pid in enumerate(ids):
+                if i >= len(embeddings):
+                    continue
+                emb_data = embeddings[i]
+                # Check nếu embedding là None hoặc empty
+                if emb_data is None or (hasattr(emb_data, '__len__') and len(emb_data) == 0):
+                    continue
+                    
+                weight = post_weights.get(pid, 1.0)
+                emb = np.array(emb_data)
+                
+                if weighted_sum is None:
+                    weighted_sum = emb * weight
+                else:
+                    weighted_sum += emb * weight
+                total_weight += abs(weight)
+                found_count += 1
+            
+            if weighted_sum is None or total_weight == 0:
+                return None, 0
+            
+            # Normalize user vector
+            user_vector = weighted_sum / total_weight
+            norm = np.linalg.norm(user_vector)
+            if norm > 0:
+                user_vector = user_vector / norm
+            
+            logger.info(f"✅ User {user_id}: {found_count} embeddings → user vector ready")
+            return user_vector, found_count
+            
+        except Exception as e:
+            logger.error(f"❌ get_user_vector error: {e}")
+            return None, 0
     
-    def _filter_by_privacy(
+    # ========================================
+    # Privacy Filter
+    # ========================================
+    def _filter_privacy(
         self, 
         posts: List[Dict], 
-        current_user_id: str, 
+        user_id: str, 
         friend_ids: List[str]
     ) -> List[Dict]:
-        """
-        Filter posts theo privacy rules:
-        1. PUBLIC posts - ai cũng xem được
-        2. FRIEND posts - chỉ bạn bè của owner xem được
-        3. PRIVATE posts - chỉ owner xem được
-        4. GROUP posts - nếu groupId != null thì cho xem (public group)
-        5. Own posts - user luôn xem được posts của mình
-        """
+        """Filter posts theo privacy rules"""
         friend_set = set(friend_ids) if friend_ids else set()
         filtered = []
         
         for post in posts:
             privacy = post.get('privacy', 'PUBLIC')
-            post_owner = post.get('user_id', '')
+            owner = post.get('user_id', '')
             group_id = post.get('group_id', '')
             
-            # Rule 5: Own posts - luôn hiển thị
-            if post_owner == current_user_id:
+            # Own posts
+            if owner == user_id:
                 filtered.append(post)
-                continue
-            
-            # Rule 1: PUBLIC posts
-            if privacy == 'PUBLIC':
+            # PUBLIC
+            elif privacy == 'PUBLIC':
                 filtered.append(post)
-                continue
-            
-            # Rule 2: FRIEND posts - chỉ nếu owner là bạn
-            if privacy == 'FRIEND' and post_owner in friend_set:
+            # FRIEND - chỉ nếu owner là bạn
+            elif privacy == 'FRIEND' and owner in friend_set:
                 filtered.append(post)
-                continue
-            
-            # Rule 4: GROUP posts - nếu có groupId (public group)
-            if privacy == 'GROUP' and group_id and group_id != 'no_group':
+            # GROUP - có groupId
+            elif privacy == 'GROUP' and group_id and group_id != 'no_group':
                 filtered.append(post)
-                continue
-            
-            # Rule 3: PRIVATE - chỉ owner xem (đã check ở Rule 5)
-            # Không thêm vào filtered
         
         return filtered
     
     # ========================================
-    # 1. SEARCH - Tìm posts theo query với filter privacy (HYBRID SEARCH)
+    # 1. SEARCH - Tìm posts theo query
     # ========================================
-    
-    # Constants cho Hybrid Search
-    MAX_VECTOR_RESULTS = 500  # Lấy top 500 từ vector search
-    
     def search(
         self, 
         query: str, 
         current_user_id: str = "",
         friend_ids: List[str] = None,
         limit: int = 20, 
-        page: int = 1,
-        apply_privacy_filter: bool = True
+        page: int = 1
     ) -> Tuple[List[Dict], int]:
         """
-        Tìm posts tương tự với query - HYBRID SEARCH OPTIMIZED.
-        
-        Flow:
-        1. Vector search: Lấy top 500 IDs + scores từ ChromaDB
-        2. Apply privacy filter
-        3. Sort by score
-        4. Paginate
-        
-        Args:
-            query: Từ khóa tìm kiếm
-            current_user_id: ID của user hiện tại
-            friend_ids: Danh sách ID bạn bè
-            limit: Số posts mỗi trang
-            page: Số trang (1-indexed)
-            apply_privacy_filter: Có áp dụng filter privacy không
-        
-        Returns:
-            Tuple (danh sách posts, total_count)
+        Tìm posts theo query sử dụng cosine similarity.
         """
         if not self.is_ready():
             return [], 0
         
         try:
-            # Tạo embedding cho query
+            # Encode query
             query_emb = self.model.encode(query, convert_to_numpy=True)
             
-            # Bước 1: Vector search - chỉ lấy top N thay vì ALL
-            total_in_db = self.collection.count()
-            n_results = min(self.MAX_VECTOR_RESULTS, total_in_db)
-            
+            # ChromaDB query (đã dùng cosine distance internally)
+            n_results = min(200, self.collection.count())
             results = self.collection.query(
                 query_embeddings=[query_emb.tolist()],
                 n_results=n_results,
-                include=["metadatas", "distances"]  # Không cần documents ở đây
+                include=["metadatas", "distances"]
             )
             
             posts = []
             if results['ids'] and results['ids'][0]:
                 for i, post_id in enumerate(results['ids'][0]):
+                    # ChromaDB distance = 1 - cosine_similarity
                     distance = results['distances'][0][i] if results['distances'] else 0
-                    similarity = 1 - distance
+                    similarity = 1 - distance  # Convert back to similarity
                     
                     meta = results['metadatas'][0][i]
-                    hybrid_score = meta.get('score', 0)
-                    
-                    # Final score = kết hợp similarity và hybrid score
-                    final_score = 0.5 * similarity + 0.5 * hybrid_score
-                    
                     posts.append({
                         "post_id": post_id,
-                        "score": round(final_score, 4),
+                        "score": round(similarity, 4),
                         "user_id": meta.get('user_id', ''),
                         "group_id": meta.get('group_id', ''),
                         "privacy": meta.get('privacy', 'PUBLIC')
                     })
             
-            # Bước 2: Apply privacy filter nếu cần
-            if apply_privacy_filter and current_user_id:
-                posts = self._filter_by_privacy(posts, current_user_id, friend_ids or [])
+            # Privacy filter
+            if current_user_id:
+                posts = self._filter_privacy(posts, current_user_id, friend_ids or [])
             
-            # Bước 3: Sắp xếp theo score từ cao đến thấp
-            posts.sort(key=lambda x: x['score'], reverse=True)
+            total = len(posts)
             
-            total_count = len(posts)
-            
-            # Bước 4: Phân trang
+            # Paginate
             offset = (page - 1) * limit
-            if offset >= total_count:
-                return [], total_count
-            
-            paginated_posts = posts[offset:offset + limit]
-            
-            logger.info(f"🔍 Search '{query}': {n_results} vector results -> {total_count} after filter -> page {page} ({len(paginated_posts)} posts)")
-            
-            return paginated_posts, total_count
+            return posts[offset:offset + limit], total
             
         except Exception as e:
             logger.error(f"Search error: {e}")
             return [], 0
     
     # ========================================
-    # 2. RECOMMEND / NEWSFEED - Gợi ý cho user (HYBRID SEARCH OPTIMIZED)
+    # 2. RECOMMEND - Gợi ý posts cho user
     # ========================================
     def recommend(
         self, 
         user_id: str, 
         friend_ids: List[str] = None,
         limit: int = 20, 
-        page: int = 1,
-        apply_privacy_filter: bool = True
+        page: int = 1
     ) -> Tuple[List[Dict], int]:
         """
-        Gợi ý posts cho user dựa trên user vector - HYBRID SEARCH OPTIMIZED.
+        Gợi ý posts cho user dựa trên cosine similarity với user vector.
         
-        Flow:
-        1. Vector search: Lấy top 500 IDs + scores (dùng user vector hoặc hybrid score)
-        2. Apply privacy filter
-        3. Boost score cho bạn bè
-        4. Sort by score
-        5. Paginate
-        
-        Args:
-            user_id: ID của user cần recommend
-            friend_ids: Danh sách ID bạn bè (để filter privacy và boost score)
-            limit: Số posts mỗi trang
-            page: Số trang (1-indexed)
-            apply_privacy_filter: Có áp dụng filter privacy không
-        
-        Returns:
-            Tuple (danh sách posts sorted từ positive đến negative, total_count)
+        Logic:
+        1. Lấy user vector từ interactions (reactions, comments, shares)
+        2. Query ChromaDB với user vector
+        3. Rank theo cosine similarity (góc nhỏ = giống nhau = score cao)
+        4. Boost posts từ bạn bè
+        5. Filter privacy + paginate
         """
         if not self.is_ready():
             return [], 0
         
         try:
-            user_vector = None
             friend_set = set(friend_ids) if friend_ids else set()
             
-            # Thử lấy user vector từ collection
-            if self.user_vectors_collection is not None:
-                try:
-                    user_result = self.user_vectors_collection.get(
-                        ids=[user_id],
-                        include=["embeddings"]
-                    )
-                    if user_result['embeddings'] and len(user_result['embeddings']) > 0:
-                        user_vector = np.array(user_result['embeddings'][0])
-                        logger.info(f"✅ Found user vector for {user_id}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Không tìm thấy user vector: {e}")
+            # Lấy user vector
+            user_vector, interaction_count = self.get_user_vector(user_id)
             
-            total_in_db = self.collection.count()
-            n_results = min(self.MAX_VECTOR_RESULTS, total_in_db)
-            
-            # Bước 1: Vector search - chỉ lấy top N
-            if user_vector is not None:
-                # Query với user vector để lấy posts sorted by similarity
-                results = self.collection.query(
-                    query_embeddings=[user_vector.tolist()],
-                    n_results=n_results,
-                    include=["metadatas", "distances"]
-                )
-                
-                posts = []
-                if results['ids'] and results['ids'][0]:
-                    for i, post_id in enumerate(results['ids'][0]):
-                        meta = results['metadatas'][0][i]
-                        post_owner = meta.get('user_id', '')
-                        
-                        distance = results['distances'][0][i] if results['distances'] else 0
-                        similarity = 1 - distance
-                        
-                        # Kết hợp với hybrid score
-                        hybrid_score = meta.get('score', 0)
-                        final_score = 0.6 * similarity + 0.4 * hybrid_score
-                        
-                        # Boost cho posts từ bạn bè
-                        if post_owner in friend_set:
-                            final_score *= 1.2
-                        
-                        posts.append({
-                            "post_id": post_id,
-                            "score": round(final_score, 4),
-                            "user_id": post_owner,
-                            "group_id": meta.get('group_id', ''),
-                            "privacy": meta.get('privacy', 'PUBLIC')
-                        })
-            else:
-                # Không có user vector - lấy theo hybrid score từ metadata
-                results = self.collection.get(
-                    include=["metadatas"],
-                    limit=n_results
-                )
-                
-                posts = []
-                for i, post_id in enumerate(results['ids']):
-                    meta = results['metadatas'][i]
-                    post_owner = meta.get('user_id', '')
+            # Nếu không có interactions, tạo random vector unique cho user
+            if user_vector is None:
+                logger.info(f"👤 User {user_id}: No interactions, using random preference")
+                # Lấy sample posts để tạo random preference
+                sample = self.collection.get(include=["embeddings"], limit=50)
+                sample_embeddings = sample.get('embeddings', [])
+                if sample_embeddings is not None and len(sample_embeddings) > 0:
+                    # Dùng user_id hash để chọn random nhưng consistent
+                    user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+                    np.random.seed(user_hash % (2**32))
                     
-                    final_score = meta.get('score', 0)
-                    if post_owner in friend_set:
-                        final_score *= 1.2
+                    emb_array = np.array(sample_embeddings)
+                    n = min(10, len(emb_array))
+                    indices = np.random.choice(len(emb_array), size=n, replace=False)
+                    user_vector = emb_array[indices].mean(axis=0)
+                    
+                    norm = np.linalg.norm(user_vector)
+                    if norm > 0:
+                        user_vector = user_vector / norm
+                    np.random.seed(None)
+                else:
+                    return [], 0
+            
+            # Query ChromaDB với user vector
+            n_results = min(300, self.collection.count())
+            results = self.collection.query(
+                query_embeddings=[user_vector.tolist()],
+                n_results=n_results,
+                include=["metadatas", "distances"]
+            )
+            
+            posts = []
+            if results['ids'] and results['ids'][0]:
+                for i, post_id in enumerate(results['ids'][0]):
+                    distance = results['distances'][0][i] if results['distances'] else 0
+                    # Cosine similarity (góc nhỏ = giống = score cao)
+                    similarity = 1 - distance
+                    
+                    meta = results['metadatas'][0][i]
+                    owner = meta.get('user_id', '')
+                    
+                    # Score base = cosine similarity
+                    score = similarity
+                    
+                    # Boost 20% cho posts từ bạn bè
+                    if owner in friend_set:
+                        score *= 1.2
+                    
+                    # Giảm 50% cho posts của chính mình
+                    if owner == user_id:
+                        score *= 0.5
                     
                     posts.append({
                         "post_id": post_id,
-                        "score": round(final_score, 4),
-                        "user_id": post_owner,
+                        "score": round(score, 4),
+                        "user_id": owner,
                         "group_id": meta.get('group_id', ''),
                         "privacy": meta.get('privacy', 'PUBLIC')
                     })
             
-            # Bước 2: Apply privacy filter nếu cần
-            if apply_privacy_filter:
-                posts = self._filter_by_privacy(posts, user_id, friend_ids or [])
-            
-            # Bước 3: Sắp xếp từ positive (score cao) đến negative (score thấp)
+            # Sort by score (cao → thấp)
             posts.sort(key=lambda x: x['score'], reverse=True)
             
-            total_count = len(posts)
+            # Privacy filter
+            posts = self._filter_privacy(posts, user_id, friend_ids or [])
             
-            # Bước 4: Phân trang
+            total = len(posts)
+            
+            # Paginate
             offset = (page - 1) * limit
-            if offset >= total_count:
-                return [], total_count
+            paginated = posts[offset:offset + limit]
             
-            paginated_posts = posts[offset:offset + limit]
-            
-            logger.info(f"📰 Newsfeed for {user_id}: {n_results} vector results -> {total_count} after filter -> page {page} ({len(paginated_posts)} posts)")
-            
-            return paginated_posts, total_count
+            logger.info(f"📰 Recommend {user_id}: {interaction_count} interactions, {total} posts, page {page}")
+            return paginated, total
             
         except Exception as e:
             logger.error(f"Recommend error: {e}")
             return [], 0
     
-    # Alias cho newsfeed
+    # Alias
     def get_newsfeed(
         self,
         user_id: str,
@@ -399,25 +422,20 @@ class RecommendationService:
         limit: int = 20,
         page: int = 1
     ) -> Tuple[List[Dict], int]:
-        """
-        Lấy newsfeed cho user - wrapper của recommend với privacy filter.
-        """
-        return self.recommend(
-            user_id=user_id,
-            friend_ids=friend_ids,
-            limit=limit,
-            page=page,
-            apply_privacy_filter=True
-        )
+        """Alias cho recommend()"""
+        return self.recommend(user_id, friend_ids, limit, page)
     
     # ========================================
     # 3. SIMILAR - Tìm posts tương tự
     # ========================================
-    def similar(self, post_id: str, limit: int = 10, page: int = 1) -> Tuple[List[Dict], int]:
+    def similar(
+        self, 
+        post_id: str, 
+        limit: int = 10, 
+        page: int = 1
+    ) -> Tuple[List[Dict], int]:
         """
-        Tìm posts tương tự với post_id.
-        Trả về tuple (danh sách posts, total_count).
-        Sắp xếp từ similar (góc nhỏ) đến negative (góc lớn).
+        Tìm posts tương tự với post_id dựa trên cosine similarity.
         """
         if not self.is_ready():
             return [], 0
@@ -425,308 +443,48 @@ class RecommendationService:
         try:
             # Lấy embedding của post
             result = self.collection.get(ids=[post_id], include=["embeddings"])
-            
-            if not result['embeddings']:
+            if not result['embeddings'] or len(result['embeddings']) == 0:
                 logger.warning(f"Post {post_id} không tồn tại")
                 return [], 0
             
             source_emb = result['embeddings'][0]
             
-            # Query tất cả posts tương tự
-            total_in_db = self.collection.count()
+            # Query similar posts
+            n_results = min(100, self.collection.count())
             results = self.collection.query(
                 query_embeddings=[source_emb],
-                n_results=min(total_in_db, 1000),
-                include=["documents", "metadatas", "distances"]
+                n_results=n_results,
+                include=["metadatas", "distances"]
             )
             
             posts = []
             if results['ids'] and results['ids'][0]:
                 for i, pid in enumerate(results['ids'][0]):
-                    if pid == post_id:  # Loại bỏ chính nó
+                    if pid == post_id:  # Skip chính nó
                         continue
                     
                     distance = results['distances'][0][i] if results['distances'] else 0
-                    # Similarity từ distance (distance nhỏ = similar, distance lớn = different)
                     similarity = 1 - distance
                     
                     meta = results['metadatas'][0][i]
-                    
                     posts.append({
                         "post_id": pid,
-                        "content": results['documents'][0][i] if results['documents'] else "",
                         "score": round(similarity, 4),
                         "user_id": meta.get('user_id', ''),
                         "group_id": meta.get('group_id', ''),
                         "privacy": meta.get('privacy', 'PUBLIC')
                     })
             
-            # Sắp xếp từ similar đến negative
+            # Sort by similarity
             posts.sort(key=lambda x: x['score'], reverse=True)
             
-            total_count = len(posts)
-            
-            # Phân trang
+            total = len(posts)
             offset = (page - 1) * limit
-            if offset >= total_count:
-                return [], total_count
-            
-            paginated_posts = posts[offset:offset + limit]
-            
-            return paginated_posts, total_count
+            return posts[offset:offset + limit], total
             
         except Exception as e:
             logger.error(f"Similar error: {e}")
             return [], 0
-    
-    # ========================================
-    # 5. SMART SEARCH - Tìm kiếm thông minh với LLM
-    # ========================================
-    def smart_search(
-        self,
-        query: str,
-        current_user_id: str = "",
-        friend_ids: List[str] = None,
-        limit: int = 20,
-        page: int = 1,
-        use_llm: bool = True,
-        apply_privacy_filter: bool = True
-    ) -> Tuple[List[Dict], int, Dict]:
-        """
-        Tìm kiếm thông minh với LLM enhancement.
-        
-        Flow:
-        1. LLM expand query → nhiều keywords
-        2. LLM understand intent → topic, sentiment
-        3. Search với mỗi expanded keyword
-        4. Merge và deduplicate results
-        5. LLM rerank (optional, cho top results)
-        6. Apply privacy filter
-        7. Paginate
-        
-        Returns:
-            Tuple (posts, total_count, llm_info)
-        """
-        llm_info = {
-            "llm_used": False,
-            "expanded_queries": [query],
-            "intent": None,
-            "search_strategy": "semantic"
-        }
-        
-        if not self.is_ready():
-            return [], 0, llm_info
-        
-        try:
-            # Step 1-2: LLM Enhancement (nếu có)
-            if use_llm and self.is_llm_available():
-                llm_info["llm_used"] = True
-                
-                # Enhance search với LLM
-                enhancement = self.llm_service.enhance_search(query)
-                llm_info["expanded_queries"] = enhancement.get("expanded_queries", [query])
-                llm_info["intent"] = enhancement.get("intent")
-                llm_info["search_strategy"] = enhancement.get("search_strategy", "hybrid")
-                
-                logger.info(f"🧠 LLM expanded: {query} → {llm_info['expanded_queries']}")
-            
-            # Step 3: Search với multiple queries
-            all_posts = {}  # post_id -> post (để dedupe)
-            
-            for q in llm_info["expanded_queries"]:
-                query_emb = self.model.encode(q, convert_to_numpy=True)
-                
-                results = self.collection.query(
-                    query_embeddings=[query_emb.tolist()],
-                    n_results=min(100, self.collection.count()),
-                    include=["documents", "metadatas", "distances"]
-                )
-                
-                if results['ids'] and results['ids'][0]:
-                    for i, post_id in enumerate(results['ids'][0]):
-                        if post_id in all_posts:
-                            # Boost score nếu match nhiều queries
-                            all_posts[post_id]["score"] += 0.1
-                            continue
-                        
-                        distance = results['distances'][0][i] if results['distances'] else 0
-                        similarity = 1 - distance
-                        
-                        meta = results['metadatas'][0][i]
-                        hybrid_score = meta.get('score', 0)
-                        
-                        # Final score
-                        final_score = 0.5 * similarity + 0.5 * hybrid_score
-                        
-                        all_posts[post_id] = {
-                            "post_id": post_id,
-                            "content": results['documents'][0][i] if results['documents'] else "",
-                            "score": round(final_score, 4),
-                            "user_id": meta.get('user_id', ''),
-                            "group_id": meta.get('group_id', ''),
-                            "privacy": meta.get('privacy', 'PUBLIC')
-                        }
-            
-            posts = list(all_posts.values())
-            
-            # Step 5: LLM Rerank (chỉ cho top results để tiết kiệm resources)
-            if use_llm and self.is_llm_available() and len(posts) > limit:
-                # Sort trước để lấy top candidates
-                posts.sort(key=lambda x: x['score'], reverse=True)
-                top_candidates = posts[:min(30, len(posts))]
-                
-                # Rerank với LLM
-                reranked = self.llm_service.rerank_posts(query, top_candidates, limit * 2)
-                
-                # Merge reranked với remaining posts
-                reranked_ids = {p['post_id'] for p in reranked}
-                remaining = [p for p in posts if p['post_id'] not in reranked_ids]
-                posts = reranked + remaining
-            
-            # Step 6: Privacy filter
-            if apply_privacy_filter and current_user_id:
-                posts = self._filter_by_privacy(posts, current_user_id, friend_ids or [])
-            
-            # Sort final
-            posts.sort(key=lambda x: x['score'], reverse=True)
-            
-            total_count = len(posts)
-            
-            # Step 7: Paginate
-            offset = (page - 1) * limit
-            if offset >= total_count:
-                return [], total_count, llm_info
-            
-            paginated_posts = posts[offset:offset + limit]
-            
-            return paginated_posts, total_count, llm_info
-            
-        except Exception as e:
-            logger.error(f"Smart search error: {e}")
-            return [], 0, llm_info
-    
-    # ========================================
-    # 6. SMART NEWSFEED - Newsfeed với AI ranking
-    # ========================================
-    def smart_newsfeed(
-        self,
-        user_id: str,
-        friend_ids: List[str] = None,
-        limit: int = 20,
-        page: int = 1,
-        topic_filter: str = None
-    ) -> Tuple[List[Dict], int, Dict]:
-        """
-        Newsfeed thông minh với AI-powered ranking.
-        
-        Nếu có topic_filter, dùng LLM để generate keywords và filter.
-        """
-        ai_info = {
-            "llm_used": False,
-            "topic_keywords": [],
-            "user_vector_found": False
-        }
-        
-        if not self.is_ready():
-            return [], 0, ai_info
-        
-        try:
-            # Nếu có topic filter, dùng LLM để expand
-            topic_keywords = []
-            if topic_filter and self.is_llm_available():
-                ai_info["llm_used"] = True
-                topic_keywords = self.llm_service.generate_topic_keywords(topic_filter)
-                ai_info["topic_keywords"] = topic_keywords
-                logger.info(f"🧠 Topic keywords for '{topic_filter}': {topic_keywords}")
-            
-            # Get user vector
-            user_vector = None
-            friend_set = set(friend_ids) if friend_ids else set()
-            
-            if self.user_vectors_collection is not None:
-                try:
-                    user_result = self.user_vectors_collection.get(
-                        ids=[user_id],
-                        include=["embeddings"]
-                    )
-                    if user_result['embeddings'] and len(user_result['embeddings']) > 0:
-                        user_vector = np.array(user_result['embeddings'][0])
-                        ai_info["user_vector_found"] = True
-                except:
-                    pass
-            
-            # Get all posts
-            total_in_db = self.collection.count()
-            results = self.collection.get(
-                include=["documents", "metadatas", "embeddings"],
-                limit=total_in_db
-            )
-            
-            posts = []
-            for i, post_id in enumerate(results['ids']):
-                meta = results['metadatas'][i]
-                post_owner = meta.get('user_id', '')
-                content = results['documents'][i] if results['documents'] else ""
-                
-                # Calculate base score
-                if user_vector is not None and results['embeddings']:
-                    post_emb = np.array(results['embeddings'][i])
-                    
-                    dot_product = np.dot(user_vector, post_emb)
-                    norm_user = np.linalg.norm(user_vector)
-                    norm_post = np.linalg.norm(post_emb)
-                    
-                    if norm_user > 0 and norm_post > 0:
-                        cosine_sim = dot_product / (norm_user * norm_post)
-                    else:
-                        cosine_sim = 0
-                    
-                    hybrid_score = meta.get('score', 0)
-                    normalized_cosine = (cosine_sim + 1) / 2
-                    final_score = 0.6 * normalized_cosine + 0.4 * hybrid_score
-                else:
-                    final_score = meta.get('score', 0)
-                
-                # Boost for friends
-                if post_owner in friend_set:
-                    final_score *= 1.2
-                
-                # Boost for topic match (nếu có topic filter)
-                if topic_keywords:
-                    content_lower = content.lower()
-                    topic_matches = sum(1 for kw in topic_keywords if kw.lower() in content_lower)
-                    if topic_matches > 0:
-                        final_score *= (1 + 0.1 * topic_matches)
-                
-                posts.append({
-                    "post_id": post_id,
-                    "content": content,
-                    "score": round(final_score, 4),
-                    "user_id": post_owner,
-                    "group_id": meta.get('group_id', ''),
-                    "privacy": meta.get('privacy', 'PUBLIC')
-                })
-            
-            # Filter by privacy
-            posts = self._filter_by_privacy(posts, user_id, friend_ids or [])
-            
-            # Sort
-            posts.sort(key=lambda x: x['score'], reverse=True)
-            
-            total_count = len(posts)
-            
-            # Paginate
-            offset = (page - 1) * limit
-            if offset >= total_count:
-                return [], total_count, ai_info
-            
-            paginated_posts = posts[offset:offset + limit]
-            
-            return paginated_posts, total_count, ai_info
-            
-        except Exception as e:
-            logger.error(f"Smart newsfeed error: {e}")
-            return [], 0, ai_info
 
 
 # Singleton

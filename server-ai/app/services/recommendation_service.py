@@ -15,6 +15,7 @@ Sử dụng COSINE SIMILARITY (góc tọa độ):
 
 import os
 import hashlib
+import random
 from typing import List, Dict, Optional, Tuple
 from loguru import logger
 import chromadb
@@ -23,16 +24,24 @@ from sentence_transformers import SentenceTransformer
 from pymongo import MongoClient
 from bson import ObjectId
 import numpy as np
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Đường dẫn tuyệt đối đến thư mục chứa chroma_db
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CHROMA_PATH = os.path.join(BASE_DIR, "chroma_db")
-COLLECTION_NAME = "posts"
-MODEL_NAME = "BAAI/bge-m3"
+CHROMA_PATH = os.getenv("CHROMA_PERSIST_DIR", os.path.join(BASE_DIR, "chroma_db"))
+# Nếu CHROMA_PATH là relative path, convert thành absolute path
+if not os.path.isabs(CHROMA_PATH):
+    CHROMA_PATH = os.path.join(BASE_DIR, CHROMA_PATH)
+    
+COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_POSTS", "posts")
+MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 
-# MongoDB Config
-MONGO_URI = "mongodb+srv://xuanhodcbas:0984232310ho.@cluster0.f7sbfkn.mongodb.net/project-chat-social"
-DB_NAME = "project-chat-social"
+# MongoDB Config từ .env
+MONGO_URI = os.getenv("MONGODB_URI")
+DB_NAME = os.getenv("MONGODB_DATABASE")
 
 # Interaction weights (Share > Comment > Love > Like > ...)
 INTERACTION_WEIGHTS = {
@@ -403,11 +412,51 @@ class RecommendationService:
             
             total = len(posts)
             
+            # ========================================
+            # SHUFFLE 60-70% để tạo feed đa dạng như Facebook
+            # Giữ top 30-40% theo score, shuffle phần còn lại
+            # ========================================
+            if len(posts) > 5:
+                # Giữ top 30% không đổi (relevance cao nhất)
+                top_count = max(2, int(len(posts) * 0.30))
+                top_posts = posts[:top_count]
+                remaining_posts = posts[top_count:]
+                
+                # Shuffle 70% còn lại với weighted random
+                # Posts có score cao vẫn có xác suất cao hơn
+                if remaining_posts:
+                    # Weighted shuffle: score làm weight
+                    weights = [max(0.1, p['score']) for p in remaining_posts]
+                    total_weight = sum(weights)
+                    weights = [w / total_weight for w in weights]
+                    
+                    # Weighted random sampling without replacement
+                    shuffled = []
+                    remaining_copy = remaining_posts.copy()
+                    weights_copy = weights.copy()
+                    
+                    while remaining_copy:
+                        # Random chọn dựa trên weight
+                        r = random.random()
+                        cumsum = 0
+                        for i, w in enumerate(weights_copy):
+                            cumsum += w
+                            if r <= cumsum:
+                                shuffled.append(remaining_copy.pop(i))
+                                weights_copy.pop(i)
+                                # Re-normalize weights
+                                if weights_copy:
+                                    total_w = sum(weights_copy)
+                                    weights_copy = [w / total_w for w in weights_copy]
+                                break
+                    
+                    posts = top_posts + shuffled
+            
             # Paginate
             offset = (page - 1) * limit
             paginated = posts[offset:offset + limit]
             
-            logger.info(f"📰 Recommend {user_id}: {interaction_count} interactions, {total} posts, page {page}")
+            logger.info(f"📰 Recommend {user_id}: {interaction_count} interactions, {total} posts (shuffled), page {page}")
             return paginated, total
             
         except Exception as e:

@@ -40,6 +40,7 @@ import {
     PhotoCamera as PhotoCameraIcon,
     Person as PersonIcon,
     Notifications as NotificationsIcon,
+    NotificationsOff as NotificationsOffIcon,
     Search as SearchIcon,
     ExpandMore as ExpandMoreIcon,
     ExpandLess as ExpandLessIcon,
@@ -109,6 +110,10 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     // Online status store
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
 
+    // Mute notification state
+    const [isMuted, setIsMuted] = useState(false);
+    const [isMuting, setIsMuting] = useState(false);
+
     // Collapsible sections
     const [customizeOpen, setCustomizeOpen] = useState(true);
     const [mediaOpen, setMediaOpen] = useState(false);
@@ -175,6 +180,47 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
     const conversation = conversationData?.data;
     const themeColor = conversation?.theme || '#0084ff';
+
+    // Initialize muted state from conversation data
+    React.useEffect(() => {
+        if (conversation?.mutedBy) {
+            setIsMuted(conversation.mutedBy.includes(userId));
+        }
+    }, [conversation?.mutedBy, userId]);
+
+    // Handle toggle mute notification
+    const handleToggleMute = useCallback(() => {
+        if (!socketChat || isMuting) return;
+
+        setIsMuting(true);
+        socketChat.emit('conversation:toggle-mute', { conversationId }, (response: { success: boolean; isMuted?: boolean; error?: string }) => {
+            setIsMuting(false);
+            if (response.success) {
+                setIsMuted(response.isMuted ?? false);
+                toast.success(response.isMuted ? 'Đã tắt thông báo' : 'Đã bật thông báo');
+                // Update conversation cache
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
+            } else {
+                toast.error(response.error || 'Không thể thay đổi thông báo');
+            }
+        });
+    }, [socketChat, conversationId, isMuting, queryClient]);
+
+    // Listen for mute update events
+    React.useEffect(() => {
+        if (!socketChat) return;
+
+        const handleMuteUpdated = (data: { conversationId: string; userId: string; isMuted: boolean }) => {
+            if (data.conversationId === conversationId && data.userId === userId) {
+                setIsMuted(data.isMuted);
+            }
+        };
+
+        socketChat.on('conversation:mute:updated', handleMuteUpdated);
+        return () => {
+            socketChat.off('conversation:mute:updated', handleMuteUpdated);
+        };
+    }, [socketChat, conversationId, userId]);
 
     // Get friends list for adding members
     const { data: friendsData, isLoading: isFriendsLoading } = useDisplayListFriends(userId);
@@ -747,12 +793,25 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             </Box>
                         )}
                         {/* Notification Action */}
-                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
-                            <IconButton sx={{ bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}>
-                                <NotificationsIcon sx={{ color: '#050505' }} />
+                        <Box
+                            sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: isMuting ? 'not-allowed' : 'pointer', opacity: isMuting ? 0.5 : 1 }}
+                            onClick={handleToggleMute}
+                        >
+                            <IconButton
+                                disabled={isMuting}
+                                sx={{
+                                    bgcolor: isMuted ? themeColor : '#f0f2f5',
+                                    '&:hover': { bgcolor: isMuted ? themeColor : '#e4e6eb' }
+                                }}
+                            >
+                                {isMuted ? (
+                                    <NotificationsOffIcon sx={{ color: 'white' }} />
+                                ) : (
+                                    <NotificationsIcon sx={{ color: '#050505' }} />
+                                )}
                             </IconButton>
                             <Typography fontSize={12} color="#050505" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
-                                Tắt thông báo
+                                {isMuted ? 'Bật thông báo' : 'Tắt thông báo'}
                             </Typography>
                         </Box>
                         {/* Search Action */}

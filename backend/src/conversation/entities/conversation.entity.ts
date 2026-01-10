@@ -97,6 +97,10 @@ export class Conversation {
     allowMembersToAdd: boolean;
     onlyAdminCanChat: boolean;
   };
+
+  // Danh sách user đã tắt thông báo cho conversation này
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: Account.name }], default: [] })
+  mutedBy: mongoose.Schema.Types.ObjectId[];
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

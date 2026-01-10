@@ -847,7 +847,10 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         const lastAtIndex = newMessage.lastIndexOf('@');
         const beforeAt = newMessage.substring(0, lastAtIndex);
         const displayName = participant.nickname || `${participant.user.firstName} ${participant.user.lastName}`;
-        const inserted = participant.user.username === 'all' ? '@all ' : `@${displayName} `;
+        // Use format @[username:fullname] for proper parsing
+        const inserted = participant.user.username === 'all'
+            ? '@all '
+            : `@[${participant.user.username}:${displayName}] `;
         setNewMessage(beforeAt + inserted);
         setShowMentions(false);
     };

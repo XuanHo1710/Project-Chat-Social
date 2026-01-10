@@ -30,6 +30,8 @@ export function useChatByConversationId(conversationId: string) {
       return messages[0]._id; // First message in oldest page = oldest message overall
     },
     enabled: !!conversationId,
+    staleTime: 0, // Data is immediately stale - refetch on re-mount
+    refetchOnMount: true, // Refetch when component mounts to get fresh readBy data
   });
 }
 

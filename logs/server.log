@@ -101,3 +101,4 @@
 2026-01-10 20:45:37.726 | INFO     | app.services.recommendation_service:get_user_vector:160 - 👤 User 69241cbe006d259dc5ee4382: Found 38 interacted posts
 2026-01-10 20:45:37.729 | INFO     | app.services.recommendation_service:get_user_vector:210 - ✅ User 69241cbe006d259dc5ee4382: 19 embeddings → user vector ready
 2026-01-10 20:45:37.735 | INFO     | app.services.recommendation_service:recommend:410 - 📰 Recommend 69241cbe006d259dc5ee4382: 19 interactions, 200 posts, page 2
+2026-01-10 20:49:12.453 | INFO     | main:lifespan:43 - 🛑 Shutting down...

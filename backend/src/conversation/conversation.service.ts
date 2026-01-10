@@ -113,6 +113,7 @@ export class ConversationService {
       ...conv,
       blockedByMe,
       participants: transformedParticipants,
+      mutedBy: (conv.mutedBy || []).map((id: any) => id.toString()), // Ensure mutedBy is string array
       unreadCount:
         conv.unreadCount instanceof Map
           ? Object.fromEntries(conv.unreadCount)
@@ -182,6 +183,7 @@ export class ConversationService {
       return {
         ...conv,
         blockedByMe, // Add block status to response
+        mutedBy: (conv.mutedBy || []).map((id: any) => id.toString()), // Ensure mutedBy is string array
         participants: conv.participants.map((p: any) => {
           if (p.user && p.user.showActivityStatus === false) {
             return {
@@ -661,5 +663,47 @@ export class ConversationService {
     return await this.conversationModel
       .findByIdAndUpdate(conversationId, { $set: { settings: { ...settings } } }, { new: true })
       .exec();
+  }
+
+  // Toggle mute notification cho user
+  async toggleMuteNotification(
+    conversationId: string,
+    userId: string
+  ): Promise<{ isMuted: boolean }> {
+    const userObjectId = new Types.ObjectId(userId);
+    const conversation = await this.conversationModel.findById(conversationId);
+
+    if (!conversation) {
+      throw new NotFoundException('Không tìm thấy cuộc trò chuyện');
+    }
+
+    const isInConversation = await this.isUserInConversation(conversationId, userId);
+    if (!isInConversation) {
+      throw new ForbiddenException('Bạn không phải thành viên của cuộc trò chuyện này');
+    }
+
+    // Check if user is already in mutedBy array
+    const isMuted = conversation.mutedBy?.some((id) => id.toString() === userId);
+
+    if (isMuted) {
+      // Remove from mutedBy (unmute)
+      await this.conversationModel.findByIdAndUpdate(conversationId, {
+        $pull: { mutedBy: userObjectId },
+      });
+      return { isMuted: false };
+    } else {
+      // Add to mutedBy (mute)
+      await this.conversationModel.findByIdAndUpdate(conversationId, {
+        $addToSet: { mutedBy: userObjectId },
+      });
+      return { isMuted: true };
+    }
+  }
+
+  // Check if user has muted conversation
+  async isConversationMuted(conversationId: string, userId: string): Promise<boolean> {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) return false;
+    return conversation.mutedBy?.some((id) => id.toString() === userId) ?? false;
   }
 }

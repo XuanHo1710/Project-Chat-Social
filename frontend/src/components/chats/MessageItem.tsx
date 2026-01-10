@@ -850,12 +850,43 @@ export default function MessageItem({
                                         ) : (
                                             <>
                                                 {message.content && (
-                                                    <Typography fontSize={15} sx={{ lineHeight: 1.4, wordBreak: 'break-word' }}>
+                                                    <Typography component="div" fontSize={15} sx={{ lineHeight: 1.4, wordBreak: 'break-word' }}>
                                                         {(() => {
-                                                            const parts = message.content.split(/(@\w+|@all)/g);
-                                                            return parts.map((part, i) => part.match(/@\w+|@all/) ? (
-                                                                <Box component="span" key={i} sx={{ color: isOwn ? 'white' : '#0084ff', fontWeight: 600 }}>{part}</Box>
-                                                            ) : part);
+                                                            // Regex for @[username:fullname] format and @all
+                                                            const mentionRegex = /@\[([^\]]+):([^\]]+)\]|@all/g;
+                                                            const parts: React.ReactNode[] = [];
+                                                            let lastIndex = 0;
+                                                            let match;
+
+                                                            while ((match = mentionRegex.exec(message.content)) !== null) {
+                                                                // Add text before mention
+                                                                if (match.index > lastIndex) {
+                                                                    parts.push(message.content.slice(lastIndex, match.index));
+                                                                }
+
+                                                                if (match[0] === '@all') {
+                                                                    parts.push(
+                                                                        <Box component="span" key={match.index} sx={{ color: isOwn ? 'white' : '#0084ff', fontWeight: 600 }}>
+                                                                            @all
+                                                                        </Box>
+                                                                    );
+                                                                } else {
+                                                                    // match[2] is fullname
+                                                                    parts.push(
+                                                                        <Box component="span" key={match.index} sx={{ color: isOwn ? 'white' : '#0084ff', fontWeight: 600 }}>
+                                                                            @{match[2]}
+                                                                        </Box>
+                                                                    );
+                                                                }
+                                                                lastIndex = match.index + match[0].length;
+                                                            }
+
+                                                            // Add remaining text
+                                                            if (lastIndex < message.content.length) {
+                                                                parts.push(message.content.slice(lastIndex));
+                                                            }
+
+                                                            return parts.length > 0 ? parts : message.content;
                                                         })()}
                                                     </Typography>
                                                 )}

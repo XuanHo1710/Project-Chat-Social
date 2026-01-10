@@ -40,6 +40,7 @@ export interface ConversationResponseData {
   theme?: string; // Theme color for chat background
   unreadCount?: Record<string, number>; // Map userId -> unread count
   settings?: ConversationSettings; // Group settings
+  mutedBy?: string[]; // Array of userIds who muted this conversation
   participants: ConversationParticipant[];
   lastMessage?: {
     _id: string;

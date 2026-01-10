@@ -961,6 +961,39 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { onlineUsers: visibleOnlineUsers };
   }
 
+  // ============ MUTE NOTIFICATION ============
+
+  // Toggle mute notification for a conversation
+  @SubscribeMessage('conversation:toggle-mute')
+  async handleToggleMute(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      const result = await this.conversationService.toggleMuteNotification(
+        data.conversationId,
+        userId
+      );
+
+      // Notify the user (only the user who toggled mute)
+      client.emit('conversation:mute:updated', {
+        conversationId: data.conversationId,
+        userId,
+        isMuted: result.isMuted,
+      });
+
+      return { success: true, isMuted: result.isMuted };
+    } catch (err) {
+      this.logger.error('Failed to toggle mute', err);
+      return { success: false, error: err.message };
+    }
+  }
+
   // ============ MESSAGE READ STATUS ============
 
   // Mark messages as read when user views conversation

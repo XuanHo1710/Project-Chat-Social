@@ -137,8 +137,14 @@ export class ChatService {
     // Reverse to show oldest first in UI
     const sortedMessages = messages.reverse();
 
+    // Ensure readBy is always an array (for old messages that might not have this field)
+    const normalizedMessages = sortedMessages.map((msg) => ({
+      ...msg,
+      readBy: msg.readBy || [],
+    }));
+
     return {
-      data: sortedMessages,
+      data: normalizedMessages,
       pagination: {
         page,
         limit,

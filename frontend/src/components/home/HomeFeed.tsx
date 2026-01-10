@@ -11,7 +11,7 @@ import {
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { usePostStore } from '@/stores/usePostStore';
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useGetNewsFeedInfinite, useDeletePost } from '@/queries/usePostQueries';
 import { PostType, PostPrivacy, MediaItem } from '@/types/post';
@@ -58,7 +58,7 @@ export default function HomeFeed() {
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
-    } = useGetNewsFeedInfinite(20);
+    } = useGetNewsFeedInfinite(10);
     const deletePostMutation = useDeletePost();
 
     // Ref for infinite scroll observer
@@ -100,12 +100,17 @@ export default function HomeFeed() {
         return postsData.pages.flatMap((page) => page.data || []);
     }, [postsData]);
 
-    // Sync API data with store
+    // Sync API data with store - only when API data actually changes
     useEffect(() => {
         if (allApiPosts.length > 0) {
-            setStorePosts(allApiPosts);
+            // Only update if posts actually differ
+            const currentIds = storePosts.map((p: PostType) => p._id).join(',');
+            const newIds = allApiPosts.map((p: PostType) => p._id).join(',');
+            if (currentIds !== newIds) {
+                setStorePosts(allApiPosts);
+            }
         }
-    }, [allApiPosts, setStorePosts]);
+    }, [allApiPosts]); // Remove setStorePosts from deps to avoid loops
 
     // Get posts from store - sort to put highlighted post first (use persisted ID)
     const posts = useMemo(() => {
@@ -565,7 +570,6 @@ export default function HomeFeed() {
                     user={user}
                     sharingPost={sharingPost}
                 />
-
             </Modal>
         </Box >
     );

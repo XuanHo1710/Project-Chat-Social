@@ -40,7 +40,7 @@ export const useGetNewsFeed = (params?: {
 /**
  * Hook to fetch news feed posts with infinite scroll
  */
-export const useGetNewsFeedInfinite = (limit: number = 20) => {
+export const useGetNewsFeedInfinite = (limit: number = 10) => {
   return useInfiniteQuery({
     queryKey: [QUERY_KEYS.NEWS_FEED, "infinite", limit],
     queryFn: ({ pageParam = 1 }) =>

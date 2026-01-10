@@ -10,6 +10,16 @@
 !.yarn/releases
 !.yarn/versions
 
+# json
+.json
+.json.*
+/.json
+.json*
+.json.*
+.json.*.*
+/json.*
+/json.*.*
+*.json
 # testing
 /coverage
 

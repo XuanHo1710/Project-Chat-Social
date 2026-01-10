@@ -16,6 +16,7 @@ import {
     Badge,
     Tabs,
     Tab,
+    Skeleton,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -289,6 +290,84 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                     },
                 }}
             >
+                {/* Skeleton Loading */}
+                {isLoading && (
+                    <List disablePadding>
+                        {[1, 2, 3, 4, 5].map((item) => (
+                            <Box
+                                key={item}
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1.5,
+                                    py: 1.5,
+                                    px: 2,
+                                }}
+                            >
+                                <Skeleton
+                                    variant="circular"
+                                    width={56}
+                                    height={56}
+                                    animation="wave"
+                                />
+                                <Box sx={{ flex: 1 }}>
+                                    <Skeleton
+                                        variant="text"
+                                        width="70%"
+                                        height={20}
+                                        animation="wave"
+                                    />
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Skeleton
+                                            variant="text"
+                                            width="50%"
+                                            height={16}
+                                            animation="wave"
+                                        />
+                                        <Skeleton
+                                            variant="text"
+                                            width="20%"
+                                            height={16}
+                                            animation="wave"
+                                        />
+                                    </Box>
+                                </Box>
+                            </Box>
+                        ))}
+                    </List>
+                )}
+
+                {/* Empty State */}
+                {!isLoading && filteredConversations.length === 0 && (
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            py: 4,
+                            px: 2,
+                        }}
+                    >
+                        <Typography
+                            sx={{
+                                fontSize: 15,
+                                color: '#65676b',
+                                textAlign: 'center',
+                            }}
+                        >
+                            {searchQuery
+                                ? 'Không tìm thấy cuộc trò chuyện nào'
+                                : tabValue === 1
+                                    ? 'Không có tin nhắn chưa đọc'
+                                    : tabValue === 2
+                                        ? 'Không có nhóm nào'
+                                        : 'Bắt đầu cuộc trò chuyện mới'}
+                        </Typography>
+                    </Box>
+                )}
+
+                {/* Conversation List */}
                 <List disablePadding>
                     {!isLoading &&
                         filteredConversations.map((conversation) => {

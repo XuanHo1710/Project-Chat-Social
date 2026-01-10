@@ -295,11 +295,11 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             <>
                                 <Typography sx={{ color: '#65676b', fontSize: 13 }}>·</Typography>
                                 <Typography sx={{ color: '#65676b', fontSize: 13 }}>
-                                    {notification.totalReacts || 0} cảm xúc
+                                    {/* {notification.totalReacts || 0} cảm xúc */}
                                 </Typography>
                                 <Typography sx={{ color: '#65676b', fontSize: 13 }}>·</Typography>
                                 <Typography sx={{ color: '#65676b', fontSize: 13 }}>
-                                    {notification.totalComments || 0} bình luận
+                                    {/* {notification.totalComments || 0} bình luận */}
                                 </Typography>
                             </>
                         )}

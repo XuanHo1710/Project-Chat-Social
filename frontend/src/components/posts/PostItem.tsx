@@ -16,7 +16,7 @@ import SharedPostPreview from '@/components/posts/SharedPostPreview';
 import { PostType } from '@/types/post';
 import { HashtagContent } from '@/utils/hashtagParser';
 import { useReactionStore } from '@/stores/useReactionStore';
-import { useEffect, useState, forwardRef } from 'react';
+import { useEffect, useState, forwardRef, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
 
@@ -402,4 +402,17 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
     )
 });
 
-export default PostItem;
+// Memoize PostItem for performance - only re-render when props actually change
+export default memo(PostItem, (prevProps, nextProps) => {
+    // Custom comparison - only re-render if these change
+    return (
+        prevProps.post._id === nextProps.post._id &&
+        prevProps.post.totalReacts === nextProps.post.totalReacts &&
+        prevProps.post.totalComments === nextProps.post.totalComments &&
+        prevProps.post.totalShares === nextProps.post.totalShares &&
+        prevProps.post.reactInfo?.isReact === nextProps.post.reactInfo?.isReact &&
+        prevProps.post.reactInfo?.type === nextProps.post.reactInfo?.type &&
+        prevProps.isHighlighted === nextProps.isHighlighted &&
+        prevProps.userId === nextProps.userId
+    );
+});

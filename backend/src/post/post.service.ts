@@ -134,16 +134,92 @@ export class PostService {
     limit = 10,
     friendIds: string[] = []
   ): Promise<{ data: PostWithReactInfo[]; total: number; page: number; totalPages: number }> {
-    const skip = (page - 1) * limit;
-
-    // Build query for news feed:
-    // 1. PUBLIC posts from anyone
-    // 2. FRIEND posts from friends
-    // 3. Own posts (any privacy)
-    // 4. GROUP posts from public groups
     const currentUserObjId = new Types.ObjectId(currentUserId);
     const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
 
+    // Try to use AI server for recommendations (auto-detects LLM availability)
+    try {
+      const responseAPIAi: AxiosResponse<{
+        posts: { post_id: string; score: number }[];
+        total: number;
+      }> = await firstValueFrom(
+        this.httpService.get(`${this.aiServerUrl}/newsfeed/${currentUserId}`, {
+          params: {
+            friend_ids: friendIds.join(','),
+            limit,
+            page,
+          },
+          timeout: 30000,
+        })
+      );
+
+      const postRelevantIds = responseAPIAi.data.posts.map((post) => post.post_id);
+      const scoreMap = new Map(responseAPIAi.data.posts.map((p) => [p.post_id, p.score]));
+
+      if (postRelevantIds.length > 0) {
+        const dataPosts = await this.postModel
+          .find({ _id: { $in: postRelevantIds }, isDeleted: false, isActive: true })
+          .populate('userId', 'firstName lastName avatar username')
+          .populate('groupId', 'name avatar privacy')
+          .populate({
+            path: 'sharedPostId',
+            populate: { path: 'userId', select: 'firstName lastName avatar username' },
+          })
+          .lean()
+          .exec();
+
+        const postMap = new Map(dataPosts.map((post) => [post._id.toString(), post]));
+
+        // Sort by AI score (highest first)
+        const sortedPosts = postRelevantIds
+          .map((postId) => {
+            const post = postMap.get(postId);
+            if (!post) return null;
+            return { ...post, aiScore: scoreMap.get(postId) || 0 };
+          })
+          .filter((post) => post !== null);
+
+        // Filter private group posts
+        const filteredData = sortedPosts.filter((post) => {
+          if (!post.groupId) return true;
+          const group = post.groupId as any;
+          if (group.privacy === 'PUBLIC') return true;
+          return post.userId && (post.userId as any)._id?.toString() === currentUserId;
+        });
+
+        // Add reactions info
+        const postIds = filteredData.map((p) => p._id);
+        const postIdStrings = postIds.map((id) => id.toString());
+
+        const [userReactions, reactionsSummary] = await Promise.all([
+          this.reactionService.userReactions(postIds, currentUserId),
+          this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+        ]);
+
+        const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
+
+        (filteredData as PostWithReactInfo[]).forEach((post) => {
+          const postIdStr = post._id.toString();
+          const r = reactionMap.get(postIdStr) as any;
+          const summary = reactionsSummary[postIdStr];
+
+          post.reactInfo = { isReact: !!r, type: r ? r.type : null };
+          (post as any).topReactions = summary?.topReactions || [];
+        });
+
+        return {
+          data: filteredData as PostWithReactInfo[],
+          total: responseAPIAi.data.total,
+          page,
+          totalPages: Math.ceil(responseAPIAi.data.total / limit),
+        };
+      }
+    } catch (error) {
+      console.warn('AI Server unavailable, falling back to standard newsfeed:', error.message);
+    }
+
+    // Fallback: Standard MongoDB query (original logic)
+    const skip = (page - 1) * limit;
     const filter = {
       isDeleted: false,
       isActive: true,
@@ -151,7 +227,6 @@ export class PostService {
         { privacy: PostPrivacy.PUBLIC },
         { privacy: PostPrivacy.FRIEND, userId: { $in: friendObjIds } },
         { userId: currentUserObjId },
-        // Include GROUP posts where the group is public
         { privacy: PostPrivacy.GROUP, groupId: { $ne: null } },
       ],
     };
@@ -167,39 +242,29 @@ export class PostService {
         })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit + 20) // Fetch extra to account for filtered private groups
+        .limit(limit + 20)
         .lean()
         .exec(),
       this.postModel.countDocuments(filter),
     ]);
 
-    // Filter out private group posts where user is not the author
-    // For public groups, show all posts
-    // For private groups, only show if user is the post author
     const filteredData = data
       .filter((post) => {
-        // Non-group posts pass through
         if (!post.groupId) return true;
-
         const group = post.groupId as any;
-        // If group is public, show the post
         if (group.privacy === 'PUBLIC') return true;
-
-        // If group is private, only show if user is the author
         return post.userId && (post.userId as any)._id?.toString() === currentUserId;
       })
-      .slice(0, limit); // Limit to requested amount
+      .slice(0, limit);
 
     const postIds = filteredData.map((p) => p._id);
     const postIdStrings = postIds.map((id) => id.toString());
 
-    // Get user reactions and top reactions summary in parallel
     const [userReactions, reactionsSummary] = await Promise.all([
       this.reactionService.userReactions(postIds, currentUserId),
       this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
     ]);
 
-    // convert về map để tra O(1)
     const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
 
     (filteredData as PostWithReactInfo[]).forEach((post) => {
@@ -207,11 +272,7 @@ export class PostService {
       const r = reactionMap.get(postIdStr) as any;
       const summary = reactionsSummary[postIdStr];
 
-      post.reactInfo = {
-        isReact: !!r,
-        type: r ? r.type : null,
-      };
-      // Add top reactions for display
+      post.reactInfo = { isReact: !!r, type: r ? r.type : null };
       (post as any).topReactions = summary?.topReactions || [];
     });
 
@@ -230,129 +291,161 @@ export class PostService {
     friendIds: string[] = [],
     keyword?: string
   ): Promise<any> {
-    // Build query for news feed:
-    // 1. PUBLIC posts from anyone
-    // 2. FRIEND posts from friends
-    // 3. Own posts (any privacy)
-    // 4. GROUP posts from public groups
     const currentUserObjId = new Types.ObjectId(currentUserId);
-    const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
 
-    // Call Model AI server to get relevant post IDs based on keyword
-    //  const relevantPostIds: string[] = keyword
+    if (!keyword || keyword.trim().length === 0) {
+      return { data: [], total: 0, page, totalPages: 0 };
+    }
 
-    const responseAPIAi: AxiosResponse<AIResponse> = await firstValueFrom(
-      this.httpService.get(`${this.aiServerUrl}/search`, {
-        params: { q: keyword, limit: limit, page: page }, // Lấy nhiều hơn để phân trang
-        timeout: 30000,
-      })
-    );
+    try {
+      // Call AI server search (auto-detects LLM availability on server side)
+      const responseAPIAi: AxiosResponse<{
+        posts: { post_id: string; score: number }[];
+        total: number;
+      }> = await firstValueFrom(
+        this.httpService.get(`${this.aiServerUrl}/search`, {
+          params: {
+            q: keyword,
+            current_user_id: currentUserId,
+            friend_ids: friendIds.join(','),
+            limit,
+            page,
+            apply_privacy_filter: true,
+          },
+          timeout: 30000,
+        })
+      );
 
-    const postRelevantIds = responseAPIAi.data.posts.map((post) => post.post_id);
+      const postRelevantIds = responseAPIAi.data.posts.map((post) => post.post_id);
+      const scoreMap = new Map(responseAPIAi.data.posts.map((p) => [p.post_id, p.score]));
 
-    const dataPosts = await this.postModel
-      .find({ _id: { $in: postRelevantIds } })
-      .populate('userId', 'firstName lastName avatar username')
-      .populate('groupId', 'name avatar privacy')
-      .populate({
-        path: 'sharedPostId',
-        populate: { path: 'userId', select: 'firstName lastName avatar username' },
-      })
-      .lean()
-      .exec();
-
-    const postMap = new Map(dataPosts.map((post) => [post._id.toString(), post]));
-
-    const sortedPosts = responseAPIAi.data.posts
-      .map(({ post_id, score }) => {
-        const post = postMap.get(post_id);
-        if (!post) return null;
-
+      if (postRelevantIds.length === 0) {
         return {
-          ...post,
-          aiScore: score, // 👈 giữ score
+          data: [],
+          total: 0,
+          page,
+          totalPages: 0,
         };
-      })
-      .filter((post) => post !== null);
+      }
 
-    const filter = {
-      isDeleted: false,
-      isActive: true,
-      $or: [
-        { privacy: PostPrivacy.PUBLIC },
-        { privacy: PostPrivacy.FRIEND, userId: { $in: friendObjIds } },
-        { userId: currentUserObjId },
-        // Include GROUP posts where the group is public
-        { privacy: PostPrivacy.GROUP, groupId: { $ne: null } },
-      ],
-    };
-    const total = await this.postModel.countDocuments(filter);
+      // Fetch posts from DB
+      const dataPosts = await this.postModel
+        .find({ _id: { $in: postRelevantIds }, isDeleted: false, isActive: true })
+        .populate('userId', 'firstName lastName avatar username')
+        .populate('groupId', 'name avatar privacy')
+        .populate({
+          path: 'sharedPostId',
+          populate: { path: 'userId', select: 'firstName lastName avatar username' },
+        })
+        .lean()
+        .exec();
 
-    // const [data, total] = await Promise.all([
-    //   this.postModel
-    //     .find(filter)
-    //     .populate('userId', 'firstName lastName avatar username')
-    //     .populate('groupId', 'name avatar privacy')
-    //     .populate({
-    //       path: 'sharedPostId',
-    //       populate: { path: 'userId', select: 'firstName lastName avatar username' },
-    //     })
-    //     .sort({ createdAt: -1 })
-    //     .skip(skip)
-    //     .limit(limit + 20) // Fetch extra to account for filtered private groups
-    //     .lean()
-    //     .exec(),
-    //   this.postModel.countDocuments(filter),
-    // ]);
+      const postMap = new Map(dataPosts.map((post) => [post._id.toString(), post]));
 
-    // Filter out private group posts where user is not the author
-    // For public groups, show all posts
-    // For private groups, only show if user is the post author
-    const filteredData = sortedPosts
-      .filter((post) => {
-        // Non-group posts pass through
+      // Keep AI ordering and add scores
+      const sortedPosts = postRelevantIds
+        .map((postId) => {
+          const post = postMap.get(postId);
+          if (!post) return null;
+          return { ...post, aiScore: scoreMap.get(postId) || 0 };
+        })
+        .filter((post) => post !== null);
+
+      // Filter private group posts
+      const filteredData = sortedPosts.filter((post) => {
         if (!post.groupId) return true;
-
         const group = post.groupId as any;
-        // If group is public, show the post
         if (group.privacy === 'PUBLIC') return true;
-
-        // If group is private, only show if user is the author
         return post.userId && (post.userId as any)._id?.toString() === currentUserId;
-      })
-      .slice(0, limit); // Limit to requested amount
+      });
 
-    const postIds = filteredData.map((p) => p._id);
-    const postIdStrings = postIds.map((id) => id.toString());
+      // Add reactions info
+      const postIds = filteredData.map((p) => p._id);
+      const postIdStrings = postIds.map((id) => id.toString());
 
-    // Get user reactions and top reactions summary in parallel
-    const [userReactions, reactionsSummary] = await Promise.all([
-      this.reactionService.userReactions(postIds, currentUserId),
-      this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
-    ]);
+      const [userReactions, reactionsSummary] = await Promise.all([
+        this.reactionService.userReactions(postIds, currentUserId),
+        this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+      ]);
 
-    // convert về map để tra O(1)
-    const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
+      const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
 
-    (filteredData as PostWithReactInfo[]).forEach((post) => {
-      const postIdStr = post._id.toString();
-      const r = reactionMap.get(postIdStr) as any;
-      const summary = reactionsSummary[postIdStr];
+      (filteredData as PostWithReactInfo[]).forEach((post) => {
+        const postIdStr = post._id.toString();
+        const r = reactionMap.get(postIdStr) as any;
+        const summary = reactionsSummary[postIdStr];
 
-      post.reactInfo = {
-        isReact: !!r,
-        type: r ? r.type : null,
+        post.reactInfo = { isReact: !!r, type: r ? r.type : null };
+        (post as any).topReactions = summary?.topReactions || [];
+      });
+
+      return {
+        data: filteredData,
+        total: responseAPIAi.data.total,
+        page,
+        totalPages: Math.ceil(responseAPIAi.data.total / limit),
       };
-      // Add top reactions for display
-      (post as any).topReactions = summary?.topReactions || [];
-    });
+    } catch (error) {
+      console.error('AI Server search failed:', error.message);
 
-    return {
-      data: filteredData,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-    };
+      // Fallback: basic text search with MongoDB
+      const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
+      const skip = (page - 1) * limit;
+
+      const filter = {
+        isDeleted: false,
+        isActive: true,
+        $text: { $search: keyword },
+        $or: [
+          { privacy: PostPrivacy.PUBLIC },
+          { privacy: PostPrivacy.FRIEND, userId: { $in: friendObjIds } },
+          { userId: currentUserObjId },
+          { privacy: PostPrivacy.GROUP, groupId: { $ne: null } },
+        ],
+      };
+
+      try {
+        const [data, total] = await Promise.all([
+          this.postModel
+            .find(filter)
+            .populate('userId', 'firstName lastName avatar username')
+            .populate('groupId', 'name avatar privacy')
+            .populate({
+              path: 'sharedPostId',
+              populate: { path: 'userId', select: 'firstName lastName avatar username' },
+            })
+            .sort({ score: { $meta: 'textScore' } })
+            .skip(skip)
+            .limit(limit)
+            .lean()
+            .exec(),
+          this.postModel.countDocuments(filter),
+        ]);
+
+        const postIds = data.map((p) => p._id);
+        const postIdStrings = postIds.map((id) => id.toString());
+
+        const [userReactions, reactionsSummary] = await Promise.all([
+          this.reactionService.userReactions(postIds, currentUserId),
+          this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+        ]);
+
+        const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
+
+        (data as PostWithReactInfo[]).forEach((post) => {
+          const postIdStr = post._id.toString();
+          const r = reactionMap.get(postIdStr) as any;
+          const summary = reactionsSummary[postIdStr];
+
+          post.reactInfo = { isReact: !!r, type: r ? r.type : null };
+          (post as any).topReactions = summary?.topReactions || [];
+        });
+
+        return { data, total, page, totalPages: Math.ceil(total / limit), llmInfo: null };
+      } catch {
+        return { data: [], total: 0, page, totalPages: 0, llmInfo: null };
+      }
+    }
   }
 
   /**

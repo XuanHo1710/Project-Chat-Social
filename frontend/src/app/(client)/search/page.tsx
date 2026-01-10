@@ -1,26 +1,35 @@
 'use client';
 
-import { useState, useEffect, Suspense, useMemo, useRef } from 'react';
+import { useState, useEffect, Suspense, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Box, Typography, InputBase, Card,
-    IconButton, Divider, Skeleton, FormControlLabel, Switch,
-    List, ListItem, ListItemIcon, ListItemText, CircularProgress,
+    IconButton, Divider, Skeleton,
+    List, ListItemIcon, ListItemText, CircularProgress,
     Modal,
-    Menu
+    Menu,
+    Select,
+    MenuItem,
+    FormControl,
+    Slider,
+    ListItemButton,
+    Avatar,
+    Collapse
 } from '@mui/material';
 
 import {
     Search as SearchIcon,
     ArrowBack as ArrowBackIcon,
     FilterList as FilterIcon,
-    Public as PublicIcon,
     People as PeopleIcon,
-    Movie as MovieIcon,
-    Store as StoreIcon,
-    Pages as PagesIcon,
+    OndemandVideo as VideoIcon,
     Groups as GroupsIcon,
-    PlayCircle as PlayIcon
+    PlayCircle as PlayIcon,
+    SortByAlpha as SortIcon,
+    CalendarMonth as CalendarIcon,
+    Bookmark as BookmarkIcon,
+    ExpandMore as ExpandMoreIcon,
+    ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import Header from '@/components/home/Header';
@@ -36,7 +45,7 @@ import EditPostModal from '@/components/posts/EditPostModal';
 import ImageViewer from '@/components/posts/ImageViewer';
 import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
 import CommentContentModal from '@/components/posts/CommentContentModal';
-
+import Link from 'next/link';
 
 
 // Main component wrapped in Suspense
@@ -48,22 +57,33 @@ function SearchContent() {
 
     const { posts: storePosts, setPosts: setStorePosts } = usePostStore();
 
-    const [query, setQuery] = useState('');
-
+    // Search input state with debounce for performance
+    const [inputValue, setInputValue] = useState('');
 
     // Filter states
-    const [filterNew, setFilterNew] = useState(false);
-    const [filterSeen, setFilterSeen] = useState(false);
+    const [activeFilter, setActiveFilter] = useState('all');
+    const [sortBy, setSortBy] = useState('relevance');
+    const [yearRange, setYearRange] = useState<number[]>([2010, 2026]);
+    const [showFilters, setShowFilters] = useState(false);
 
+    // Get initial query from URL
+    const urlQuery = searchParams.get('q')?.toString() || '';
 
-    // Fetch posts from API with infinite scroll
+    // Sync input with URL query on mount
+    useEffect(() => {
+        if (urlQuery) {
+            setInputValue(urlQuery);
+        }
+    }, [urlQuery]);
+
+    // Fetch posts from API with infinite scroll - use URL query for actual search
     const {
         data: postsData,
         isLoading: isLoadingPosts,
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
-    } = useSearchFeedInfinite(10, searchParams.get('q')?.toString() || "");
+    } = useSearchFeedInfinite(10, urlQuery);
 
 
     const deletePostMutation = useDeletePost();
@@ -94,7 +114,7 @@ function SearchContent() {
     const [openShareModal, setOpenShareModal] = useState(false);
     const [sharingPost, setSharingPost] = useState<PostType | null>(null);
     const [shareCaption, setShareCaption] = useState('');
-    const [sharePrivacy, setSharePrivacy] = useState<PostPrivacy>('PUBLIC');
+    const sharePrivacy: PostPrivacy = 'PUBLIC';
 
     // Emoji Picker
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -105,12 +125,17 @@ function SearchContent() {
         return postsData.pages.flatMap((page) => page.data || []);
     }, [postsData]);
 
-    // Sync API data with store
+    // Sync API data with store - only when IDs differ
     useEffect(() => {
         if (allApiPosts.length > 0) {
-            setStorePosts(allApiPosts);
+            const currentIds = storePosts.map((p: PostType) => p._id).join(',');
+            const newIds = allApiPosts.map((p: PostType) => p._id).join(',');
+            if (currentIds !== newIds) {
+                setStorePosts(allApiPosts);
+            }
         }
-    }, [allApiPosts, setStorePosts]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allApiPosts]);
 
     // Get posts from store - sort to put highlighted post first (use persisted ID)
     const posts = useMemo(() => {
@@ -122,15 +147,36 @@ function SearchContent() {
         const newStorePosts = storePosts.filter((p: PostType) => !apiPostIds.has(p._id));
 
         // Merge: new store posts + API posts (using store version if exists)
-        const allPosts: PostType[] = [
+        let allPosts: PostType[] = [
             ...newStorePosts,
             ...apiPosts.map((apiPost: PostType) => {
                 const storePost = storePosts.find((sp: PostType) => sp._id === apiPost._id);
                 return storePost || apiPost;
             })
         ];
+
+        // Apply year filter
+        if (yearRange[0] !== 2010 || yearRange[1] !== 2026) {
+            allPosts = allPosts.filter((post: PostType) => {
+                const postYear = new Date(post.createdAt).getFullYear();
+                return postYear >= yearRange[0] && postYear <= yearRange[1];
+            });
+        }
+
+        // Apply sorting
+        if (sortBy === 'newest') {
+            allPosts = [...allPosts].sort((a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+        } else if (sortBy === 'oldest') {
+            allPosts = [...allPosts].sort((a, b) =>
+                new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+        }
+        // 'relevance' keeps original AI-ranked order
+
         return allPosts;
-    }, [allApiPosts, storePosts]);
+    }, [allApiPosts, storePosts, sortBy, yearRange]);
 
 
     // Infinite scroll: Intersection Observer to load more when reaching bottom
@@ -386,10 +432,15 @@ function SearchContent() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (query.trim()) {
-            router.push(`/search?q=${encodeURIComponent(query)}`);
+        if (inputValue.trim()) {
+            router.push(`/search?q=${encodeURIComponent(inputValue)}`);
         }
     };
+
+    // Handle input change with useCallback for performance
+    const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setInputValue(e.target.value);
+    }, []);
 
     const handleBack = () => {
         router.push('/');
@@ -414,110 +465,192 @@ function SearchContent() {
             <Header />
 
             <Box sx={{ display: 'flex', pt: '56px' }}>
-                {/* Left Sidebar - Filters */}
+                {/* Left Sidebar - Like Home Sidebar */}
                 <Box
                     sx={{
                         width: 360,
                         bgcolor: 'white',
-                        borderRight: '1px solid #ddd',
+                        borderRight: '1px solid #e4e6eb',
                         height: 'calc(100vh - 56px)',
                         position: 'fixed',
                         left: 0,
                         top: 56,
                         overflowY: 'auto',
                         p: 2,
-                        display: { xs: 'none', md: 'block' }
+                        display: { xs: 'none', md: 'block' },
+                        '&::-webkit-scrollbar': { width: '8px' },
+                        '&::-webkit-scrollbar-thumb': { backgroundColor: 'transparent', borderRadius: '4px' },
+                        '&:hover::-webkit-scrollbar-thumb': { backgroundColor: '#bcc0c4' },
                     }}
                 >
                     <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>
                         Kết quả tìm kiếm
                     </Typography>
 
-                    {/* Filter Section */}
-                    <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                        Bộ lọc
-                    </Typography>
-
-                    <List dense>
-                        <ListItem
-                            component="div"
-                            sx={{
-                                borderRadius: 2,
-                                bgcolor: '#e7f3ff',
-                                mb: 0.5,
-                                cursor: 'pointer'
-                            }}
+                    {/* Navigation Menu - Like Home Sidebar */}
+                    <List sx={{ p: 0 }}>
+                        {/* User Profile */}
+                        <ListItemButton
+                            onClick={() => router.push(user?.username ? `/profile/${user.username}` : '/')}
+                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
                         >
-                            <ListItemIcon sx={{ minWidth: 40 }}>
-                                <Box
-                                    sx={{
-                                        width: 36,
-                                        height: 36,
-                                        borderRadius: '50%',
-                                        bgcolor: '#1877f2',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}
-                                >
-                                    <FilterIcon sx={{ color: 'white', fontSize: 20 }} />
-                                </Box>
-                            </ListItemIcon>
-                            <ListItemText primary="Tất cả" />
-                        </ListItem>
-
-                        {[
-                            { icon: PublicIcon, label: 'Bài viết' },
-                            { icon: PeopleIcon, label: 'Mọi người' },
-                            { icon: MovieIcon, label: 'Thước phim' },
-                            { icon: StoreIcon, label: 'Marketplace' },
-                            { icon: PagesIcon, label: 'Trang' },
-                            { icon: GroupsIcon, label: 'Nhóm' }
-                        ].map((item, index) => (
-                            <ListItem
-                                key={index}
-                                component="div"
-                                sx={{
-                                    borderRadius: 2,
-                                    cursor: 'pointer',
-                                    '&:hover': { bgcolor: '#f0f2f5' }
-                                }}
+                            <Avatar
+                                src={user?.avatar}
+                                sx={{ width: 36, height: 36, mr: 1.5 }}
                             >
-                                <ListItemIcon sx={{ minWidth: 40 }}>
-                                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#e4e6eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <item.icon sx={{ color: '#65676b', fontSize: 20 }} />
-                                    </Box>
-                                </ListItemIcon>
-                                <ListItemText primary={item.label} />
-                            </ListItem>
-                        ))}
+                                {user?.fullName?.[0] || user?.username?.[0] || 'U'}
+                            </Avatar>
+                            <ListItemText
+                                primary={user?.fullName || user?.username || 'User'}
+                                primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }}
+                            />
+                        </ListItemButton>
+
+                        {/* Friends */}
+                        <ListItemButton
+                            component={Link}
+                            href="/friends"
+                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 44 }}>
+                                <PeopleIcon sx={{ fontSize: 28, color: '#1877f2' }} />
+                            </ListItemIcon>
+                            <ListItemText primary="Bạn bè" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                        </ListItemButton>
+
+                        {/* Groups */}
+                        <ListItemButton
+                            component={Link}
+                            href="/groups"
+                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 44 }}>
+                                <GroupsIcon sx={{ fontSize: 28, color: '#1877f2' }} />
+                            </ListItemIcon>
+                            <ListItemText primary="Nhóm" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                        </ListItemButton>
+
+                        {/* Watch/Reels */}
+                        <ListItemButton
+                            component={Link}
+                            href="/reels"
+                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 44 }}>
+                                <VideoIcon sx={{ fontSize: 28, color: '#1877f2' }} />
+                            </ListItemIcon>
+                            <ListItemText primary="Watch" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                        </ListItemButton>
+
+                        {/* Saved */}
+                        <ListItemButton
+                            component={Link}
+                            href="/saved"
+                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 44 }}>
+                                <BookmarkIcon sx={{ fontSize: 28, color: '#a333c8' }} />
+                            </ListItemIcon>
+                            <ListItemText primary="Đã lưu" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                        </ListItemButton>
                     </List>
 
                     <Divider sx={{ my: 2 }} />
 
-                    {/* Additional Filters */}
-                    <Box sx={{ px: 1 }}>
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={filterNew}
-                                    onChange={(e) => setFilterNew(e.target.checked)}
-                                    size="small"
-                                />
-                            }
-                            label="Bài viết mới đây"
+                    {/* Filters Section - Collapsible */}
+                    <ListItemButton
+                        onClick={() => setShowFilters(!showFilters)}
+                        sx={{ borderRadius: 2, py: 1, mb: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                    >
+                        <ListItemIcon sx={{ minWidth: 44 }}>
+                            <FilterIcon sx={{ fontSize: 24, color: '#65676b' }} />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Bộ lọc tìm kiếm"
+                            primaryTypographyProps={{ fontWeight: 600, fontSize: 15 }}
                         />
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={filterSeen}
-                                    onChange={(e) => setFilterSeen(e.target.checked)}
-                                    size="small"
+                        {showFilters ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    </ListItemButton>
+
+                    <Collapse in={showFilters}>
+                        <Box sx={{ pl: 1, pr: 1 }}>
+                            {/* Filter Type */}
+                            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 600 }}>
+                                Loại kết quả
+                            </Typography>
+                            <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                                <Box
+                                    onClick={() => setActiveFilter('all')}
+                                    sx={{
+                                        px: 2, py: 0.75,
+                                        borderRadius: 5,
+                                        cursor: 'pointer',
+                                        bgcolor: activeFilter === 'all' ? '#1877f2' : '#e4e6eb',
+                                        color: activeFilter === 'all' ? 'white' : '#050505',
+                                        fontSize: 14, fontWeight: 500,
+                                        '&:hover': { bgcolor: activeFilter === 'all' ? '#166fe5' : '#d8dadf' }
+                                    }}
+                                >
+                                    Tất cả
+                                </Box>
+                                <Box
+                                    onClick={() => setActiveFilter('posts')}
+                                    sx={{
+                                        px: 2, py: 0.75,
+                                        borderRadius: 5,
+                                        cursor: 'pointer',
+                                        bgcolor: activeFilter === 'posts' ? '#1877f2' : '#e4e6eb',
+                                        color: activeFilter === 'posts' ? 'white' : '#050505',
+                                        fontSize: 14, fontWeight: 500,
+                                        '&:hover': { bgcolor: activeFilter === 'posts' ? '#166fe5' : '#d8dadf' }
+                                    }}
+                                >
+                                    Bài viết
+                                </Box>
+                            </Box>
+
+                            {/* Sorting Filter */}
+                            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 600 }}>
+                                <SortIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+                                Sắp xếp
+                            </Typography>
+                            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                                <Select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value)}
+                                    sx={{ borderRadius: 2, fontSize: 14 }}
+                                >
+                                    <MenuItem value="relevance">Liên quan nhất</MenuItem>
+                                    <MenuItem value="newest">Mới nhất</MenuItem>
+                                    <MenuItem value="oldest">Cũ nhất</MenuItem>
+                                </Select>
+                            </FormControl>
+
+                            {/* Year Range Filter */}
+                            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 600 }}>
+                                <CalendarIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+                                Ngày đăng ({yearRange[0]} - {yearRange[1]})
+                            </Typography>
+                            <Box sx={{ px: 1, pb: 2 }}>
+                                <Slider
+                                    value={yearRange}
+                                    onChange={(_, newValue) => setYearRange(newValue as number[])}
+                                    valueLabelDisplay="auto"
+                                    min={2010}
+                                    max={2026}
+                                    marks={[
+                                        { value: 2010, label: '2010' },
+                                        { value: 2026, label: '2026' }
+                                    ]}
+                                    sx={{
+                                        color: '#1877f2',
+                                        '& .MuiSlider-thumb': { width: 14, height: 14 },
+                                        '& .MuiSlider-mark': { display: 'none' },
+                                    }}
                                 />
-                            }
-                            label="Bài viết bạn đã xem"
-                        />
-                    </Box>
+                            </Box>
+                        </Box>
+                    </Collapse>
                 </Box>
 
                 {/* Main Content */}
@@ -549,12 +682,13 @@ function SearchContent() {
                             <ArrowBackIcon />
                         </IconButton>
                         <InputBase
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
+                            value={inputValue}
+                            onChange={handleInputChange}
                             placeholder="Tìm kiếm trên Facebook"
                             sx={{ flex: 1, fontSize: 16 }}
+                            autoFocus
                         />
-                        <IconButton type="submit" disabled={!query.trim() || isLoadingPosts}>
+                        <IconButton type="submit" disabled={!inputValue.trim() || isLoadingPosts}>
                             {isLoadingPosts ? <CircularProgress size={24} /> : <SearchIcon />}
                         </IconButton>
                     </Box>
@@ -576,10 +710,10 @@ function SearchContent() {
                         <Box sx={{ textAlign: 'center', py: 5 }}>
                             <SearchIcon sx={{ fontSize: 64, color: '#bcc0c4', mb: 2 }} />
                             <Typography variant="h6" color="text.secondary">
-                                Không tìm thấy kết quả cho &quot;{query}&quot;
+                                {urlQuery ? `Không tìm thấy kết quả cho "${urlQuery}"` : 'Nhập từ khóa để tìm kiếm'}
                             </Typography>
                             <Typography color="text.secondary">
-                                Thử tìm kiếm với từ khóa khác
+                                {urlQuery ? 'Thử tìm kiếm với từ khóa khác' : 'Tìm kiếm bài viết, người dùng, nhóm...'}
                             </Typography>
                         </Box>
                     ) : (

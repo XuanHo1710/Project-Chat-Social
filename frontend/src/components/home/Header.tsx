@@ -38,17 +38,39 @@ export default function Header() {
     const [showChatPopup, setShowChatPopup] = useState(false);
     const [showNotificationPopup, setShowNotificationPopup] = useState(false);
     const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+    const [chatUnreadCount, setChatUnreadCount] = useState(0);
+    const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
     const { socketChat } = useSocket();
     const queryClient = useQueryClient();
 
-    const { data: listConversation, isLoading: isLoadingConversations } = useConversationByUserId(user?.id || "");
+    // Lazy load - only fetch conversations when popup is opened
+    const { data: listConversation, isLoading: isLoadingConversations, refetch: refetchConversations } = useConversationByUserId(
+        showChatPopup ? (user?.id || "") : "" // Only fetch when popup is open
+    );
 
-    // Real-time updates for conversations (sync with ChatSidebar)
+    // Calculate total unread count from conversations
+    useEffect(() => {
+        if (listConversation?.data && user?.id) {
+            const totalUnread = listConversation.data.reduce((acc, conv) => {
+                return acc + (conv.unreadCount?.[user.id] || 0);
+            }, 0);
+            setChatUnreadCount(totalUnread);
+        }
+    }, [listConversation, user?.id]);
+
+    // Real-time updates for conversations and unread count
     useEffect(() => {
         if (!socketChat || !user?.id) return;
 
-        // Update lastMessage when new message arrives
+        // Update unread count when new message arrives
         const handleGlobalMessageNew = (msg: MessageResponse) => {
+            // Increment unread count if message is not from current user
+            const senderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
+            if (senderId !== user.id) {
+                setChatUnreadCount(prev => prev + 1);
+            }
+
+            // Update conversation data if popup is open
             queryClient.setQueryData<{ data: ConversationResponseData[] }>(
                 [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
                 (oldData) => {
@@ -58,6 +80,12 @@ export default function Header() {
                         ...oldData,
                         data: oldData.data.map(conv => {
                             if (conv._id === msg.conversationId) {
+                                // Update unread count for this conversation
+                                const newUnreadCount = { ...conv.unreadCount };
+                                if (senderId !== user.id) {
+                                    newUnreadCount[user.id] = (newUnreadCount[user.id] || 0) + 1;
+                                }
+
                                 return {
                                     ...conv,
                                     lastMessage: {
@@ -65,10 +93,11 @@ export default function Header() {
                                         type: msg.type,
                                         content: msg.content || '',
                                         createdAt: new Date(msg.createdAt),
-                                        senderId: typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId,
+                                        senderId: senderId,
                                         attachments: msg.attachments?.map(a => typeof a === 'string' ? a : a.url),
                                     },
                                     lastMessageAt: new Date(msg.createdAt),
+                                    unreadCount: newUnreadCount,
                                 };
                             }
                             return conv;
@@ -82,11 +111,72 @@ export default function Header() {
             );
         };
 
+        // Handle unread count update from server
+        const handleUnreadCountUpdate = (data: { conversationId: string; unreadCount: Record<string, number> }) => {
+            const myUnread = data.unreadCount?.[user.id] || 0;
+            // Recalculate total unread
+            queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
+                (oldData) => {
+                    if (!oldData?.data) return oldData;
+
+                    const updatedData = oldData.data.map(conv => {
+                        if (conv._id === data.conversationId) {
+                            return { ...conv, unreadCount: data.unreadCount };
+                        }
+                        return conv;
+                    });
+
+                    // Recalculate total
+                    const totalUnread = updatedData.reduce((acc, conv) => {
+                        return acc + (conv.unreadCount?.[user.id] || 0);
+                    }, 0);
+                    setChatUnreadCount(totalUnread);
+
+                    return { ...oldData, data: updatedData };
+                }
+            );
+        };
+
+        // Handle message read - decrease unread count
+        const handleMessageRead = (data: { conversationId: string; userId: string }) => {
+            if (data.userId === user.id) {
+                queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                    [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
+                    (oldData) => {
+                        if (!oldData?.data) return oldData;
+
+                        const updatedData = oldData.data.map(conv => {
+                            if (conv._id === data.conversationId) {
+                                return {
+                                    ...conv,
+                                    unreadCount: { ...conv.unreadCount, [user.id]: 0 }
+                                };
+                            }
+                            return conv;
+                        });
+
+                        // Recalculate total
+                        const totalUnread = updatedData.reduce((acc, conv) => {
+                            return acc + (conv.unreadCount?.[user.id] || 0);
+                        }, 0);
+                        setChatUnreadCount(totalUnread);
+
+                        return { ...oldData, data: updatedData };
+                    }
+                );
+            }
+        };
+
         socketChat.on("message:new", handleGlobalMessageNew);
+        socketChat.on("conversation:unread:update", handleUnreadCountUpdate);
+        socketChat.on("message:read", handleMessageRead);
 
         // Listen for conversation updates to refresh list
         const handleConversationUpdate = () => {
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, user.id] });
+            if (showChatPopup) {
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, user.id] });
+            }
         };
 
         socketChat.on("conversation:member:added", handleConversationUpdate);
@@ -101,6 +191,8 @@ export default function Header() {
 
         return () => {
             socketChat.off("message:new", handleGlobalMessageNew);
+            socketChat.off("conversation:unread:update", handleUnreadCountUpdate);
+            socketChat.off("message:read", handleMessageRead);
             socketChat.off("conversation:member:added", handleConversationUpdate);
             socketChat.off("conversation:member:removed", handleConversationUpdate);
             socketChat.off("conversation:member:left", handleConversationUpdate);
@@ -111,7 +203,14 @@ export default function Header() {
             socketChat.off("conversation:settings:updated", handleConversationUpdate);
             socketChat.off("conversation:created", handleConversationUpdate);
         };
-    }, [socketChat, user?.id, queryClient]);
+    }, [socketChat, user?.id, queryClient, showChatPopup]);
+
+    // Fetch conversations when popup opens
+    useEffect(() => {
+        if (showChatPopup && user?.id) {
+            refetchConversations();
+        }
+    }, [showChatPopup, user?.id, refetchConversations]);
 
     return (
         <AppBar
@@ -302,7 +401,7 @@ export default function Header() {
                                 '&:hover': { bgcolor: '#d8dadf' }
                             }}
                         >
-                            <Badge badgeContent={4} color="error">
+                            <Badge badgeContent={chatUnreadCount > 0 ? chatUnreadCount : undefined} color="error">
                                 <MessageIcon sx={{ color: '#050505' }} />
                             </Badge>
                         </IconButton>
@@ -333,7 +432,7 @@ export default function Header() {
                                 '&:hover': { bgcolor: '#d8dadf' }
                             }}
                         >
-                            <Badge badgeContent={9} color="error">
+                            <Badge badgeContent={notificationUnreadCount > 0 ? notificationUnreadCount : undefined} color="error">
                                 <NotificationsIcon sx={{ color: '#050505' }} />
                             </Badge>
                         </IconButton>
@@ -341,7 +440,7 @@ export default function Header() {
                         {showNotificationPopup && (
                             <ClickAwayListener onClickAway={() => setShowNotificationPopup(false)}>
                                 <Box>
-                                    <NotificationPopup />
+                                    <NotificationPopup onUnreadCountChange={setNotificationUnreadCount} />
                                 </Box>
                             </ClickAwayListener>
                         )}

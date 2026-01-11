@@ -148,12 +148,16 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
 
     const [newMessage, setNewMessage] = useState("");
+    const [displayMessage, setDisplayMessage] = useState("");
     const [replyMsg, setReplyMsg] = useState<MessageResponse | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string; type: 'image' | 'video' }[]>([]);
     const [filePreview, setFilePreview] = useState<{ file: File; name: string; size: number; type: string }[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
     const fileDocInputRef = useRef<HTMLInputElement>(null);
+
+    const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+
 
     // Typing indicator states
     const [isOtherTyping, setIsOtherTyping] = useState(false);
@@ -636,6 +640,9 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const [showMentions, setShowMentions] = useState(false);
     const [mentionSearch, setMentionSearch] = useState("");
 
+    // Keep track of the mention map from the original value
+    const mentionMapRef = useRef<Map<string, string>>(new Map());
+
 
     const filteredParticipants = useMemo(() => {
         if (!mentionSearch) return conversationDetail?.data?.participants || [];
@@ -787,6 +794,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                 }
             });
             setNewMessage("");
+            setDisplayMessage("");
             setReplyMsg(null);
             setMediaPreview([]);
             setFilePreview([]);
@@ -817,9 +825,13 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
         }
     }, [socketChat, selectedConversation._id]);
 
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
-        setNewMessage(value);
+        const cursorPos = e.target.selectionStart ?? value.length;
+
+        setDisplayMessage(value);
+
 
         // Emit typing indicator when user types
         if (value.length > 0) {
@@ -829,31 +841,86 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             socketChat?.emit("typing:stop", { conversationId: selectedConversation._id });
         }
 
-        const lastAtIndex = value.lastIndexOf('@');
+
+        // Detect @ symbol for suggestions
+        let isDetectingMention = false;
+
+        // ---- DETECT MENTION ----
+        const textBeforeCursor = value.slice(0, cursorPos);
+        const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
         if (lastAtIndex !== -1) {
-            const afterAt = value.substring(lastAtIndex + 1);
-            if (!afterAt.includes(' ')) {
-                setShowMentions(true);
-                setMentionSearch(afterAt);
-            } else {
-                setShowMentions(false);
+            const charBeforeAt =
+                lastAtIndex === 0 ? ' ' : textBeforeCursor[lastAtIndex - 1];
+
+            if (charBeforeAt === ' ' || charBeforeAt === '\n') {
+                const query = textBeforeCursor.slice(lastAtIndex + 1);
+
+                if (!query.includes(' ')) {
+                    setShowMentions(true);
+                    setMentionSearch(query);
+                    setMentionStartIndex(lastAtIndex);
+                    isDetectingMention = true;
+                }
             }
-        } else {
-            setShowMentions(false);
         }
+
+        if (!isDetectingMention) {
+            setShowMentions(false);
+            setMentionSearch('');
+            setMentionStartIndex(-1);
+        }
+
+        // ---- BUILD RAW (LUÔN CHẠY) ----
+        const raw = buildRawFromDisplay(value, mentionMapRef.current);
+        setNewMessage(raw);
     };
 
+
+
+    function buildRawFromDisplay(
+        display: string,
+        map: Map<string, string>
+    ): string {
+        let raw = display;
+
+        map.forEach((rawMention, displayMention) => {
+            const escaped = displayMention.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            raw = raw.replace(new RegExp(escaped, 'g'), rawMention);
+        });
+
+        return raw;
+    }
+
+
     const handleSelectMention = (participant: ConversationParticipant) => {
-        const lastAtIndex = newMessage.lastIndexOf('@');
-        const beforeAt = newMessage.substring(0, lastAtIndex);
-        const displayName = participant.nickname || `${participant.user.firstName} ${participant.user.lastName}`;
-        // Use format @[username:fullname] for proper parsing
-        const inserted = participant.user.username === 'all'
-            ? '@all '
-            : `@[${participant.user.username}:${displayName}] `;
-        setNewMessage(beforeAt + inserted);
+        const displayName =
+            participant.nickname ||
+            `${participant.user.firstName} ${participant.user.lastName}`;
+
+        const displayMention = `@${displayName}`;
+        const rawMention = `@[${participant.user.username}:${displayName}]`;
+
+        // ✅ SET MAP TRƯỚC
+        mentionMapRef.current.set(displayMention, rawMention);
+
+        const before = displayMessage.slice(0, mentionStartIndex);
+        const after = displayMessage.slice(
+            mentionStartIndex + mentionSearch.length + 1
+        );
+
+        const newDisplay = `${before}${displayMention} ${after}`;
+        setDisplayMessage(newDisplay);
+
+        const newRaw = buildRawFromDisplay(newDisplay, mentionMapRef.current);
+        setNewMessage(newRaw);
+
         setShowMentions(false);
+        setMentionSearch('');
+        setMentionStartIndex(-1);
     };
+
+
 
     const handleEmojiClick = (emoji: { native: string }) => {
         setNewMessage(prev => prev + emoji.native);
@@ -1423,7 +1490,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 multiline
                                 maxRows={4}
                                 placeholder="Aa"
-                                value={newMessage}
+                                value={displayMessage}
                                 onChange={handleInputChange}
                                 onKeyPress={handleKeyPress}
                                 variant="standard"

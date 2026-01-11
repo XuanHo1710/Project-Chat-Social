@@ -54,7 +54,7 @@ CHROMA_PATH = "./chroma_db"
 COLLECTION_NAME = "posts"
 USER_VECTORS_COLLECTION = "user_vectors"
 FRIEND_GRAPH_COLLECTION = "friend_graph"
-LIMIT = 200  # Giới hạn posts để train
+LIMIT = 100000  # Giới hạn posts để train
 
 # Weights cho các interaction types
 REACTION_WEIGHTS = {
@@ -258,7 +258,7 @@ def train():
     cursor = db.posts.find(
         {"isDeleted": {"$ne": True}},
         {"_id": 1, "userId": 1, "groupId": 1, "content": 1, "privacy": 1, "sharedPostId": 1}
-    ).limit(LIMIT)
+    )
     
     data = list(cursor)
     logger.info(f"   ✅ Đã lấy {len(data)} posts")
@@ -477,14 +477,32 @@ def train():
         "score": float(hybrid_scores[i])
     } for i in range(len(df))]
     
-    collection.add(
-        ids=ids,
-        embeddings=embeddings.tolist(),
-        documents=documents,
-        metadatas=metadatas
-    )
+    # Add posts in batches (ChromaDB max batch size is 5461)
+    BATCH_SIZE = 5000
+    total_posts = len(ids)
+    num_batches = (total_posts + BATCH_SIZE - 1) // BATCH_SIZE
     
-    # 16. Lưu User Vectors vào ChromaDB
+    logger.info(f"   📦 Adding {total_posts} posts in {num_batches} batches...")
+    
+    for batch_idx in range(num_batches):
+        start_idx = batch_idx * BATCH_SIZE
+        end_idx = min(start_idx + BATCH_SIZE, total_posts)
+        
+        batch_ids = ids[start_idx:end_idx]
+        batch_embeddings = embeddings[start_idx:end_idx].tolist()
+        batch_documents = documents[start_idx:end_idx]
+        batch_metadatas = metadatas[start_idx:end_idx]
+        
+        collection.add(
+            ids=batch_ids,
+            embeddings=batch_embeddings,
+            documents=batch_documents,
+            metadatas=batch_metadatas
+        )
+        
+        logger.info(f"   ✅ Batch {batch_idx + 1}/{num_batches}: Added {len(batch_ids)} posts ({end_idx}/{total_posts})")
+    
+    # 17. Lưu User Vectors vào ChromaDB (batch to avoid size limit)
     if user_vectors:
         logger.info("💾 Lưu User Vectors vào ChromaDB...")
         user_collection = chroma.create_collection(name=USER_VECTORS_COLLECTION)
@@ -494,12 +512,24 @@ def train():
         user_docs = [f"user_vector_{uid}" for uid in user_ids]
         user_metas = [{"user_id": uid} for uid in user_ids]
         
-        user_collection.add(
-            ids=user_ids,
-            embeddings=user_embeddings,
-            documents=user_docs,
-            metadatas=user_metas
-        )
+        # Add in batches
+        total_users = len(user_ids)
+        num_user_batches = (total_users + BATCH_SIZE - 1) // BATCH_SIZE
+        
+        logger.info(f"   📦 Adding {total_users} user vectors in {num_user_batches} batches...")
+        
+        for batch_idx in range(num_user_batches):
+            start_idx = batch_idx * BATCH_SIZE
+            end_idx = min(start_idx + BATCH_SIZE, total_users)
+            
+            user_collection.add(
+                ids=user_ids[start_idx:end_idx],
+                embeddings=user_embeddings[start_idx:end_idx],
+                documents=user_docs[start_idx:end_idx],
+                metadatas=user_metas[start_idx:end_idx]
+            )
+            
+            logger.info(f"   ✅ User Batch {batch_idx + 1}/{num_user_batches}: Added {end_idx - start_idx} vectors")
     
     # 17. Lưu Friend Graph vào file JSON (để service dùng)
     if friend_graph:

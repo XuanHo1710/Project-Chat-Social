@@ -381,7 +381,7 @@ function InlineReplyInput({
             }
 
             // Thêm @[userId:userName] vào đầu content khi lưu
-            const storageMention = `@[${replyTarget.userId}:${replyTarget.userName}]`;
+            const storageMention = `@[${replyTarget.userName}:${replyTarget.userName}]`;
             const contentToSave = `${storageMention} ${text.trim()}`;
 
             await createComment.mutateAsync({

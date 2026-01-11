@@ -413,44 +413,20 @@ class RecommendationService:
             total = len(posts)
             
             # ========================================
-            # SHUFFLE 60-70% để tạo feed đa dạng như Facebook
-            # Giữ top 30-40% theo score, shuffle phần còn lại
+            # RANDOM CHỈ NHỮNG POSTS CÓ SCORE >= 0.5
+            # Posts score < 0.5 giữ nguyên thứ tự (thấp, ít relevant)
             # ========================================
             if len(posts) > 5:
-                # Giữ top 30% không đổi (relevance cao nhất)
-                top_count = max(2, int(len(posts) * 0.30))
-                top_posts = posts[:top_count]
-                remaining_posts = posts[top_count:]
+                # Tách posts thành 2 nhóm: high score (>= 0.5) và low score (< 0.5)
+                high_score_posts = [p for p in posts if p['score'] >= 0.5]
+                low_score_posts = [p for p in posts if p['score'] < 0.5]
                 
-                # Shuffle 70% còn lại với weighted random
-                # Posts có score cao vẫn có xác suất cao hơn
-                if remaining_posts:
-                    # Weighted shuffle: score làm weight
-                    weights = [max(0.1, p['score']) for p in remaining_posts]
-                    total_weight = sum(weights)
-                    weights = [w / total_weight for w in weights]
-                    
-                    # Weighted random sampling without replacement
-                    shuffled = []
-                    remaining_copy = remaining_posts.copy()
-                    weights_copy = weights.copy()
-                    
-                    while remaining_copy:
-                        # Random chọn dựa trên weight
-                        r = random.random()
-                        cumsum = 0
-                        for i, w in enumerate(weights_copy):
-                            cumsum += w
-                            if r <= cumsum:
-                                shuffled.append(remaining_copy.pop(i))
-                                weights_copy.pop(i)
-                                # Re-normalize weights
-                                if weights_copy:
-                                    total_w = sum(weights_copy)
-                                    weights_copy = [w / total_w for w in weights_copy]
-                                break
-                    
-                    posts = top_posts + shuffled
+                # Random shuffle các posts có score >= 0.5
+                if high_score_posts:
+                    random.shuffle(high_score_posts)
+                
+                # Kết quả: high score posts (đã random) + low score posts (giữ nguyên thứ tự score giảm dần)
+                posts = high_score_posts + low_score_posts
             
             # Paginate
             offset = (page - 1) * limit

@@ -1,6 +1,14 @@
 import { create } from "zustand";
 import { MessageResponse } from "@/types/chat";
 
+// ReadBy user info type
+interface ReadByUser {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  avatar?: string;
+}
+
 interface MessageCacheState {
   // Store pending messages for each conversation that haven't been synced to query cache
   pendingMessages: Record<string, MessageResponse[]>;
@@ -20,7 +28,7 @@ interface MessageCacheState {
   // Mark messages as read in pending
   markPendingMessagesAsRead: (
     conversationId: string,
-    readBy: string,
+    readBy: ReadByUser,
     currentUserId: string
   ) => void;
 
@@ -80,7 +88,21 @@ export const useMessageCacheStore = create<MessageCacheState>((set, get) => ({
           typeof msg.senderId === "object" ? msg.senderId._id : msg.senderId;
         const isMyMessage = senderId === currentUserId;
 
-        if (isMyMessage && msg.status !== "READ" && readBy !== currentUserId) {
+        // Only update if this is my message and reader is not me
+        if (
+          isMyMessage &&
+          msg.status !== "READ" &&
+          readBy._id !== currentUserId
+        ) {
+          // Check if this user already exists in readBy array
+          const alreadyRead = msg.readBy?.some(
+            (r) =>
+              (typeof r === "object" && r._id === readBy._id) ||
+              r._id === readBy._id
+          );
+          if (alreadyRead) {
+            return msg;
+          }
           return {
             ...msg,
             status: "READ" as const,

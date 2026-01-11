@@ -160,9 +160,15 @@ function setupOnlineStatusListeners(socket: Socket, userId: string) {
   });
 
   // GLOBAL: Listen for message read status updates
-  socket.on('message:read:updated', (data: { conversationId: string; readBy: string }) => {
+  socket.on('message:read:updated', (data: { 
+    conversationId: string; 
+    readBy: { _id: string; firstName: string; lastName: string; avatar?: string } | null;
+    readByUserId: string;
+  }) => {
     console.log("👁️ Global message:read:updated received:", data);
-    messageStore.markPendingMessagesAsRead(data.conversationId, data.readBy, userId);
+    if (data.readBy) {
+      messageStore.markPendingMessagesAsRead(data.conversationId, data.readBy, userId);
+    }
   });
 
   // Request current online users list - using emit with callback

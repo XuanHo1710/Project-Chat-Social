@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { getFirebaseToken, onMessageListener } from "@/lib/firebase";
 import { accountService } from "@/services/account.service";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
     Snackbar,
     Box,
@@ -30,6 +30,8 @@ export interface NotificationPayloadType {
     data?: {
         conversationId?: string;
         avatar?: string;
+        messageId?: string;
+        isUserOnline?: string;
     };
 }
 
@@ -133,6 +135,7 @@ const showBrowserNotification = (
 export default function FirebaseNotification() {
     const { user } = useAuthStore();
     const router = useRouter();
+    const pathname = usePathname();
     const [notification, setNotification] = useState<NotificationState>({
         open: false,
         title: "",
@@ -163,7 +166,10 @@ export default function FirebaseNotification() {
     }, [notification.conversationId, router, handleClose]);
 
     const initialized = useRef(false);
-    const lastNotifiedId = useRef<string>("");
+    // Use messageId for deduplication instead of conversationId
+    const lastNotifiedMessageId = useRef<string>("");
+    // Timeout to reset dedup after a short period
+    const dedupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         if (!user || initialized.current) return;
@@ -187,54 +193,63 @@ export default function FirebaseNotification() {
 
         syncToken();
 
-        // 2. Listen for Foreground Messages
+        // 2. Listen for Foreground Messages - Chỉ hiển thị khi tab đang focus
         const unsubscribe = onMessageListener((payload: NotificationPayloadType) => {
             console.log("Foreground Message received:", payload);
             const title = payload?.notification?.title || "Tin nhắn mới";
             const body = payload?.notification?.body || "";
             const conversationId = payload?.data?.conversationId || "";
             const avatar = payload?.data?.avatar || "";
+            const messageId = payload?.data?.messageId || "";
 
-            // Don't show if user is in the same chat
-            if (conversationId && window.location.pathname === `/chat/${conversationId}`) {
+            // Deduplication check using messageId
+            if (messageId && lastNotifiedMessageId.current === messageId) {
+                console.log("Duplicate notification blocked:", messageId);
                 return;
             }
 
-            // Chặn lặp notification
-            if (conversationId && lastNotifiedId.current === conversationId) {
+            // Don't show notification if user is currently viewing this conversation
+            const currentPath = window.location.pathname;
+            const isInSameChat = conversationId && currentPath === `/chat/${conversationId}`;
+            if (isInSameChat) {
+                console.log("User is in same chat, skipping notification");
                 return;
             }
-            lastNotifiedId.current = conversationId;
 
-            if (document.hidden || !document.hasFocus()) {
-                // Chỉ hiện browser notification khi tab bị ẩn hoặc không focus
-                if (!notification.open) {
-                    showBrowserNotification(title, body, avatar, conversationId, () => {
-                        if (conversationId) {
-                            router.push(`/chat/${conversationId}`);
-                        }
-                    });
-                }
-            } else {
-                // Chỉ hiện in-app notification khi tab đang focus
-                setNotification({
-                    open: true,
-                    title,
-                    body,
-                    avatar,
-                    conversationId,
-                });
+            // Update dedup ref
+            lastNotifiedMessageId.current = messageId;
+
+            // Reset dedup after 3 seconds to allow same conversation notifications later
+            if (dedupTimeoutRef.current) {
+                clearTimeout(dedupTimeoutRef.current);
             }
+            dedupTimeoutRef.current = setTimeout(() => {
+                lastNotifiedMessageId.current = "";
+            }, 3000);
+
+            // Foreground message - chỉ hiện in-app notification vì tab đang focus
+            // Service Worker sẽ KHÔNG hiển thị notification khi foreground
+            // Nên ta chỉ cần hiển thị in-app notification
+            setNotification({
+                open: true,
+                title,
+                body,
+                avatar,
+                conversationId,
+            });
         });
 
         return () => {
             initialized.current = false;
-            lastNotifiedId.current = "";
+            lastNotifiedMessageId.current = "";
+            if (dedupTimeoutRef.current) {
+                clearTimeout(dedupTimeoutRef.current);
+            }
             if (typeof unsubscribe === "function") {
                 unsubscribe();
             }
         };
-    }, [user, router]);
+    }, [user, router, pathname]);
 
     return (
         <Snackbar

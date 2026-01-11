@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Box } from "@mui/material";
+import { Box, useMediaQuery, useTheme } from "@mui/material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId } from "@/queries/useConversationQueries";
 import AreaChatMessages from "@/components/chats/AreaChatMessage";
@@ -29,6 +29,8 @@ export default function ChatPage() {
     const { socketChat } = useSocket();
     const queryClient = useQueryClient();
     const router = useRouter();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
     const { data: listConversation, isLoading: isLoadingConversations } = useConversationByUserId(user?.id || "");
 
@@ -111,32 +113,37 @@ export default function ChatPage() {
     return (
         <Box
             suppressHydrationWarning
+            className="chat-container"
             sx={{
                 display: "flex",
                 height: "100vh",
+                width: "100vw",
                 bgcolor: "#f0f2f5",
-                overflow: "hidden"
+                overflow: "hidden",
+                position: "relative",
             }}
         >
-            {/* Sidebar */}
+            {/* Sidebar - Always visible on main chat page */}
             <ChatSidebar
                 conversations={listConversation?.data || []}
                 isLoading={isLoadingConversations}
                 selectedConversationId={selectedConversation?._id}
                 onSelectConversation={handleSelectConversation}
+                isMobileVisible={true}
+                onMobileClose={() => {}}
             />
 
-            {/* Main Chat Area - Show placeholder on /chat page */}
+            {/* Main Chat Area - Show placeholder on /chat page (hidden on mobile) */}
             <Box
                 sx={{
                     flex: 1,
-                    display: "flex",
+                    display: { xs: "none", md: "flex" },
                     alignItems: "center",
                     justifyContent: "center",
                     bgcolor: "white",
                 }}
             >
-                <Box sx={{ textAlign: "center", color: "#65676b" }}>
+                <Box sx={{ textAlign: "center", color: "#65676b", p: 3 }}>
                     <svg
                         width="100"
                         height="100"

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
-import { Box, CircularProgress, Typography } from "@mui/material";
+import React, { useEffect, useMemo, useState } from "react";
+import { Box, CircularProgress, Typography, IconButton, useMediaQuery, useTheme } from "@mui/material";
+import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId, useConversationDetail } from "@/queries/useConversationQueries";
 import AreaChatMessages from "@/components/chats/AreaChatMessage";
@@ -28,6 +29,11 @@ export default function ChatDetailPage() {
     const params = useParams();
     const router = useRouter();
     const conversationId = params.id as string;
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+    // Mobile sidebar visibility state
+    const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
     const user = useAuthStore((state) => state.user);
     const { socketChat } = useSocket();
@@ -187,12 +193,14 @@ export default function ChatDetailPage() {
     // Loading state
     if (isLoadingDetail) {
         return (
-            <Box sx={{ display: "flex", height: "100vh", bgcolor: "#f0f2f5" }}>
+            <Box sx={{ display: "flex", height: "100vh", width: "100vw", bgcolor: "#f0f2f5", position: "relative", overflow: "hidden" }}>
                 <ChatSidebar
                     conversations={listConversation?.data || []}
                     isLoading={isLoadingConversations}
                     selectedConversationId={conversationId}
                     onSelectConversation={handleSelectConversation}
+                    isMobileVisible={isMobile ? showMobileSidebar : true}
+                    onMobileClose={() => setShowMobileSidebar(false)}
                 />
                 <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "white" }}>
                     <CircularProgress />
@@ -204,15 +212,17 @@ export default function ChatDetailPage() {
     // Error state - conversation not found or access denied
     if (detailError || !conversationDetail?.data) {
         return (
-            <Box sx={{ display: "flex", height: "100vh", bgcolor: "#f0f2f5" }}>
+            <Box sx={{ display: "flex", height: "100vh", width: "100vw", bgcolor: "#f0f2f5", position: "relative", overflow: "hidden" }}>
                 <ChatSidebar
                     conversations={listConversation?.data || []}
                     isLoading={isLoadingConversations}
                     selectedConversationId={undefined}
                     onSelectConversation={handleSelectConversation}
+                    isMobileVisible={isMobile ? showMobileSidebar : true}
+                    onMobileClose={() => setShowMobileSidebar(false)}
                 />
-                <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "white", flexDirection: "column", gap: 2 }}>
-                    <Typography variant="h6" color="error">
+                <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "white", flexDirection: "column", gap: 2, p: 2 }}>
+                    <Typography variant="h6" color="error" textAlign="center">
                         Cuộc trò chuyện không tồn tại hoặc bạn không có quyền truy cập
                     </Typography>
                     <Typography
@@ -226,36 +236,62 @@ export default function ChatDetailPage() {
         );
     }
 
+    // Handle mobile back button
+    const handleMobileBack = () => {
+        if (isMobile) {
+            setShowMobileSidebar(true);
+        }
+    };
+
     return (
         <Box
             suppressHydrationWarning
+            className="chat-container"
             sx={{
                 display: "flex",
                 height: "100vh",
+                width: "100vw",
                 bgcolor: "#f0f2f5",
-                overflow: "hidden"
+                overflow: "hidden",
+                position: "relative",
             }}
         >
-            {/* Sidebar */}
+            {/* Sidebar - Hidden on mobile when viewing chat */}
             <ChatSidebar
                 conversations={listConversation?.data || []}
                 isLoading={isLoadingConversations}
                 selectedConversationId={selectedConversation?._id}
                 onSelectConversation={handleSelectConversation}
+                isMobileVisible={isMobile ? showMobileSidebar : true}
+                onMobileClose={() => setShowMobileSidebar(false)}
             />
 
             {/* Main Chat Area */}
-            {selectedConversation ? (
-                <AreaChatMessages
-                    key={selectedConversation._id}
-                    selectedConversation={selectedConversation}
-                    userId={user?.id || ""}
-                />
-            ) : (
-                <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "white" }}>
-                    <CircularProgress />
-                </Box>
-            )}
+            <Box 
+                className="chat-main"
+                sx={{ 
+                    flex: 1, 
+                    display: "flex", 
+                    flexDirection: "column",
+                    minWidth: 0,
+                    width: { xs: '100%', md: 'auto' },
+                    height: '100vh',
+                }}
+            >
+                {selectedConversation ? (
+                    <AreaChatMessages
+                        key={selectedConversation._id}
+                        selectedConversation={selectedConversation}
+                        userId={user?.id || ""}
+                        onMobileBack={handleMobileBack}
+                        isMobile={isMobile}
+                    />
+                ) : (
+                    <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "white" }}>
+                        <CircularProgress />
+                    </Box>
+                )}
+            </Box>
         </Box>
     );
 }

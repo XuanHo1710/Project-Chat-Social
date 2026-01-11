@@ -452,29 +452,44 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
     });
 
-    // LOGIC MỚI: Gửi Notification
-    activeParticipants.forEach(async (participant) => {
+    // LOGIC FIREBASE: Chỉ gửi notification khi user OFFLINE
+    // Khi user online, họ đã nhận được message:new qua socket rồi
+    for (const participant of activeParticipants) {
       const participantId = participant.user._id.toString();
 
       // Không gửi cho chính người gửi
-      if (participantId === userId) return;
+      if (participantId === userId) continue;
 
-      // REMOVED OFFLINE CHECK FOR TESTING
-      // const participantSockets = userSockets.get(participantId);
-      // const isOffline = !participantSockets || participantSockets.size === 0;
+      // Kiểm tra user có online không (có socket kết nối)
+      const participantSockets = userSockets.get(participantId);
+      const isOnline = participantSockets && participantSockets.size > 0;
 
-      // if (isOffline) {
-      // Lấy thông tin user để lấy fcmTokens
+      // CHỈ gửi FCM khi user OFFLINE - tránh duplicate notification
+      if (isOnline) {
+        this.logger.log(`User ${participantId} is ONLINE, skipping FCM (will receive via socket)`);
+        continue;
+      }
+
+      // Kiểm tra xem user có mute conversation không
+      const isMuted = await this.conversationService.isConversationMuted(
+        data.conversationId.toString(),
+        participantId
+      );
+      if (isMuted) {
+        this.logger.log(`User ${participantId} has muted conversation ${data.conversationId}, skipping FCM`);
+        continue;
+      }
+
+      // User offline - gửi FCM notification
       const userAccount = await this.accountModel.findById(participantId).select('fcmTokens');
       if (userAccount && userAccount.fcmTokens && userAccount.fcmTokens.length > 0) {
-        // Tạo nội dung thông báo
         const senderProfile = await this.getSenderProfile(userId);
-        const contentPreview = savedMessage.content || '[Hình ảnh/File]'; // Xử lý nếu tin nhắn chỉ có ảnh
+        const contentPreview = savedMessage.content || '[Hình ảnh/File]';
 
         await this.firebaseService.sendToDevice(
           userAccount.fcmTokens,
-          senderProfile.name, // Title là tên người gửi
-          contentPreview, // Body là nội dung tin nhắn
+          senderProfile.name,
+          contentPreview,
           {
             conversationId: data.conversationId.toString(),
             messageId: savedMessage._id.toString(),
@@ -482,9 +497,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             avatar: senderProfile.avatar,
           }
         );
+        this.logger.log(`FCM sent to offline user ${participantId}`);
       }
-      // }
-    });
+    }
   }
 
   // ============ MESSAGE FEATURES ============

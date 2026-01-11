@@ -693,14 +693,23 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         : `${otherUser?.firstName || ''} ${otherUser?.lastName || ''}`;
 
     return (
-        <Box sx={{
-            width: 360,
-            height: '100%',
-            borderLeft: '1px solid #e4e6eb',
-            display: 'flex',
-            flexDirection: 'column',
-            bgcolor: 'white',
-        }}>
+        <Box 
+            className="chat-info-panel"
+            sx={{
+                width: { xs: '100vw', md: 360 },
+                minWidth: { xs: '100vw', md: 360 },
+                maxWidth: { xs: '100vw', md: 360 },
+                flexShrink: 0,
+                height: '100%',
+                borderLeft: { xs: 'none', md: '1px solid #e4e6eb' },
+                position: { xs: 'fixed', md: 'relative' },
+                top: 0,
+                right: 0,
+                zIndex: { xs: 1100, md: 'auto' },
+                display: 'flex',
+                flexDirection: 'column',
+                bgcolor: 'white',
+            }}>
             {/* Header */}
             <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f0f0f0' }}>
                 <Typography variant="h6" fontWeight={700} color="#050505">Chi tiết</Typography>

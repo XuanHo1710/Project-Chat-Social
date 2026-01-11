@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --sidebar-width: 360px;
+  --sidebar-width-tablet: 320px;
+  --sidebar-width-mobile: 100%;
 }
 
 @theme inline {
@@ -25,6 +28,93 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* ============ RESPONSIVE BREAKPOINTS ============ */
+/* Mobile: < 768px */
+/* Tablet: 768px - 1024px */
+/* Desktop: > 1024px */
+
+/* Chat container */
+.chat-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Chat sidebar - width controlled by MUI sx prop */
+.chat-sidebar {
+  height: 100vh;
+  background-color: white;
+  flex-direction: column;
+  transition: transform 0.3s ease, width 0.3s ease;
+}
+
+/* Chat main area */
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+  background-color: white;
+}
+
+/* Chat info panel - width controlled by MUI sx prop */
+.chat-info-panel {
+  height: 100vh;
+  background-color: white;
+  overflow-y: auto;
+  transition: transform 0.3s ease, width 0.3s ease;
+}
+
+/* Tablet and Mobile styles - handled by MUI sx props */
+/* Mobile header with back button */
+@media (max-width: 767px) {
+  .mobile-chat-header {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #e4e6eb;
+  }
+
+  .mobile-back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: transparent;
+    margin-right: 8px;
+    cursor: pointer;
+  }
+
+  .mobile-back-btn:hover {
+    background-color: #f0f2f5;
+  }
+}
+
+/* Desktop: hide mobile elements */
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
+/* Mobile: hide desktop elements */
+@media (max-width: 767px) {
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+/* Responsive typography */
+@media (max-width: 767px) {
+  .chat-sidebar h6 {
+    font-size: 1.1rem;
+  }
+}
+
+/* Container chat styling */
 .container-chat {
   flex: 1;
   overflow-y: auto;
@@ -32,11 +122,7 @@ body {
   background-color: #0a0a0a;
   background-image: radial-gradient(circle at 1px 1px, rgba(102, 126, 234, 0.05) 1px, transparent 0);
   background-size: 40px 40px;
-
   overflow-x: hidden;
-  /* tắt scroll ngang */
-  overflow-y: auto;
-
 
   /* Scrollbar đẹp */
   scrollbar-width: thin;
@@ -53,5 +139,41 @@ body {
   &::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
     border-radius: 4px;
+  }
+}
+
+/* Responsive message input */
+@media (max-width: 767px) {
+  .message-input-container {
+    padding: 8px 12px;
+  }
+
+  .message-input-container .MuiTextField-root {
+    font-size: 14px;
+  }
+}
+
+/* Responsive notification popup */
+@media (max-width: 767px) {
+  .notification-popup {
+    width: calc(100vw - 24px) !important;
+    max-width: 360px;
+    right: 12px !important;
+  }
+}
+
+/* Responsive avatar sizes */
+@media (max-width: 767px) {
+  .chat-avatar-large {
+    width: 48px !important;
+    height: 48px !important;
+  }
+}
+
+/* Touch-friendly button sizes for mobile */
+@media (max-width: 767px) {
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
   }
 }

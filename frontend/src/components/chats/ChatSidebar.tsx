@@ -51,6 +51,8 @@ interface ChatSidebarProps {
     isLoading: boolean;
     selectedConversationId?: string;
     onSelectConversation: (conversation: SelectedConversation) => void;
+    isMobileVisible?: boolean; // For mobile: show/hide sidebar
+    onMobileClose?: () => void; // For mobile: callback to close sidebar
 }
 
 export default function ChatSidebar({
@@ -58,6 +60,8 @@ export default function ChatSidebar({
     isLoading,
     selectedConversationId,
     onSelectConversation,
+    isMobileVisible = true,
+    onMobileClose,
 }: ChatSidebarProps) {
     const user = useAuthStore((state) => state.user);
     const logout = useAuthStore((state) => state.logout);
@@ -178,13 +182,21 @@ export default function ChatSidebar({
 
     return (
         <Box
+            className="chat-sidebar"
             sx={{
-                width: '25%',
+                width: { xs: '100vw', md: '360px' },
+                minWidth: { xs: '100vw', md: '360px' },
+                maxWidth: { xs: '100vw', md: '360px' },
+                flexShrink: 0,
                 height: '100vh',
                 bgcolor: 'white',
-                borderRight: '1px solid #e4e6eb',
-                display: 'flex',
+                borderRight: { xs: 'none', md: '1px solid #e4e6eb' },
+                display: isMobileVisible ? 'flex' : { xs: 'none', md: 'flex' },
                 flexDirection: 'column',
+                position: { xs: 'fixed', md: 'relative' },
+                top: 0,
+                left: 0,
+                zIndex: { xs: 1000, md: 'auto' },
             }}
         >
             {/* User Profile Header */}
@@ -406,6 +418,10 @@ export default function ChatSidebar({
                                             lastActive: status.lastActive,
                                             type: conversation.type,
                                         });
+                                        // Close sidebar on mobile after selection
+                                        if (onMobileClose) {
+                                            onMobileClose();
+                                        }
                                     }}
                                     sx={{
                                         py: 1.5,

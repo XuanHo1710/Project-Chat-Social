@@ -13,6 +13,8 @@ import {
     ListItemText,
     MenuItem,
     Popover,
+    useMediaQuery,
+    useTheme,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import VideocamIcon from "@mui/icons-material/Videocam";
@@ -26,6 +28,7 @@ import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import DescriptionIcon from "@mui/icons-material/Description";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import BlockIcon from "@mui/icons-material/Block";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useChatByConversationId } from "@/queries/useChatQueries";
 import { MessageResponse, SendMessagePayload, AttachmentData } from "@/types/chat";
 import { useSocket } from "@/contexts/SocketContext";
@@ -55,12 +58,21 @@ interface SelectedConversation {
     type?: "DIRECT" | "GROUP";
 }
 
-export default function AreaChatMessages({ selectedConversation, userId }: { selectedConversation: SelectedConversation, userId: string }) {
+interface AreaChatMessagesProps {
+    selectedConversation: SelectedConversation;
+    userId: string;
+    onMobileBack?: () => void;
+    isMobile?: boolean;
+}
+
+export default function AreaChatMessages({ selectedConversation, userId, onMobileBack }: AreaChatMessagesProps) {
     const { socketChat, socketRelationship } = useSocket();
     const queryClient = useQueryClient();
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showInfo, setShowInfo] = useState(false);
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
     // Get conversation detail for theme
     const { data: conversationDetail } = useConversationDetail(selectedConversation._id);
@@ -983,22 +995,36 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                 flexDirection: "row",
                 bgcolor: "white",
                 height: "100vh",
-                overflow: "hidden"
+                overflow: "hidden",
+                width: "100%",
             }}
         >
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
                 {/* Chat Header */}
                 <Box
                     sx={{
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        p: 2,
+                        p: { xs: 1.5, md: 2 },
                         borderBottom: "1px solid #e4e6eb",
                         bgcolor: "white",
                     }}
                 >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1, md: 2 } }}>
+                        {/* Back Button for Mobile */}
+                        {isMobile && onMobileBack && (
+                            <IconButton
+                                onClick={onMobileBack}
+                                size="small"
+                                sx={{
+                                    color: "#1877f2",
+                                    p: 0.5,
+                                }}
+                            >
+                                <ArrowBackIcon />
+                            </IconButton>
+                        )}
                         <Badge
                             overlap="circular"
                             anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
@@ -1008,34 +1034,36 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                     backgroundColor: otherUserStatus.isOnline ? "#31a24c" : "none",
                                     border: "2px solid white",
                                     display: otherUserStatus.isOnline ? "block" : "none",
-                                    width: 15,
+                                    width: { xs: 12, md: 15 },
                                     borderRadius: '50%',
-                                    height: 15,
+                                    height: { xs: 12, md: 15 },
                                 },
                             }}
                         >
-                            <Avatar src={selectedConversation.avatar} sx={{ width: 40, height: 40 }} />
+                            <Avatar src={selectedConversation.avatar} sx={{ width: { xs: 36, md: 40 }, height: { xs: 36, md: 40 } }} />
                         </Badge>
-                        <Box>
-                            <Typography fontWeight={600} fontSize={15} color="#050505">
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography fontWeight={600} fontSize={{ xs: 14, md: 15 }} color="#050505" noWrap>
                                 {selectedConversation.fullName}
                             </Typography>
                             <Typography
                                 variant="body2"
-                                fontSize={12}
+                                fontSize={{ xs: 11, md: 12 }}
                                 color={otherUserStatus.isOnline ? "#31a24c" : "#65676b"}
+                                noWrap
                             >
                                 {statusText}
                             </Typography>
                         </Box>
                     </Box>
-                    <Box sx={{ display: "flex", gap: 1 }}>
+                    <Box sx={{ display: "flex", gap: { xs: 0.5, md: 1 } }}>
                         <IconButton
                             size="small"
                             sx={{
                                 color: "#1877f2",
                                 bgcolor: "#f0f2f5",
                                 "&:hover": { bgcolor: "#e4e6eb" },
+                                display: { xs: 'none', sm: 'inline-flex' },
                             }}
                         >
                             <CallIcon fontSize="small" />
@@ -1046,6 +1074,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 color: "#1877f2",
                                 bgcolor: "#f0f2f5",
                                 "&:hover": { bgcolor: "#e4e6eb" },
+                                display: { xs: 'none', sm: 'inline-flex' },
                             }}
                         >
                             <VideocamIcon fontSize="small" />

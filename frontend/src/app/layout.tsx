@@ -70,6 +70,8 @@ export const metadata: Metadata = {
   },
 };
 
+import FirebaseNotification from "@/components/FirebaseNotification";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -82,6 +84,7 @@ export default function RootLayout({
       >
         <QueryProvider>
           <AuthProvider>
+            <FirebaseNotification />
             <SocketProvider>
               <MediaUploadProvider>
                 {children}

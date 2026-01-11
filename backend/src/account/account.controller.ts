@@ -48,32 +48,33 @@ export class AccountController {
     return this.accountService.getProfileByUsername(username);
   }
 
+  @Post('fcm-token')
+  async saveFcmToken(@UserInfo() user: any, @Body('token') token: string) {
+    return this.accountService.saveFcmToken(user._id, token);
+  }
+
   // ==================== SETTINGS ====================
 
   // Get user settings
   @Get('settings')
-  @UseGuards(JwtAuthGuard)
   getSettings(@UserInfo() user: any) {
     return this.accountService.getSettings(user._id);
   }
 
   // Toggle activity status
   @Patch('settings/activity-status')
-  @UseGuards(JwtAuthGuard)
   toggleActivityStatus(@UserInfo() user: any, @Body('show') show: boolean) {
     return this.accountService.toggleActivityStatus(user._id, show);
   }
 
   // Self-block account for 30 days
   @Post('settings/self-block')
-  @UseGuards(JwtAuthGuard)
   selfBlockAccount(@UserInfo() user: any) {
     return this.accountService.selfBlockAccount(user._id);
   }
 
   // Unblock self (cancel self-block)
   @Delete('settings/self-block')
-  @UseGuards(JwtAuthGuard)
   unblockSelfAccount(@UserInfo() user: any) {
     return this.accountService.unblockSelfAccount(user._id);
   }

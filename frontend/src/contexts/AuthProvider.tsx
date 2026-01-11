@@ -33,6 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         setAccessToken(accessToken);
                     }
 
+
                     // Set user vào Zustand store
                     setUser({
                         id: account._id || account.username,

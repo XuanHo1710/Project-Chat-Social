@@ -21,6 +21,7 @@ import { HttpService } from '@nestjs/axios';
 import { AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { Conversation } from 'src/conversation/entities/conversation.entity';
+import { FirebaseService } from 'src/firebase/firebase.service';
 
 // Map để lưu userId -> Set<socketId> (support multiple connections per user)
 const userSockets = new Map<string, Set<string>>();
@@ -42,6 +43,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly chatService: ChatService,
     private readonly relationshipService: RelationshipService,
     private readonly httpService: HttpService,
+    private readonly firebaseService: FirebaseService,
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>
   ) { }
 
@@ -305,7 +307,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           const chatHistory = recentMessages.reverse().map((msg: any) => ({
             role: msg.type === 'CHATBOT' ? 'assistant' : 'user',
             content: msg.content || '',
-            senderName: msg.senderId ? `${msg.senderId.firstName} ${msg.senderId.lastName}` : 'User',
+            senderName: msg.senderId
+              ? `${msg.senderId.firstName} ${msg.senderId.lastName}`
+              : 'User',
           }));
 
           // Extract image URLs from current message attachments
@@ -318,7 +322,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             });
           }
 
-          this.logger.log(`Chat context: ${chatHistory.length} messages, ${imageUrls.length} images`);
+          this.logger.log(
+            `Chat context: ${chatHistory.length} messages, ${imageUrls.length} images`
+          );
 
           // Call AI server chat bot endpoint with POST to send chat history
           const responseAPIAi: AxiosResponse<{
@@ -355,7 +361,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           // Include postIdsRecommendationfromAI if AI suggested posts
           if (responseAPIAi.data.postIds && responseAPIAi.data.postIds.length > 0) {
             chatbotMessageData.postIdsRecommendationfromAI = responseAPIAi.data.postIds;
-            this.logger.log(`Chatbot suggesting ${responseAPIAi.data.postIds.length} posts: ${responseAPIAi.data.postIds.join(', ')}`);
+            this.logger.log(
+              `Chatbot suggesting ${responseAPIAi.data.postIds.length} posts: ${responseAPIAi.data.postIds.join(', ')}`
+            );
           }
 
           // Save chatbot message with userId as sender (type CHATBOT identifies it)
@@ -442,6 +450,40 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           });
         });
       }
+    });
+
+    // LOGIC MỚI: Gửi Notification
+    activeParticipants.forEach(async (participant) => {
+      const participantId = participant.user._id.toString();
+
+      // Không gửi cho chính người gửi
+      if (participantId === userId) return;
+
+      // REMOVED OFFLINE CHECK FOR TESTING
+      // const participantSockets = userSockets.get(participantId);
+      // const isOffline = !participantSockets || participantSockets.size === 0;
+
+      // if (isOffline) {
+      // Lấy thông tin user để lấy fcmTokens
+      const userAccount = await this.accountModel.findById(participantId).select('fcmTokens');
+      if (userAccount && userAccount.fcmTokens && userAccount.fcmTokens.length > 0) {
+        // Tạo nội dung thông báo
+        const senderProfile = await this.getSenderProfile(userId);
+        const contentPreview = savedMessage.content || '[Hình ảnh/File]'; // Xử lý nếu tin nhắn chỉ có ảnh
+
+        await this.firebaseService.sendToDevice(
+          userAccount.fcmTokens,
+          senderProfile.name, // Title là tên người gửi
+          contentPreview, // Body là nội dung tin nhắn
+          {
+            conversationId: data.conversationId.toString(),
+            messageId: savedMessage._id.toString(),
+            type: 'NEW_MESSAGE',
+            avatar: senderProfile.avatar,
+          }
+        );
+      }
+      // }
     });
   }
 
@@ -562,17 +604,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  // Helper: Get user display name
-  private async getUserDisplayName(userId: string): Promise<string> {
+  // Helper: Get user profile (name + avatar) for notifications
+  private async getSenderProfile(userId: string): Promise<{ name: string; avatar: string }> {
     try {
-      const user = await this.accountModel.findById(userId).select('firstName lastName');
+      const user = await this.accountModel.findById(userId).select('firstName lastName avatar');
       if (user) {
-        return `${user.firstName} ${user.lastName}`.trim();
+        return {
+          name: `${user.firstName} ${user.lastName}`.trim(),
+          avatar: user.avatar || '',
+        };
       }
     } catch (err) {
-      this.logger.error('Failed to get user display name:', err);
+      this.logger.error('Failed to get user profile:', err);
     }
-    return 'Người dùng';
+    return { name: 'Người dùng', avatar: '' };
+  }
+
+  // Helper: Get user display name
+  private async getUserDisplayName(userId: string): Promise<string> {
+    const profile = await this.getSenderProfile(userId);
+    return profile.name;
   }
 
   // Thay đổi Quick Reaction

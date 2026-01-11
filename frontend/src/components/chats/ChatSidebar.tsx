@@ -34,6 +34,7 @@ import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
 import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 import { useSocket } from '@/contexts/SocketContext';
+import { renderContentWithMentionsPlain } from '@/utils/hashtagParser';
 
 interface SelectedConversation {
     _id: string;
@@ -487,11 +488,13 @@ export default function ChatSidebar({
                                                                 return lastMsg.senderId === user?.id ? 'Bạn đã chia sẻ bài viết' : prefix + 'đã chia sẻ bài viết';
                                                             case 'SYSTEM':
                                                                 return lastMsg.content || 'Thông báo';
+                                                            case "CHATBOT":
+                                                                return "AI Assistant: " + (lastMsg.content || 'Tin nhắn từ Chatbot');
                                                             default:
                                                                 if (lastMsg.attachments && lastMsg.attachments.length > 0 && !lastMsg.content) {
                                                                     return lastMsg.senderId === user?.id ? 'Bạn đã gửi ảnh' : prefix + 'đã gửi ảnh';
                                                                 }
-                                                                return prefix + (lastMsg.content || 'Bắt đầu cuộc trò chuyện mới');
+                                                                return prefix + (renderContentWithMentionsPlain(lastMsg.content) || 'Bắt đầu cuộc trò chuyện mới');
                                                         }
                                                     })()}
                                                 </Typography>

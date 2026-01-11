@@ -210,3 +210,84 @@ export const renderContentWithMentions = (content: string) => {
 
     return parts.length > 0 ? parts : content;
 }
+
+export const renderContentWithMentionsPlain = (content: string) => {
+    if (!content) return null;
+    // Combined regex for mentions and hashtags
+    const mentionRegex = /@\[([^\]:]+):([^\]]+)\]/gi;
+    const hashtagRegex = /#([\w\u00C0-\u024F\u1E00-\u1EFF]+)/gi;
+
+    // First, collect all matches with their positions
+    const matches: Array<{
+        index: number;
+        length: number;
+        type: 'mention' | 'hashtag';
+        content: React.ReactNode;
+    }> = [];
+
+    // Find all mentions
+    let match;
+    while ((match = mentionRegex.exec(content)) !== null) {
+        const displayName = match[2];
+        matches.push({
+            index: match.index,
+            length: match[0].length,
+            type: 'mention',
+            content: `@${displayName}`
+        });
+    }
+
+    // Find all hashtags
+    while ((match = hashtagRegex.exec(content)) !== null) {
+        const hashtag = match[1];
+        const fullMatch = match[0];
+        matches.push({
+            index: match.index,
+            length: fullMatch.length,
+            type: 'hashtag',
+            content: (
+                <span
+                    key={`hashtag-${match.index}`}
+                    style={{
+                        color: '#1877f2',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // TODO: Navigate to hashtag search
+                    }}
+                >
+                    {fullMatch}
+                </span>
+            ),
+        });
+    }
+
+    // Sort matches by index
+    matches.sort((a, b) => a.index - b.index);
+
+    // Build result array
+    const parts: (string | React.ReactNode)[] = [];
+    let lastIndex = 0;
+
+    for (const m of matches) {
+        // Skip if this match overlaps with previous (shouldn't happen normally)
+        if (m.index < lastIndex) continue;
+
+        // Add text before this match
+        if (m.index > lastIndex) {
+            parts.push(content.slice(lastIndex, m.index));
+        }
+
+        parts.push(m.content);
+        lastIndex = m.index + m.length;
+    }
+
+    // Add remaining text
+    if (lastIndex < content.length) {
+        parts.push(content.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : content;
+}

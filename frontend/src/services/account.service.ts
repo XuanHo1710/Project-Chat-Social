@@ -26,6 +26,14 @@ class AccountService {
     return response.data.data;
   }
 
+  async updateFMCToken(token: string): Promise<{ message: string }> {
+    const response = await axios.post<APIResponse<{ message: string }>>(
+      `/${PREFIX}/fcm-token`,
+      { token }
+    );
+    return response.data.data;
+  }
+
   async getAccountById(id: string): Promise<AccountType> {
     const response = await axios.get<APIResponse<AccountType>>(
       `/${PREFIX}/${id}`

@@ -11,6 +11,7 @@ import { Account, AccountSchema } from 'src/account/entities/account.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { RelationshipModule } from 'src/relationship/relationship.module';
 import { HttpModule } from '@nestjs/axios';
+import { FirebaseService } from 'src/firebase/firebase.service';
 
 @Module({
   imports: [
@@ -26,6 +27,6 @@ import { HttpModule } from '@nestjs/axios';
     HttpModule,
   ],
   controllers: [ChatController],
-  providers: [ChatGateway, ChatService],
+  providers: [ChatGateway, ChatService, FirebaseService],
 })
 export class ChatModule {}

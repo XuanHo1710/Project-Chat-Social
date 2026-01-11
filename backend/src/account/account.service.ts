@@ -16,6 +16,14 @@ export class AccountService {
     @InjectModel(Relationship.name) private relationshipModel: Model<Relationship>
   ) {}
 
+  async saveFcmToken(userId: string, token: string) {
+    await this.accountModel.updateOne(
+      { _id: userId },
+      { $addToSet: { fcmTokens: token } } // tránh trùng
+    );
+    return { success: true };
+  }
+
   async create(createAccountDto: CreateAccountDto) {
     const usernameExist = await this.accountModel.findOne({ username: createAccountDto.username });
     if (usernameExist) {

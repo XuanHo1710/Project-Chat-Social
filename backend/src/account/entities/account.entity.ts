@@ -131,6 +131,9 @@ export class Account {
 
   @Prop({ default: 0 })
   loginCount: number; // Để thống kê bên dashboard ?
+
+  @Prop({ type: [String], default: [] })
+  fcmTokens: string[]; // Lưu các FCM tokens của thiết bị người dùng
 }
 
 export const AccountSchema = SchemaFactory.createForClass(Account);

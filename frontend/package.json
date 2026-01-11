@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@dataconnect/generated": "file:src/dataconnect-generated",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
     "@emotion/react": "^11.14.0",
@@ -20,6 +21,7 @@
     "axios": "^1.13.2",
     "cookie-parser": "^1.4.7",
     "emoji-mart": "^5.6.0",
+    "firebase": "^12.7.0",
     "lucide-react": "^0.554.0",
     "next": "^16.0.10",
     "react": "19.2.0",

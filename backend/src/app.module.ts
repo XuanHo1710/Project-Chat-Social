@@ -24,6 +24,7 @@ import { HashtagModule } from './hashtag/hashtag.module';
 import { StoryModule } from './story/story.module';
 import { GroupModule } from './group/group.module';
 import { NotificationModule } from './notification/notification.module';
+import { FirebaseService } from 'src/firebase/firebase.service';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 @Module({
   imports: [
@@ -63,6 +64,7 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     JwtStrategy,
     LocalStrategy,
     GoogleStrategy,
+    FirebaseService,
   ],
 })
 export class AppModule {}

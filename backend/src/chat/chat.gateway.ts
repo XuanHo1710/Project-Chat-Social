@@ -15,8 +15,12 @@ import { ConversationService } from 'src/conversation/conversation.service';
 import { InjectModel } from '@nestjs/mongoose';
 import { Account, AccountDocument } from 'src/account/entities/account.entity';
 import { Model } from 'mongoose';
-import { EmotionType } from './entities/message.entity';
+import { EmotionType, MessageType } from './entities/message.entity';
 import { RelationshipService } from 'src/relationship/relationship.service';
+import { HttpService } from '@nestjs/axios';
+import { AxiosResponse } from 'axios';
+import { firstValueFrom } from 'rxjs';
+import { Conversation } from 'src/conversation/entities/conversation.entity';
 
 // Map để lưu userId -> Set<socketId> (support multiple connections per user)
 const userSockets = new Map<string, Set<string>>();
@@ -37,8 +41,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly conversationService: ConversationService,
     private readonly chatService: ChatService,
     private readonly relationshipService: RelationshipService,
+    private readonly httpService: HttpService,
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>
-  ) {}
+  ) { }
+
+  private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
   async handleConnection(client: Socket) {
     try {
@@ -274,54 +281,168 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return { success: false, error: 'Failed to save message' };
       }
 
-      // Convert to plain object and ensure conversationId is string
-      const messageToEmit = {
-        ...savedMessage.toObject(),
-        conversationId: data.conversationId.toString(),
-      };
+      await this.handleEmitMessageToClient(savedMessage, data, conversation, userId);
 
-      // Chỉ emit message cho những participants chưa bị kick/left
-      const activeParticipants = conversation.participants.filter((p) => !p.kickedAt && !p.leftAt);
+      if (data.content && data.content.includes('@[chatbot:')) {
+        const chatbotName = data.content.match(/@\[\w+:([^\]]+)\]/)?.[1];
+        const chatMessage = data.content.replace(/@\[\w+:([^\]]+)\]/, '').trim(); // Remove mention tag from content
+        this.logger.log(`Chatbot "${chatbotName}" mentioned with message: ${chatMessage}`);
 
-      activeParticipants.forEach((participant) => {
-        const participantId = participant.user._id.toString();
-        const participantSockets = userSockets.get(participantId);
+        // Emit typing indicator for chatbot
+        this.server.to(`room:${data.conversationId}`).emit('chatbot:typing', {
+          conversationId: data.conversationId.toString(),
+          isTyping: true,
+        });
 
-        if (participantSockets && participantSockets.size > 0) {
-          participantSockets.forEach((socketId) => {
-            this.server.to(socketId).emit('message:new', messageToEmit);
-          });
-        }
-      });
+        try {
+          // Fetch last 15 messages for chat history context
+          const recentMessages = await this.chatService.getRecentMessagesForContext(
+            data.conversationId.toString(),
+            15
+          );
 
-      await this.conversationService.updateLastMessage(
-        data.conversationId.toString(),
-        savedMessage._id.toString()
-      );
+          // Format chat history for AI context (oldest first)
+          const chatHistory = recentMessages.reverse().map((msg: any) => ({
+            role: msg.type === 'CHATBOT' ? 'assistant' : 'user',
+            content: msg.content || '',
+            senderName: msg.senderId ? `${msg.senderId.firstName} ${msg.senderId.lastName}` : 'User',
+          }));
 
-      // Increment unread count for active participants except sender
-      await this.conversationService.incrementUnreadCount(data.conversationId.toString(), userId);
-
-      // Emit unread update chỉ cho active participants
-      activeParticipants.forEach((participant) => {
-        const participantId = participant.user._id.toString();
-        const participantSockets = userSockets.get(participantId);
-
-        if (participantSockets && participantSockets.size > 0) {
-          participantSockets.forEach((socketId) => {
-            this.server.to(socketId).emit('conversation:unread:updated', {
-              conversationId: data.conversationId.toString(),
-              senderId: userId,
+          // Extract image URLs from current message attachments
+          const imageUrls: string[] = [];
+          if (data.attachments && data.attachments.length > 0) {
+            data.attachments.forEach((att) => {
+              if (att.mediaType === 'IMAGE' && att.url) {
+                imageUrls.push(att.url);
+              }
             });
+          }
+
+          this.logger.log(`Chat context: ${chatHistory.length} messages, ${imageUrls.length} images`);
+
+          // Call AI server chat bot endpoint with POST to send chat history
+          const responseAPIAi: AxiosResponse<{
+            message: string;
+            response: string;
+            postIds?: string[];
+          }> = await firstValueFrom(
+            this.httpService.post(
+              `${this.aiServerUrl}/chat/bot`,
+              {
+                message: chatMessage,
+                chatHistory: chatHistory,
+                imageUrls: imageUrls,
+              },
+              { timeout: 60000 } // Longer timeout for vision
+            )
+          );
+          this.logger.log('AI server response received');
+
+          // Stop typing indicator
+          this.server.to(`room:${data.conversationId}`).emit('chatbot:typing', {
+            conversationId: data.conversationId.toString(),
+            isTyping: false,
           });
+
+          // Prepare message data with optional postIds
+          const chatbotMessageData: any = {
+            conversationId: data.conversationId,
+            senderId: userId as any, // User who triggered the bot
+            content: responseAPIAi.data.response,
+            type: MessageType.CHATBOT,
+          };
+
+          // Include postIdsRecommendationfromAI if AI suggested posts
+          if (responseAPIAi.data.postIds && responseAPIAi.data.postIds.length > 0) {
+            chatbotMessageData.postIdsRecommendationfromAI = responseAPIAi.data.postIds;
+            this.logger.log(`Chatbot suggesting ${responseAPIAi.data.postIds.length} posts: ${responseAPIAi.data.postIds.join(', ')}`);
+          }
+
+          // Save chatbot message with userId as sender (type CHATBOT identifies it)
+          const savedMessageChatBot = await this.chatService.sendMessage(chatbotMessageData);
+
+          if (!savedMessageChatBot) {
+            return { success: false, error: 'Failed to save chatbot message' };
+          }
+
+          await this.handleEmitMessageToClient(savedMessageChatBot, data, conversation, userId);
+        } catch (aiError) {
+          this.logger.error('AI server error:', aiError);
+          // Stop typing indicator on error
+          this.server.to(`room:${data.conversationId}`).emit('chatbot:typing', {
+            conversationId: data.conversationId.toString(),
+            isTyping: false,
+          });
+
+          // Send error message as chatbot
+          const errorMessage = await this.chatService.sendMessage({
+            conversationId: data.conversationId,
+            senderId: userId as any,
+            content: '⚠️ Xin lỗi, tôi đang gặp sự cố kỹ thuật. Vui lòng thử lại sau!',
+            type: MessageType.CHATBOT,
+          });
+          if (errorMessage) {
+            await this.handleEmitMessageToClient(errorMessage, data, conversation, userId);
+          }
         }
-      });
+      }
 
       return { success: true, message: savedMessage };
     } catch (err) {
       this.logger.error('Failed to save message', err);
       return { success: false, error: 'Failed to save message' };
     }
+  }
+
+  async handleEmitMessageToClient(
+    savedMessage: any,
+    data: CreateMessageDto,
+    conversation: any,
+    userId: string
+  ) {
+    // To be implemented
+    // Convert to plain object and ensure conversationId is string
+    const messageToEmit = {
+      ...savedMessage.toObject(),
+      conversationId: data.conversationId.toString(),
+    };
+
+    // Chỉ emit message cho những participants chưa bị kick/left
+    const activeParticipants = conversation.participants.filter((p) => !p.kickedAt && !p.leftAt);
+
+    activeParticipants.forEach((participant) => {
+      const participantId = participant.user._id.toString();
+      const participantSockets = userSockets.get(participantId);
+
+      if (participantSockets && participantSockets.size > 0) {
+        participantSockets.forEach((socketId) => {
+          this.server.to(socketId).emit('message:new', messageToEmit);
+        });
+      }
+    });
+
+    await this.conversationService.updateLastMessage(
+      data.conversationId.toString(),
+      savedMessage._id.toString()
+    );
+
+    // Increment unread count for active participants except sender
+    await this.conversationService.incrementUnreadCount(data.conversationId.toString(), userId);
+
+    // Emit unread update chỉ cho active participants
+    activeParticipants.forEach((participant) => {
+      const participantId = participant.user._id.toString();
+      const participantSockets = userSockets.get(participantId);
+
+      if (participantSockets && participantSockets.size > 0) {
+        participantSockets.forEach((socketId) => {
+          this.server.to(socketId).emit('conversation:unread:updated', {
+            conversationId: data.conversationId.toString(),
+            senderId: userId,
+          });
+        });
+      }
+    });
   }
 
   // ============ MESSAGE FEATURES ============
@@ -1020,11 +1141,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .select('firstName lastName _id avatar');
       const readByUser = readerUser
         ? {
-            _id: readerUser._id.toString(),
-            firstName: readerUser.firstName,
-            lastName: readerUser.lastName,
-            avatar: readerUser.avatar,
-          }
+          _id: readerUser._id.toString(),
+          firstName: readerUser.firstName,
+          lastName: readerUser.lastName,
+          avatar: readerUser.avatar,
+        }
         : null;
 
       // Notify all users in conversation that messages have been read

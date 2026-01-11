@@ -165,6 +165,9 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastTypingEmitRef = useRef<number>(0);
 
+    // Chatbot typing indicator state
+    const [isChatbotTyping, setIsChatbotTyping] = useState(false);
+
     // Check if this is a group conversation
     const isGroup = selectedConversation.type === 'GROUP';
 
@@ -612,8 +615,8 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
 
         // Also hide typing when new message arrives
         const handleNewMessageTyping = (msg: MessageResponse) => {
-            if (msg.conversationId === selectedConversation._id && msg.senderId._id !== userId) {
-                const userTypingsLeft = usersTyping.filter(u => u.user._id !== msg.senderId._id);
+            if (msg.conversationId === selectedConversation._id && msg.senderId?._id !== userId) {
+                const userTypingsLeft = usersTyping.filter(u => u.user._id !== msg.senderId?._id);
                 setUsersTyping([...userTypingsLeft]);
                 setIsOtherTyping(false);
                 if (typingTimeoutRef.current) {
@@ -622,14 +625,23 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
             }
         };
 
+        // Handle chatbot typing indicator
+        const handleChatbotTyping = (data: { conversationId: string; isTyping: boolean }) => {
+            if (data.conversationId === selectedConversation._id) {
+                setIsChatbotTyping(data.isTyping);
+            }
+        };
+
         socketChat.on("typing:start", handleTypingStart);
         socketChat.on("typing:stop", handleTypingStop);
         socketChat.on("message:new", handleNewMessageTyping);
+        socketChat.on("chatbot:typing", handleChatbotTyping);
 
         return () => {
             socketChat.off("typing:start", handleTypingStart);
             socketChat.off("typing:stop", handleTypingStop);
             socketChat.off("message:new", handleNewMessageTyping);
+            socketChat.off("chatbot:typing", handleChatbotTyping);
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
             }
@@ -1073,16 +1085,18 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                             }}
                             itemContent={(index, message) => {
                                 const actualIndex = index - firstItemIndex;
-                                const isOwn = message.senderId._id?.toString() === userId || message.senderId.toString() === userId;
+                                // Handle chatbot messages - identified by type, not owned by current user
+                                const isChatbotMessage = message.type === 'CHATBOT';
+                                const isOwn = !isChatbotMessage && (message.senderId._id?.toString() === userId || message.senderId?.toString() === userId);
                                 const showAvatar = actualIndex === 0 || (allMessages[actualIndex - 1]?.senderId !== message.senderId);
                                 // Find last own message for showing read avatar
                                 const lastOwnMessageIndex = allMessages.map((m, i) =>
-                                    (m.senderId._id?.toString() === userId || m.senderId.toString() === userId) ? i : -1
+                                    m.type !== 'CHATBOT' && (m.senderId._id?.toString() === userId || m.senderId?.toString() === userId) ? i : -1
                                 ).filter(i => i !== -1).pop();
                                 const isLastOwnMessage = actualIndex === lastOwnMessageIndex;
 
                                 // Get avatars of users who read the message, excluding the sender
-                                const senderId = message.senderId._id?.toString() || message.senderId.toString();
+                                const senderId = message.senderId._id?.toString() || message.senderId?.toString() || '';
                                 const otherAvatarsNotRead = message.readBy
                                     ?.filter(r => r._id !== senderId && r._id !== userId) // Exclude sender and current user
                                     .map(r => r.avatar)
@@ -1095,7 +1109,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                         message={message}
                                         isOwn={isOwn}
                                         showAvatar={showAvatar}
-                                        avatar={message.senderId.avatar}
+                                        avatar={message.senderId?.avatar || ''}
                                         conversation={conversationDetail?.data}
                                         socket={socketChat}
                                         userId={userId}
@@ -1175,6 +1189,85 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                         </Typography>
                     </Box>
                 ))}
+
+                {/* Chatbot Typing Indicator */}
+                {isChatbotTyping && (
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            px: 2,
+                            py: 1,
+                            bgcolor: 'white',
+                            animation: 'fadeIn 0.3s ease-in-out',
+                            '@keyframes fadeIn': {
+                                '0%': { opacity: 0 },
+                                '100%': { opacity: 1 },
+                            },
+                        }}
+                    >
+                        <Avatar
+                            sx={{
+                                width: 32,
+                                height: 32,
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                boxShadow: '0 2px 8px rgba(102, 126, 234, 0.4)',
+                            }}
+                        >
+                            <Box component="span" sx={{ fontSize: 18 }}>🤖</Box>
+                        </Avatar>
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                background: 'linear-gradient(135deg, #f6f8fc 0%, #f0f4ff 100%)',
+                                border: '1px solid rgba(102, 126, 234, 0.15)',
+                                borderRadius: '18px',
+                                px: 1.5,
+                                py: 1,
+                            }}
+                        >
+                            <Box sx={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                {[0, 1, 2].map((i) => (
+                                    <Box
+                                        key={i}
+                                        sx={{
+                                            width: 8,
+                                            height: 8,
+                                            borderRadius: '50%',
+                                            background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                            animation: 'chatbotTypingBounce 1.4s infinite ease-in-out',
+                                            animationDelay: `${i * 0.2}s`,
+                                            '@keyframes chatbotTypingBounce': {
+                                                '0%, 80%, 100%': {
+                                                    transform: 'scale(0.6)',
+                                                    opacity: 0.4,
+                                                },
+                                                '40%': {
+                                                    transform: 'scale(1)',
+                                                    opacity: 1,
+                                                },
+                                            },
+                                        }}
+                                    />
+                                ))}
+                            </Box>
+                        </Box>
+                        <Typography
+                            fontSize={14}
+                            sx={{
+                                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                fontWeight: 500,
+                            }}
+                        >
+                            AI đang suy nghĩ...
+                        </Typography>
+                    </Box>
+                )}
 
                 {/* Group Deleted or Kicked or Restricted Notice */}
                 {!canChat && !blockedByMe && (
@@ -1265,12 +1358,31 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                                 }}
                             >
                                 <List dense>
+                                    <MenuItem onClick={() => handleSelectMention({
+                                        user: {
+                                            firstName: 'Chat',
+                                            lastName: 'bot',
+                                            _id: 'chatbot_id',
+                                            username: 'chatbot',
+                                        },
+                                        isAdmin: false,
+                                        nickname: 'Chatbot',
+                                        joinedAt: new Date(),
+                                    })}>
+                                        <ListItemAvatar>
+                                            <Avatar
+                                                src={"https://png.pngtree.com/png-vector/20230225/ourmid/pngtree-smart-chatbot-cartoon-clipart-png-image_6620453.png"}
+                                                sx={{ width: 35, height: 35 }}
+                                            />
+                                        </ListItemAvatar>
+                                        <ListItemText sx={{ marginLeft: 1 }} primary={"Chatbot"} />
+                                    </MenuItem>
                                     {filteredParticipants.map((p: ConversationParticipant) => (
                                         <MenuItem key={p.user._id} onClick={() => handleSelectMention(p)}>
                                             <ListItemAvatar>
-                                                <Avatar src={p.user.avatar} sx={{ width: 24, height: 24 }} />
+                                                <Avatar src={p.user.avatar} sx={{ width: 35, height: 35 }} />
                                             </ListItemAvatar>
-                                            <ListItemText primary={p.nickname || `${p.user.firstName} ${p.user.lastName}`} />
+                                            <ListItemText sx={{ marginLeft: 1 }} primary={p.nickname || `${p.user.firstName} ${p.user.lastName}`} />
                                         </MenuItem>
                                     ))}
                                 </List>
@@ -1293,7 +1405,7 @@ export default function AreaChatMessages({ selectedConversation, userId }: { sel
                             >
                                 <Box sx={{ minWidth: 0 }}>
                                     <Typography fontSize={12} color="#65676b">
-                                        Đang trả lời <strong>{replyMsg?.senderId._id === userId ? "chính mình" : replyMsg.senderId.firstName + " " + replyMsg.senderId.lastName}</strong>
+                                        Đang trả lời <strong>{replyMsg?.type === 'CHATBOT' ? "AI Assistant" : (replyMsg.senderId._id === userId ? "chính mình" : replyMsg.senderId.firstName + " " + replyMsg.senderId.lastName)}</strong>
                                     </Typography>
                                     <Typography fontSize={13} color="#050505" noWrap sx={{ opacity: 0.8 }}>
                                         {replyMsg.content}

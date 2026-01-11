@@ -18,7 +18,7 @@ export class ChatService {
     @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
     @InjectModel(Message.name) private readonly messageModel: Model<Message>,
     private readonly cloudinaryService: CloudinaryService
-  ) {}
+  ) { }
 
   async sendMessage(createMessageDto: CreateMessageDto) {
     const message = await this.messageModel.create(createMessageDto);
@@ -32,6 +32,10 @@ export class ChatService {
       })
       .populate({
         path: 'postId',
+        populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+      })
+      .populate({
+        path: 'postIdsRecommendationfromAI',
         populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
       })
       .exec();
@@ -68,6 +72,19 @@ export class ChatService {
 
   findAll() {
     return `This action returns all chat`;
+  }
+
+  // Get recent messages for AI chat context
+  async getRecentMessagesForContext(conversationId: string, limit: number = 15) {
+    return await this.messageModel
+      .find({
+        conversationId,
+        isDeleted: { $ne: true },
+      })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate('senderId', 'firstName lastName')
+      .lean();
   }
 
   async findAllMessagesByConversationId(
@@ -127,6 +144,10 @@ export class ChatService {
           },
           {
             path: 'postId',
+            populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+          },
+          {
+            path: 'postIdsRecommendationfromAI',
             populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
           },
         ])
@@ -226,7 +247,7 @@ export class ChatService {
     }
 
     // Kiểm tra người gửi
-    if (message.senderId.toString() !== userId) {
+    if (message.senderId && message.senderId.toString() !== userId) {
       throw new ForbiddenException('Bạn chỉ có thể chỉnh sửa tin nhắn của mình');
     }
 
@@ -325,7 +346,7 @@ export class ChatService {
     }
 
     // Kiểm tra người gửi
-    if (message.senderId.toString() !== userId) {
+    if (message.senderId && message.senderId.toString() !== userId) {
       throw new ForbiddenException('Bạn chỉ có thể xóa tin nhắn của mình');
     }
 

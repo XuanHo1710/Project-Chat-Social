@@ -15,6 +15,8 @@ from loguru import logger
 
 from app.services.recommendation_service import get_recommendation_service
 
+from app.services.ollama_service import get_ollama_service
+
 router = APIRouter(tags=["Recommendations"])
 
 
@@ -129,6 +131,132 @@ async def get_newsfeed(
         "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 0,
         "posts": posts
     }
+
+from pydantic import BaseModel
+from typing import List, Optional
+
+class ChatMessage(BaseModel):
+    role: str  # 'user' or 'assistant'
+    content: str
+    senderName: Optional[str] = None
+
+class ChatBotRequest(BaseModel):
+    message: str
+    chatHistory: Optional[List[ChatMessage]] = []
+    imageUrls: Optional[List[str]] = []
+
+@router.post("/chat/bot")
+async def chat_bot_post(request: ChatBotRequest):
+    """
+    🤖 Gửi tin nhắn đến chatbot AI (với chat history và image support)
+    
+    Request Body:
+    - message: tin nhắn hiện tại
+    - chatHistory: 15 messages gần nhất (để AI hiểu ngữ cảnh)
+    - imageUrls: URLs của ảnh đính kèm (nếu có)
+    
+    Returns:
+    - message: tin nhắn gốc
+    - response: phản hồi từ AI
+    - postIds: Array of post IDs gợi ý (3-4 posts, nếu có)
+    """
+    ollama = get_ollama_service()
+    recommendation = get_recommendation_service()
+    
+    if not ollama.is_available():
+        raise HTTPException(status_code=503, detail="Kết nối với Ollama thất bại")
+    
+    message = request.message
+    chat_history = request.chatHistory or []
+    image_urls = request.imageUrls or []
+    
+    post_ids = []
+    post_preview = ""
+    
+    logger.info(f"Chat request: '{message[:50]}...' with {len(chat_history)} history, {len(image_urls)} images")
+    
+    # Build conversation context from history
+    conversation_context = []
+    for msg in chat_history[-10:]:  # Use last 10 messages for context
+        conversation_context.append({
+            "role": msg.role,
+            "content": msg.content
+        })
+    
+    # 1. Check if there are images to analyze
+    image_description = ""
+    if image_urls and len(image_urls) > 0:
+        logger.info(f"Analyzing {len(image_urls)} images...")
+        image_description = ollama.analyze_images(image_urls)
+        if image_description:
+            logger.info(f"Image analysis: {image_description[:100]}...")
+    
+    # 2. Analyze intent - does user want posts?
+    intent = ollama.analyze_chat_intent(message)
+    logger.info(f"Chat intent: {intent}")
+    
+    if intent.get("should_suggest_post") and intent.get("search_query") and recommendation.is_ready():
+        # Search for relevant posts
+        search_query = intent["search_query"]
+        posts, total = recommendation.search(
+            query=search_query,
+            current_user_id="",
+            limit=15,
+            page=1
+        )
+        
+        if posts:
+            # Get post IDs already shown in chat history
+            shown_post_ids = set()
+            # Could extract from history if needed
+            
+            available_posts = [p for p in posts if p["post_id"] not in shown_post_ids]
+            
+            if available_posts:
+                import random
+                random.shuffle(available_posts[:8])
+                num_posts = min(4, len(available_posts))
+                selected_posts = available_posts[:num_posts]
+                post_ids = [p["post_id"] for p in selected_posts]
+                
+                # Get first post content for AI context
+                try:
+                    from pymongo import MongoClient
+                    import os
+                    mongo = MongoClient(os.getenv("MONGODB_URI"))
+                    db = mongo[os.getenv("MONGODB_DATABASE")]
+                    from bson import ObjectId
+                    post_doc = db.posts.find_one({"_id": ObjectId(post_ids[0])}, {"content": 1})
+                    if post_doc:
+                        post_preview = post_doc.get("content", "")[:200]
+                    mongo.close()
+                except Exception as e:
+                    logger.warning(f"Could not fetch post preview: {e}")
+                
+                logger.info(f"Suggesting {len(post_ids)} posts")
+    
+    # 3. Generate AI response with full context
+    response = ollama.generate_chat_response_with_full_context(
+        message=message,
+        chat_history=conversation_context,
+        image_description=image_description,
+        has_post=len(post_ids) > 0,
+        post_preview=post_preview
+    )
+    
+    return {
+        "message": message,
+        "response": response,
+        "postIds": post_ids
+    }
+
+
+# Keep old GET endpoint for backward compatibility (deprecated)
+@router.get("/chat/bot/{message}")
+async def chat_bot_get(message: str):
+    """Deprecated: Use POST /chat/bot instead"""
+    request = ChatBotRequest(message=message, chatHistory=[], imageUrls=[])
+    return await chat_bot_post(request)
 
 
 @router.get("/similar/{post_id}")

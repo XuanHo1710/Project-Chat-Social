@@ -12,6 +12,7 @@ export enum MessageType {
   SYSTEM = 'SYSTEM', // Thông báo hệ thống (vd: X đã tham gia nhóm)
   POST = 'POST', // Bài viết được chia sẻ
   STORY_REPLY = 'STORY_REPLY', // Trả lời story
+  CHATBOT = 'CHATBOT', // Tin nhắn từ AI chatbot
 }
 
 export enum MessageStatus {
@@ -35,7 +36,7 @@ export class Message {
   conversationId: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Account', required: true })
-  senderId: Types.ObjectId;
+  senderId: Types.ObjectId; // For CHATBOT type, this is the user who triggered the bot
 
   @Prop({ type: String, enum: MessageType, default: MessageType.TEXT })
   type: MessageType;
@@ -73,6 +74,9 @@ export class Message {
 
   @Prop({ type: Types.ObjectId, ref: 'Post' })
   postId?: Types.ObjectId; // ID của bài viết được chia sẻ (cho type=POST)
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Post' }], default: [] })
+  postIdsRecommendationfromAI?: Types.ObjectId[]; // Danh sách posts được AI gợi ý (cho type=CHATBOT)
 
   // Story reply data (cho type=STORY_REPLY)
   @Prop({

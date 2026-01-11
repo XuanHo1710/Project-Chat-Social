@@ -9,7 +9,8 @@ export type MessageType =
   | "FILE"
   | "POST"
   | "SYSTEM"
-  | "STORY_REPLY";
+  | "STORY_REPLY"
+  | "CHATBOT";
 
 export type MessageStatus = "SENT" | "DELIVERED" | "READ";
 
@@ -30,7 +31,7 @@ export interface MessageResponse {
     lastName: string;
     _id: string;
     avatar: string;
-  };
+  }; // For CHATBOT type, this is the user who triggered the bot
 
   type: MessageType;
 
@@ -46,6 +47,8 @@ export interface MessageResponse {
   replyTo?: MessageResponse;
 
   postId?: PostType;
+
+  postIdsRecommendationfromAI?: PostType[]; // Multiple AI-suggested posts (for CHATBOT)
 
   // Story reply fields
   storyReply?: {

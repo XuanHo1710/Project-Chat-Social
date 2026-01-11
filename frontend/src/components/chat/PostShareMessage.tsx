@@ -47,6 +47,7 @@ export default function PostShareMessage({
             onClick();
         } else if (post?._id) {
             // Navigate to feed with postId query to highlight/scroll to that post
+            // Use window.location for full page navigation to ensure query param is processed
             router.push(`/?postId=${post._id}`);
         }
     };

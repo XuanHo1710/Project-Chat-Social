@@ -10,6 +10,7 @@ import { ConversationModule } from 'src/conversation/conversation.module';
 import { Account, AccountSchema } from 'src/account/entities/account.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { RelationshipModule } from 'src/relationship/relationship.module';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { RelationshipModule } from 'src/relationship/relationship.module';
     ConversationModule,
     CloudinaryModule,
     RelationshipModule,
+    HttpModule,
   ],
   controllers: [ChatController],
   providers: [ChatGateway, ChatService],

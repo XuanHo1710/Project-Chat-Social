@@ -1,7 +1,7 @@
 'use client';
 import ReactPlayer from "react-player";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
     Box,
     Paper,
@@ -34,6 +34,7 @@ import PostShareMessage from "@/components/chat/PostShareMessage";
 import EmotionListDialog from "@/components/chats/EmotionListDialog";
 import { ConversationResponseData } from "@/types/conversation";
 import { renderContentWithMentions } from "@/utils/hashtagParser";
+import TypewriterText from "@/components/chats/TypewriterText";
 
 const EMOTIONS: { type: EmotionType; emoji: string; label: string }[] = [
     { type: 'LIKE', emoji: '👍', label: 'Thích' },
@@ -381,6 +382,269 @@ export default function MessageItem({
                 >
                     {message.content}
                 </Typography>
+            </Box>
+        );
+    }
+
+    // Render CHATBOT message (AI-style with distinct appearance)
+    if (message.type === 'CHATBOT') {
+        return (
+            <Box
+                sx={{
+                    display: "flex",
+                    flexDirection: 'column',
+                    alignItems: "flex-start",
+                    px: 2,
+                    py: 0.5,
+                    animation: 'fadeInUp 0.3s ease-out',
+                    '@keyframes fadeInUp': {
+                        '0%': {
+                            opacity: 0,
+                            transform: 'translateY(10px)',
+                        },
+                        '100%': {
+                            opacity: 1,
+                            transform: 'translateY(0)',
+                        },
+                    },
+                    '&:hover .message-hover-actions': { opacity: 1 },
+                }}
+            >
+                <Box sx={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 1,
+                    maxWidth: '75%',
+                }}>
+                    {/* Chatbot Avatar - Gradient AI style */}
+                    <Avatar
+                        sx={{
+                            width: 32,
+                            height: 32,
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            boxShadow: '0 2px 8px rgba(102, 126, 234, 0.4)',
+                            flexShrink: 0,
+                        }}
+                    >
+                        <Box
+                            component="span"
+                            sx={{
+                                fontSize: 18,
+                                filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))',
+                            }}
+                        >
+                            🤖
+                        </Box>
+                    </Avatar>
+
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        {/* Chatbot name label */}
+                        <Typography
+                            sx={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: '#667eea',
+                                mb: 0.3,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                            }}
+                        >
+                            <Box
+                                component="span"
+                                sx={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: '50%',
+                                    bgcolor: '#10b981',
+                                    animation: 'pulse 2s infinite',
+                                    '@keyframes pulse': {
+                                        '0%, 100%': { opacity: 1 },
+                                        '50%': { opacity: 0.5 },
+                                    },
+                                }}
+                            />
+                            AI Assistant
+                        </Typography>
+
+                        <Box sx={{ position: 'relative' }}>
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    background: 'linear-gradient(135deg, #f6f8fc 0%, #f0f4ff 100%)',
+                                    border: '1px solid rgba(102, 126, 234, 0.15)',
+                                    color: '#1a1a2e',
+                                    borderRadius: '4px 18px 18px 18px',
+                                    overflow: 'hidden',
+                                    position: 'relative',
+                                    '&::before': {
+                                        content: '""',
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        height: '2px',
+                                        background: 'linear-gradient(90deg, #667eea, #764ba2)',
+                                    },
+                                }}
+                            >
+                                <Box sx={{ p: '10px 14px' }}>
+                                    <Box
+                                        sx={{
+                                            fontSize: 14,
+                                            lineHeight: 1.6,
+                                            wordBreak: 'break-word',
+                                            whiteSpace: 'pre-wrap',
+                                        }}
+                                    >
+                                        <TypewriterText
+                                            text={message.content}
+                                            speed={12}
+                                            isNew={Date.now() - new Date(message.createdAt).getTime() < 10000}
+                                        />
+                                    </Box>
+
+                                    {/* Render AI-recommended posts if exists */}
+                                    {message.postIdsRecommendationfromAI && message.postIdsRecommendationfromAI.length > 0 && (
+                                        <Box
+                                            sx={{
+                                                mt: 2,
+                                                pt: 2,
+                                                borderTop: '1px solid rgba(102, 126, 234, 0.15)',
+                                            }}
+                                        >
+                                            <Typography
+                                                sx={{
+                                                    fontSize: 11,
+                                                    color: '#667eea',
+                                                    mb: 1,
+                                                    fontWeight: 500,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 0.5,
+                                                }}
+                                            >
+                                                📎 Bài viết gợi ý ({message.postIdsRecommendationfromAI.length})
+                                            </Typography>
+                                            <Box sx={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: 1.5,
+                                                maxHeight: 400,
+                                                overflowY: 'auto',
+                                                pr: 0.5,
+                                            }}>
+                                                {message.postIdsRecommendationfromAI.map((post, index) => (
+                                                    <PostShareMessage
+                                                        key={post._id || index}
+                                                        isOwn={false}
+                                                        post={post}
+                                                    />
+                                                ))}
+                                            </Box>
+                                        </Box>
+                                    )}
+
+                                    {/* Fallback: Render single postId if exists (for backward compatibility) */}
+                                    {message.postId && !message.postIdsRecommendationfromAI?.length && (
+                                        <Box
+                                            sx={{
+                                                mt: 2,
+                                                pt: 2,
+                                                borderTop: '1px solid rgba(102, 126, 234, 0.15)',
+                                            }}
+                                        >
+                                            <Typography
+                                                sx={{
+                                                    fontSize: 11,
+                                                    color: '#667eea',
+                                                    mb: 1,
+                                                    fontWeight: 500,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 0.5,
+                                                }}
+                                            >
+                                                📎 Bài viết gợi ý
+                                            </Typography>
+                                            <PostShareMessage isOwn={false} post={message.postId} />
+                                        </Box>
+                                    )}
+                                </Box>
+                            </Paper>
+                            {renderEmotionsSummary()}
+                        </Box>
+
+                        {/* Time */}
+                        <Typography sx={{ fontSize: 11, color: '#65676b', mt: 0.3, px: 0.5 }}>
+                            {formatTime(message.createdAt)}
+                        </Typography>
+                    </Box>
+
+                    {/* Hover Actions */}
+                    <Box
+                        className="message-hover-actions"
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            opacity: 0,
+                            transition: 'opacity 0.15s',
+                            gap: 0.2,
+                            zIndex: 100,
+                            bgcolor: 'white',
+                            borderRadius: 3,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                            px: 0.5,
+                            py: 0.2,
+                            alignSelf: 'center',
+                        }}
+                    >
+                        <IconButton size="small" onClick={handleReactionOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                            <SentimentSatisfiedAltIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                            <ReplyIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                        </IconButton>
+                    </Box>
+                </Box>
+
+                {/* Reaction Picker - Quick Reactions */}
+                <Popover
+                    open={Boolean(reactionAnchor)}
+                    anchorEl={reactionAnchor}
+                    onClose={handleReactionClose}
+                    anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+                    transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                    slotProps={{
+                        paper: {
+                            sx: {
+                                bgcolor: 'white',
+                                borderRadius: '28px',
+                                boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                                border: 'none',
+                                overflow: 'visible',
+                                mt: -1
+                            }
+                        }
+                    }}
+                >
+                    <Box sx={{ display: 'flex', p: '6px 10px', gap: 0.5 }}>
+                        {EMOTIONS.map((emotion) => (
+                            <IconButton
+                                key={emotion.type}
+                                onClick={() => handleReaction(emotion.type)}
+                                sx={{
+                                    fontSize: 24,
+                                    p: 0.8,
+                                    transition: 'transform 0.15s',
+                                    '&:hover': { transform: 'scale(1.25)', bgcolor: 'transparent' }
+                                }}
+                            >
+                                {emotion.emoji}
+                            </IconButton>
+                        ))}
+                    </Box>
+                </Popover>
             </Box>
         );
     }

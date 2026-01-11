@@ -105,7 +105,6 @@ export const commentMediaToMediaItems = (media: CommentMedia[]): MediaItem[] => 
 
 export const renderContentWithMentions = (content: string) => {
     if (!content) return null;
-
     // Combined regex for mentions and hashtags
     const mentionRegex = /@\[([^\]:]+):([^\]]+)\]/gi;
     const hashtagRegex = /#([\w\u00C0-\u024F\u1E00-\u1EFF]+)/gi;
@@ -128,18 +127,31 @@ export const renderContentWithMentions = (content: string) => {
             length: match[0].length,
             type: 'mention',
             content: (
-                <Link
-                    key={`mention-${match.index}`}
-                    href={`/profile/${userName}`}
-                    style={{
-                        color: '#1877f2',
-                        textDecoration: 'none',
-                        fontWeight: 600,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    @{displayName}
-                </Link>
+                userName === 'chatbot' ? (
+                    <span
+                        key={`mention-${match.index}`}
+                        style={{
+                            color: '#1877f2',
+                            textDecoration: 'none',
+                            fontWeight: 600,
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        @{displayName}
+                    </span>
+                ) :
+                    <Link
+                        key={`mention-${match.index}`}
+                        href={`/profile/${userName}`}
+                        style={{
+                            color: '#1877f2',
+                            textDecoration: 'none',
+                            fontWeight: 600,
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        @{displayName}
+                    </Link>
             ),
         });
     }

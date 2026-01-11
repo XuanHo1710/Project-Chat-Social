@@ -79,7 +79,7 @@ export default function MentionInput({
     // Initialize mention map from initial value
     useEffect(() => {
         mentionMapRef.current = buildMentionMap(value);
-    }, []); // Only on mount
+    }, [value]); // Only on mount
 
     // Display value (parsed)
     const displayValue = useMemo(() => parseForDisplay(value), [value]);

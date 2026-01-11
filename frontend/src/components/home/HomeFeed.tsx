@@ -38,18 +38,19 @@ export default function HomeFeed() {
     // Get highlighted post ID from URL query
     const highlightedPostIdFromUrl = searchParams.get('postId');
 
+    // Debug log
+    console.log('🎯 Highlight postId from URL:', highlightedPostIdFromUrl);
+
     // Store highlighted post ID in ref to persist even after URL change
     const persistedHighlightedPostId = useRef<string | null>(null);
 
     // Update persisted ID when URL has postId
     useEffect(() => {
         if (highlightedPostIdFromUrl) {
+            console.log('💾 Persisting highlight postId:', highlightedPostIdFromUrl);
             persistedHighlightedPostId.current = highlightedPostIdFromUrl;
         }
     }, [highlightedPostIdFromUrl]);
-
-    // Use persisted ID for sorting, URL param for highlight animation
-    const highlightedPostId = persistedHighlightedPostId.current || highlightedPostIdFromUrl;
 
     // Fetch posts from API with infinite scroll
     const {
@@ -94,11 +95,47 @@ export default function HomeFeed() {
     // Emoji Picker
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+    // Highlight animation state (separate from URL so we can turn it off after timeout)
+    const [showHighlightAnimation, setShowHighlightAnimation] = useState<string | null>(null);
+
     // Flatten all pages into single array
     const allApiPosts = useMemo(() => {
         if (!postsData?.pages) return [];
         return postsData.pages.flatMap((page) => page.data || []);
     }, [postsData]);
+
+    // State for fetched highlighted post (if not in newsfeed)
+    const [fetchedHighlightedPost, setFetchedHighlightedPost] = useState<PostType | null>(null);
+    const fetchedPostIdRef = useRef<string | null>(null);
+
+    // Fetch highlighted post if not in current list
+    useEffect(() => {
+        if (!highlightedPostIdFromUrl) return;
+        if (isLoadingPosts) return;
+
+        // Check if already fetched this post
+        if (fetchedPostIdRef.current === highlightedPostIdFromUrl) return;
+
+        // Check if post exists in API posts
+        const existsInApiPosts = allApiPosts.some(p => p._id === highlightedPostIdFromUrl);
+        const existsInStorePosts = storePosts.some((p: PostType) => p._id === highlightedPostIdFromUrl);
+
+        if (!existsInApiPosts && !existsInStorePosts) {
+            console.log('🔍 Post not in newsfeed, fetching:', highlightedPostIdFromUrl);
+            fetchedPostIdRef.current = highlightedPostIdFromUrl;
+
+            postService.getPostById(highlightedPostIdFromUrl)
+                .then((post) => {
+                    console.log('✅ Fetched highlighted post:', post._id);
+                    setFetchedHighlightedPost(post);
+                })
+                .catch((err) => {
+                    console.log('❌ Failed to fetch highlighted post:', err);
+                });
+        } else {
+            console.log('✅ Post found in newsfeed');
+        }
+    }, [highlightedPostIdFromUrl, isLoadingPosts, allApiPosts, storePosts]);
 
     // Sync API data with store - only when API data actually changes
     useEffect(() => {
@@ -122,7 +159,7 @@ export default function HomeFeed() {
         const newStorePosts = storePosts.filter((p: PostType) => !apiPostIds.has(p._id));
 
         // Merge: new store posts + API posts (using store version if exists)
-        const allPosts: PostType[] = [
+        let allPosts: PostType[] = [
             ...newStorePosts,
             ...apiPosts.map((apiPost: PostType) => {
                 const storePost = storePosts.find((sp: PostType) => sp._id === apiPost._id);
@@ -130,30 +167,93 @@ export default function HomeFeed() {
             })
         ];
 
-        if (!highlightedPostId) return allPosts;
+        // Use URL param directly for sorting (more reliable)
+        const postIdToHighlight = highlightedPostIdFromUrl || persistedHighlightedPostId.current;
 
-        // Move highlighted post to the top
-        const highlightedPost = allPosts.find((p: PostType) => p._id === highlightedPostId);
-        if (!highlightedPost) return allPosts;
+        if (!postIdToHighlight) return allPosts;
 
-        const otherPosts = allPosts.filter((p: PostType) => p._id !== highlightedPostId);
+        // First, check if highlighted post exists in list
+        let highlightedPost = allPosts.find((p: PostType) => p._id === postIdToHighlight);
+
+        // If not found, use fetched post (if available)
+        if (!highlightedPost && fetchedHighlightedPost && fetchedHighlightedPost._id === postIdToHighlight) {
+            highlightedPost = fetchedHighlightedPost;
+            console.log('📦 Using fetched highlighted post');
+        }
+
+        if (!highlightedPost) {
+            console.log('⚠️ Highlighted post not found anywhere:', postIdToHighlight);
+            return allPosts;
+        }
+
+        console.log('✅ Moving highlighted post to top:', postIdToHighlight);
+        const otherPosts = allPosts.filter((p: PostType) => p._id !== postIdToHighlight);
         return [highlightedPost, ...otherPosts];
-    }, [allApiPosts, storePosts, highlightedPostId]);
+    }, [allApiPosts, storePosts, highlightedPostIdFromUrl, fetchedHighlightedPost]);
+
+    // Track if we've already handled the highlight for current postId
+    const highlightHandledRef = useRef<string | null>(null);
 
     // Scroll to highlighted post and clear URL after viewing
     useEffect(() => {
-        if (highlightedPostIdFromUrl && !isLoadingPosts && posts.length > 0) {
-            // Wait for render then scroll
-            setTimeout(() => {
-                highlightedPostRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                // Clear the postId from URL after 3 seconds (animation done)
-                setTimeout(() => {
-                    router.replace('/', { scroll: false });
-                }, 3000);
-            }, 300);
+        // Only proceed if we have a postId from URL
+        if (!highlightedPostIdFromUrl) return;
+        if (isLoadingPosts) {
+            console.log('⏳ Still loading posts, waiting...');
+            return;
         }
-    }, [highlightedPostIdFromUrl, isLoadingPosts, posts.length, router]);
+
+        // Check if already handled
+        if (highlightHandledRef.current === highlightedPostIdFromUrl) {
+            console.log('🔄 Already handled this postId');
+            return;
+        }
+
+        // Check if the highlighted post actually exists in our posts
+        const postExists = posts.find(p => p._id === highlightedPostIdFromUrl);
+        if (!postExists) {
+            console.log('❌ Post not found in current list:', highlightedPostIdFromUrl, 'Available posts:', posts.length);
+            return;
+        }
+
+        console.log('✅ Post found! Scrolling and highlighting...');
+
+        // Mark as handled to prevent re-running
+        highlightHandledRef.current = highlightedPostIdFromUrl;
+        // Also persist for sorting
+        persistedHighlightedPostId.current = highlightedPostIdFromUrl;
+
+        // Start highlight animation
+        setShowHighlightAnimation(highlightedPostIdFromUrl);
+
+        // Wait for render then scroll
+        const scrollTimer = setTimeout(() => {
+            if (highlightedPostRef.current) {
+                highlightedPostRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                console.log('📍 Scrolled to post');
+            } else {
+                console.log('⚠️ Ref not attached to element');
+            }
+        }, 500);
+
+        // Turn off highlight animation after 4 seconds
+        const highlightTimer = setTimeout(() => {
+            setShowHighlightAnimation(null);
+            console.log('🔇 Turned off highlight animation');
+        }, 4000);
+
+        // Clear the postId from URL after animation done (5 seconds)
+        const clearTimer = setTimeout(() => {
+            window.history.replaceState(null, '', '/');
+            console.log('🧹 Cleared URL');
+        }, 5000);
+
+        return () => {
+            clearTimeout(scrollTimer);
+            clearTimeout(highlightTimer);
+            clearTimeout(clearTimer);
+        };
+    }, [highlightedPostIdFromUrl, isLoadingPosts, posts]);
 
     // Infinite scroll: Intersection Observer to load more when reaching bottom
     useEffect(() => {
@@ -457,8 +557,8 @@ export default function HomeFeed() {
             {/* Posts */}
             {posts.map((post) => {
                 const PrivacyIconComponent = getPrivacyIcon(post.privacy);
-                const isHighlighted = post._id === highlightedPostIdFromUrl; // Use URL param for animation
-                const isTargetPost = post._id === highlightedPostId; // Use persisted ID for ref
+                const isHighlighted = post._id === showHighlightAnimation; // Use animation state (auto turns off)
+                const isTargetPost = post._id === highlightedPostIdFromUrl; // Same as isHighlighted for ref
 
                 // Check if post belongs to a group
                 const groupInfo = post.groupId && typeof post.groupId === 'object' ? post.groupId : null;

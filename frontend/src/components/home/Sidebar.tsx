@@ -11,6 +11,7 @@ import {
     KeyboardArrowUp as ArrowUpIcon,
     SmartToy as AIIcon,
     Message as MessageIcon,
+    Gamepad as GamepadIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRouter } from 'next/navigation';
@@ -61,6 +62,7 @@ export default function Sidebar() {
     const expandedItems = [
         { icon: <AIIcon sx={{ fontSize: 28 }} />, label: 'Chat với AI', path: '/ai-chat', color: '#00a67e' },
         { icon: <MessageIcon sx={{ fontSize: 28 }} />, label: 'Messenger', path: '/chat', color: '#0084ff' },
+        { icon: <GamepadIcon sx={{ fontSize: 28 }} />, label: 'Gamestore', path: '/game', color: '#f44336' },
     ];
 
     const handleItemClick = (path: string) => {

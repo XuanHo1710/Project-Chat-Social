@@ -242,7 +242,9 @@ export default function CreatePostModal({
         >
             <Box
                 sx={{
-                    width: 800,
+                    width: 500,
+                    maxWidth: "100%",
+                    mx: 2,
                     maxHeight: "90vh",
                     bgcolor: "background.paper",
                     borderRadius: 2,
@@ -279,461 +281,479 @@ export default function CreatePostModal({
                     </IconButton>
                 </Box>
 
-                {/* Content */}
-                {modalView === "create" ? (
-                    <Box sx={{ flex: 1, overflow: "auto" }}>
-                        {/* User Info & Privacy */}
-                        <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 1.5 }}>
-                            <Avatar sx={{ width: 40, height: 40 }} src={isAnonymous ? undefined : user?.avatar}>
-                                {isAnonymous ? '?' : undefined}
-                            </Avatar>
-                            <Box sx={{ flex: 1 }}>
-                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
-                                    {isAnonymous ? 'Ẩn danh' : (user?.fullName || user?.username)}
-                                </Typography>
-                                {!groupId ? (
-                                    <Button
-                                        size="small"
-                                        onClick={() => setModalView("privacy")}
-                                        sx={{
-                                            bgcolor: hoverBg,
-                                            color: "text.primary",
-                                            textTransform: "none",
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            px: 1,
-                                            py: 0.25,
-                                            minHeight: 0,
-                                            borderRadius: 1,
-                                            "&:hover": { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : "#d8dadf" },
-                                        }}
-                                        startIcon={<PrivacyIcon sx={{ fontSize: 14 }} />}
-                                        endIcon={<ArrowDownIcon sx={{ fontSize: 16 }} />}
-                                    >
-                                        {getPrivacyLabel()}
-                                    </Button>
-                                ) : (
-                                    <Button
-                                        size="small"
-                                        onClick={() => setIsAnonymous(!isAnonymous)}
-                                        sx={{
-                                            bgcolor: isAnonymous ? "#1877f2" : "#e4e6eb",
-                                            color: isAnonymous ? "white" : "#050505",
-                                            textTransform: "none",
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            px: 1.5,
-                                            py: 0.25,
-                                            minHeight: 0,
-                                            borderRadius: 1,
-                                            "&:hover": { bgcolor: isAnonymous ? "#166fe5" : "#d8dadf" },
-                                        }}
-                                    >
-                                        {isAnonymous ? '✓ Ẩn danh' : 'Đăng ẩn danh?'}
-                                    </Button>
-                                )}
-                            </Box>
-                        </Box>
-
-                        {/* Post Content Input */}
-                        <Box
-                            sx={{
-                                px: 2,
-                                pb: 2,
-                                background:
-                                    pendingMedia.length === 0 ? getSelectedBg() : "transparent",
-                                minHeight: pendingMedia.length === 0 ? 150 : "auto",
-                                display: "flex",
-                                alignItems:
-                                    selectedBackground !== "none" && pendingMedia.length === 0
-                                        ? "center"
-                                        : "flex-start",
-                                justifyContent: "center",
-                                borderRadius:
-                                    selectedBackground !== "none" && pendingMedia.length === 0
-                                        ? 2
-                                        : 0,
-                                mx: selectedBackground !== "none" ? 2 : 0,
-                            }}
-                        >
-                            <InputBase
-                                multiline
-                                fullWidth
-                                placeholder={`${user?.fullName || user?.username || "Bạn"} ơi, bạn đang nghĩ gì thế?`}
-                                value={postContent}
-                                onChange={(e) => setPostContent(e.target.value)}
-                                sx={{
-                                    fontSize:
-                                        selectedBackground !== "none" && pendingMedia.length === 0
-                                            ? 24
-                                            : 16,
-                                    fontWeight:
-                                        selectedBackground !== "none" && pendingMedia.length === 0
-                                            ? 700
-                                            : 400,
-                                    color:
-                                        selectedBackground !== "none" &&
-                                            selectedBackground !== "solid4" &&
-                                            pendingMedia.length === 0
-                                            ? "white"
-                                            : theme.palette.text.primary,
-                                    textAlign:
-                                        selectedBackground !== "none" && pendingMedia.length === 0
-                                            ? "center"
-                                            : "left",
-                                    "& textarea": {
-                                        textAlign:
-                                            selectedBackground !== "none" && pendingMedia.length === 0
-                                                ? "center"
-                                                : "left",
-                                    },
-                                    "& ::placeholder": {
-                                        color:
-                                            selectedBackground !== "none" &&
-                                                selectedBackground !== "solid4" &&
-                                                pendingMedia.length === 0
-                                                ? "rgba(255,255,255,0.7)"
-                                                : theme.palette.text.secondary,
-                                    },
-                                }}
-                            />
-                        </Box>
-
-                        {/* Media Preview */}
-                        {pendingMedia.length > 0 && (
-                            <Box sx={{ px: 2, pb: 2 }}>
-                                <Box
-                                    sx={{
-                                        border: `1px solid ${theme.palette.divider}`,
-                                        borderRadius: 2,
-                                        p: 1,
-                                        position: "relative",
-                                    }}
-                                >
-                                    {isUploading && (
-                                        <Box sx={{ mb: 1 }}>
-                                            <LinearProgress
-                                                variant="determinate"
-                                                value={uploadProgress}
-                                            />
-                                            <Typography
+                <Box
+                    sx={{
+                        flex: 1,
+                        overflow: "hidden",
+                        position: 'relative'
+                    }}
+                >
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            width: '200%',
+                            height: '100%',
+                            transform: modalView === 'create' ? 'translateX(0)' : 'translateX(-50%)',
+                            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        }}
+                    >
+                        {/* Create View Slide */}
+                        <Box sx={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <Box sx={{ flex: 1, overflowY: "auto" }}>
+                                {/* User Info & Privacy */}
+                                <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 1.5 }}>
+                                    <Avatar sx={{ width: 40, height: 40 }} src={isAnonymous ? undefined : user?.avatar}>
+                                        {isAnonymous ? '?' : undefined}
+                                    </Avatar>
+                                    <Box sx={{ flex: 1 }}>
+                                        <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
+                                            {isAnonymous ? 'Ẩn danh' : (user?.fullName || user?.username)}
+                                        </Typography>
+                                        {!groupId ? (
+                                            <Button
+                                                size="small"
+                                                onClick={() => setModalView("privacy")}
                                                 sx={{
-                                                    fontSize: 12,
-                                                    color: "text.secondary",
-                                                    mt: 0.5,
-                                                    textAlign: "center",
+                                                    bgcolor: hoverBg,
+                                                    color: "text.primary",
+                                                    textTransform: "none",
+                                                    fontSize: 13,
+                                                    fontWeight: 600,
+                                                    px: 1,
+                                                    py: 0.25,
+                                                    minHeight: 0,
+                                                    borderRadius: 1,
+                                                    "&:hover": { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : "#d8dadf" },
+                                                }}
+                                                startIcon={<PrivacyIcon sx={{ fontSize: 14 }} />}
+                                                endIcon={<ArrowDownIcon sx={{ fontSize: 16 }} />}
+                                            >
+                                                {getPrivacyLabel()}
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                size="small"
+                                                onClick={() => setIsAnonymous(!isAnonymous)}
+                                                sx={{
+                                                    bgcolor: isAnonymous ? "#1877f2" : "#e4e6eb",
+                                                    color: isAnonymous ? "white" : "#050505",
+                                                    textTransform: "none",
+                                                    fontSize: 13,
+                                                    fontWeight: 600,
+                                                    px: 1.5,
+                                                    py: 0.25,
+                                                    minHeight: 0,
+                                                    borderRadius: 1,
+                                                    "&:hover": { bgcolor: isAnonymous ? "#166fe5" : "#d8dadf" },
                                                 }}
                                             >
-                                                Đang tải lên... {uploadProgress}%
-                                            </Typography>
-                                        </Box>
-                                    )}
-
-                                    <ImageList
-                                        cols={pendingMedia.length === 1 ? 1 : 2}
-                                        gap={8}
-                                        sx={{ m: 0 }}
-                                    >
-                                        {pendingMedia.map((media) => (
-                                            <ImageListItem key={media.id} sx={{ position: "relative" }}>
-                                                {media.mediaType === "VIDEO" ? (
-                                                    <video
-                                                        src={media.preview}
-                                                        style={{
-                                                            width: "100%",
-                                                            height: pendingMedia.length === 1 ? 300 : 150,
-                                                            objectFit: "cover",
-                                                            borderRadius: 8,
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <Image
-                                                        src={media.preview}
-                                                        alt="Preview"
-                                                        style={{
-                                                            width: "100%",
-                                                            height: pendingMedia.length === 1 ? 300 : 150,
-                                                            objectFit: "cover",
-                                                            borderRadius: 8,
-                                                        }}
-                                                        width={200}
-                                                        height={200}
-                                                    />
-                                                )}
-
-                                                {/* Status indicator */}
-                                                {media.uploadStatus === "uploading" && (
-                                                    <Box
-                                                        sx={{
-                                                            position: "absolute",
-                                                            top: 0,
-                                                            left: 0,
-                                                            right: 0,
-                                                            bottom: 0,
-                                                            bgcolor: "rgba(0,0,0,0.5)",
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "center",
-                                                            borderRadius: 2,
-                                                        }}
-                                                    >
-                                                        <CircularProgress size={32} sx={{ color: "white" }} />
-                                                    </Box>
-                                                )}
-
-                                                {media.uploadStatus === "uploaded" && (
-                                                    <Box
-                                                        sx={{
-                                                            position: "absolute",
-                                                            top: 8,
-                                                            left: 8,
-                                                            bgcolor: "rgba(0,255,0,0.8)",
-                                                            borderRadius: "50%",
-                                                            width: 24,
-                                                            height: 24,
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "center",
-                                                        }}
-                                                    >
-                                                        <Typography sx={{ color: "white", fontSize: 14 }}>
-                                                            ✓
-                                                        </Typography>
-                                                    </Box>
-                                                )}
-
-                                                {/* Remove button */}
-                                                <IconButton
-                                                    onClick={() => handleRemovePendingMedia(media.id)}
-                                                    disabled={isUploading}
-                                                    sx={{
-                                                        position: "absolute",
-                                                        top: 8,
-                                                        right: 8,
-                                                        bgcolor: "rgba(0,0,0,0.6)",
-                                                        color: "white",
-                                                        width: 28,
-                                                        height: 28,
-                                                        "&:hover": { bgcolor: "rgba(0,0,0,0.8)" },
-                                                    }}
-                                                >
-                                                    <CloseIcon sx={{ fontSize: 18 }} />
-                                                </IconButton>
-
-                                                {/* Video indicator */}
-                                                {media.mediaType === "VIDEO" && (
-                                                    <Box
-                                                        sx={{
-                                                            position: "absolute",
-                                                            bottom: 8,
-                                                            left: 8,
-                                                            bgcolor: "rgba(0,0,0,0.6)",
-                                                            borderRadius: 1,
-                                                            px: 1,
-                                                            py: 0.25,
-                                                        }}
-                                                    >
-                                                        <VideoIcon sx={{ fontSize: 16, color: "white" }} />
-                                                    </Box>
-                                                )}
-                                            </ImageListItem>
-                                        ))}
-                                    </ImageList>
-
-                                    {/* Add more button */}
-                                    <Button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        disabled={isUploading}
-                                        sx={{
-                                            mt: 1,
-                                            textTransform: "none",
-                                            color: "text.primary",
-                                            bgcolor: hoverBg,
-                                            "&:hover": { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : "#e4e6eb" },
-                                        }}
-                                        startIcon={<PhotoIcon />}
-                                    >
-                                        Thêm ảnh/video
-                                    </Button>
+                                                {isAnonymous ? '✓ Ẩn danh' : 'Đăng ẩn danh?'}
+                                            </Button>
+                                        )}
+                                    </Box>
                                 </Box>
-                            </Box>
-                        )}
 
-                        {/* Background selector (only when no media) */}
-                        {pendingMedia.length === 0 && (
-                            <Box sx={{ px: 2, pb: 2 }}>
+                                {/* Post Content Input */}
                                 <Box
-                                    sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}
+                                    sx={{
+                                        px: 2,
+                                        pb: 2,
+                                        background:
+                                            pendingMedia.length === 0 ? getSelectedBg() : "transparent",
+                                        minHeight: pendingMedia.length === 0 ? 150 : "auto",
+                                        display: "flex",
+                                        alignItems:
+                                            selectedBackground !== "none" && pendingMedia.length === 0
+                                                ? "center"
+                                                : "flex-start",
+                                        justifyContent: "center",
+                                        borderRadius:
+                                            selectedBackground !== "none" && pendingMedia.length === 0
+                                                ? 2
+                                                : 0,
+                                        mx: selectedBackground !== "none" ? 2 : 0,
+                                    }}
                                 >
-                                    <Button
-                                        size="small"
-                                        onClick={() => setShowBackgrounds(!showBackgrounds)}
+                                    <InputBase
+                                        multiline
+                                        fullWidth
+                                        placeholder={`${user?.fullName || user?.username || "Bạn"} ơi, bạn đang nghĩ gì thế?`}
+                                        value={postContent}
+                                        onChange={(e) => setPostContent(e.target.value)}
                                         sx={{
-                                            minWidth: 36,
-                                            height: 36,
-                                            p: 0,
-                                            borderRadius: 2,
-                                            background:
-                                                "linear-gradient(135deg, #f5af19, #f12711, #667eea, #764ba2)",
-                                            border: showBackgrounds
-                                                ? "2px solid #1877f2"
-                                                : "2px solid transparent",
+                                            fontSize:
+                                                selectedBackground !== "none" && pendingMedia.length === 0
+                                                    ? 24
+                                                    : 16,
+                                            fontWeight:
+                                                selectedBackground !== "none" && pendingMedia.length === 0
+                                                    ? 700
+                                                    : 400,
+                                            color:
+                                                selectedBackground !== "none" &&
+                                                    selectedBackground !== "solid4" &&
+                                                    pendingMedia.length === 0
+                                                    ? "white"
+                                                    : theme.palette.text.primary,
+                                            textAlign:
+                                                selectedBackground !== "none" && pendingMedia.length === 0
+                                                    ? "center"
+                                                    : "left",
+                                            "& textarea": {
+                                                textAlign:
+                                                    selectedBackground !== "none" && pendingMedia.length === 0
+                                                        ? "center"
+                                                        : "left",
+                                            },
+                                            "& ::placeholder": {
+                                                color:
+                                                    selectedBackground !== "none" &&
+                                                        selectedBackground !== "solid4" &&
+                                                        pendingMedia.length === 0
+                                                        ? "rgba(255,255,255,0.7)"
+                                                        : theme.palette.text.secondary,
+                                            },
                                         }}
                                     />
                                 </Box>
 
-                                {showBackgrounds && (
-                                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                                        {backgroundColors.map((bg) => (
-                                            <Box
-                                                key={bg.id}
-                                                onClick={() => setSelectedBackground(bg.id)}
+                                {/* Media Preview */}
+                                {pendingMedia.length > 0 && (
+                                    <Box sx={{ px: 2, pb: 2 }}>
+                                        <Box
+                                            sx={{
+                                                border: `1px solid ${theme.palette.divider}`,
+                                                borderRadius: 2,
+                                                p: 1,
+                                                position: "relative",
+                                            }}
+                                        >
+                                            {isUploading && (
+                                                <Box sx={{ mb: 1 }}>
+                                                    <LinearProgress
+                                                        variant="determinate"
+                                                        value={uploadProgress}
+                                                    />
+                                                    <Typography
+                                                        sx={{
+                                                            fontSize: 12,
+                                                            color: "text.secondary",
+                                                            mt: 0.5,
+                                                            textAlign: "center",
+                                                        }}
+                                                    >
+                                                        Đang tải lên... {uploadProgress}%
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
+                                            <ImageList
+                                                cols={pendingMedia.length === 1 ? 1 : 2}
+                                                gap={8}
+                                                sx={{ m: 0 }}
+                                            >
+                                                {pendingMedia.map((media) => (
+                                                    <ImageListItem key={media.id} sx={{ position: "relative" }}>
+                                                        {media.mediaType === "VIDEO" ? (
+                                                            <video
+                                                                src={media.preview}
+                                                                style={{
+                                                                    width: "100%",
+                                                                    height: pendingMedia.length === 1 ? 300 : 150,
+                                                                    objectFit: "cover",
+                                                                    borderRadius: 8,
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <Image
+                                                                src={media.preview}
+                                                                alt="Preview"
+                                                                style={{
+                                                                    width: "100%",
+                                                                    height: pendingMedia.length === 1 ? 300 : 150,
+                                                                    objectFit: "cover",
+                                                                    borderRadius: 8,
+                                                                }}
+                                                                width={200}
+                                                                height={200}
+                                                            />
+                                                        )}
+
+                                                        {/* Status indicator */}
+                                                        {media.uploadStatus === "uploading" && (
+                                                            <Box
+                                                                sx={{
+                                                                    position: "absolute",
+                                                                    top: 0,
+                                                                    left: 0,
+                                                                    right: 0,
+                                                                    bottom: 0,
+                                                                    bgcolor: "rgba(0,0,0,0.5)",
+                                                                    display: "flex",
+                                                                    alignItems: "center",
+                                                                    justifyContent: "center",
+                                                                    borderRadius: 2,
+                                                                }}
+                                                            >
+                                                                <CircularProgress size={32} sx={{ color: "white" }} />
+                                                            </Box>
+                                                        )}
+
+                                                        {media.uploadStatus === "uploaded" && (
+                                                            <Box
+                                                                sx={{
+                                                                    position: "absolute",
+                                                                    top: 8,
+                                                                    left: 8,
+                                                                    bgcolor: "rgba(0,255,0,0.8)",
+                                                                    borderRadius: "50%",
+                                                                    width: 24,
+                                                                    height: 24,
+                                                                    display: "flex",
+                                                                    alignItems: "center",
+                                                                    justifyContent: "center",
+                                                                }}
+                                                            >
+                                                                <Typography sx={{ color: "white", fontSize: 14 }}>
+                                                                    ✓
+                                                                </Typography>
+                                                            </Box>
+                                                        )}
+
+                                                        {/* Remove button */}
+                                                        <IconButton
+                                                            onClick={() => handleRemovePendingMedia(media.id)}
+                                                            disabled={isUploading}
+                                                            sx={{
+                                                                position: "absolute",
+                                                                top: 8,
+                                                                right: 8,
+                                                                bgcolor: "rgba(0,0,0,0.6)",
+                                                                color: "white",
+                                                                width: 28,
+                                                                height: 28,
+                                                                "&:hover": { bgcolor: "rgba(0,0,0,0.8)" },
+                                                            }}
+                                                        >
+                                                            <CloseIcon sx={{ fontSize: 18 }} />
+                                                        </IconButton>
+
+                                                        {/* Video indicator */}
+                                                        {media.mediaType === "VIDEO" && (
+                                                            <Box
+                                                                sx={{
+                                                                    position: "absolute",
+                                                                    bottom: 8,
+                                                                    left: 8,
+                                                                    bgcolor: "rgba(0,0,0,0.6)",
+                                                                    borderRadius: 1,
+                                                                    px: 1,
+                                                                    py: 0.25,
+                                                                }}
+                                                            >
+                                                                <VideoIcon sx={{ fontSize: 16, color: "white" }} />
+                                                            </Box>
+                                                        )}
+                                                    </ImageListItem>
+                                                ))}
+                                            </ImageList>
+
+                                            {/* Add more button */}
+                                            <Button
+                                                onClick={() => fileInputRef.current?.click()}
+                                                disabled={isUploading}
                                                 sx={{
-                                                    width: 32,
-                                                    height: 32,
-                                                    borderRadius: 1,
-                                                    background: bg.preview,
-                                                    border:
-                                                        bg.id === "none"
-                                                            ? "2px dashed #ccc"
-                                                            : selectedBackground === bg.id
-                                                                ? "2px solid #1877f2"
-                                                                : "2px solid transparent",
-                                                    cursor: "pointer",
-                                                    "&:hover": {
-                                                        opacity: 0.8,
-                                                    },
+                                                    mt: 1,
+                                                    textTransform: "none",
+                                                    color: "text.primary",
+                                                    bgcolor: hoverBg,
+                                                    "&:hover": { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : "#e4e6eb" },
                                                 }}
-                                            />
-                                        ))}
+                                                startIcon={<PhotoIcon />}
+                                            >
+                                                Thêm ảnh/video
+                                            </Button>
+                                        </Box>
                                     </Box>
                                 )}
-                            </Box>
-                        )}
 
-                        {/* Add to Post Options */}
-                        <Box
-                            sx={{
-                                mx: 2,
-                                mb: 2,
-                                p: 1.5,
-                                border: `1px solid ${theme.palette.divider}`,
-                                borderRadius: 2,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                position: 'relative',
-                            }}
-                        >
-                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
-                                Thêm vào bài viết của bạn
-                            </Typography>
-                            <Box sx={{ display: "flex", gap: 0.5, position: 'relative' }}>
-                                <IconButton
-                                    onClick={() => fileInputRef.current?.click()}
-                                    sx={{ color: "#45bd62" }}
-                                >
-                                    <PhotoIcon />
-                                </IconButton>
-                                <IconButton
-                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                    sx={{ color: "#f7b928" }}
-                                >
-                                    <MoodIcon />
-                                </IconButton>
-                            </Box>
-                        </Box>
-                    </Box>
-                ) : (
-                    /* Privacy Selection View */
-                    <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
-                        <Typography sx={{ mb: 2, color: "text.secondary", fontSize: 14 }}>
-                            Ai có thể xem bài viết của bạn?
-                        </Typography>
-                        {privacyOptions.map((option) => (
-                            <Box
-                                key={option.id}
-                                onClick={() => {
-                                    setSelectedPrivacy(option.id);
-                                    setModalView("create");
-                                }}
-                                sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 2,
-                                    p: 2,
-                                    borderRadius: 2,
-                                    cursor: "pointer",
-                                    bgcolor:
-                                        selectedPrivacy === option.id ? (isDark ? 'rgba(24, 119, 242, 0.2)' : "#e7f3ff") : "transparent",
-                                    "&:hover": { bgcolor: hoverBg },
-                                }}
-                            >
+                                {/* Background selector (only when no media) */}
+                                {pendingMedia.length === 0 && (
+                                    <Box sx={{ px: 2, pb: 2 }}>
+                                        <Box
+                                            sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}
+                                        >
+                                            <Button
+                                                size="small"
+                                                onClick={() => setShowBackgrounds(!showBackgrounds)}
+                                                sx={{
+                                                    minWidth: 36,
+                                                    height: 36,
+                                                    p: 0,
+                                                    borderRadius: 2,
+                                                    background:
+                                                        "linear-gradient(135deg, #f5af19, #f12711, #667eea, #764ba2)",
+                                                    border: showBackgrounds
+                                                        ? "2px solid #1877f2"
+                                                        : "2px solid transparent",
+                                                }}
+                                            />
+                                        </Box>
+
+                                        {showBackgrounds && (
+                                            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                                                {backgroundColors.map((bg) => (
+                                                    <Box
+                                                        key={bg.id}
+                                                        onClick={() => setSelectedBackground(bg.id)}
+                                                        sx={{
+                                                            width: 32,
+                                                            height: 32,
+                                                            borderRadius: 1,
+                                                            background: bg.preview,
+                                                            border:
+                                                                bg.id === "none"
+                                                                    ? "2px dashed #ccc"
+                                                                    : selectedBackground === bg.id
+                                                                        ? "2px solid #1877f2"
+                                                                        : "2px solid transparent",
+                                                            cursor: "pointer",
+                                                            "&:hover": {
+                                                                opacity: 0.8,
+                                                            },
+                                                        }}
+                                                    />
+                                                ))}
+                                            </Box>
+                                        )}
+                                    </Box>
+                                )}
+
+                                {/* Add to Post Options */}
                                 <Box
                                     sx={{
-                                        width: 48,
-                                        height: 48,
-                                        borderRadius: "50%",
-                                        bgcolor: hoverBg,
+                                        mx: 2,
+                                        mb: 2,
+                                        p: 1.5,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                        borderRadius: 2,
                                         display: "flex",
                                         alignItems: "center",
-                                        justifyContent: "center",
+                                        justifyContent: "space-between",
+                                        position: 'relative',
                                     }}
                                 >
-                                    <option.icon sx={{ fontSize: 24, color: "text.primary" }} />
-                                </Box>
-                                <Box sx={{ flex: 1 }}>
                                     <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
-                                        {option.label}
+                                        Thêm vào bài viết của bạn
                                     </Typography>
-                                    <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
-                                        {option.description}
-                                    </Typography>
+                                    <Box sx={{ display: "flex", gap: 0.5, position: 'relative' }}>
+                                        <IconButton
+                                            onClick={() => fileInputRef.current?.click()}
+                                            sx={{ color: "#45bd62" }}
+                                        >
+                                            <PhotoIcon />
+                                        </IconButton>
+                                        <IconButton
+                                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                            sx={{ color: "#f7b928" }}
+                                        >
+                                            <MoodIcon />
+                                        </IconButton>
+                                    </Box>
                                 </Box>
-                                <Box
-                                    sx={{
-                                        width: 20,
-                                        height: 20,
-                                        borderRadius: "50%",
-                                        border:
-                                            selectedPrivacy === option.id
-                                                ? "6px solid"
-                                                : "2px solid",
-                                        borderColor: selectedPrivacy === option.id ? 'primary.main' : 'text.secondary',
-                                    }}
-                                />
                             </Box>
-                        ))}
-                    </Box>
-                )}
 
-                {/* Post Button */}
-                {modalView === "create" && (
-                    <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            disabled={!canPost}
-                            onClick={handlePost}
-                            sx={{
-                                py: 1,
-                                bgcolor: canPost ? "primary.main" : hoverBg,
-                                color: canPost ? "white" : "text.disabled",
-                                fontWeight: 600,
-                                textTransform: "none",
-                                fontSize: 15,
-                                "&:hover": { bgcolor: canPost ? "primary.dark" : hoverBg },
-                                "&.Mui-disabled": { bgcolor: hoverBg, color: "text.disabled" },
-                            }}
-                        >
-                            {createPostMutation.isPending || isUploading ? (
-                                <CircularProgress size={24} sx={{ color: "white" }} />
-                            ) : (
-                                "Đăng"
-                            )}
-                        </Button>
+                            {/* Footer Post Button for Create View */}
+                            <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+                                <Button
+                                    fullWidth
+                                    variant="contained"
+                                    disabled={!canPost}
+                                    onClick={handlePost}
+                                    sx={{
+                                        py: 1,
+                                        bgcolor: canPost ? "primary.main" : hoverBg,
+                                        color: canPost ? "white" : "text.disabled",
+                                        fontWeight: 600,
+                                        textTransform: "none",
+                                        fontSize: 15,
+                                        "&:hover": { bgcolor: canPost ? "primary.dark" : hoverBg },
+                                        "&.Mui-disabled": { bgcolor: hoverBg, color: "text.disabled" },
+                                    }}
+                                >
+                                    {createPostMutation.isPending || isUploading ? (
+                                        <CircularProgress size={24} sx={{ color: "white" }} />
+                                    ) : (
+                                        "Đăng"
+                                    )}
+                                </Button>
+                            </Box>
+                        </Box>
+
+                        {/* Privacy View Slide */}
+                        <Box sx={{ width: '50%', height: '100%', overflowY: "auto", p: 2 }}>
+                            <Typography sx={{ mb: 2, color: "text.secondary", fontSize: 14 }}>
+                                Ai có thể xem bài viết của bạn?
+                            </Typography>
+                            {privacyOptions.map((option) => (
+                                <Box
+                                    key={option.id}
+                                    onClick={() => {
+                                        setSelectedPrivacy(option.id);
+                                        setModalView("create");
+                                    }}
+                                    sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 2,
+                                        p: 2,
+                                        borderRadius: 2,
+                                        cursor: "pointer",
+                                        bgcolor:
+                                            selectedPrivacy === option.id ? (isDark ? 'rgba(24, 119, 242, 0.2)' : "#e7f3ff") : "transparent",
+                                        "&:hover": { bgcolor: hoverBg },
+                                    }}
+                                >
+                                    <Box
+                                        sx={{
+                                            width: 48,
+                                            height: 48,
+                                            borderRadius: "50%",
+                                            bgcolor: hoverBg,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                        }}
+                                    >
+                                        <option.icon sx={{ fontSize: 24, color: "text.primary" }} />
+                                    </Box>
+                                    <Box sx={{ flex: 1 }}>
+                                        <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
+                                            {option.label}
+                                        </Typography>
+                                        <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
+                                            {option.description}
+                                        </Typography>
+                                    </Box>
+                                    <Box
+                                        sx={{
+                                            width: 20,
+                                            height: 20,
+                                            borderRadius: "50%",
+                                            border:
+                                                selectedPrivacy === option.id
+                                                    ? "6px solid"
+                                                    : "2px solid",
+                                            borderColor: selectedPrivacy === option.id ? 'primary.main' : 'text.secondary',
+                                        }}
+                                    />
+                                </Box>
+                            ))}
+                        </Box>
                     </Box>
-                )}
+                </Box>
+
+
 
                 {/* Hidden file input */}
                 <input

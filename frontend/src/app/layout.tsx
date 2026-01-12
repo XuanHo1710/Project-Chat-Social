@@ -1,28 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import React from 'react';
 
-import localFont from "next/font/local";
 import { Toaster } from "sonner";
 import { QueryProvider } from "@/hooks/QueryProvider";
 import { AuthProvider } from "@/contexts/AuthProvider";
 import { SocketProvider } from "@/contexts/SocketContext";
 import { MediaUploadProvider } from "@/contexts/MediaUploadContext";
 import { ThemeProvider } from "@/contexts/ThemeProvider";
-
-const myFont = localFont({
-  src: [
-    {
-      path: "./Roboto-Thin.ttf",
-      weight: "100",
-    },
-    {
-      path: "./Roboto-Regular.ttf",
-      weight: "400",
-    },
-  ],
-  display: "swap",
-  variable: "--font-roboto",
-});
+import FirebaseNotification from "@/components/FirebaseNotification";
 
 export const metadata: Metadata = {
   title: {
@@ -71,8 +57,6 @@ export const metadata: Metadata = {
   },
 };
 
-import FirebaseNotification from "@/components/FirebaseNotification";
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -81,7 +65,7 @@ export default function RootLayout({
   return (
     <html lang="vi" suppressHydrationWarning>
       <body
-        suppressHydrationWarning className={`${myFont.variable} font-sans antialiased`}
+        suppressHydrationWarning className="font-sans antialiased"
       >
         <QueryProvider>
           <ThemeProvider>
@@ -105,4 +89,3 @@ export default function RootLayout({
     </html>
   );
 }
-

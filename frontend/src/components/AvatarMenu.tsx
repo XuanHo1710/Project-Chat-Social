@@ -303,7 +303,21 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                 zIndex: 1300,
             }}
         >
-            {activePanel === 'main' ? <MainMenuPanel /> : <DisplaySettingsPanel />}
+            <Box
+                sx={{
+                    display: 'flex',
+                    width: '200%',
+                    transform: activePanel === 'main' ? 'translateX(0)' : 'translateX(-50%)',
+                    transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+            >
+                <Box sx={{ width: '50%', flexShrink: 0 }}>
+                    <MainMenuPanel />
+                </Box>
+                <Box sx={{ width: '50%', flexShrink: 0 }}>
+                    <DisplaySettingsPanel />
+                </Box>
+            </Box>
         </Paper>
     );
 }

@@ -13,6 +13,7 @@ import {
     TextField,
     Popover,
     Tooltip,
+    useTheme,
 } from '@mui/material';
 import {
     MoreHoriz as MoreHorizIcon,
@@ -72,6 +73,9 @@ export default function MessageItem({
     isLastOwnMessage = false,
     otherAvatarsNotRead,
 }: MessageItemProps) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const hoverBg = 'action.hover';
     const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
     const [reactionAnchor, setReactionAnchor] = useState<HTMLElement | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -140,7 +144,7 @@ export default function MessageItem({
         // DELIVERED status - "Đã gửi"
         if (status === 'DELIVERED') {
             return (
-                <Typography fontSize={11} color="#65676b">
+                <Typography fontSize={11} color="text.secondary">
                     Đã gửi
                 </Typography>
             );
@@ -148,7 +152,7 @@ export default function MessageItem({
 
         // SENT status - "Đã gửi" (chưa được nhận)
         return (
-            <Typography fontSize={11} color="#65676b">
+            <Typography fontSize={11} color="text.secondary">
                 Đã gửi
             </Typography>
         );
@@ -170,7 +174,7 @@ export default function MessageItem({
                     bottom: -10,
                     right: isOwn ? 8 : 'auto',
                     left: isOwn ? 'auto' : 8,
-                    bgcolor: 'white',
+                    bgcolor: 'background.paper',
                     borderRadius: '10px',
                     px: '6px',
                     py: '2px',
@@ -179,7 +183,7 @@ export default function MessageItem({
                     boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                     cursor: 'pointer',
                     zIndex: 10,
-                    border: '1px solid #e4e6eb',
+                    border: `1px solid ${theme.palette.divider}`,
                 }}
                 onClick={() => setEmotionDialogOpen(true)}
             >
@@ -191,7 +195,7 @@ export default function MessageItem({
                     ))}
                 </Box>
                 {totalCount > 1 && (
-                    <Typography fontSize={11} fontWeight={600} color="#65676b" sx={{ ml: 0.3 }}>
+                    <Typography fontSize={11} fontWeight={600} color="text.secondary" sx={{ ml: 0.3 }}>
                         {totalCount}
                     </Typography>
                 )}
@@ -232,7 +236,7 @@ export default function MessageItem({
             );
         if (fileName.match(/\.(ppt|pptx)$/i))
             return <DescriptionIcon sx={{ color: '#d24726', fontSize: 40 }} />;
-        return <InsertDriveFileIcon sx={{ color: '#65676b', fontSize: 40 }} />;
+        return <InsertDriveFileIcon sx={{ color: 'text.secondary', fontSize: 40 }} />;
     };
 
     // Render attachments (images/videos/files)
@@ -316,15 +320,15 @@ export default function MessageItem({
                                 cursor: 'pointer',
                                 gap: 1.5,
                                 p: 1.5,
-                                bgcolor: '#fff',
+                                bgcolor: 'background.paper',
                                 borderRadius: 2,
                                 textDecoration: 'none',
                                 maxWidth: 280,
                                 mb: index < documentAttachments.length - 1 ? 0.5 : 0,
-                                border: isOwn ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e4e6eb',
+                                border: `1px solid ${theme.palette.divider}`,
                                 transition: 'all 0.2s',
                                 '&:hover': {
-                                    bgcolor: '#f0f2f5',
+                                    bgcolor: hoverBg,
                                 }
                             }}
                         >
@@ -334,22 +338,22 @@ export default function MessageItem({
                                     fontSize={13}
                                     fontWeight={500}
                                     noWrap
-                                    sx={{ color: '#050505' }}
+                                    sx={{ color: 'text.primary' }}
                                 >
                                     {fileName}
                                 </Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                     {fileSize && (
-                                        <Typography fontSize={11} sx={{ color: '#65676b' }}>
+                                        <Typography fontSize={11} sx={{ color: 'text.secondary' }}>
                                             {formatFileSize(fileSize)}
                                         </Typography>
                                     )}
-                                    <Typography fontSize={11} sx={{ color: '#65676b' }}>
+                                    <Typography fontSize={11} sx={{ color: 'text.secondary' }}>
                                         {fileSize ? ' · ' : ''}Tải về để xem lâu dài
                                     </Typography>
                                 </Box>
                             </Box>
-                            <DownloadIcon sx={{ color: '#65676b', fontSize: 24 }} />
+                            <DownloadIcon sx={{ color: 'text.secondary', fontSize: 24 }} />
                         </Box>
                     );
                 })}
@@ -371,10 +375,10 @@ export default function MessageItem({
                 <Typography
                     sx={{
                         fontSize: 12,
-                        color: '#65676b',
+                        color: 'text.secondary',
                         fontStyle: 'italic',
                         textAlign: 'center',
-                        bgcolor: 'rgba(0,0,0,0.05)',
+                        bgcolor: 'action.selected',
                         px: 2,
                         py: 0.5,
                         borderRadius: 3,
@@ -471,9 +475,11 @@ export default function MessageItem({
                             <Paper
                                 elevation={0}
                                 sx={{
-                                    background: 'linear-gradient(135deg, #f6f8fc 0%, #f0f4ff 100%)',
-                                    border: '1px solid rgba(102, 126, 234, 0.15)',
-                                    color: '#1a1a2e',
+                                    background: isDark
+                                        ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)'
+                                        : 'linear-gradient(135deg, #f6f8fc 0%, #f0f4ff 100%)',
+                                    border: isDark ? '1px solid rgba(102, 126, 234, 0.3)' : '1px solid rgba(102, 126, 234, 0.15)',
+                                    color: 'text.primary',
                                     borderRadius: '4px 18px 18px 18px',
                                     overflow: 'hidden',
                                     position: 'relative',
@@ -576,7 +582,7 @@ export default function MessageItem({
                         </Box>
 
                         {/* Time */}
-                        <Typography sx={{ fontSize: 11, color: '#65676b', mt: 0.3, px: 0.5 }}>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.3, px: 0.5 }}>
                             {formatTime(message.createdAt)}
                         </Typography>
                     </Box>
@@ -591,7 +597,7 @@ export default function MessageItem({
                             transition: 'opacity 0.15s',
                             gap: 0.2,
                             zIndex: 100,
-                            bgcolor: 'white',
+                            bgcolor: 'background.paper',
                             borderRadius: 3,
                             boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                             px: 0.5,
@@ -599,11 +605,11 @@ export default function MessageItem({
                             alignSelf: 'center',
                         }}
                     >
-                        <IconButton size="small" onClick={handleReactionOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
-                            <SentimentSatisfiedAltIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                        <IconButton size="small" onClick={handleReactionOpen} sx={{ p: 0.4, '&:hover': { bgcolor: hoverBg } }}>
+                            <SentimentSatisfiedAltIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
                         </IconButton>
-                        <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
-                            <ReplyIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                        <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: hoverBg } }}>
+                            <ReplyIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
                         </IconButton>
                     </Box>
                 </Box>
@@ -681,8 +687,8 @@ export default function MessageItem({
                             <Paper
                                 elevation={0}
                                 sx={{
-                                    bgcolor: isOwn ? themeColor : "#e4e6eb",
-                                    color: "black",
+                                    bgcolor: isOwn ? themeColor : (isDark ? 'action.selected' : "#e4e6eb"),
+                                    color: isOwn ? 'white' : 'text.primary',
                                     borderRadius: '18px',
                                     overflow: 'hidden',
                                     maxWidth: 280,
@@ -724,7 +730,7 @@ export default function MessageItem({
                                     <Typography
                                         variant="caption"
                                         sx={{
-                                            color: isOwn ? 'white' : 'black',
+                                            color: isOwn ? 'white' : 'text.primary',
                                             fontSize: 11,
                                         }}
                                     >
@@ -787,7 +793,7 @@ export default function MessageItem({
                                 <Box sx={{ p: 1.5 }}>
                                     <Typography
                                         sx={{
-                                            color: isOwn ? 'white' : 'black',
+                                            color: isOwn ? 'white' : 'text.primary',
                                             fontSize: 14,
                                             wordBreak: 'break-word',
                                             whiteSpace: 'pre-wrap',
@@ -1048,18 +1054,20 @@ export default function MessageItem({
                         {message.replyTo && (
                             <Box
                                 sx={{
-                                    bgcolor: isOwn ? '#d8dadf' : '#d8dadf',
+                                    bgcolor: isOwn ? 'action.hover' : 'action.hover',
                                     px: 1.5,
                                     py: 0.8,
                                     borderRadius: '12px',
                                     mb: 0.5,
                                     maxWidth: 250,
                                     cursor: 'pointer',
+                                    border: isOwn ? 'none' : `1px solid ${theme.palette.divider}`,
+
                                 }}
                             >
                                 <Typography
                                     fontSize={13}
-                                    color={'#65676b'}
+                                    color="text.secondary"
                                     noWrap
                                     sx={{ fontStyle: 'italic' }}
                                 >
@@ -1078,8 +1086,8 @@ export default function MessageItem({
                                 <Paper
                                     elevation={0}
                                     sx={{
-                                        bgcolor: message.attachments?.length && !message.content ? 'transparent' : (isOwn ? themeColor : "#e4e6eb"),
-                                        color: isOwn ? "white" : "#050505",
+                                        bgcolor: message.attachments?.length && !message.content ? 'transparent' : (isOwn ? themeColor : "action.hover"),
+                                        color: isOwn ? "white" : "text.primary",
                                         borderRadius: '18px',
                                         overflow: 'hidden',
                                         position: 'relative',
@@ -1100,7 +1108,7 @@ export default function MessageItem({
                                                     onChange={(e) => setEditContent(e.target.value)}
                                                     InputProps={{
                                                         disableUnderline: true,
-                                                        sx: { color: 'black', fontSize: 15, backgroundColor: "white", borderRadius: "15px", padding: "2px 5px" }
+                                                        sx: { color: 'text.primary', fontSize: 15, backgroundColor: "background.paper", borderRadius: "15px", padding: "2px 5px" }
                                                     }}
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); }
@@ -1138,25 +1146,25 @@ export default function MessageItem({
                                     flexDirection: isOwn ? 'row-reverse' : 'row',
                                     gap: 0.2,
                                     zIndex: 100,
-                                    bgcolor: 'white',
+                                    bgcolor: 'background.paper',
                                     borderRadius: 3,
                                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                                     px: 0.5,
                                     py: 0.2,
                                 }}
                             >
-                                <IconButton size="small" onClick={handleReactionOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
-                                    <SentimentSatisfiedAltIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                                <IconButton size="small" onClick={handleReactionOpen} sx={{ p: 0.4, '&:hover': { bgcolor: 'action.hover' } }}>
+                                    <SentimentSatisfiedAltIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
                                 </IconButton>
-                                <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
-                                    <ReplyIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                                <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: 'action.hover' } }}>
+                                    <ReplyIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
                                 </IconButton>
                                 {isOwn &&
-                                    <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4, '&:hover': { bgcolor: '#f0f2f5' } }}>
-                                        <MoreHorizIcon sx={{ fontSize: 17, color: '#65676b' }} />
+                                    <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4, '&:hover': { bgcolor: 'action.hover' } }}>
+                                        <MoreHorizIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
                                     </IconButton>
                                 }
-                                <Typography variant="caption" color="#65676b" sx={{ fontSize: 11, mx: 0.5, whiteSpace: 'nowrap' }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11, mx: 0.5, whiteSpace: 'nowrap' }}>
                                     {formatTime(message.createdAt)}
                                 </Typography>
                             </Box>
@@ -1179,7 +1187,7 @@ export default function MessageItem({
                     slotProps={{
                         paper: {
                             sx: {
-                                bgcolor: 'white',
+                                bgcolor: 'background.paper',
                                 borderRadius: 2,
                                 minWidth: 150,
                                 boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
@@ -1190,7 +1198,7 @@ export default function MessageItem({
                     }}
                 >
                     {canEdit && (
-                        <MenuItem onClick={handleEdit} sx={{ fontSize: 14, color: '#050505', py: 1 }}>
+                        <MenuItem onClick={handleEdit} sx={{ fontSize: 14, color: 'text.primary', py: 1 }}>
                             <EditIcon sx={{ mr: 1.5, fontSize: 18, color: '#65676b' }} /> Chỉnh sửa
                         </MenuItem>
                     )}
@@ -1211,7 +1219,7 @@ export default function MessageItem({
                     slotProps={{
                         paper: {
                             sx: {
-                                bgcolor: 'white',
+                                bgcolor: 'background.paper',
                                 borderRadius: '28px',
                                 // boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
                                 border: 'none',
@@ -1242,51 +1250,52 @@ export default function MessageItem({
                     </Box>
                 </Popover>
             </Box>
-
             {/* Image Preview Modal */}
-            {imagePreview && (
-                <Box
-                    onClick={() => setImagePreview(null)}
-                    sx={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        bgcolor: 'rgba(0,0,0,0.9)',
-                        zIndex: 9999,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                    }}
-                >
+            {
+                imagePreview && (
                     <Box
-                        component="img"
-                        src={imagePreview}
-                        sx={{
-                            maxWidth: '90vw',
-                            maxHeight: '90vh',
-                            objectFit: 'contain',
-                            borderRadius: 2,
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                    <IconButton
                         onClick={() => setImagePreview(null)}
                         sx={{
-                            position: 'absolute',
-                            top: 20,
-                            right: 20,
-                            color: 'white',
-                            bgcolor: 'rgba(255,255,255,0.2)',
-                            '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            bgcolor: 'rgba(0,0,0,0.9)',
+                            zIndex: 9999,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
                         }}
                     >
-                        <Typography fontSize={24}>×</Typography>
-                    </IconButton>
-                </Box>
-            )}
+                        <Box
+                            component="img"
+                            src={imagePreview}
+                            sx={{
+                                maxWidth: '90vw',
+                                maxHeight: '90vh',
+                                objectFit: 'contain',
+                                borderRadius: 2,
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        <IconButton
+                            onClick={() => setImagePreview(null)}
+                            sx={{
+                                position: 'absolute',
+                                top: 20,
+                                right: 20,
+                                color: 'white',
+                                bgcolor: 'rgba(255,255,255,0.2)',
+                                '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
+                            }}
+                        >
+                            <Typography fontSize={24}>×</Typography>
+                        </IconButton>
+                    </Box>
+                )
+            }
 
             {/* Emotion List Dialog */}
             <EmotionListDialog

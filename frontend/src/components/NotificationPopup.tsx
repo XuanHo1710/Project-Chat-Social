@@ -15,6 +15,8 @@ import {
     Button,
     CircularProgress,
     Skeleton,
+    useTheme,
+    alpha,
 } from '@mui/material';
 import {
     MoreHoriz as MoreIcon,
@@ -35,6 +37,8 @@ interface NotificationPopupProps {
 
 export default function NotificationPopup({ onUnreadCountChange }: NotificationPopupProps) {
     const router = useRouter();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const { user, accessToken } = useAuthStore();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +46,9 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all');
     const [respondingId, setRespondingId] = useState<string | null>(null);
     const [socket, setSocket] = useState<Socket | null>(null);
+
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : 'action.hover';
+    const selectedBg = isDark ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.primary.main, 0.1);
 
     // Connect to notification socket
     useEffect(() => {
@@ -224,9 +231,9 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 px: 1.5,
                 mx: 1,
                 borderRadius: '8px',
-                bgcolor: notification.status === NotificationStatus.UNREAD ? 'rgba(24, 119, 242, 0.08)' : 'transparent',
+                bgcolor: notification.status === NotificationStatus.UNREAD ? (isDark ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.primary.main, 0.08)) : 'transparent',
                 '&:hover': {
-                    bgcolor: notification.status === NotificationStatus.UNREAD ? 'rgba(24, 119, 242, 0.12)' : '#f0f2f5',
+                    bgcolor: notification.status === NotificationStatus.UNREAD ? (isDark ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.primary.main, 0.12)) : 'action.hover',
                 },
             }}
         >
@@ -248,14 +255,14 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                                 position: 'absolute',
                                 bottom: -2,
                                 right: -2,
-                                bgcolor: '#1877f2',
+                                bgcolor: 'primary.main',
                                 borderRadius: '50%',
                                 width: 24,
                                 height: 24,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                border: '2px solid white',
+                                border: `2px solid ${theme.palette.background.paper}`,
                             }}
                         >
                             {getNotificationIcon(notification.type)}
@@ -269,7 +276,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         sx={{
                             fontSize: 15,
                             fontWeight: notification.status === NotificationStatus.UNREAD ? 600 : 400,
-                            color: '#050505',
+                            color: 'text.primary',
                             display: '-webkit-box',
                             WebkitLineClamp: 3,
                             WebkitBoxOrient: 'vertical',
@@ -285,7 +292,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         <Typography
                             sx={{
                                 fontSize: 13,
-                                color: notification.status === NotificationStatus.UNREAD ? '#1877f2' : '#65676b',
+                                color: notification.status === NotificationStatus.UNREAD ? 'primary.main' : 'text.secondary',
                                 fontWeight: notification.status === NotificationStatus.UNREAD ? 600 : 400,
                             }}
                         >
@@ -293,12 +300,12 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         </Typography>
                         {notification.type === NotificationType.GROUP_INVITATION && notification.actionStatus === 'PENDING' && (
                             <>
-                                <Typography sx={{ color: '#65676b', fontSize: 13 }}>·</Typography>
-                                <Typography sx={{ color: '#65676b', fontSize: 13 }}>
+                                <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>·</Typography>
+                                <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>
                                     {/* {notification.totalReacts || 0} cảm xúc */}
                                 </Typography>
-                                <Typography sx={{ color: '#65676b', fontSize: 13 }}>·</Typography>
-                                <Typography sx={{ color: '#65676b', fontSize: 13 }}>
+                                <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>·</Typography>
+                                <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>
                                     {/* {notification.totalComments || 0} bình luận */}
                                 </Typography>
                             </>
@@ -312,7 +319,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         width: 12,
                         height: 12,
                         borderRadius: '50%',
-                        bgcolor: '#1877f2',
+                        bgcolor: 'primary.main',
                         ml: 1,
                         flexShrink: 0,
                     }}
@@ -330,19 +337,17 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 right: 0,
                 width: 400,
                 maxHeight: 'calc(100vh - 70px)',
-                bgcolor: 'white',
                 borderRadius: '8px',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
-                boxShadow: '0 12px 28px 0 rgba(0, 0, 0, 0.2), 0 2px 4px 0 rgba(0, 0, 0, 0.1), inset 0 0 0 1px rgba(255,255,255,0.5)',
                 zIndex: 1300,
             }}
         >
             {/* Header */}
             <Box sx={{ px: 2, pt: 2.5, pb: 1.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography sx={{ fontSize: 24, fontWeight: 700, color: '#050505' }}>
+                    <Typography sx={{ fontSize: 24, fontWeight: 700, color: 'text.primary' }}>
                         Thông báo
                     </Typography>
                     <IconButton
@@ -351,11 +356,10 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         sx={{
                             width: 36,
                             height: 36,
-                            bgcolor: '#e4e6eb',
-                            '&:hover': { bgcolor: '#d8dadf' },
+                            bgcolor: 'action.hover',
                         }}
                     >
-                        <MoreIcon sx={{ fontSize: 20, color: '#050505' }} />
+                        <MoreIcon sx={{ fontSize: 20, color: 'text.primary' }} />
                     </IconButton>
                 </Box>
 
@@ -367,13 +371,13 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             px: 2,
                             py: 1,
                             borderRadius: '20px',
-                            bgcolor: activeTab === 'all' ? '#e7f3ff' : 'transparent',
-                            color: activeTab === 'all' ? '#1877f2' : '#65676b',
+                            bgcolor: activeTab === 'all' ? selectedBg : 'transparent',
+                            color: activeTab === 'all' ? 'primary.main' : 'text.secondary',
                             fontSize: 15,
                             fontWeight: 600,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
-                            '&:hover': { bgcolor: activeTab === 'all' ? '#e7f3ff' : '#f0f2f5' },
+                            '&:hover': { bgcolor: activeTab === 'all' ? selectedBg : hoverBg },
                         }}
                     >
                         Tất cả
@@ -384,13 +388,13 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             px: 2,
                             py: 1,
                             borderRadius: '20px',
-                            bgcolor: activeTab === 'unread' ? '#e7f3ff' : 'transparent',
-                            color: activeTab === 'unread' ? '#1877f2' : '#65676b',
+                            bgcolor: activeTab === 'unread' ? selectedBg : 'transparent',
+                            color: activeTab === 'unread' ? 'primary.main' : 'text.secondary',
                             fontSize: 15,
                             fontWeight: 600,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
-                            '&:hover': { bgcolor: activeTab === 'unread' ? '#e7f3ff' : '#f0f2f5' },
+                            '&:hover': { bgcolor: activeTab === 'unread' ? selectedBg : hoverBg },
                         }}
                     >
                         Chưa đọc
@@ -425,7 +429,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                     </Box>
                 ) : filteredNotifications.length === 0 ? (
                     <Box sx={{ p: 4, textAlign: 'center' }}>
-                        <Typography sx={{ color: '#65676b', fontSize: 15 }}>
+                        <Typography sx={{ color: 'text.secondary', fontSize: 15 }}>
                             {activeTab === 'unread' ? 'Không có thông báo chưa đọc' : 'Chưa có thông báo nào'}
                         </Typography>
                     </Box>
@@ -435,13 +439,13 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         {today.length > 0 && (
                             <>
                                 <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <Typography sx={{ fontWeight: 600, fontSize: 17, color: '#050505' }}>
+                                    <Typography sx={{ fontWeight: 600, fontSize: 17, color: 'text.primary' }}>
                                         Mới
                                     </Typography>
                                     <Typography
                                         onClick={() => router.push('/notifications')}
                                         sx={{
-                                            color: '#1877f2',
+                                            color: 'primary.main',
                                             fontSize: 15,
                                             cursor: 'pointer',
                                             '&:hover': { textDecoration: 'underline' }
@@ -458,7 +462,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         {earlier.length > 0 && (
                             <>
                                 <Box sx={{ px: 2, py: 1, mt: 1 }}>
-                                    <Typography sx={{ fontWeight: 600, fontSize: 17, color: '#050505' }}>
+                                    <Typography sx={{ fontWeight: 600, fontSize: 17, color: 'text.primary' }}>
                                         Trước đó
                                     </Typography>
                                 </Box>
@@ -469,13 +473,13 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         {/* If no today notifications but has earlier */}
                         {today.length === 0 && earlier.length > 0 && (
                             <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <Typography sx={{ fontWeight: 600, fontSize: 17, color: '#050505' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 17, color: 'text.primary' }}>
                                     Tất cả thông báo
                                 </Typography>
                                 <Typography
                                     onClick={() => router.push('/notifications')}
                                     sx={{
-                                        color: '#1877f2',
+                                        color: 'primary.main',
                                         fontSize: 15,
                                         cursor: 'pointer',
                                         '&:hover': { textDecoration: 'underline' }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppBar, Toolbar, Box, InputBase, IconButton, Avatar, Badge, ClickAwayListener, Tooltip, Typography } from '@mui/material';
+import { AppBar, Toolbar, Box, InputBase, IconButton, Avatar, Badge, ClickAwayListener, Tooltip, Typography, useTheme } from '@mui/material';
 import {
     Search as SearchIcon,
     Home as HomeIcon,
@@ -212,13 +212,22 @@ export default function Header() {
         }
     }, [showChatPopup, user?.id, refetchConversations]);
 
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+
+    // Theme variables
+    const searchBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const searchHoverBg = isDark ? 'rgba(255,255,255,0.15)' : '#e4e6eb';
+    const iconBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const iconActiveBg = isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf';
+
     return (
         <AppBar
             position="fixed"
             sx={{
-                bgcolor: 'white',
+                bgcolor: 'background.paper',
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                borderBottom: '1px solid #e4e6eb'
+                borderBottom: `1px solid ${theme.palette.divider}`
             }}
         >
             <Toolbar sx={{ justifyContent: 'space-between', py: 0.5 }}>
@@ -230,7 +239,7 @@ export default function Header() {
                                 width: 40,
                                 height: 40,
                                 borderRadius: '50%',
-                                bgcolor: '#1877f2',
+                                bgcolor: 'primary.main',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -252,20 +261,20 @@ export default function Header() {
                             sx={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                bgcolor: '#f0f2f5',
+                                bgcolor: searchBg,
                                 borderRadius: '50px',
                                 px: 2,
                                 py: 1,
                                 maxWidth: 240,
                                 width: '100%',
                                 cursor: 'pointer',
-                                '&:hover': { bgcolor: '#e4e6eb' }
+                                '&:hover': { bgcolor: searchHoverBg }
                             }}
                         >
-                            <SearchIcon sx={{ color: '#65676b', mr: 1 }} />
+                            <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
                             <Typography
                                 sx={{
-                                    color: '#65676b',
+                                    color: 'text.secondary',
                                     fontSize: 15
                                 }}
                             >
@@ -291,9 +300,9 @@ export default function Header() {
                                     px: 4,
                                     py: 1.5,
                                     borderRadius: pathname === '/' ? 0 : 2,
-                                    borderBottom: pathname === '/' ? '3px solid #1877f2' : 'none',
-                                    color: pathname === '/' ? '#1877f2' : '#65676b',
-                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                    borderBottom: pathname === '/' ? '3px solid' : 'none',
+                                    borderBottomColor: 'primary.main',
+                                    color: pathname === '/' ? 'primary.main' : 'text.secondary',
                                 }}
                             >
                                 {pathname === '/' ? <HomeIcon sx={{ fontSize: 28 }} /> : <HomeOutlinedIcon sx={{ fontSize: 28 }} />}
@@ -307,9 +316,9 @@ export default function Header() {
                                     px: 4,
                                     py: 1.5,
                                     borderRadius: pathname === '/friends' ? 0 : 2,
-                                    borderBottom: pathname === '/friends' ? '3px solid #1877f2' : 'none',
-                                    color: pathname === '/friends' ? '#1877f2' : '#65676b',
-                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                    borderBottom: pathname === '/friends' ? '3px solid' : 'none',
+                                    borderBottomColor: 'primary.main',
+                                    color: pathname === '/friends' ? 'primary.main' : 'text.secondary',
                                 }}
                             >
                                 {pathname === '/friends' ? <PeopleIcon sx={{ fontSize: 28 }} /> : <PeopleOutlinedIcon sx={{ fontSize: 28 }} />}
@@ -323,9 +332,9 @@ export default function Header() {
                                     px: 4,
                                     py: 1.5,
                                     borderRadius: pathname === '/reels' ? 0 : 2,
-                                    borderBottom: pathname === '/reels' ? '3px solid #1877f2' : 'none',
-                                    color: pathname === '/reels' ? '#1877f2' : '#65676b',
-                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                    borderBottom: pathname === '/reels' ? '3px solid' : 'none',
+                                    borderBottomColor: 'primary.main',
+                                    color: pathname === '/reels' ? 'primary.main' : 'text.secondary',
                                 }}
                             >
                                 {pathname === '/reels' ? <OndemandVideoIcon sx={{ fontSize: 28 }} /> : <OndemandVideoOutlinedIcon sx={{ fontSize: 28 }} />}
@@ -339,9 +348,9 @@ export default function Header() {
                                     px: 4,
                                     py: 1.5,
                                     borderRadius: pathname?.startsWith('/groups') ? 0 : 2,
-                                    borderBottom: pathname?.startsWith('/groups') ? '3px solid #1877f2' : 'none',
-                                    color: pathname?.startsWith('/groups') ? '#1877f2' : '#65676b',
-                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                    borderBottom: pathname?.startsWith('/groups') ? '3px solid' : 'none',
+                                    borderBottomColor: 'primary.main',
+                                    color: pathname?.startsWith('/groups') ? 'primary.main' : 'text.secondary',
                                 }}
                             >
                                 {pathname?.startsWith('/groups') ? <GroupsIcon sx={{ fontSize: 28 }} /> : <GroupsOutlinedIcon sx={{ fontSize: 28 }} />}
@@ -355,9 +364,9 @@ export default function Header() {
                                     px: 4,
                                     py: 1.5,
                                     borderRadius: pathname === '/games' ? 0 : 2,
-                                    borderBottom: pathname === '/games' ? '3px solid #1877f2' : 'none',
-                                    color: pathname === '/games' ? '#1877f2' : '#65676b',
-                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                    borderBottom: pathname === '/games' ? '3px solid' : 'none',
+                                    borderBottomColor: 'primary.main',
+                                    color: pathname === '/games' ? 'primary.main' : 'text.secondary',
                                 }}
                             >
                                 {pathname === '/games' ? <GamesIcon sx={{ fontSize: 28 }} /> : <GamesOutlinedIcon sx={{ fontSize: 28 }} />}
@@ -365,6 +374,7 @@ export default function Header() {
                         </Link>
                     </Tooltip>
                 </Box>
+
 
                 {/* Right Section - Icons & Avatar */}
                 <Box
@@ -379,13 +389,12 @@ export default function Header() {
                 >
                     <IconButton
                         sx={{
-                            bgcolor: '#e4e6eb',
+                            bgcolor: iconBg,
                             width: 40,
                             height: 40,
-                            '&:hover': { bgcolor: '#d8dadf' }
                         }}
                     >
-                        <AppsIcon sx={{ color: '#050505' }} />
+                        <AppsIcon sx={{ color: 'text.primary' }} />
                     </IconButton>
 
                     <Box sx={{ position: 'relative' }}>
@@ -395,14 +404,15 @@ export default function Header() {
                                 setShowNotificationPopup(false);
                             }}
                             sx={{
-                                bgcolor: showChatPopup ? '#d8dadf' : '#e4e6eb',
+                                bgcolor: showChatPopup
+                                    ? iconActiveBg
+                                    : iconBg,
                                 width: 40,
                                 height: 40,
-                                '&:hover': { bgcolor: '#d8dadf' }
                             }}
                         >
                             <Badge badgeContent={chatUnreadCount > 0 ? chatUnreadCount : undefined} color="error">
-                                <MessageIcon sx={{ color: '#050505' }} />
+                                <MessageIcon sx={{ color: 'text.primary' }} />
                             </Badge>
                         </IconButton>
 
@@ -426,14 +436,15 @@ export default function Header() {
                                 setShowChatPopup(false);
                             }}
                             sx={{
-                                bgcolor: showNotificationPopup ? '#d8dadf' : '#e4e6eb',
+                                bgcolor: showNotificationPopup
+                                    ? iconActiveBg
+                                    : iconBg,
                                 width: 40,
                                 height: 40,
-                                '&:hover': { bgcolor: '#d8dadf' }
                             }}
                         >
                             <Badge badgeContent={notificationUnreadCount > 0 ? notificationUnreadCount : undefined} color="error">
-                                <NotificationsIcon sx={{ color: '#050505' }} />
+                                <NotificationsIcon sx={{ color: 'text.primary' }} />
                             </Badge>
                         </IconButton>
 
@@ -457,7 +468,7 @@ export default function Header() {
                                 width: 40,
                                 height: 40,
                                 cursor: 'pointer',
-                                border: showAvatarMenu ? '2px solid #1877f2' : 'none'
+                                border: showAvatarMenu ? `2px solid ${theme.palette.primary.main}` : 'none'
                             }}
                             alt={user?.fullName || user?.username || 'User'}
                             src={user?.avatar || '/avatar-placeholder.jpg'}

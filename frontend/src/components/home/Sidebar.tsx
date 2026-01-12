@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Box, List, ListItemButton, ListItemIcon, ListItemText, Avatar, Divider, Collapse, Skeleton, Typography } from '@mui/material';
+import { Box, List, ListItemButton, ListItemIcon, ListItemText, Avatar, Divider, Collapse, Skeleton, Typography, useTheme } from '@mui/material';
 import {
-    Group as GroupIcon,
+    Groups as GroupsIcon,
     People as PeopleIcon,
     OndemandVideo as VideoIcon,
     Bookmark as BookmarkIcon,
@@ -21,6 +21,8 @@ import { GroupWithMembership } from '@/types/group';
 export default function Sidebar() {
     const { user } = useAuthStore();
     const router = useRouter();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [expanded, setExpanded] = useState(false);
     const [userGroups, setUserGroups] = useState<GroupWithMembership[]>([]);
     const [loadingGroups, setLoadingGroups] = useState(true);
@@ -51,7 +53,7 @@ export default function Sidebar() {
             path: user?.username ? CLIENT_PATH.PROFILE_BY_USERNAME(user.username) : '/'
         },
         { icon: <PeopleIcon sx={{ fontSize: 28 }} />, label: 'Bạn bè', path: '/friends', color: '#1877f2' },
-        { icon: <GroupIcon sx={{ fontSize: 28 }} />, label: 'Nhóm', path: '/groups', color: '#1877f2' },
+        { icon: <GroupsIcon sx={{ fontSize: 28 }} />, label: 'Nhóm', path: '/groups', color: '#1e9f1cff' },
         { icon: <VideoIcon sx={{ fontSize: 28 }} />, label: 'Watch', path: '/reels', color: '#1877f2' },
         { icon: <BookmarkIcon sx={{ fontSize: 28 }} />, label: 'Đã lưu', path: '/saved', color: '#a333c8' },
     ];
@@ -68,6 +70,9 @@ export default function Sidebar() {
     const handleGroupClick = (groupId: string) => {
         router.push(`/groups/${groupId}`);
     };
+
+    const hoverBgColor = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const iconBgColor = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
 
     return (
         <Box
@@ -89,7 +94,7 @@ export default function Sidebar() {
                     borderRadius: '4px',
                 },
                 '&:hover::-webkit-scrollbar-thumb': {
-                    backgroundColor: '#bcc0c4',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : '#bcc0c4',
                 },
             }}
         >
@@ -102,7 +107,7 @@ export default function Sidebar() {
                             borderRadius: 2,
                             py: 1,
                             '&:hover': {
-                                bgcolor: '#e4e6eb',
+                                bgcolor: hoverBgColor,
                             },
                         }}
                     >
@@ -122,7 +127,7 @@ export default function Sidebar() {
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        color: item.color || '#1877f2',
+                                        color: item.color || 'primary.main',
                                     }}
                                 >
                                     {item.icon}
@@ -134,7 +139,7 @@ export default function Sidebar() {
                             primaryTypographyProps={{
                                 fontSize: '15px',
                                 fontWeight: 500,
-                                color: '#050505',
+                                color: 'text.primary',
                             }}
                         />
                     </ListItemButton>
@@ -147,7 +152,7 @@ export default function Sidebar() {
                         borderRadius: 2,
                         py: 1,
                         '&:hover': {
-                            bgcolor: '#e4e6eb',
+                            bgcolor: hoverBgColor,
                         },
                     }}
                 >
@@ -159,11 +164,11 @@ export default function Sidebar() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                bgcolor: '#e4e6eb',
+                                bgcolor: iconBgColor,
                                 borderRadius: '50%',
                             }}
                         >
-                            {expanded ? <ArrowUpIcon /> : <ArrowDownIcon />}
+                            {expanded ? <ArrowUpIcon sx={{ color: 'text.primary' }} /> : <ArrowDownIcon sx={{ color: 'text.primary' }} />}
                         </Box>
                     </ListItemIcon>
                     <ListItemText
@@ -171,7 +176,7 @@ export default function Sidebar() {
                         primaryTypographyProps={{
                             fontSize: '15px',
                             fontWeight: 500,
-                            color: '#050505',
+                            color: 'text.primary',
                         }}
                     />
                 </ListItemButton>
@@ -186,7 +191,7 @@ export default function Sidebar() {
                                 borderRadius: 2,
                                 py: 1,
                                 '&:hover': {
-                                    bgcolor: '#e4e6eb',
+                                    bgcolor: hoverBgColor,
                                 },
                             }}
                         >
@@ -209,7 +214,7 @@ export default function Sidebar() {
                                 primaryTypographyProps={{
                                     fontSize: '15px',
                                     fontWeight: 500,
-                                    color: '#050505',
+                                    color: 'text.primary',
                                 }}
                             />
                         </ListItemButton>
@@ -226,7 +231,7 @@ export default function Sidebar() {
                         sx={{
                             fontSize: '17px',
                             fontWeight: 600,
-                            color: '#65676b',
+                            color: 'text.secondary',
                         }}
                     >
                         Lối tắt của bạn
@@ -256,7 +261,7 @@ export default function Sidebar() {
                                     borderRadius: 2,
                                     py: 1,
                                     '&:hover': {
-                                        bgcolor: '#e4e6eb',
+                                        bgcolor: hoverBgColor,
                                     },
                                 }}
                             >
@@ -268,10 +273,10 @@ export default function Sidebar() {
                                             width: 36,
                                             height: 36,
                                             borderRadius: 1.5,
-                                            bgcolor: '#e4e6eb',
+                                            bgcolor: iconBgColor,
                                         }}
                                     >
-                                        <GroupIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                                        <GroupsIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                                     </Avatar>
                                 </ListItemIcon>
                                 <ListItemText
@@ -279,7 +284,7 @@ export default function Sidebar() {
                                     primaryTypographyProps={{
                                         fontSize: '16px',
                                         fontWeight: 500,
-                                        color: '#050505',
+                                        color: 'text.primary',
                                         noWrap: true,
                                         sx: {
                                             overflow: 'hidden',
@@ -292,7 +297,7 @@ export default function Sidebar() {
                         ))
                     ) : (
                         <Box sx={{ px: 2, py: 1.5 }}>
-                            <Typography sx={{ fontSize: 14, color: '#65676b' }}>
+                            <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
                                 Chưa tham gia nhóm nào
                             </Typography>
                         </Box>
@@ -306,7 +311,7 @@ export default function Sidebar() {
                                 borderRadius: 2,
                                 py: 1,
                                 '&:hover': {
-                                    bgcolor: '#e4e6eb',
+                                    bgcolor: hoverBgColor,
                                 },
                             }}
                         >
@@ -318,11 +323,11 @@ export default function Sidebar() {
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        bgcolor: '#e4e6eb',
+                                        bgcolor: iconBgColor,
                                         borderRadius: 1.5,
                                     }}
                                 >
-                                    <GroupIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                                    <GroupsIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                                 </Box>
                             </ListItemIcon>
                             <ListItemText
@@ -330,7 +335,7 @@ export default function Sidebar() {
                                 primaryTypographyProps={{
                                     fontSize: '15px',
                                     fontWeight: 500,
-                                    color: '#1877f2',
+                                    color: 'primary.main',
                                 }}
                             />
                         </ListItemButton>
@@ -340,7 +345,7 @@ export default function Sidebar() {
 
             {/* Footer */}
             <Box sx={{ px: 2, py: 2, mt: 2 }}>
-                <Typography sx={{ fontSize: 12, color: '#65676b', lineHeight: 1.5 }}>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.5 }}>
                     Quyền riêng tư · Điều khoản · Quảng cáo · Lựa chọn quảng cáo · Cookie · Xem thêm · Meta © 2024
                 </Typography>
             </Box>

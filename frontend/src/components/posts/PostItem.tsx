@@ -1,6 +1,6 @@
 'use client';
 import {
-    Box, Card, CardContent, Avatar, Typography, IconButton, Divider, keyframes
+    Box, Card, CardContent, Avatar, Typography, IconButton, Divider, keyframes, useTheme
 } from '@mui/material';
 import {
     MoreHoriz as MoreIcon,
@@ -56,6 +56,8 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
     groupId,
 }, ref) {
     const router = useRouter();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [reactionListOpen, setReactionListOpen] = useState(false);
 
     // Use selector to get specific post reaction state - ensures re-render on change
@@ -88,16 +90,17 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
         }
     };
 
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+
     return (
         <Card
             ref={ref}
             sx={{
                 mb: 2,
                 borderRadius: 2,
-                bgcolor: 'white',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
                 ...(isHighlighted && {
-                    border: '2px solid #1877f2',
+                    border: `2px solid ${theme.palette.primary.main}`,
                     animation: `${highlightPulse} 1.5s ease-in-out 3`,
                 })
             }}
@@ -115,7 +118,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                     height: 40,
                                     cursor: 'pointer',
                                     '&:hover': { opacity: 0.9 },
-                                    bgcolor: '#e4e6eb',
+                                    bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
                                 }}
                                 src={groupAvatar}
                                 onClick={handleGroupClick}
@@ -128,10 +131,10 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                     position: 'absolute',
                                     bottom: -4,
                                     right: -4,
-                                    border: '2px solid white',
+                                    border: `2px solid ${theme.palette.background.paper}`,
                                     cursor: post.isAnonymous ? 'default' : 'pointer',
                                     '&:hover': { opacity: post.isAnonymous ? 1 : 0.8 },
-                                    bgcolor: post.isAnonymous ? '#65676b' : undefined,
+                                    bgcolor: post.isAnonymous ? 'text.secondary' : undefined,
                                     fontSize: 10,
                                 }}
                                 src={post.isAnonymous ? undefined : post.userId?.avatar}
@@ -148,7 +151,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                 mr: 1.5,
                                 cursor: post.isAnonymous ? 'default' : 'pointer',
                                 '&:hover': { opacity: post.isAnonymous ? 1 : 0.8 },
-                                bgcolor: post.isAnonymous ? '#65676b' : undefined,
+                                bgcolor: post.isAnonymous ? 'text.secondary' : undefined,
                             }}
                             src={post.isAnonymous ? undefined : post.userId?.avatar}
                             onClick={post.isAnonymous ? undefined : handleProfileClick}
@@ -165,7 +168,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                     sx={{
                                         fontSize: '15px',
                                         fontWeight: 600,
-                                        color: '#050505',
+                                        color: 'text.primary',
                                         cursor: 'pointer',
                                         '&:hover': { textDecoration: 'underline' },
                                         lineHeight: 1.2,
@@ -180,7 +183,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                         sx={{
                                             fontSize: '13px',
                                             fontWeight: 500,
-                                            color: '#65676b',
+                                            color: 'text.secondary',
                                             cursor: post.isAnonymous ? 'default' : 'pointer',
                                             '&:hover': { textDecoration: post.isAnonymous ? 'none' : 'underline' },
                                         }}
@@ -188,10 +191,10 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                     >
                                         {post.isAnonymous ? 'Thành viên ẩn danh' : getAuthorName(post)}
                                     </Typography>
-                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>·</Typography>
-                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>{formatPostTime(post.createdAt)}</Typography>
-                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>·</Typography>
-                                    <PrivacyIconComponent sx={{ fontSize: '12px', color: '#65676b' }} />
+                                    <Typography sx={{ fontSize: '13px', color: 'text.secondary' }}>·</Typography>
+                                    <Typography sx={{ fontSize: '13px', color: 'text.secondary' }}>{formatPostTime(post.createdAt)}</Typography>
+                                    <Typography sx={{ fontSize: '13px', color: 'text.secondary' }}>·</Typography>
+                                    <PrivacyIconComponent sx={{ fontSize: '12px', color: 'text.secondary' }} />
                                 </Box>
                             </>
                         ) : (
@@ -200,7 +203,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                     sx={{
                                         fontSize: '15px',
                                         fontWeight: 600,
-                                        color: '#050505',
+                                        color: 'text.primary',
                                         cursor: post.isAnonymous ? 'default' : 'pointer',
                                         '&:hover': { textDecoration: post.isAnonymous ? 'none' : 'underline' }
                                     }}
@@ -209,15 +212,15 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                     {post.isAnonymous ? 'Thành viên ẩn danh' : getAuthorName(post)}
                                     {/* Show shared indicator */}
                                     {post.sharedPostId && (
-                                        <Typography component="span" sx={{ fontWeight: 400, color: '#65676b', fontSize: '14px' }}>
+                                        <Typography component="span" sx={{ fontWeight: 400, color: 'text.secondary', fontSize: '14px' }}>
                                             {' đã chia sẻ một bài viết'}
                                         </Typography>
                                     )}
                                 </Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>{formatPostTime(post.createdAt)}</Typography>
-                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}> · </Typography>
-                                    <PrivacyIconComponent sx={{ fontSize: '12px', color: '#65676b' }} />
+                                    <Typography sx={{ fontSize: '13px', color: 'text.secondary' }}>{formatPostTime(post.createdAt)}</Typography>
+                                    <Typography sx={{ fontSize: '13px', color: 'text.secondary' }}> · </Typography>
+                                    <PrivacyIconComponent sx={{ fontSize: '12px', color: 'text.secondary' }} />
                                 </Box>
                             </>
                         )}
@@ -236,7 +239,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                             </Typography>
                         </Box>
                     ) : (
-                        <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#050505' }}>
+                        <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
                             <HashtagContent content={post.content || ''} onHashtagClick={handleHashtagClick} />
                         </Typography>
                     )
@@ -244,7 +247,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                     // Shared post - show caption if exists, then shared content
                     <>
                         {post.content && (
-                            <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#050505' }}>
+                            <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
                                 <HashtagContent content={post.content} onHashtagClick={handleHashtagClick} />
                             </Typography>
                         )}
@@ -314,12 +317,12 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                             </Box>
                         ) : null}
                         {displayTotalReacts > 0 && (
-                            <Typography sx={{ fontSize: 15, color: '#65676b' }}>{displayTotalReacts}</Typography>
+                            <Typography sx={{ fontSize: 15, color: 'text.secondary' }}>{displayTotalReacts}</Typography>
                         )}
                     </Box>
                     <Box sx={{ display: 'flex', gap: 2 }}>
-                        <Typography sx={{ fontSize: 15, color: '#65676b', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }} onClick={() => handleOpenComments(post)}>{post.totalComments} bình luận</Typography>
-                        <Typography sx={{ fontSize: 15, color: '#65676b' }}>{post.totalShares} lượt chia sẻ</Typography>
+                        <Typography sx={{ fontSize: 15, color: 'text.secondary', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }} onClick={() => handleOpenComments(post)}>{post.totalComments} bình luận</Typography>
+                        <Typography sx={{ fontSize: 15, color: 'text.secondary' }}>{post.totalShares} lượt chia sẻ</Typography>
                     </Box>
                 </Box>
 
@@ -345,8 +348,8 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                             opacity: 0.5,
                             cursor: 'not-allowed'
                         }}>
-                            <ThumbUpIcon sx={{ fontSize: '20px', color: '#65676b' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#65676b' }}>Thích</Typography>
+                            <ThumbUpIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
+                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Thích</Typography>
                         </Box>
                     )}
 
@@ -363,11 +366,11 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                             flex: 1,
                             justifyContent: 'center',
                             opacity: post.allowComments !== false ? 1 : 0.5,
-                            '&:hover': { bgcolor: post.allowComments !== false ? '#f0f2f5' : 'transparent' }
+                            '&:hover': { bgcolor: post.allowComments !== false ? hoverBg : 'transparent' }
                         }}
                     >
-                        <CommentIcon sx={{ fontSize: '20px', color: '#65676b' }} />
-                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#65676b' }}>Bình luận</Typography>
+                        <CommentIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
+                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Bình luận</Typography>
                     </Box>
 
                     <Box
@@ -383,11 +386,11 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                             flex: 1,
                             justifyContent: 'center',
                             opacity: post.allowShares !== false ? 1 : 0.5,
-                            '&:hover': { bgcolor: post.allowShares !== false ? '#f0f2f5' : 'transparent' }
+                            '&:hover': { bgcolor: post.allowShares !== false ? hoverBg : 'transparent' }
                         }}
                     >
-                        <ShareIcon sx={{ fontSize: '20px', color: '#65676b' }} />
-                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#65676b' }}>Chia sẻ</Typography>
+                        <ShareIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
+                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Chia sẻ</Typography>
                     </Box>
                 </Box>
             </CardContent>

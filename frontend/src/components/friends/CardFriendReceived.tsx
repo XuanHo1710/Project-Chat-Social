@@ -1,5 +1,5 @@
 'use client';
-import { Box, Card, CardContent, Typography, Avatar, Button, CircularProgress } from '@mui/material';
+import { Box, Card, CardContent, Typography, Avatar, Button, CircularProgress, useTheme } from '@mui/material';
 import { FriendType } from '@/types/account';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useState } from 'react';
@@ -10,6 +10,8 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
     const { user } = useAuthStore();
     const { socketRelationship } = useSocket();
     const router = useRouter();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [status, setStatus] = useState<'pending' | 'accepted' | 'rejected'>('pending');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -33,6 +35,9 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
         router.push(`/profile/${friend.username}`);
     };
 
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const cancelBg = isDark ? 'rgba(255,255,255,0.15)' : '#e4e6eb';
+
     // Don't render if rejected
     if (status === 'rejected') {
         return null;
@@ -42,10 +47,8 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
         <Card
             sx={{
                 borderRadius: 2,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                bgcolor: 'white',
+                boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
                 overflow: 'hidden',
-                '&:hover': { boxShadow: '0 2px 8px rgba(0,0,0,0.15)' },
                 transition: 'box-shadow 0.2s'
             }}
         >
@@ -57,7 +60,7 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                         position: 'relative',
                         paddingBottom: '100%',
                         cursor: 'pointer',
-                        bgcolor: '#e4e6eb',
+                        bgcolor: hoverBg,
                         overflow: 'hidden'
                     }}
                 >
@@ -80,7 +83,7 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                         onClick={navigateToProfile}
                         fontWeight={600}
                         fontSize={15}
-                        color="#050505"
+                        color="text.primary"
                         sx={{
                             mb: 0.25,
                             cursor: 'pointer',
@@ -90,7 +93,7 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                         {friend.firstName} {friend.lastName}
                     </Typography>
 
-                    <Typography variant="body2" color="#65676b" fontSize={13} sx={{ mb: 1.5 }}>
+                    <Typography variant="body2" color="text.secondary" fontSize={13} sx={{ mb: 1.5 }}>
                         {friend.mutualFriends || 0} bạn chung
                     </Typography>
 
@@ -103,7 +106,7 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                                 variant="contained"
                                 disabled={isLoading}
                                 sx={{
-                                    bgcolor: '#1877f2',
+                                    bgcolor: 'primary.main',
                                     textTransform: 'none',
                                     fontWeight: 600,
                                     py: 1,
@@ -111,7 +114,7 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                                     borderRadius: 1,
                                     boxShadow: 'none',
                                     '&:hover': {
-                                        bgcolor: '#166fe5',
+                                        bgcolor: 'primary.dark',
                                         boxShadow: 'none',
                                     },
                                 }}
@@ -124,8 +127,8 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                                 onClick={() => handleReject(friend._id)}
                                 disabled={isLoading}
                                 sx={{
-                                    bgcolor: '#e4e6eb',
-                                    color: '#050505',
+                                    bgcolor: cancelBg,
+                                    color: 'text.primary',
                                     textTransform: 'none',
                                     fontWeight: 600,
                                     py: 1,
@@ -133,7 +136,7 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                                     borderRadius: 1,
                                     boxShadow: 'none',
                                     '&:hover': {
-                                        bgcolor: '#d8dadf',
+                                        bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf',
                                         boxShadow: 'none',
                                     },
                                 }}
@@ -144,7 +147,7 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                     ) : (
                         <Typography
                             variant="body2"
-                            color="#65676b"
+                            color="text.secondary"
                             fontSize={13}
                             sx={{ textAlign: 'center', py: 1 }}
                         >

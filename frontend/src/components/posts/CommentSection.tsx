@@ -9,6 +9,7 @@ import {
     CircularProgress,
     Portal,
     LinearProgress,
+    useTheme,
 } from "@mui/material";
 import {
     Send as SendIcon,
@@ -41,6 +42,9 @@ interface CommentSectionProps {
 
 export default function CommentSection({ postId, totalComments, onCommentCountChange, onChangeTotalComments }: CommentSectionProps) {
     const { user } = useAuthStore();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const [commentText, setCommentText] = useState("");
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [emojiAnchorEl, setEmojiAnchorEl] = useState<HTMLElement | null>(null);
@@ -182,7 +186,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                             onClick={() => !isFetchingNextPage && fetchNextPage()}
                             sx={{
                                 fontSize: 14,
-                                color: "#65676b",
+                                color: "text.secondary",
                                 fontWeight: 600,
                                 cursor: isFetchingNextPage ? "default" : "pointer",
                                 display: "flex",
@@ -193,7 +197,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                             }}
                         >
                             {isFetchingNextPage ? (
-                                <CircularProgress sx={{ fontSize: 14, color: "#65676b" }} />
+                                <CircularProgress size={14} sx={{ color: "text.secondary" }} />
                             ) : null}
                             {isFetchingNextPage ? "Đang tải..." : "Xem thêm bình luận"}
                         </Typography>
@@ -207,7 +211,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                     {isUploading && (
                         <Box sx={{ mb: 0.5 }}>
                             <LinearProgress variant="determinate" value={uploadProgress} sx={{ borderRadius: 1 }} />
-                            <Typography sx={{ fontSize: 11, color: '#65676b', textAlign: 'center' }}>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary', textAlign: 'center' }}>
                                 Đang tải lên... {uploadProgress}%
                             </Typography>
                         </Box>
@@ -253,7 +257,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                 <Box
                     sx={{
                         flex: 1,
-                        bgcolor: "#f0f2f5",
+                        bgcolor: inputBg,
                         borderRadius: 3,
                         px: 1.5,
                         py: 0.5,
@@ -276,13 +280,13 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}
                     >
-                        <PhotoIcon sx={{ fontSize: 20, color: "#65676b" }} />
+                        <PhotoIcon sx={{ fontSize: 20, color: "text.secondary" }} />
                     </IconButton>
                     <IconButton
                         size="small"
                         onClick={handleEmojiClick}
                     >
-                        <MoodIcon sx={{ fontSize: 20, color: "#65676b" }} />
+                        <MoodIcon sx={{ fontSize: 20, color: "text.secondary" }} />
                     </IconButton>
                 </Box>
                 <IconButton
@@ -291,9 +295,9 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                     disabled={!hasContent || isSubmitting}
                 >
                     {isSubmitting ? (
-                        <CircularProgress size={18} sx={{ color: '#1877f2' }} />
+                        <CircularProgress size={18} sx={{ color: 'primary.main' }} />
                     ) : (
-                        <SendIcon sx={{ fontSize: 20, color: hasContent ? "#1877f2" : "#bcc0c4" }} />
+                        <SendIcon sx={{ fontSize: 20, color: hasContent ? "primary.main" : "text.disabled" }} />
                     )}
                 </IconButton>
             </Box>
@@ -337,7 +341,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                         <Picker
                             data={data}
                             onEmojiSelect={handleEmojiSelect}
-                            theme="light"
+                            theme={isDark ? "dark" : "light"}
                             locale="vi"
                             previewPosition="none"
                         />

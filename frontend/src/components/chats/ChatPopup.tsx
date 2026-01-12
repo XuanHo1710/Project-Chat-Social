@@ -17,6 +17,7 @@ import {
     Tabs,
     Tab,
     Skeleton,
+    useTheme,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -42,10 +43,16 @@ interface ChatPopupProps {
 
 export default function ChatPopup({ conversations, isLoading, userId }: ChatPopupProps) {
     const router = useRouter();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [tabValue, setTabValue] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const { user } = useAuthStore();
     const { socketChat } = useSocket();
+
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const selectedBg = isDark ? 'rgba(66, 133, 244, 0.3)' : '#e7f3ff';
 
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
     const setUserOnline = useOnlineStatusStore(state => state.setUserOnline);
@@ -161,28 +168,25 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                 right: 0,
                 width: 360,
                 height: 500,
-                bgcolor: 'white',
                 borderRadius: 2,
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
                 zIndex: 1300,
             }}
         >
             {/* Header */}
-            <Box sx={{ p: 2, borderBottom: '1px solid #e4e6eb' }}>
+            <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h6" fontWeight={700} color="#050505">
+                    <Typography variant="h6" fontWeight={700} color="text.primary">
                         Đoạn chat
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
                         <IconButton
                             size="small"
                             sx={{
-                                color: '#65676b',
-                                bgcolor: '#f0f2f5',
-                                '&:hover': { bgcolor: '#e4e6eb' },
+                                color: 'text.secondary',
+                                bgcolor: hoverBg,
                             }}
                         >
                             <MoreIcon fontSize="small" />
@@ -190,9 +194,8 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                         <IconButton
                             size="small"
                             sx={{
-                                color: '#65676b',
-                                bgcolor: '#f0f2f5',
-                                '&:hover': { bgcolor: '#e4e6eb' },
+                                color: 'text.secondary',
+                                bgcolor: hoverBg,
                             }}
                         >
                             <VideoIcon fontSize="small" />
@@ -200,9 +203,8 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                         <IconButton
                             size="small"
                             sx={{
-                                color: '#65676b',
-                                bgcolor: '#f0f2f5',
-                                '&:hover': { bgcolor: '#e4e6eb' },
+                                color: 'text.secondary',
+                                bgcolor: hoverBg,
                             }}
                         >
                             <CreateIcon fontSize="small" />
@@ -220,22 +222,16 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                     InputProps={{
                         startAdornment: (
                             <InputAdornment position="start">
-                                <SearchIcon sx={{ color: '#65676b', fontSize: 18 }} />
+                                <SearchIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
                             </InputAdornment>
                         ),
                         sx: {
                             borderRadius: 5,
-                            bgcolor: '#f0f2f5',
-                            color: '#050505',
+                            bgcolor: inputBg,
+                            color: 'text.primary',
                             fontSize: '14px',
                             '& .MuiOutlinedInput-notchedOutline': {
                                 border: 'none',
-                            },
-                            '&:hover': {
-                                bgcolor: '#e4e6eb',
-                            },
-                            '&.Mui-focused': {
-                                bgcolor: '#e4e6eb',
                             },
                         },
                     }}
@@ -243,7 +239,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                         sx: {
                             py: 1,
                             '&::placeholder': {
-                                color: '#65676b',
+                                color: 'text.secondary',
                                 opacity: 1,
                             },
                         },
@@ -256,20 +252,20 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                 value={tabValue}
                 onChange={(e, newValue) => setTabValue(newValue)}
                 sx={{
-                    borderBottom: '1px solid #e4e6eb',
+                    borderBottom: `1px solid ${theme.palette.divider}`,
                     minHeight: 44,
                     '& .MuiTab-root': {
-                        color: '#65676b',
+                        color: 'text.secondary',
                         fontSize: '15px',
                         fontWeight: 600,
                         textTransform: 'none',
                         minHeight: 44,
                         '&.Mui-selected': {
-                            color: '#1877f2',
+                            color: 'primary.main',
                         },
                     },
                     '& .MuiTabs-indicator': {
-                        backgroundColor: '#1877f2',
+                        backgroundColor: theme.palette.primary.main,
                         height: 3,
                     },
                 }}
@@ -286,7 +282,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                     overflow: 'auto',
                     '&::-webkit-scrollbar': { width: '8px' },
                     '&::-webkit-scrollbar-thumb': {
-                        backgroundColor: '#c4c4c4',
+                        backgroundColor: isDark ? '#555' : '#c4c4c4',
                         borderRadius: '4px',
                     },
                 }}
@@ -353,7 +349,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                         <Typography
                             sx={{
                                 fontSize: 15,
-                                color: '#65676b',
+                                color: 'text.secondary',
                                 textAlign: 'center',
                             }}
                         >
@@ -405,12 +401,12 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                         gap: 1,
                                         bgcolor: 'transparent',
                                         '&:hover': {
-                                            bgcolor: '#f0f2f5',
+                                            bgcolor: hoverBg,
                                         },
                                         '&.Mui-selected': {
-                                            bgcolor: '#e7f3ff',
+                                            bgcolor: selectedBg,
                                             '&:hover': {
-                                                bgcolor: '#e7f3ff',
+                                                bgcolor: selectedBg,
                                             },
                                         },
                                     }}
@@ -423,7 +419,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                             sx={{
                                                 '& .MuiBadge-badge': {
                                                     backgroundColor: !isGroup && status.isOnline ? '#31a24c' : 'transparent',
-                                                    border: !isGroup && status.isOnline ? '2px solid white' : 'none',
+                                                    border: !isGroup && status.isOnline ? `2px solid ${theme.palette.background.paper}` : 'none',
                                                     width: 15,
                                                     borderRadius: '50%',
                                                     height: 15,
@@ -439,7 +435,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                     <ListItemText
                                         primary={
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                <Typography noWrap fontWeight={600} fontSize={15} color="#050505">
+                                                <Typography noWrap fontWeight={600} fontSize={15} color="text.primary">
                                                     {displayName}
                                                 </Typography>
                                             </Box>
@@ -450,7 +446,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                                 <Typography
                                                     noWrap
                                                     variant="body2"
-                                                    color="#65676b"
+                                                    color="text.secondary"
                                                     component="span"
                                                     fontSize={13}
                                                     sx={{ flex: 1, maxWidth: '75%' }}
@@ -490,7 +486,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                                         }
                                                     })()}
                                                 </Typography>
-                                                <Typography variant="caption" color="#65676b" fontSize={12} sx={{ whiteSpace: 'nowrap' }}>
+                                                <Typography variant="caption" color="text.secondary" fontSize={12} sx={{ whiteSpace: 'nowrap' }}>
                                                     · {conversation.lastMessageAt ? formatTime(conversation.lastMessageAt) : ''}
                                                 </Typography>
                                             </Box>
@@ -529,14 +525,14 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
             <Box
                 sx={{
                     p: 1.5,
-                    borderTop: '1px solid #e4e6eb',
+                    borderTop: `1px solid ${theme.palette.divider}`,
                     textAlign: 'center',
                 }}
             >
                 <Typography
                     onClick={() => router.push('/chat')}
                     sx={{
-                        color: '#1877f2',
+                        color: 'primary.main',
                         fontSize: '14px',
                         fontWeight: 600,
                         cursor: 'pointer',

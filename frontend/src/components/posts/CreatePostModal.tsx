@@ -13,6 +13,7 @@ import {
     LinearProgress,
     ImageList,
     ImageListItem,
+    useTheme,
 } from "@mui/material";
 import {
     Close as CloseIcon,
@@ -124,6 +125,9 @@ export default function CreatePostModal({
 
     // Post mutation
     const createPostMutation = useCreatePost();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
 
     // Reset states when modal closes
     useEffect(() => {
@@ -240,7 +244,7 @@ export default function CreatePostModal({
                 sx={{
                     width: 800,
                     maxHeight: "90vh",
-                    bgcolor: "white",
+                    bgcolor: "background.paper",
                     borderRadius: 2,
                     boxShadow: 24,
                     display: "flex",
@@ -252,7 +256,7 @@ export default function CreatePostModal({
                 <Box
                     sx={{
                         p: 2,
-                        borderBottom: "1px solid #e4e6eb",
+                        borderBottom: `1px solid ${theme.palette.divider}`,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -267,10 +271,10 @@ export default function CreatePostModal({
                             <ArrowBackIcon />
                         </IconButton>
                     )}
-                    <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#050505' }}>
+                    <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>
                         {modalView === "create" ? (groupName ? `Đăng trong ${groupName}` : "Tạo bài viết") : "Đối tượng của bài viết"}
                     </Typography>
-                    <IconButton onClick={onClose} sx={{ position: "absolute", right: 8 }}>
+                    <IconButton onClick={onClose} sx={{ position: "absolute", right: 8, color: 'text.secondary' }}>
                         <CloseIcon />
                     </IconButton>
                 </Box>
@@ -284,7 +288,7 @@ export default function CreatePostModal({
                                 {isAnonymous ? '?' : undefined}
                             </Avatar>
                             <Box sx={{ flex: 1 }}>
-                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                     {isAnonymous ? 'Ẩn danh' : (user?.fullName || user?.username)}
                                 </Typography>
                                 {!groupId ? (
@@ -292,8 +296,8 @@ export default function CreatePostModal({
                                         size="small"
                                         onClick={() => setModalView("privacy")}
                                         sx={{
-                                            bgcolor: "#e4e6eb",
-                                            color: "#050505",
+                                            bgcolor: hoverBg,
+                                            color: "text.primary",
                                             textTransform: "none",
                                             fontSize: 13,
                                             fontWeight: 600,
@@ -301,7 +305,7 @@ export default function CreatePostModal({
                                             py: 0.25,
                                             minHeight: 0,
                                             borderRadius: 1,
-                                            "&:hover": { bgcolor: "#d8dadf" },
+                                            "&:hover": { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : "#d8dadf" },
                                         }}
                                         startIcon={<PrivacyIcon sx={{ fontSize: 14 }} />}
                                         endIcon={<ArrowDownIcon sx={{ fontSize: 16 }} />}
@@ -372,7 +376,7 @@ export default function CreatePostModal({
                                             selectedBackground !== "solid4" &&
                                             pendingMedia.length === 0
                                             ? "white"
-                                            : "#050505",
+                                            : theme.palette.text.primary,
                                     textAlign:
                                         selectedBackground !== "none" && pendingMedia.length === 0
                                             ? "center"
@@ -389,7 +393,7 @@ export default function CreatePostModal({
                                                 selectedBackground !== "solid4" &&
                                                 pendingMedia.length === 0
                                                 ? "rgba(255,255,255,0.7)"
-                                                : "#65676b",
+                                                : theme.palette.text.secondary,
                                     },
                                 }}
                             />
@@ -400,7 +404,7 @@ export default function CreatePostModal({
                             <Box sx={{ px: 2, pb: 2 }}>
                                 <Box
                                     sx={{
-                                        border: "1px solid #e4e6eb",
+                                        border: `1px solid ${theme.palette.divider}`,
                                         borderRadius: 2,
                                         p: 1,
                                         position: "relative",
@@ -415,7 +419,7 @@ export default function CreatePostModal({
                                             <Typography
                                                 sx={{
                                                     fontSize: 12,
-                                                    color: "#65676b",
+                                                    color: "text.secondary",
                                                     mt: 0.5,
                                                     textAlign: "center",
                                                 }}
@@ -543,9 +547,9 @@ export default function CreatePostModal({
                                         sx={{
                                             mt: 1,
                                             textTransform: "none",
-                                            color: "#050505",
-                                            bgcolor: "#f0f2f5",
-                                            "&:hover": { bgcolor: "#e4e6eb" },
+                                            color: "text.primary",
+                                            bgcolor: hoverBg,
+                                            "&:hover": { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : "#e4e6eb" },
                                         }}
                                         startIcon={<PhotoIcon />}
                                     >
@@ -613,7 +617,7 @@ export default function CreatePostModal({
                                 mx: 2,
                                 mb: 2,
                                 p: 1.5,
-                                border: "1px solid #e4e6eb",
+                                border: `1px solid ${theme.palette.divider}`,
                                 borderRadius: 2,
                                 display: "flex",
                                 alignItems: "center",
@@ -621,7 +625,7 @@ export default function CreatePostModal({
                                 position: 'relative',
                             }}
                         >
-                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                 Thêm vào bài viết của bạn
                             </Typography>
                             <Box sx={{ display: "flex", gap: 0.5, position: 'relative' }}>
@@ -643,7 +647,7 @@ export default function CreatePostModal({
                 ) : (
                     /* Privacy Selection View */
                     <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
-                        <Typography sx={{ mb: 2, color: "#65676b", fontSize: 14 }}>
+                        <Typography sx={{ mb: 2, color: "text.secondary", fontSize: 14 }}>
                             Ai có thể xem bài viết của bạn?
                         </Typography>
                         {privacyOptions.map((option) => (
@@ -661,8 +665,8 @@ export default function CreatePostModal({
                                     borderRadius: 2,
                                     cursor: "pointer",
                                     bgcolor:
-                                        selectedPrivacy === option.id ? "#e7f3ff" : "transparent",
-                                    "&:hover": { bgcolor: "#f0f2f5" },
+                                        selectedPrivacy === option.id ? (isDark ? 'rgba(24, 119, 242, 0.2)' : "#e7f3ff") : "transparent",
+                                    "&:hover": { bgcolor: hoverBg },
                                 }}
                             >
                                 <Box
@@ -670,19 +674,19 @@ export default function CreatePostModal({
                                         width: 48,
                                         height: 48,
                                         borderRadius: "50%",
-                                        bgcolor: "#e4e6eb",
+                                        bgcolor: hoverBg,
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "center",
                                     }}
                                 >
-                                    <option.icon sx={{ fontSize: 24, color: "#050505" }} />
+                                    <option.icon sx={{ fontSize: 24, color: "text.primary" }} />
                                 </Box>
                                 <Box sx={{ flex: 1 }}>
-                                    <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                    <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                         {option.label}
                                     </Typography>
-                                    <Typography sx={{ fontSize: 13, color: "#65676b" }}>
+                                    <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
                                         {option.description}
                                     </Typography>
                                 </Box>
@@ -693,8 +697,9 @@ export default function CreatePostModal({
                                         borderRadius: "50%",
                                         border:
                                             selectedPrivacy === option.id
-                                                ? "6px solid #1877f2"
-                                                : "2px solid #65676b",
+                                                ? "6px solid"
+                                                : "2px solid",
+                                        borderColor: selectedPrivacy === option.id ? 'primary.main' : 'text.secondary',
                                     }}
                                 />
                             </Box>
@@ -704,7 +709,7 @@ export default function CreatePostModal({
 
                 {/* Post Button */}
                 {modalView === "create" && (
-                    <Box sx={{ p: 2, borderTop: "1px solid #e4e6eb" }}>
+                    <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
                         <Button
                             fullWidth
                             variant="contained"
@@ -712,13 +717,13 @@ export default function CreatePostModal({
                             onClick={handlePost}
                             sx={{
                                 py: 1,
-                                bgcolor: canPost ? "#1877f2" : "#e4e6eb",
-                                color: canPost ? "white" : "#bcc0c4",
+                                bgcolor: canPost ? "primary.main" : hoverBg,
+                                color: canPost ? "white" : "text.disabled",
                                 fontWeight: 600,
                                 textTransform: "none",
                                 fontSize: 15,
-                                "&:hover": { bgcolor: canPost ? "#166fe5" : "#e4e6eb" },
-                                "&.Mui-disabled": { bgcolor: "#e4e6eb", color: "#bcc0c4" },
+                                "&:hover": { bgcolor: canPost ? "primary.dark" : hoverBg },
+                                "&.Mui-disabled": { bgcolor: hoverBg, color: "text.disabled" },
                             }}
                         >
                             {createPostMutation.isPending || isUploading ? (
@@ -759,7 +764,7 @@ export default function CreatePostModal({
                         <Picker
                             data={data}
                             onEmojiSelect={onEmojiSelect}
-                            theme="light"
+                            theme={isDark ? "dark" : "light"}
                             locale="vi"
                             previewPosition="none"
                         />

@@ -21,7 +21,11 @@ class OllamaService:
     @property
     def client(self) -> ollama.Client:
         if self._client is None:
-            self._client = ollama.Client(host=self.settings.ollama_host)
+            # Increase timeout for vision models (llava takes longer)
+            self._client = ollama.Client(
+                host=self.settings.ollama_host,
+                timeout=120.0  # 2 minutes timeout for large model responses
+            )
         return self._client
     
     @property
@@ -51,7 +55,7 @@ Be helpful, concise, and engaging.
             resp = self.client.chat(
                 model=self.settings.ollama_model,
                 messages=messages,
-                options={"temperature": temperature, "num_predict": max_tokens}
+                options={"temperature": temperature, "num_predict": 1000}
             )
             return resp.get("message", {}).get("content", "")
         except Exception as e:
@@ -93,7 +97,7 @@ Examples:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": message}
                 ],
-                options={"temperature": 0.3, "num_predict": 200}
+                options={"temperature": 0.3, "num_predict": 500}
             )
             
             response_text = resp.get("message", {}).get("content", "")
@@ -148,7 +152,7 @@ Be helpful, concise, and engaging. Keep responses under 3 sentences unless more 
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": message}
                 ],
-                options={"temperature": temperature, "num_predict": 300}
+                options={"temperature": temperature, "num_predict": 1000}
             )
             return resp.get("message", {}).get("content", "")
         except Exception as e:
@@ -164,6 +168,9 @@ Be helpful, concise, and engaging. Keep responses under 3 sentences unless more 
             return ""
         
         try:
+            import base64
+            import httpx
+            
             # Check available vision models
             available_models = self.list_models()
             logger.info(f"Available models: {available_models}")
@@ -181,24 +188,50 @@ Be helpful, concise, and engaging. Keep responses under 3 sentences unless more 
             
             logger.info(f"Using vision model: {vision_model}")
             
-            # For now, we'll analyze the first image
+            # Download and convert image to base64
             image_url = image_urls[0]
+            logger.info(f"Downloading image from: {image_url}")
             
-            prompt = """Describe this image briefly in Vietnamese. 
-Focus on: main subjects, colors, mood, and any text visible.
-Keep the description under 100 words."""
+            # Download image
+            with httpx.Client(timeout=30.0) as http_client:
+                response = http_client.get(image_url)
+                response.raise_for_status()
+                image_bytes = response.content
+            
+            # Convert to base64
+            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            logger.info(f"Image downloaded and encoded, size: {len(image_bytes)} bytes")
+            
+            prompt = """Analyze this image in GREAT DETAIL. Provide a comprehensive description including:
+
+1. **Main Subject**: What is the primary focus? Describe it thoroughly.
+2. **Scene/Setting**: Where is this? Indoor/outdoor? What environment?
+3. **Objects & Elements**: List ALL visible objects, people, animals, items.
+4. **Colors & Lighting**: Dominant colors, lighting conditions, shadows, atmosphere.
+5. **Text/Writing**: Any text, signs, labels, watermarks visible? Transcribe them.
+6. **Style/Type**: Is this a photo, screenshot, artwork, meme, game, etc.?
+7. **Mood/Emotion**: What feeling does the image convey?
+8. **Notable Details**: Any interesting or unusual elements?
+
+Be thorough and descriptive. Write in Vietnamese. Minimum 200 words."""
             
             resp = self.client.chat(
                 model=vision_model,
                 messages=[{
                     "role": "user",
                     "content": prompt,
-                    "images": [image_url]  # Ollama can fetch from URL
+                    "images": [image_base64]  # Send base64 encoded image
                 }],
-                options={"temperature": 0.3, "num_predict": 200}
+                options={"temperature": 0.4, "num_predict": 1500}  # ~500 words Vietnamese
             )
             
-            description = resp.get("message", {}).get("content", "")
+            # Handle both dict and object response
+            if hasattr(resp, 'message'):
+                description = resp.message.content if hasattr(resp.message, 'content') else ""
+            else:
+                description = resp.get("message", {}).get("content", "")
+            
+            logger.info(f"Image analysis result: {description[:100]}...")
             return description
             
         except Exception as e:
@@ -260,7 +293,7 @@ Keep the description under 100 words."""
             resp = self.client.chat(
                 model=self.settings.ollama_model,
                 messages=messages,
-                options={"temperature": temperature, "num_predict": 400}
+                options={"temperature": temperature, "num_predict": 1000}
             )
             
             return resp.get("message", {}).get("content", "")
@@ -281,7 +314,12 @@ Keep the description under 100 words."""
 
     def list_models(self) -> List[str]:
         try:
-            return [m["name"] for m in self.client.list().get("models", [])]
+            response = self.client.list()
+            # New Ollama API uses object-based response
+            if hasattr(response, 'models'):
+                return [m.model for m in response.models]
+            # Fallback for dict-based response (older API)
+            return [m["name"] for m in response.get("models", [])]
         except: return []
 
     # ==================== EMBEDDINGS (AUTO SWITCH) ====================
@@ -322,7 +360,7 @@ Keep the description under 100 words."""
             resp = self.client.chat(
                 model=self.settings.ollama_model,
                 messages=msgs,
-                options={"temperature": temperature, "num_predict": max_tokens}
+                options={"temperature": temperature, "num_predict": 1000}
             )
             return resp.get("message", {}).get("content", "")
         except Exception as e:

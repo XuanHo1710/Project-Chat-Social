@@ -21,6 +21,7 @@ import {
     CircularProgress,
     Divider,
     keyframes,
+    useTheme,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -75,6 +76,11 @@ export default function SharePostModal({
     const [shareMessage, setShareMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [sentTo, setSentTo] = useState<string[]>([]);
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.15)' : '#f0f2f5';
+    const selectedBg = isDark ? 'rgba(66, 133, 244, 0.3)' : '#e7f3ff';
 
     const { socket } = useSocket();
     const { data: conversationsData, isLoading } = useGetAllConversations();
@@ -187,7 +193,7 @@ export default function SharePostModal({
 
             <DialogContent sx={{ p: 0 }}>
                 {/* Post Preview */}
-                <Box sx={{ px: 2, py: 1.5, bgcolor: '#f0f2f5', mx: 2, borderRadius: 2, mb: 2 }}>
+                <Box sx={{ px: 2, py: 1.5, bgcolor: inputBg, mx: 2, borderRadius: 2, mb: 2 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Avatar src={post.userId?.avatar} sx={{ width: 36, height: 36 }} />
                         <Box sx={{ flex: 1 }}>
@@ -196,7 +202,7 @@ export default function SharePostModal({
                             </Typography>
                             <Typography
                                 fontSize={13}
-                                color="#65676b"
+                                color="text.secondary"
                                 sx={{
                                     display: '-webkit-box',
                                     WebkitLineClamp: 2,
@@ -244,7 +250,7 @@ export default function SharePostModal({
                         sx={{
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: 2,
-                                bgcolor: '#f0f2f5',
+                                bgcolor: inputBg,
                                 '& fieldset': { border: 'none' },
                             },
                         }}
@@ -264,14 +270,14 @@ export default function SharePostModal({
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon sx={{ color: '#65676b' }} />
+                                    <SearchIcon sx={{ color: 'text.secondary' }} />
                                 </InputAdornment>
                             ),
                         }}
                         sx={{
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: 5,
-                                bgcolor: '#f0f2f5',
+                                bgcolor: inputBg,
                                 '& fieldset': { border: 'none' },
                             },
                         }}
@@ -291,10 +297,10 @@ export default function SharePostModal({
                                     onDelete={() => handleToggleConversation(convId)}
                                     size="small"
                                     sx={{
-                                        bgcolor: '#e7f3ff',
-                                        color: '#1877f2',
+                                        bgcolor: selectedBg,
+                                        color: 'primary.main',
                                         '& .MuiChip-deleteIcon': {
-                                            color: '#1877f2',
+                                            color: 'primary.main',
                                         },
                                         animation: `${pop} 0.2s ease-out`,
                                     }}
@@ -311,7 +317,7 @@ export default function SharePostModal({
                             <CircularProgress size={24} />
                         </Box>
                     ) : conversations.length === 0 ? (
-                        <Box sx={{ textAlign: 'center', py: 4, color: '#65676b' }}>
+                        <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
                             <Typography>Không tìm thấy cuộc trò chuyện</Typography>
                         </Box>
                     ) : (
@@ -327,12 +333,12 @@ export default function SharePostModal({
                                         borderRadius: 2,
                                         cursor: isSent ? 'default' : 'pointer',
                                         mb: 0.5,
-                                        bgcolor: isSelected ? '#e7f3ff' : 'transparent',
+                                        bgcolor: isSelected ? selectedBg : 'transparent',
                                         animation: `${slideUp} 0.3s ease-out`,
                                         animationDelay: `${index * 0.03}s`,
                                         animationFillMode: 'both',
                                         '&:hover': {
-                                            bgcolor: isSent ? 'transparent' : isSelected ? '#d4e9fc' : '#f0f2f5',
+                                            bgcolor: isSent ? 'transparent' : isSelected ? (isDark ? 'rgba(66, 133, 244, 0.4)' : '#d4e9fc') : hoverBg,
                                         },
                                     }}
                                 >
@@ -344,7 +350,7 @@ export default function SharePostModal({
                                         secondary={conv.type === 'GROUP' ? `${conv.participants.length} thành viên` : undefined}
                                         primaryTypographyProps={{
                                             fontWeight: isSelected ? 600 : 400,
-                                            color: isSent ? '#65676b' : '#050505',
+                                            color: isSent ? 'text.secondary' : 'text.primary',
                                         }}
                                     />
                                     {isSent ? (
@@ -377,7 +383,7 @@ export default function SharePostModal({
                 </List>
 
                 {/* Send Button */}
-                <Box sx={{ p: 2, borderTop: '1px solid #e4e6eb' }}>
+                <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
                     <Button
                         fullWidth
                         variant="contained"
@@ -385,14 +391,14 @@ export default function SharePostModal({
                         onClick={handleShare}
                         startIcon={isSending ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
                         sx={{
-                            bgcolor: '#1877f2',
+                            bgcolor: 'primary.main',
                             borderRadius: 2,
                             py: 1.2,
                             fontWeight: 600,
-                            '&:hover': { bgcolor: '#166fe5' },
+                            '&:hover': { bgcolor: 'primary.dark' },
                             '&.Mui-disabled': {
-                                bgcolor: sentTo.length > 0 ? '#00a400' : '#e4e6eb',
-                                color: sentTo.length > 0 ? 'white' : '#bcc0c4',
+                                bgcolor: sentTo.length > 0 ? '#00a400' : (isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb'),
+                                color: sentTo.length > 0 ? 'white' : (isDark ? 'rgba(255,255,255,0.3)' : '#bcc0c4'),
                             },
                         }}
                     >

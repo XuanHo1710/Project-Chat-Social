@@ -10,6 +10,7 @@ import {
     Button,
     Menu,
     Divider,
+    useTheme,
 } from '@mui/material';
 import {
     ChatBubbleOutline as CommentIcon,
@@ -54,6 +55,9 @@ const reactionEmoji: Record<string, { emoji: string; bg: string }> = {
 export default function ReelsPage() {
     const router = useRouter();
     const { user } = useAuthStore();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isMuted, setIsMuted] = useState(true);
     const [isPaused, setIsPaused] = useState(false);
@@ -564,15 +568,15 @@ export default function ReelsPage() {
                         width: 420,
                         minWidth: 420,
                         maxWidth: 420,
-                        bgcolor: 'white',
+                        bgcolor: 'background.paper',
                         display: 'flex',
                         flexDirection: 'column',
                         height: 'calc(100vh - 56px)',
-                        borderLeft: '1px solid #e4e6eb',
+                        borderLeft: `1px solid ${theme.palette.divider}`,
                         flexShrink: 0,
                     }}>
                         {/* Post Header */}
-                        <Box sx={{ p: 2, borderBottom: '1px solid #e4e6eb' }}>
+                        <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                             <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
                                 <Avatar
                                     src={currentPost.userId?.avatar || ''}
@@ -584,7 +588,7 @@ export default function ReelsPage() {
                                         sx={{
                                             fontSize: '15px',
                                             fontWeight: 600,
-                                            color: '#050505',
+                                            color: 'text.primary',
                                             cursor: 'pointer',
                                             '&:hover': { textDecoration: 'underline' }
                                         }}
@@ -592,7 +596,7 @@ export default function ReelsPage() {
                                     >
                                         {getAuthorName(currentPost)}
                                     </Typography>
-                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>
+                                    <Typography sx={{ fontSize: '13px', color: 'text.secondary' }}>
                                         {formatPostTime(currentPost.createdAt)}
                                     </Typography>
                                 </Box>
@@ -603,7 +607,7 @@ export default function ReelsPage() {
 
                             {/* Post Content */}
                             {currentPost.content && (
-                                <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#050505' }}>
+                                <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
                                     <HashtagContent content={currentPost.content} />
                                 </Typography>
                             )}
@@ -649,14 +653,14 @@ export default function ReelsPage() {
                                         </Box>
                                     ) : null}
                                     {displayTotalReacts > 0 && (
-                                        <Typography sx={{ fontSize: 14, color: '#65676b' }}>{displayTotalReacts}</Typography>
+                                        <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>{displayTotalReacts}</Typography>
                                     )}
                                 </Box>
                                 <Box sx={{ display: 'flex', gap: 2 }}>
-                                    <Typography sx={{ fontSize: 14, color: '#65676b' }}>
+                                    <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
                                         {currentPost.totalComments} bình luận
                                     </Typography>
-                                    <Typography sx={{ fontSize: 14, color: '#65676b' }}>
+                                    <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
                                         {currentPost.totalShares} chia sẻ
                                     </Typography>
                                 </Box>
@@ -682,11 +686,11 @@ export default function ReelsPage() {
                                         borderRadius: 2,
                                         flex: 1,
                                         justifyContent: 'center',
-                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                        '&:hover': { bgcolor: hoverBg }
                                     }}
                                 >
-                                    <CommentIcon sx={{ fontSize: '20px', color: '#65676b' }} />
-                                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#65676b' }}>Bình luận</Typography>
+                                    <CommentIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
+                                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: 'text.secondary' }}>Bình luận</Typography>
                                 </Box>
 
                                 <Box
@@ -701,20 +705,20 @@ export default function ReelsPage() {
                                         borderRadius: 2,
                                         flex: 1,
                                         justifyContent: 'center',
-                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                        '&:hover': { bgcolor: hoverBg }
                                     }}
                                 >
-                                    <ShareIcon sx={{ fontSize: '20px', color: '#65676b' }} />
-                                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#65676b' }}>Chia sẻ</Typography>
+                                    <ShareIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
+                                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: 'text.secondary' }}>Chia sẻ</Typography>
                                 </Box>
                             </Box>
                         </Box>
 
                         {/* Comments Section */}
                         <Box sx={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-                            <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e4e6eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box sx={{ px: 2, py: 1, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Typography sx={{ fontWeight: 600, fontSize: 15 }}>Bình luận</Typography>
-                                <Typography sx={{ color: '#65676b', fontSize: 14, cursor: 'pointer' }}>
+                                <Typography sx={{ color: 'text.secondary', fontSize: 14, cursor: 'pointer' }}>
                                     Tất cả bình luận ▼
                                 </Typography>
                             </Box>

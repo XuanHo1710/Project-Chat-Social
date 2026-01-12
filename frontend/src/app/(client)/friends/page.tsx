@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Box, Typography, IconButton, Divider, List, ListItemButton, ListItemIcon, ListItemText } from '@mui/material';
+import { Box, Typography, IconButton, Divider, List, ListItemButton, ListItemIcon, ListItemText, useTheme } from '@mui/material';
 import {
     Home as HomeIcon,
     PersonAdd as PersonAddIcon,
@@ -37,6 +37,8 @@ const menuItems = [
 export default function FriendsPage() {
     const [tabValue, setTabValue] = useState(0);
     const { user } = useAuthStore();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const queryClient = useQueryClient();
     const { socketRelationship } = useSocket();
 
@@ -87,8 +89,10 @@ export default function FriendsPage() {
         };
     }, [socketRelationship, user, queryClient]);
 
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+
     return (
-        <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
             <Header />
 
             <Box sx={{ pt: '56px', display: 'flex' }}>
@@ -99,17 +103,17 @@ export default function FriendsPage() {
                         height: 'calc(100vh - 56px)',
                         position: 'sticky',
                         top: 56,
-                        bgcolor: 'white',
-                        boxShadow: '2px 0 4px rgba(0,0,0,0.1)',
+                        bgcolor: 'background.paper',
+                        boxShadow: isDark ? 'none' : '2px 0 4px rgba(0,0,0,0.1)',
                         overflowY: 'auto',
                         p: 1,
                     }}
                 >
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, py: 1.5 }}>
-                        <Typography variant="h5" fontWeight={700} sx={{ color: '#050505' }}>
+                        <Typography variant="h5" fontWeight={700} sx={{ color: 'text.primary' }}>
                             Bạn bè
                         </Typography>
-                        <IconButton sx={{ bgcolor: '#e4e6eb' }}>
+                        <IconButton sx={{ bgcolor: hoverBg }}>
                             <SettingsIcon />
                         </IconButton>
                     </Box>
@@ -122,15 +126,15 @@ export default function FriendsPage() {
                                 sx={{
                                     borderRadius: 2,
                                     mb: 0.5,
-                                    bgcolor: tabValue === item.id ? '#e7f3ff' : 'transparent',
+                                    bgcolor: tabValue === item.id ? (isDark ? 'rgba(24, 119, 242, 0.2)' : '#e7f3ff') : 'transparent',
                                     '&:hover': {
-                                        bgcolor: tabValue === item.id ? '#e7f3ff' : '#f0f2f5',
+                                        bgcolor: tabValue === item.id ? (isDark ? 'rgba(24, 119, 242, 0.2)' : '#e7f3ff') : hoverBg,
                                     },
                                 }}
                             >
                                 <ListItemIcon sx={{
                                     minWidth: 36,
-                                    color: tabValue === item.id ? '#1877f2' : '#050505'
+                                    color: tabValue === item.id ? 'primary.main' : 'text.primary'
                                 }}>
                                     {item.icon}
                                 </ListItemIcon>
@@ -139,7 +143,7 @@ export default function FriendsPage() {
                                     primaryTypographyProps={{
                                         fontWeight: 500,
                                         fontSize: 15,
-                                        color: tabValue === item.id ? '#1877f2' : '#050505'
+                                        color: tabValue === item.id ? 'primary.main' : 'text.primary'
                                     }}
                                 />
                             </ListItemButton>
@@ -153,13 +157,13 @@ export default function FriendsPage() {
                     {(tabValue === 0 || tabValue === 1) && (
                         <Box sx={{ mb: 4 }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                <Typography variant="h6" fontWeight={600} color="#050505">
+                                <Typography variant="h6" fontWeight={600} color="text.primary">
                                     Lời mời kết bạn
                                 </Typography>
                                 <Link href="/friends?tab=received" style={{ textDecoration: 'none' }}>
                                     <Typography
                                         sx={{
-                                            color: '#1877f2',
+                                            color: 'primary.main',
                                             fontSize: 15,
                                             cursor: 'pointer',
                                             '&:hover': { textDecoration: 'underline' }
@@ -181,7 +185,7 @@ export default function FriendsPage() {
                                     ))}
                                 </Box>
                             ) : (
-                                <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                                     Không có lời mời kết bạn nào
                                 </Typography>
                             )}
@@ -193,13 +197,13 @@ export default function FriendsPage() {
                         <Box sx={{ mb: 4 }}>
                             <Divider sx={{ my: 3 }} />
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                <Typography variant="h6" fontWeight={600} color="#050505">
+                                <Typography variant="h6" fontWeight={600} color="text.primary">
                                     Những người bạn có thể biết
                                 </Typography>
                                 <Link href="/friends?tab=suggestions" style={{ textDecoration: 'none' }}>
                                     <Typography
                                         sx={{
-                                            color: '#1877f2',
+                                            color: 'primary.main',
                                             fontSize: 15,
                                             cursor: 'pointer',
                                             '&:hover': { textDecoration: 'underline' }
@@ -221,7 +225,7 @@ export default function FriendsPage() {
                                     ))}
                                 </Box>
                             ) : (
-                                <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                                     Không có gợi ý nào
                                 </Typography>
                             )}
@@ -231,7 +235,7 @@ export default function FriendsPage() {
                     {/* Tab 2: Gợi ý */}
                     {tabValue === 2 && (
                         <Box>
-                            <Typography variant="h6" fontWeight={600} color="#050505" sx={{ mb: 2 }}>
+                            <Typography variant="h6" fontWeight={600} color="text.primary" sx={{ mb: 2 }}>
                                 Những người bạn có thể biết
                             </Typography>
 
@@ -246,7 +250,7 @@ export default function FriendsPage() {
                                     ))}
                                 </Box>
                             ) : (
-                                <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                                     Không có gợi ý nào
                                 </Typography>
                             )}
@@ -256,7 +260,7 @@ export default function FriendsPage() {
                     {/* Tab 3: Tất cả bạn bè */}
                     {tabValue === 3 && (
                         <Box>
-                            <Typography variant="h6" fontWeight={600} color="#050505" sx={{ mb: 2 }}>
+                            <Typography variant="h6" fontWeight={600} color="text.primary" sx={{ mb: 2 }}>
                                 Tất cả bạn bè ({listFriends?.data?.length || 0})
                             </Typography>
 
@@ -271,7 +275,7 @@ export default function FriendsPage() {
                                     ))}
                                 </Box>
                             ) : (
-                                <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                                     Bạn chưa có bạn bè nào
                                 </Typography>
                             )}
@@ -281,10 +285,10 @@ export default function FriendsPage() {
                     {/* Tab 4: Sinh nhật */}
                     {tabValue === 4 && (
                         <Box>
-                            <Typography variant="h6" fontWeight={600} color="#050505" sx={{ mb: 2 }}>
+                            <Typography variant="h6" fontWeight={600} color="text.primary" sx={{ mb: 2 }}>
                                 Sinh nhật
                             </Typography>
-                            <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                                 Không có sinh nhật nào hôm nay
                             </Typography>
                         </Box>
@@ -293,7 +297,7 @@ export default function FriendsPage() {
                     {/* Tab 5: Đang chờ phản hồi (Danh sách tùy chỉnh) */}
                     {tabValue === 5 && (
                         <Box>
-                            <Typography variant="h6" fontWeight={600} color="#050505" sx={{ mb: 2 }}>
+                            <Typography variant="h6" fontWeight={600} color="text.primary" sx={{ mb: 2 }}>
                                 Lời mời đã gửi
                             </Typography>
 
@@ -308,7 +312,7 @@ export default function FriendsPage() {
                                     ))}
                                 </Box>
                             ) : (
-                                <Typography variant="body2" color="#65676b" sx={{ py: 4, textAlign: 'center' }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                                     Bạn chưa gửi lời mời kết bạn nào
                                 </Typography>
                             )}

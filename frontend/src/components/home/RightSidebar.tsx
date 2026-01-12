@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Box, Typography, Avatar, Badge } from '@mui/material';
+import { Box, Typography, Avatar, Badge, useTheme } from '@mui/material';
 import { MoreHoriz as MoreIcon, VideoCall as VideoIcon, Search as SearchIcon } from '@mui/icons-material';
 import { useDisplayListFriends } from '@/queries/useRelationshipQueries';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -9,12 +9,16 @@ import { useOnlineStatusStore, formatLastActive } from '@/stores/useOnlineStatus
 
 export default function RightSidebar() {
     const { user } = useAuthStore();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const { data: friends, isLoading: isLoadingFriends } = useDisplayListFriends(user?.id || "");
 
     // Online status store - just read, don't subscribe to socket here
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
     const setUserOnline = useOnlineStatusStore(state => state.setUserOnline);
     const setUserOffline = useOnlineStatusStore(state => state.setUserOffline);
+
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
 
     // Initialize status from friend data (only when friends load)
     useEffect(() => {
@@ -69,21 +73,21 @@ export default function RightSidebar() {
                 overflowY: 'auto',
                 pt: 2,
                 px: 2,
-                bgcolor: '#f0f2f5',
+                bgcolor: 'background.default',
                 zIndex: 100,
                 display: { xs: 'none', xl: 'block' },
                 '&::-webkit-scrollbar': {
                     width: '8px',
                 },
                 '&::-webkit-scrollbar-thumb': {
-                    backgroundColor: '#b8b8b8',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : '#b8b8b8',
                     borderRadius: '4px',
                 },
             }}
         >
             {/* Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography sx={{ fontSize: '17px', fontWeight: 600, color: '#65676b' }}>
+                <Typography sx={{ fontSize: '17px', fontWeight: 600, color: 'text.secondary' }}>
                     Người liên hệ
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
@@ -96,10 +100,10 @@ export default function RightSidebar() {
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            '&:hover': { bgcolor: '#e4e6eb' },
+                            '&:hover': { bgcolor: hoverBg },
                         }}
                     >
-                        <VideoIcon sx={{ fontSize: '20px', color: '#65676b' }} />
+                        <VideoIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
                     </Box>
                     <Box
                         sx={{
@@ -110,10 +114,10 @@ export default function RightSidebar() {
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            '&:hover': { bgcolor: '#e4e6eb' },
+                            '&:hover': { bgcolor: hoverBg },
                         }}
                     >
-                        <SearchIcon sx={{ fontSize: '20px', color: '#65676b' }} />
+                        <SearchIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
                     </Box>
                     <Box
                         sx={{
@@ -124,10 +128,10 @@ export default function RightSidebar() {
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            '&:hover': { bgcolor: '#e4e6eb' },
+                            '&:hover': { bgcolor: hoverBg },
                         }}
                     >
-                        <MoreIcon sx={{ fontSize: '20px', color: '#65676b' }} />
+                        <MoreIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
                     </Box>
                 </Box>
             </Box>
@@ -151,7 +155,7 @@ export default function RightSidebar() {
                                     borderRadius: 2,
                                     cursor: 'pointer',
                                     '&:hover': {
-                                        bgcolor: '#e4e6eb',
+                                        bgcolor: hoverBg,
                                     },
                                 }}
                             >
@@ -161,8 +165,8 @@ export default function RightSidebar() {
                                     variant="dot"
                                     sx={{
                                         '& .MuiBadge-badge': {
-                                            backgroundColor: status.isOnline ? '#31a24c' : 'transparent',
-                                            border: status.isOnline ? '2px solid white' : 'none',
+                                            backgroundColor: status.isOnline ? theme.palette.success.main : 'transparent',
+                                            border: status.isOnline ? `2px solid ${theme.palette.background.paper}` : 'none',
                                             width: 12,
                                             height: 12,
                                             borderRadius: '50%',
@@ -181,7 +185,7 @@ export default function RightSidebar() {
                                         sx={{
                                             fontSize: '15px',
                                             fontWeight: 500,
-                                            color: '#050505',
+                                            color: 'text.primary',
                                             overflow: 'hidden',
                                             textOverflow: 'ellipsis',
                                             whiteSpace: 'nowrap',
@@ -194,7 +198,7 @@ export default function RightSidebar() {
                                         <Typography
                                             sx={{
                                                 fontSize: '12px',
-                                                color: '#65676b',
+                                                color: 'text.secondary',
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap',

@@ -27,6 +27,7 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
+    useTheme,
 } from '@mui/material';
 import {
     PhotoCamera as PhotoCameraIcon,
@@ -91,6 +92,12 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     const deletePostMutation = useDeletePost();
     const { addPost, deletePost: deletePostFromStore } = usePostStore();
     const { socketRelationship } = useSocket();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const mainBg = theme.palette.mode === 'dark' ? theme.palette.background.default : '#f0f2f5';
+    const paperBg = theme.palette.background.paper;
+    const textPrimary = theme.palette.text.primary;
+    const textSecondary = theme.palette.text.secondary;
 
     // Profile states
     const [profile, setProfile] = useState<ProfileType | null>(null);
@@ -803,10 +810,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     if (loading) {
         return (
-            <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
+            <Box sx={{ bgcolor: mainBg, minHeight: '100vh' }}>
                 <Header />
                 <Box sx={{ pt: '56px' }}>
-                    <Box sx={{ bgcolor: 'white', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                    <Box sx={{ bgcolor: paperBg, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
                         <Container maxWidth="lg">
                             <Skeleton variant="rectangular" height={350} sx={{ borderRadius: '0 0 8px 8px' }} />
                             <Box sx={{ display: 'flex', alignItems: 'flex-end', mt: -8, px: 2, pb: 2 }}>
@@ -825,10 +832,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     if (!profile) {
         return (
-            <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
+            <Box sx={{ bgcolor: mainBg, minHeight: '100vh' }}>
                 <Header />
                 <Box sx={{ pt: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 56px)' }}>
-                    <Typography color="#050505">Không tìm thấy người dùng</Typography>
+                    <Typography color="text.primary">Không tìm thấy người dùng</Typography>
                 </Box>
             </Box>
         );
@@ -837,7 +844,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
 
     return (
-        <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: mainBg, minHeight: '100vh' }}>
             {/* Header */}
             <Header />
 
@@ -860,7 +867,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                 />
 
                 {/* Cover & Profile Header */}
-                <Box sx={{ bgcolor: 'white', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                <Box sx={{ bgcolor: paperBg, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
                     <Container maxWidth="lg">
                         {/* Cover Photo */}
                         <Box
@@ -897,12 +904,12 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         position: 'absolute',
                                         bottom: 16,
                                         right: 16,
-                                        bgcolor: 'white',
+                                        bgcolor: paperBg,
                                         zIndex: 15,
-                                        color: '#050505',
+                                        color: textPrimary,
                                         textTransform: 'none',
                                         fontWeight: 600,
-                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                        '&:hover': { bgcolor: isDark ? theme.palette.action.hover : '#f0f2f5' }
                                     }}
                                     onClick={profile.background ? handleOpenCoverMenu : handleOpenCoverEditModal}
                                     disabled={uploadingCover}
@@ -921,11 +928,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     sx={{
                                         width: 168,
                                         height: 168,
-                                        border: '4px solid white',
+                                        border: `4px solid ${paperBg}`,
                                         boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                        bgcolor: '#e4e6eb',
+                                        bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
                                         fontSize: 64,
-                                        color: '#65676b',
+                                        color: isDark ? theme.palette.text.secondary : '#65676b',
                                     }}
                                 >
                                     {!profile.avatar && fullName.charAt(0)}
@@ -952,24 +959,24 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             position: 'absolute',
                                             bottom: 8,
                                             right: 8,
-                                            bgcolor: '#e4e6eb',
-                                            border: '2px solid white',
-                                            '&:hover': { bgcolor: '#d8dadf' }
+                                            bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                            border: `2px solid ${paperBg}`,
+                                            '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf' }
                                         }}
                                         onClick={handleOpenAvatarMenu}
                                         disabled={uploadingAvatar}
                                     >
-                                        <PhotoCameraIcon sx={{ fontSize: 20, color: '#050505' }} />
+                                        <PhotoCameraIcon sx={{ fontSize: 20, color: textPrimary }} />
                                     </IconButton>
                                 )}
                             </Box>
 
                             {/* Name & Friends Count */}
                             <Box sx={{ ml: 3, flex: 1, mb: 1 }}>
-                                <Typography variant="h4" fontWeight={700} color="#050505">
+                                <Typography variant="h4" fontWeight={700} color={textPrimary}>
                                     {fullName}
                                 </Typography>
-                                <Typography color="#65676b" fontWeight={500} fontSize={15}>
+                                <Typography color={textSecondary} fontWeight={500} fontSize={15}>
                                     {friends.length} bạn bè
                                 </Typography>
                                 {/* Friends avatars preview */}
@@ -982,7 +989,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 sx={{
                                                     width: 32,
                                                     height: 32,
-                                                    border: '2px solid white',
+                                                    border: `2px solid ${paperBg}`,
                                                     ml: idx > 0 ? -1 : 0,
                                                     cursor: 'pointer',
                                                     '&:hover': { zIndex: 1, transform: 'scale(1.1)' },
@@ -1015,11 +1022,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             variant="contained"
                                             startIcon={<EditIcon />}
                                             sx={{
-                                                bgcolor: '#e4e6eb',
-                                                color: '#050505',
+                                                bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                                color: textPrimary,
                                                 textTransform: 'none',
                                                 fontWeight: 600,
-                                                '&:hover': { bgcolor: '#d8dadf' }
+                                                '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf' }
                                             }}
                                             onClick={() => setEditModalOpen(true)}
                                         >
@@ -1034,8 +1041,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 variant="contained"
                                                 disabled
                                                 sx={{
-                                                    bgcolor: '#e4e6eb',
-                                                    color: '#050505',
+                                                    bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                                    color: textPrimary,
                                                     textTransform: 'none',
                                                     fontWeight: 600,
                                                 }}
@@ -1048,11 +1055,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 variant="contained"
                                                 startIcon={<CheckIcon />}
                                                 sx={{
-                                                    bgcolor: '#e4e6eb',
-                                                    color: '#050505',
+                                                    bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                                    color: textPrimary,
                                                     textTransform: 'none',
                                                     fontWeight: 600,
-                                                    '&:hover': { bgcolor: '#d8dadf' }
+                                                    '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf' }
                                                 }}
                                                 onClick={() => handleUnfriend()}
                                             >
@@ -1063,11 +1070,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 variant="contained"
                                                 startIcon={<CancelIcon />}
                                                 sx={{
-                                                    bgcolor: '#e4e6eb',
-                                                    color: '#050505',
+                                                    bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                                    color: textPrimary,
                                                     textTransform: 'none',
                                                     fontWeight: 600,
-                                                    '&:hover': { bgcolor: '#d8dadf' }
+                                                    '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf' }
                                                 }}
                                                 onClick={handleCancelFriendRequest}
                                             >
@@ -1092,11 +1099,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             variant="contained"
                                             startIcon={<MessageIcon />}
                                             sx={{
-                                                bgcolor: isFriend ? '#1877f2' : '#e4e6eb',
-                                                color: isFriend ? 'white' : '#050505',
+                                                bgcolor: isFriend ? 'primary.main' : (isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb'),
+                                                color: isFriend ? 'white' : textPrimary,
                                                 textTransform: 'none',
                                                 fontWeight: 600,
-                                                '&:hover': { bgcolor: isFriend ? '#166fe5' : '#d8dadf' }
+                                                '&:hover': { bgcolor: isFriend ? 'primary.dark' : (isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf') }
                                             }}
                                             onClick={handleMessage}
                                         >
@@ -1105,10 +1112,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     </>
                                 )}
                                 <IconButton
-                                    sx={{ bgcolor: '#e4e6eb', '&:hover': { bgcolor: '#d8dadf' } }}
+                                    sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb', '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf' } }}
                                     onClick={handleOpenProfileSettings}
                                 >
-                                    <MoreIcon sx={{ color: '#050505' }} />
+                                    <MoreIcon sx={{ color: textPrimary }} />
                                 </IconButton>
                             </Box>
                         </Box>
@@ -1125,12 +1132,12 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         textTransform: 'none',
                                         fontWeight: 600,
                                         fontSize: 15,
-                                        color: '#65676b',
+                                        color: textSecondary,
                                         minWidth: 'auto',
                                         px: 2,
-                                        '&.Mui-selected': { color: '#1877f2' }
+                                        '&.Mui-selected': { color: 'primary.main' }
                                     },
-                                    '& .MuiTabs-indicator': { bgcolor: '#1877f2', height: 3 }
+                                    '& .MuiTabs-indicator': { bgcolor: 'primary.main', height: 3 }
                                 }}
                             >
                                 <Tab label="Bài viết" />
@@ -1151,27 +1158,27 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             {/* Left Column - Intro */}
                             <Grid size={{ xs: 12, md: 5 }}>
                                 {/* Intro Card */}
-                                <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                                <Card sx={{ bgcolor: paperBg, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
                                     <CardContent>
-                                        <Typography variant="h6" fontWeight={700} color="#050505" gutterBottom>
+                                        <Typography variant="h6" fontWeight={700} color={textPrimary} gutterBottom>
                                             Giới thiệu
                                         </Typography>
 
                                         {/* Bio */}
                                         {profile.bio ? (
-                                            <Typography color="#050505" fontSize={15} textAlign="center" sx={{ mb: 2 }}>
+                                            <Typography color={textPrimary} fontSize={15} textAlign="center" sx={{ mb: 2 }}>
                                                 {profile.bio}
                                             </Typography>
                                         ) : isOwnProfile && (
                                             <Button
                                                 fullWidth
                                                 sx={{
-                                                    bgcolor: '#e4e6eb',
-                                                    color: '#050505',
+                                                    bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                                    color: textPrimary,
                                                     textTransform: 'none',
                                                     fontWeight: 500,
                                                     mb: 2,
-                                                    '&:hover': { bgcolor: '#d8dadf' }
+                                                    '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf' }
                                                 }}
                                                 onClick={() => setEditModalOpen(true)}
                                             >
@@ -1184,8 +1191,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             {profile.addresses && profile.addresses.length > 0 && (
                                                 profile.addresses.map((addr, idx) => (
                                                     <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                        <HomeIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                                                        <Typography color="#050505" fontSize={15}>
+                                                        <HomeIcon sx={{ fontSize: 20, color: textSecondary }} />
+                                                        <Typography color={textPrimary} fontSize={15}>
                                                             Sống tại <strong>{addr.ward?.name}, {addr.district?.name}, {addr.province?.name}</strong>
                                                         </Typography>
                                                     </Box>
@@ -1194,8 +1201,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
                                             {profile.birthday && (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                    <CakeIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                                                    <Typography color="#050505" fontSize={15}>
+                                                    <CakeIcon sx={{ fontSize: 20, color: textSecondary }} />
+                                                    <Typography color={textPrimary} fontSize={15}>
                                                         Sinh ngày <strong>{formatDate(profile.birthday)}</strong>
                                                     </Typography>
                                                 </Box>
@@ -1203,8 +1210,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
                                             {profile.phone && (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                    <PhoneIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                                                    <Typography color="#050505" fontSize={15}>
+                                                    <PhoneIcon sx={{ fontSize: 20, color: textSecondary }} />
+                                                    <Typography color={textPrimary} fontSize={15}>
                                                         {profile.phone}
                                                     </Typography>
                                                 </Box>
@@ -1212,8 +1219,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
                                             {profile.createdAt && (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                    <PublicIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                                                    <Typography color="#050505" fontSize={15}>
+                                                    <PublicIcon sx={{ fontSize: 20, color: textSecondary }} />
+                                                    <Typography color={textPrimary} fontSize={15}>
                                                         Tham gia từ <strong>{formatDate(profile.createdAt)}</strong>
                                                     </Typography>
                                                 </Box>
@@ -1224,12 +1231,12 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             <Button
                                                 fullWidth
                                                 sx={{
-                                                    bgcolor: '#e4e6eb',
-                                                    color: '#050505',
+                                                    bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                                    color: textPrimary,
                                                     textTransform: 'none',
                                                     fontWeight: 500,
                                                     mt: 2,
-                                                    '&:hover': { bgcolor: '#d8dadf' }
+                                                    '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf' }
                                                 }}
                                                 onClick={() => setEditModalOpen(true)}
                                             >
@@ -1240,13 +1247,13 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 </Card>
 
                                 {/* Photos Card */}
-                                <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', mt: 2 }}>
+                                <Card sx={{ bgcolor: paperBg, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)', mt: 2 }}>
                                     <CardContent>
                                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                            <Typography variant="h6" fontWeight={700} color="#050505">
+                                            <Typography variant="h6" fontWeight={700} color={textPrimary}>
                                                 Ảnh
                                             </Typography>
-                                            <Button sx={{ textTransform: 'none', color: '#1877f2' }} onClick={() => setActiveTab(3)}>
+                                            <Button sx={{ textTransform: 'none', color: 'primary.main' }} onClick={() => setActiveTab(3)}>
                                                 Xem tất cả ảnh
                                             </Button>
                                         </Box>
@@ -1273,7 +1280,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                     ))}
                                             </Grid>
                                         ) : (
-                                            <Typography color="#65676b" fontSize={14}>
+                                            <Typography color={textSecondary} fontSize={14}>
                                                 Chưa có ảnh nào
                                             </Typography>
                                         )}
@@ -1281,18 +1288,18 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 </Card>
 
                                 {/* Friends Card */}
-                                <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', mt: 2 }}>
+                                <Card sx={{ bgcolor: paperBg, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)', mt: 2 }}>
                                     <CardContent>
                                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                                             <Box>
-                                                <Typography variant="h6" fontWeight={700} color="#050505">
+                                                <Typography variant="h6" fontWeight={700} color={textPrimary}>
                                                     Bạn bè
                                                 </Typography>
-                                                <Typography color="#65676b" fontSize={14}>
+                                                <Typography color={textSecondary} fontSize={14}>
                                                     {friends.length} người bạn
                                                 </Typography>
                                             </Box>
-                                            <Button sx={{ textTransform: 'none', color: '#1877f2' }} onClick={() => setActiveTab(2)}>
+                                            <Button sx={{ textTransform: 'none', color: 'primary.main' }} onClick={() => setActiveTab(2)}>
                                                 Xem tất cả bạn bè
                                             </Button>
                                         </Box>
@@ -1302,7 +1309,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 <CircularProgress size={24} />
                                             </Box>
                                         ) : friends.length === 0 ? (
-                                            <Typography color="#65676b" fontSize={14} textAlign="center" py={2}>
+                                            <Typography color={textSecondary} fontSize={14} textAlign="center" py={2}>
                                                 Chưa có bạn bè nào
                                             </Typography>
                                         ) : (
@@ -1331,7 +1338,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                             <Typography
                                                                 fontSize={13}
                                                                 fontWeight={500}
-                                                                color="#050505"
+                                                                color={textPrimary}
                                                                 sx={{
                                                                     mt: 0.5,
                                                                     overflow: 'hidden',
@@ -1354,7 +1361,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <Grid size={{ xs: 12, md: 7 }}>
                                 {/* Create Post Card */}
                                 {isOwnProfile && (
-                                    <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', mb: 2 }}>
+                                    <Card sx={{ bgcolor: paperBg, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)', mb: 2 }}>
                                         <CardContent>
                                             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                                                 <Avatar
@@ -1362,8 +1369,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                     sx={{
                                                         width: 40,
                                                         height: 40,
-                                                        bgcolor: '#e4e6eb',
-                                                        color: '#65676b',
+                                                        bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                                        color: isDark ? theme.palette.text.secondary : '#65676b',
                                                     }}
                                                 >
                                                     {!profile.avatar && fullName.charAt(0)}
@@ -1372,14 +1379,14 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                     fullWidth
                                                     onClick={() => setCreatePostModalOpen(true)}
                                                     sx={{
-                                                        bgcolor: '#f0f2f5',
-                                                        color: '#65676b',
+                                                        bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5',
+                                                        color: textSecondary,
                                                         textTransform: 'none',
                                                         justifyContent: 'flex-start',
                                                         px: 2,
                                                         py: 1,
                                                         borderRadius: 20,
-                                                        '&:hover': { bgcolor: '#e4e6eb' }
+                                                        '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb' }
                                                     }}
                                                 >
                                                     {fullName} ơi, bạn đang nghĩ gì thế?
@@ -1395,9 +1402,9 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         <CircularProgress />
                                     </Box>
                                 ) : posts.length === 0 ? (
-                                    <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                                    <Card sx={{ bgcolor: paperBg, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
                                         <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                                            <Typography color="#65676b" fontSize={15}>
+                                            <Typography color={textSecondary} fontSize={15}>
                                                 Chưa có bài viết nào
                                             </Typography>
                                         </CardContent>
@@ -1425,12 +1432,12 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
                     {/* Tab 1: Giới thiệu (About) */}
                     {activeTab === 1 && (
-                        <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                        <Card sx={{ bgcolor: paperBg, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
                             <CardContent>
                                 <Grid container>
                                     {/* Left sidebar */}
-                                    <Grid size={{ xs: 12, md: 4 }} sx={{ borderRight: { md: '1px solid #e4e6eb' }, pr: { md: 2 } }}>
-                                        <Typography variant="h5" fontWeight={700} color="#050505" gutterBottom>
+                                    <Grid size={{ xs: 12, md: 4 }} sx={{ borderRight: { md: `1px solid ${theme.palette.divider}` }, pr: { md: 2 } }}>
+                                        <Typography variant="h5" fontWeight={700} color={textPrimary} gutterBottom>
                                             Giới thiệu
                                         </Typography>
                                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -1441,12 +1448,12 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                     sx={{
                                                         justifyContent: 'flex-start',
                                                         textTransform: 'none',
-                                                        color: idx === 0 ? '#1877f2' : '#050505',
-                                                        bgcolor: idx === 0 ? '#e7f3ff' : 'transparent',
+                                                        color: idx === 0 ? 'primary.main' : textPrimary,
+                                                        bgcolor: idx === 0 ? (isDark ? 'rgba(45, 136, 255, 0.2)' : '#e7f3ff') : 'transparent',
                                                         fontWeight: idx === 0 ? 600 : 400,
                                                         borderRadius: 2,
                                                         py: 1,
-                                                        '&:hover': { bgcolor: idx === 0 ? '#e7f3ff' : '#f0f2f5' }
+                                                        '&:hover': { bgcolor: idx === 0 ? (isDark ? 'rgba(45, 136, 255, 0.3)' : '#e7f3ff') : (isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5') }
                                                     }}
                                                 >
                                                     {item}
@@ -1461,8 +1468,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             {/* Add work */}
                                             {isOwnProfile && (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', '&:hover': { opacity: 0.8 } }}>
-                                                    <AddIcon sx={{ color: '#1877f2', bgcolor: '#e7f3ff', borderRadius: '50%', p: 0.5 }} />
-                                                    <Typography color="#1877f2" fontSize={15} fontWeight={500}>
+                                                    <AddIcon sx={{ color: 'primary.main', bgcolor: isDark ? 'rgba(45, 136, 255, 0.2)' : '#e7f3ff', borderRadius: '50%', p: 0.5 }} />
+                                                    <Typography color="primary.main" fontSize={15} fontWeight={500}>
                                                         Thêm nơi làm việc
                                                     </Typography>
                                                 </Box>
@@ -1470,8 +1477,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
                                             {/* School info */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                <SchoolIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                                <Typography color="#050505" fontSize={15}>
+                                                <SchoolIcon sx={{ color: textSecondary, fontSize: 24 }} />
+                                                <Typography color={textPrimary} fontSize={15}>
                                                     Chưa có thông tin trường học
                                                 </Typography>
                                             </Box>
@@ -1480,16 +1487,16 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             {profile.addresses && profile.addresses.length > 0 ? (
                                                 profile.addresses.map((addr, idx) => (
                                                     <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                        <HomeIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                                        <Typography color="#050505" fontSize={15}>
+                                                        <HomeIcon sx={{ color: textSecondary, fontSize: 24 }} />
+                                                        <Typography color={textPrimary} fontSize={15}>
                                                             Sống tại <strong>{addr.ward?.name}, {addr.district?.name}, {addr.province?.name}</strong>
                                                         </Typography>
                                                     </Box>
                                                 ))
                                             ) : isOwnProfile && (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', '&:hover': { opacity: 0.8 } }} onClick={() => setEditModalOpen(true)}>
-                                                    <AddIcon sx={{ color: '#1877f2', bgcolor: '#e7f3ff', borderRadius: '50%', p: 0.5 }} />
-                                                    <Typography color="#1877f2" fontSize={15} fontWeight={500}>
+                                                    <AddIcon sx={{ color: 'primary.main', bgcolor: isDark ? 'rgba(45, 136, 255, 0.2)' : '#e7f3ff', borderRadius: '50%', p: 0.5 }} />
+                                                    <Typography color="primary.main" fontSize={15} fontWeight={500}>
                                                         Thêm thành phố hiện tại
                                                     </Typography>
                                                 </Box>
@@ -1498,8 +1505,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             {/* Birthday */}
                                             {profile.birthday && (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                    <CakeIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                                    <Typography color="#050505" fontSize={15}>
+                                                    <CakeIcon sx={{ color: textSecondary, fontSize: 24 }} />
+                                                    <Typography color={textPrimary} fontSize={15}>
                                                         Sinh ngày <strong>{formatDate(profile.birthday)}</strong>
                                                     </Typography>
                                                 </Box>
@@ -1509,7 +1516,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             {profile.gender && (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                                     {getGenderIcon(profile.gender)}
-                                                    <Typography color="#050505" fontSize={15}>
+                                                    <Typography color={textPrimary} fontSize={15}>
                                                         {getGenderText(profile.gender)}
                                                     </Typography>
                                                 </Box>
@@ -1518,8 +1525,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             {/* Phone */}
                                             {profile.phone && (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                    <PhoneIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                                    <Typography color="#050505" fontSize={15}>
+                                                    <PhoneIcon sx={{ color: textSecondary, fontSize: 24 }} />
+                                                    <Typography color={textPrimary} fontSize={15}>
                                                         {profile.phone}
                                                     </Typography>
                                                 </Box>
@@ -1528,8 +1535,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             {/* Email */}
                                             {profile.email && (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                    <EmailIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                                    <Typography color="#050505" fontSize={15}>
+                                                    <EmailIcon sx={{ color: textSecondary, fontSize: 24 }} />
+                                                    <Typography color={textPrimary} fontSize={15}>
                                                         {profile.email}
                                                     </Typography>
                                                 </Box>
@@ -1538,8 +1545,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             {/* Join date */}
                                             {profile.createdAt && (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                    <PublicIcon sx={{ color: '#65676b', fontSize: 24 }} />
-                                                    <Typography color="#050505" fontSize={15}>
+                                                    <PublicIcon sx={{ color: textSecondary, fontSize: 24 }} />
+                                                    <Typography color={textPrimary} fontSize={15}>
                                                         Tham gia từ <strong>{formatDate(profile.createdAt)}</strong>
                                                     </Typography>
                                                 </Box>
@@ -1553,10 +1560,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
                     {/* Tab 2: Bạn bè (Friends) */}
                     {activeTab === 2 && (
-                        <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                        <Card sx={{ bgcolor: paperBg, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
                             <CardContent>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                    <Typography variant="h5" fontWeight={700} color="#050505">
+                                    <Typography variant="h5" fontWeight={700} color={textPrimary}>
                                         Bạn bè
                                     </Typography>
                                     <Box sx={{ display: 'flex', gap: 1 }}>
@@ -1567,7 +1574,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             onChange={(e) => setFriendSearchQuery(e.target.value)}
                                             sx={{
                                                 '& .MuiOutlinedInput-root': {
-                                                    bgcolor: '#f0f2f5',
+                                                    bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5',
                                                     borderRadius: 20,
                                                     '& fieldset': { border: 'none' }
                                                 }
@@ -1575,19 +1582,19 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             InputProps={{
                                                 startAdornment: (
                                                     <InputAdornment position="start">
-                                                        <SearchIcon sx={{ color: '#65676b' }} />
+                                                        <SearchIcon sx={{ color: textSecondary }} />
                                                     </InputAdornment>
                                                 )
                                             }}
                                         />
                                         <Button
-                                            sx={{ textTransform: 'none', color: '#1877f2' }}
+                                            sx={{ textTransform: 'none', color: 'primary.main' }}
                                             onClick={() => navigateToFriends('requests')}
                                         >
                                             Lời mời kết bạn
                                         </Button>
                                         <Button
-                                            sx={{ textTransform: 'none', color: '#1877f2' }}
+                                            sx={{ textTransform: 'none', color: 'primary.main' }}
                                             onClick={() => navigateToFriends('suggestions')}
                                         >
                                             Tìm bạn bè
@@ -1605,7 +1612,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         <CircularProgress />
                                     </Box>
                                 ) : filteredFriends.length === 0 ? (
-                                    <Typography color="#65676b" textAlign="center" py={4}>
+                                    <Typography color={textSecondary} textAlign="center" py={4}>
                                         {friendSearchQuery ? 'Không tìm thấy bạn bè nào' : 'Chưa có bạn bè nào'}
                                     </Typography>
                                 ) : (
@@ -1619,10 +1626,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                         gap: 2,
                                                         p: 2,
                                                         borderRadius: 2,
-                                                        border: '1px solid #e4e6eb',
-                                                        bgcolor: 'white',
+                                                        border: `1px solid ${theme.palette.divider}`,
+                                                        bgcolor: paperBg,
                                                         cursor: 'pointer',
-                                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                                        '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' }
                                                     }}
                                                     onClick={() => navigateToProfile(friend.username)}
                                                 >
@@ -1631,19 +1638,19 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                         sx={{ width: 80, height: 80, borderRadius: 2 }}
                                                     />
                                                     <Box sx={{ flex: 1 }}>
-                                                        <Typography fontWeight={600} color="#050505">
+                                                        <Typography fontWeight={600} color={textPrimary}>
                                                             {friend.firstName} {friend.lastName}
                                                         </Typography>
-                                                        <Typography fontSize={13} color="#65676b">
+                                                        <Typography fontSize={13} color={textSecondary}>
                                                             @{friend.username}
                                                         </Typography>
                                                     </Box>
                                                     {isOwnProfile && (
                                                         <IconButton
                                                             onClick={(e) => handleOpenFriendMenu(e, friend)}
-                                                            sx={{ bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}
+                                                            sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5', '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb' } }}
                                                         >
-                                                            <MoreIcon sx={{ color: '#050505' }} />
+                                                            <MoreIcon sx={{ color: textSecondary }} />
                                                         </IconButton>
                                                     )}
                                                 </Box>
@@ -1657,15 +1664,15 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
                     {/* Tab 3: Ảnh (Photos) */}
                     {activeTab === 3 && (
-                        <Card sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                        <Card sx={{ bgcolor: paperBg, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
                             <CardContent>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                    <Typography variant="h5" fontWeight={700} color="#050505">
+                                    <Typography variant="h5" fontWeight={700} color={textPrimary}>
                                         Ảnh
                                     </Typography>
                                     {isOwnProfile && (
                                         <Button
-                                            sx={{ textTransform: 'none', color: '#1877f2' }}
+                                            sx={{ textTransform: 'none', color: 'primary.main' }}
                                             onClick={() => setCreatePostModalOpen(true)}
                                         >
                                             Thêm ảnh/video
@@ -1686,7 +1693,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
                                     if (allPhotos.length === 0) {
                                         return (
-                                            <Typography color="#65676b" textAlign="center" py={4}>
+                                            <Typography color={textSecondary} textAlign="center" py={4}>
                                                 Chưa có ảnh nào
                                             </Typography>
                                         );
@@ -1797,7 +1804,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             width: 320,
                             borderRadius: 2,
                             boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-                            mt: 1
+                            mt: 1,
+                            bgcolor: paperBg
                         }
                     }}
                 >
@@ -1849,7 +1857,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             borderRadius: 2,
                             boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
                             mt: 1,
-                            bgcolor: 'white',
+                            bgcolor: paperBg,
                         }
                     }}
                 >
@@ -1857,14 +1865,14 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                         onClick={() => {
                             if (selectedFriend) handleUnfriend(selectedFriend._id);
                         }}
-                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' } }}
                     >
                         <ListItemIcon>
-                            <PersonRemoveIcon sx={{ color: '#050505' }} />
+                            <PersonRemoveIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
                             primary="Hủy kết bạn"
-                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                            primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
                     <MenuItem
@@ -1872,14 +1880,14 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             handleCloseFriendMenu();
                             setBlockFriendDialogOpen(true);
                         }}
-                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' } }}
                     >
                         <ListItemIcon>
-                            <BlockIcon sx={{ color: '#050505' }} />
+                            <BlockIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
                             primary="Chặn người dùng"
-                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                            primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
                 </Menu>
@@ -1895,48 +1903,48 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             borderRadius: 2,
                             boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
                             mt: 1,
-                            bgcolor: 'white',
+                            bgcolor: paperBg,
                         }
                     }}
                 >
                     <MenuItem
                         onClick={handleCloseProfileSettings}
-                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' } }}
                     >
                         <ListItemIcon>
-                            <SearchIcon sx={{ color: '#050505' }} />
+                            <SearchIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
                             primary="Tìm hỗ trợ hoặc báo cáo"
-                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                            primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
                     {isOwnProfile && (
                         <>
                             <MenuItem
                                 onClick={handleCloseProfileSettings}
-                                sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                                sx={{ py: 1.5, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' } }}
                             >
                                 <ListItemIcon>
-                                    <PauseCircleIcon sx={{ color: '#050505' }} />
+                                    <PauseCircleIcon sx={{ color: textPrimary }} />
                                 </ListItemIcon>
                                 <ListItemText
                                     primary="Tạm khóa trang cá nhân"
                                     secondary="Tạm ẩn trang cá nhân và thông tin của bạn"
-                                    primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
-                                    secondaryTypographyProps={{ color: '#65676b', fontSize: 12 }}
+                                    primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
+                                    secondaryTypographyProps={{ color: textSecondary, fontSize: 12 }}
                                 />
                             </MenuItem>
                             <MenuItem
                                 onClick={handleGoToSettings}
-                                sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                                sx={{ py: 1.5, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' } }}
                             >
                                 <ListItemIcon>
-                                    <SettingsIcon sx={{ color: '#050505' }} />
+                                    <SettingsIcon sx={{ color: textPrimary }} />
                                 </ListItemIcon>
                                 <ListItemText
                                     primary="Cài đặt trang cá nhân"
-                                    primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                                    primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                                 />
                             </MenuItem>
                         </>
@@ -1947,14 +1955,14 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 handleCloseProfileSettings();
                                 setBlockDialogOpen(true);
                             }}
-                            sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                            sx={{ py: 1.5, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' } }}
                         >
                             <ListItemIcon>
-                                <BlockIcon sx={{ color: '#050505' }} />
+                                <BlockIcon sx={{ color: textPrimary }} />
                             </ListItemIcon>
                             <ListItemText
                                 primary="Chặn"
-                                primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                                primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                             />
                         </MenuItem>
                     )}
@@ -1971,32 +1979,32 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             borderRadius: 2,
                             boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
                             mt: 1,
-                            bgcolor: 'white',
+                            bgcolor: paperBg,
                         }
                     }}
                 >
                     <MenuItem
                         onClick={handleViewAvatar}
-                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' } }}
                     >
                         <ListItemIcon>
-                            <VisibilityIcon sx={{ color: '#050505' }} />
+                            <VisibilityIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
                             primary="Xem ảnh đại diện"
-                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                            primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
                     <MenuItem
                         onClick={handleUploadAvatar}
-                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' } }}
                     >
                         <ListItemIcon>
-                            <CloudUploadIcon sx={{ color: '#050505' }} />
+                            <CloudUploadIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
                             primary="Tải ảnh lên"
-                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                            primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
                 </Menu>
@@ -2012,32 +2020,32 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             borderRadius: 2,
                             boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
                             mt: 1,
-                            bgcolor: 'white',
+                            bgcolor: paperBg,
                         }
                     }}
                 >
                     <MenuItem
                         onClick={handleViewCover}
-                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' } }}
                     >
                         <ListItemIcon>
-                            <VisibilityIcon sx={{ color: '#050505' }} />
+                            <VisibilityIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
                             primary="Xem ảnh bìa"
-                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                            primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
                     <MenuItem
                         onClick={handleUploadCoverFromMenu}
-                        sx={{ py: 1.5, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        sx={{ py: 1.5, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' } }}
                     >
                         <ListItemIcon>
-                            <CloudUploadIcon sx={{ color: '#050505' }} />
+                            <CloudUploadIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
                             primary="Tải ảnh bìa lên"
-                            primaryTypographyProps={{ color: '#050505', fontWeight: 500 }}
+                            primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
                 </Menu>
@@ -2051,16 +2059,16 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                     PaperProps={{
                         sx: {
                             borderRadius: 2,
-                            bgcolor: 'white',
+                            bgcolor: paperBg,
                         }
                     }}
                 >
-                    <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e4e6eb' }}>
-                        <Typography variant="h6" fontWeight={700} color="#050505">
+                    <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${theme.palette.divider}` }}>
+                        <Typography variant="h6" fontWeight={700} color={textPrimary}>
                             Cập nhật ảnh bìa
                         </Typography>
                         <IconButton onClick={handleCloseCoverEditModal}>
-                            <CloseIcon />
+                            <CloseIcon sx={{ color: textSecondary }} />
                         </IconButton>
                     </DialogTitle>
                     <DialogContent sx={{ p: 0 }}>
@@ -2100,27 +2108,27 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     fullWidth
                                     sx={{
                                         py: 1.5,
-                                        borderColor: '#e4e6eb',
-                                        color: '#050505',
+                                        borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                        color: textPrimary,
                                         textTransform: 'none',
                                         fontWeight: 600,
-                                        '&:hover': { borderColor: '#1877f2', bgcolor: '#f0f2f5' }
+                                        '&:hover': { borderColor: 'primary.main', bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' }
                                     }}
                                 >
                                     Chọn ảnh từ máy tính
                                 </Button>
                             </label>
                             {selectedCoverFile && (
-                                <Typography color="#65676b" fontSize={14} sx={{ mt: 1, textAlign: 'center' }}>
+                                <Typography color={textSecondary} fontSize={14} sx={{ mt: 1, textAlign: 'center' }}>
                                     Đã chọn: {selectedCoverFile.name}
                                 </Typography>
                             )}
                         </Box>
                     </DialogContent>
-                    <DialogActions sx={{ p: 2, borderTop: '1px solid #e4e6eb' }}>
+                    <DialogActions sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
                         <Button
                             onClick={handleCloseCoverEditModal}
-                            sx={{ textTransform: 'none', color: '#65676b' }}
+                            sx={{ textTransform: 'none', color: textSecondary }}
                         >
                             Hủy
                         </Button>
@@ -2129,11 +2137,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             onClick={handleSaveCoverPhoto}
                             disabled={!selectedCoverFile || uploadingCover}
                             sx={{
-                                bgcolor: '#1877f2',
+                                bgcolor: 'primary.main',
                                 textTransform: 'none',
                                 fontWeight: 600,
-                                '&:hover': { bgcolor: '#166fe5' },
-                                '&:disabled': { bgcolor: '#e4e6eb' }
+                                '&:hover': { bgcolor: 'primary.dark' },
+                                '&:disabled': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb' }
                             }}
                         >
                             {uploadingCover ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Lưu thay đổi'}
@@ -2149,7 +2157,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                         sx: {
                             borderRadius: 3,
                             width: '400px',
-                            maxWidth: '90vw'
+                            maxWidth: '90vw',
+                            bgcolor: paperBg
                         }
                     }}
                 >
@@ -2212,11 +2221,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 borderRadius: 2,
                                 textTransform: 'none',
                                 fontWeight: 600,
-                                borderColor: '#e4e6eb',
-                                color: '#050505',
+                                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                color: textPrimary,
                                 '&:hover': {
-                                    borderColor: '#bcc0c4',
-                                    bgcolor: '#f0f2f5'
+                                    borderColor: isDark ? 'rgba(255,255,255,0.2)' : '#bcc0c4',
+                                    bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5'
                                 }
                             }}
                         >
@@ -2249,7 +2258,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                         sx: {
                             borderRadius: 3,
                             width: '400px',
-                            maxWidth: '90vw'
+                            maxWidth: '90vw',
+                            bgcolor: paperBg
                         }
                     }}
                 >
@@ -2312,11 +2322,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 borderRadius: 2,
                                 textTransform: 'none',
                                 fontWeight: 600,
-                                borderColor: '#e4e6eb',
-                                color: '#050505',
+                                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                color: textPrimary,
                                 '&:hover': {
-                                    borderColor: '#bcc0c4',
-                                    bgcolor: '#f0f2f5'
+                                    borderColor: isDark ? 'rgba(255,255,255,0.2)' : '#bcc0c4',
+                                    bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5'
                                 }
                             }}
                         >

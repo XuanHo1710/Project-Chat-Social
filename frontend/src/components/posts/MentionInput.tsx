@@ -12,6 +12,7 @@ import {
     Paper,
     InputBase,
     CircularProgress,
+    useTheme,
 } from "@mui/material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useDisplayListFriends } from "@/queries/useRelationshipQueries";
@@ -72,6 +73,10 @@ export default function MentionInput({
     const internalInputRef = useRef<HTMLInputElement>(null);
     const inputRef = externalInputRef || internalInputRef;
     const suggestionsRef = useRef<HTMLDivElement>(null);
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const selectedBg = isDark ? 'rgba(66, 133, 244, 0.3)' : '#e7f3ff';
 
     // Keep track of the mention map from the original value
     const mentionMapRef = useRef<Map<string, string>>(new Map());
@@ -257,7 +262,7 @@ export default function MentionInput({
                 sx={{
                     width: "100%",
                     fontSize: 13,
-                    color: "#050505",
+                    color: "text.primary",
                 }}
             />
 
@@ -292,8 +297,8 @@ export default function MentionInput({
                                         onClick={() => handleSelectMention(friend)}
                                         sx={{
                                             cursor: "pointer",
-                                            bgcolor: index === selectedIndex ? "#e7f3ff" : "transparent",
-                                            "&:hover": { bgcolor: "#f0f2f5" },
+                                            bgcolor: index === selectedIndex ? selectedBg : "transparent",
+                                            "&:hover": { bgcolor: hoverBg },
                                             py: 1,
                                             px: 2,
                                         }}
@@ -310,7 +315,7 @@ export default function MentionInput({
                                                 </Typography>
                                             }
                                             secondary={
-                                                <Typography sx={{ fontSize: 12, color: "#65676b" }}>
+                                                <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
                                                     @{friend.username}
                                                 </Typography>
                                             }

@@ -7,6 +7,7 @@ import { QueryProvider } from "@/hooks/QueryProvider";
 import { AuthProvider } from "@/contexts/AuthProvider";
 import { SocketProvider } from "@/contexts/SocketContext";
 import { MediaUploadProvider } from "@/contexts/MediaUploadContext";
+import { ThemeProvider } from "@/contexts/ThemeProvider";
 
 const myFont = localFont({
   src: [
@@ -83,20 +84,22 @@ export default function RootLayout({
         suppressHydrationWarning className={`${myFont.variable} font-sans antialiased`}
       >
         <QueryProvider>
-          <AuthProvider>
-            <FirebaseNotification />
-            <SocketProvider>
-              <MediaUploadProvider>
-                {children}
-                <Toaster
-                  position="top-right"
-                  richColors
-                  closeButton
-                  duration={4000}
-                />
-              </MediaUploadProvider>
-            </SocketProvider>
-          </AuthProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <FirebaseNotification />
+              <SocketProvider>
+                <MediaUploadProvider>
+                  {children}
+                  <Toaster
+                    position="top-right"
+                    richColors
+                    closeButton
+                    duration={4000}
+                  />
+                </MediaUploadProvider>
+              </SocketProvider>
+            </AuthProvider>
+          </ThemeProvider>
         </QueryProvider>
       </body>
     </html>

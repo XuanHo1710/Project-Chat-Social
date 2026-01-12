@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Box, Typography, Tooltip, Grow, ClickAwayListener } from "@mui/material";
+import { Box, Typography, Tooltip, Grow, ClickAwayListener, useTheme } from "@mui/material";
 import { Comment, CommentReactionType } from "@/types/comment";
 import { useSocket } from "@/contexts/SocketContext";
 import { useCommentReactionStore, CommentReactionType as StoreReactionType } from "@/stores/useCommentReactionStore";
@@ -26,6 +26,8 @@ export default function CommentReactionButton({
     initialTotalLikes = 0
 }: CommentReactionButtonProps) {
     const [showReactions, setShowReactions] = useState(false);
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
 
     const { socketReaction } = useSocket();
 
@@ -171,11 +173,11 @@ export default function CommentReactionButton({
                             mb: 0.5,
                             display: "flex",
                             gap: 0.5,
-                            bgcolor: "white",
+                            bgcolor: "background.paper",
                             borderRadius: 4,
                             px: 1,
                             py: 0.5,
-                            boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+                            boxShadow: isDark ? "0 2px 12px rgba(0,0,0,0.5)" : "0 2px 12px rgba(0,0,0,0.15)",
                             zIndex: 999,
                         }}
                         onMouseEnter={() => {
@@ -228,7 +230,7 @@ export default function CommentReactionButton({
                     <Typography
                         sx={{
                             fontSize: 12,
-                            color: currentReactionData?.color || "#65676b",
+                            color: currentReactionData?.color || (isDark ? 'text.secondary' : '#65676b'),
                             fontWeight: 600,
                             "&:hover": { textDecoration: "underline" },
                         }}

@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, useTheme } from '@mui/material';
 
 interface TypewriterTextProps {
     text: string;
@@ -15,6 +15,7 @@ export default function TypewriterText({
     onComplete,
     isNew = false
 }: TypewriterTextProps) {
+    const theme = useTheme();
     const [displayedText, setDisplayedText] = useState(isNew ? '' : text);
     const [isTyping, setIsTyping] = useState(isNew);
     const indexRef = useRef(0);
@@ -92,7 +93,9 @@ export default function TypewriterText({
                     wordBreak: 'break-word',
                     whiteSpace: 'pre-wrap',
                     '& code': {
-                        background: 'rgba(102, 126, 234, 0.1)',
+                        background: (theme) => theme.palette.mode === 'dark'
+                            ? 'rgba(102, 126, 234, 0.2)'
+                            : 'rgba(102, 126, 234, 0.1)',
                         padding: '2px 6px',
                         borderRadius: '4px',
                         fontFamily: 'monospace',
@@ -111,7 +114,7 @@ export default function TypewriterText({
                         display: 'inline-block',
                         width: '2px',
                         height: '1em',
-                        backgroundColor: '#667eea',
+                        backgroundColor: 'primary.main',
                         marginLeft: '2px',
                         verticalAlign: 'text-bottom',
                         animation: 'cursorBlink 0.8s infinite',

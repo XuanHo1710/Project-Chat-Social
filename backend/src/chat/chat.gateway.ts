@@ -339,7 +339,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 chatHistory: chatHistory,
                 imageUrls: imageUrls,
               },
-              { timeout: 60000 } // Longer timeout for vision
+              { timeout: 120000 } // 2 min timeout for detailed vision analysis
             )
           );
           this.logger.log('AI server response received');

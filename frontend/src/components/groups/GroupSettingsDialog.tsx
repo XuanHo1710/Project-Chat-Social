@@ -17,6 +17,7 @@ import {
     IconButton,
     Divider,
     CircularProgress,
+    useTheme,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -42,6 +43,8 @@ export default function GroupSettingsDialog({
     group,
     onGroupUpdated,
 }: GroupSettingsDialogProps) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [name, setName] = useState(group.name);
     const [description, setDescription] = useState(group.description || '');
     const [privacy, setPrivacy] = useState<GroupPrivacy>(group.privacy);
@@ -98,7 +101,7 @@ export default function GroupSettingsDialog({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                borderBottom: '1px solid #e4e6eb',
+                borderBottom: `1px solid ${theme.palette.divider}`,
                 pb: 2
             }}>
                 <Typography variant="h6" fontWeight={700}>
@@ -148,7 +151,7 @@ export default function GroupSettingsDialog({
                             }
                         }}
                     />
-                    <Typography variant="caption" color="#65676b" sx={{ mt: 0.5, display: 'block' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
                         {description.length}/2000 ký tự
                     </Typography>
                 </Box>
@@ -170,10 +173,10 @@ export default function GroupSettingsDialog({
                                 control={<Radio />}
                                 label={
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                                        <PublicIcon sx={{ color: '#65676b', mt: 0.5 }} />
+                                        <PublicIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                         <Box>
                                             <Typography fontWeight={500}>Công khai</Typography>
-                                            <Typography variant="body2" color="#65676b">
+                                            <Typography variant="body2" color="text.secondary">
                                                 Ai cũng có thể xem bài viết và tham gia nhóm
                                             </Typography>
                                         </Box>
@@ -186,10 +189,10 @@ export default function GroupSettingsDialog({
                                 control={<Radio />}
                                 label={
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                                        <LockIcon sx={{ color: '#65676b', mt: 0.5 }} />
+                                        <LockIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                         <Box>
                                             <Typography fontWeight={500}>Riêng tư</Typography>
-                                            <Typography variant="body2" color="#65676b">
+                                            <Typography variant="body2" color="text.secondary">
                                                 Chỉ thành viên mới xem được bài viết. Cần được duyệt để tham gia.
                                             </Typography>
                                         </Box>
@@ -216,10 +219,10 @@ export default function GroupSettingsDialog({
                                 control={<Radio />}
                                 label={
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                                        <VisibilityIcon sx={{ color: '#65676b', mt: 0.5 }} />
+                                        <VisibilityIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                         <Box>
                                             <Typography fontWeight={500}>Hiển thị</Typography>
-                                            <Typography variant="body2" color="#65676b">
+                                            <Typography variant="body2" color="text.secondary">
                                                 Ai cũng có thể tìm thấy nhóm này
                                             </Typography>
                                         </Box>
@@ -232,10 +235,10 @@ export default function GroupSettingsDialog({
                                 control={<Radio />}
                                 label={
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                                        <VisibilityOffIcon sx={{ color: '#65676b', mt: 0.5 }} />
+                                        <VisibilityOffIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                         <Box>
                                             <Typography fontWeight={500}>Ẩn</Typography>
-                                            <Typography variant="body2" color="#65676b">
+                                            <Typography variant="body2" color="text.secondary">
                                                 Chỉ thành viên mới có thể tìm thấy nhóm này
                                             </Typography>
                                         </Box>
@@ -248,12 +251,12 @@ export default function GroupSettingsDialog({
                 </Box>
             </DialogContent>
 
-            <DialogActions sx={{ p: 2, borderTop: '1px solid #e4e6eb' }}>
+            <DialogActions sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
                 <Button
                     onClick={onClose}
                     sx={{
                         textTransform: 'none',
-                        color: '#65676b',
+                        color: 'text.secondary',
                         fontWeight: 600,
                     }}
                 >
@@ -265,9 +268,9 @@ export default function GroupSettingsDialog({
                     variant="contained"
                     sx={{
                         textTransform: 'none',
-                        bgcolor: '#1877f2',
+                        bgcolor: 'primary.main',
                         fontWeight: 600,
-                        '&:hover': { bgcolor: '#166fe5' },
+                        '&:hover': { bgcolor: 'primary.dark' },
                     }}
                 >
                     {isSaving ? <CircularProgress size={20} color="inherit" /> : 'Lưu thay đổi'}

@@ -1,5 +1,5 @@
 import {
-    Box, Avatar, Typography, IconButton, Button, InputBase, Menu, MenuItem, ListItemIcon, ListItemText, CircularProgress
+    Box, Avatar, Typography, IconButton, Button, InputBase, Menu, MenuItem, ListItemIcon, ListItemText, CircularProgress, useTheme
 } from '@mui/material';
 import {
     MoreHoriz as MoreIcon,
@@ -46,6 +46,11 @@ const shareOptions = [
 
 
 export default function ShareContentModal({ handleCloseShare, user, sharePrivacy: initialSharePrivacy, shareCaption, setShareCaption, showEmojiPicker, setShowEmojiPicker, handleEmojiSelect, sharingPost }: { handleCloseShare: () => void, user: UserLoginType | null, sharePrivacy: string, shareCaption: string, setShareCaption: React.Dispatch<React.SetStateAction<string>>, showEmojiPicker: boolean, setShowEmojiPicker: React.Dispatch<React.SetStateAction<boolean>>, handleEmojiSelect: (emoji: { native: string }) => void, sharingPost: PostType | null }) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+
     // Local state for privacy selection
     const [sharePrivacy, setSharePrivacy] = useState<PostPrivacy>(initialSharePrivacy as PostPrivacy || 'PUBLIC');
     const [privacyAnchor, setPrivacyAnchor] = useState<null | HTMLElement>(null);
@@ -108,11 +113,11 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
 
 
     return (
-        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 550, bgcolor: 'white', borderRadius: 2, boxShadow: 24, overflow: 'hidden', zIndex: 100 }}>
+        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 550, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 24, overflow: 'hidden', zIndex: 100 }}>
             {/* Header */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, borderBottom: '1px solid #e4e6eb', position: 'relative' }}>
-                <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#050505' }}>Chia sẻ</Typography>
-                <IconButton onClick={handleCloseShare} sx={{ position: 'absolute', right: 12, bgcolor: '#e4e6eb', '&:hover': { bgcolor: '#d8dadf' } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, borderBottom: `1px solid ${theme.palette.divider}`, position: 'relative' }}>
+                <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>Chia sẻ</Typography>
+                <IconButton onClick={handleCloseShare} sx={{ position: 'absolute', right: 12, bgcolor: hoverBg, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf' } }}>
                     <CloseIcon />
                 </IconButton>
             </Box>
@@ -122,12 +127,12 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
                     <Avatar sx={{ width: 40, height: 40 }} src={user?.avatar} />
                     <Box>
-                        <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>{user?.fullName || user?.username}</Typography>
+                        <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>{user?.fullName || user?.username}</Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                             <Button
                                 size="small"
                                 startIcon={<PublicIcon sx={{ fontSize: 12 }} />}
-                                sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontSize: 12, fontWeight: 600, px: 1, py: 0.25, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}
+                                sx={{ bgcolor: inputBg, color: 'text.primary', textTransform: 'none', fontSize: 12, fontWeight: 600, px: 1, py: 0.25, borderRadius: 1, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf' } }}
                             >
                                 Bảng feed
                             </Button>
@@ -136,7 +141,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                                 startIcon={<PrivacyIcon sx={{ fontSize: 12 }} />}
                                 endIcon={<ArrowDownIcon />}
                                 onClick={handleOpenPrivacyMenu}
-                                sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontSize: 12, fontWeight: 600, px: 1, py: 0.25, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}
+                                sx={{ bgcolor: inputBg, color: 'text.primary', textTransform: 'none', fontSize: 12, fontWeight: 600, px: 1, py: 0.25, borderRadius: 1, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf' } }}
                             >
                                 {getSharePrivacyLabel()}
                             </Button>
@@ -148,7 +153,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                                     sx: { width: 300, borderRadius: 2, mt: 1 }
                                 }}
                             >
-                                <Typography sx={{ px: 2, py: 1, fontWeight: 700, fontSize: 16, color: '#050505' }}>
+                                <Typography sx={{ px: 2, py: 1, fontWeight: 700, fontSize: 16, color: 'text.primary' }}>
                                     Ai có thể xem bài viết này?
                                 </Typography>
                                 {privacyOptions.map((option) => (
@@ -157,7 +162,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                                         onClick={() => handleSelectPrivacy(option.id)}
                                         sx={{
                                             py: 1.5,
-                                            '&:hover': { bgcolor: '#f0f2f5' }
+                                            '&:hover': { bgcolor: hoverBg }
                                         }}
                                     >
                                         <ListItemIcon>
@@ -165,22 +170,22 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                                                 width: 40,
                                                 height: 40,
                                                 borderRadius: '50%',
-                                                bgcolor: '#e4e6eb',
+                                                bgcolor: inputBg,
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center'
                                             }}>
-                                                <option.icon sx={{ color: '#050505' }} />
+                                                <option.icon sx={{ color: 'text.primary' }} />
                                             </Box>
                                         </ListItemIcon>
                                         <ListItemText
                                             primary={option.label}
                                             secondary={option.description}
-                                            primaryTypographyProps={{ fontWeight: 600, fontSize: 15, color: '#050505' }}
-                                            secondaryTypographyProps={{ fontSize: 13, color: '#65676b' }}
+                                            primaryTypographyProps={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}
+                                            secondaryTypographyProps={{ fontSize: 13, color: 'text.secondary' }}
                                         />
                                         {sharePrivacy === option.id && (
-                                            <CheckIcon sx={{ color: '#1877f2' }} />
+                                            <CheckIcon sx={{ color: 'primary.main' }} />
                                         )}
                                     </MenuItem>
                                 ))}
@@ -198,20 +203,20 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                         placeholder="Hãy nói gì đó về nội dung này..."
                         value={shareCaption}
                         onChange={(e) => setShareCaption(e.target.value)}
-                        sx={{ fontSize: 15, color: '#050505', mb: 1 }}
+                        sx={{ fontSize: 15, color: 'text.primary', mb: 1 }}
                     />
                     <IconButton
                         onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                         sx={{ position: 'absolute', right: 0, top: 0 }}
                     >
-                        <EmojiIcon sx={{ color: '#65676b' }} />
+                        <EmojiIcon sx={{ color: 'text.secondary' }} />
                     </IconButton>
                     {showEmojiPicker && (
                         <Box sx={{ position: 'absolute', right: 0, top: 40, zIndex: 100 }}>
                             <Picker
                                 data={data}
                                 onEmojiSelect={handleEmojiSelect}
-                                theme="light"
+                                theme={isDark ? "dark" : "light"}
                                 locale="vi"
                                 previewPosition="none"
                                 skinTonePosition="none"
@@ -227,15 +232,15 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                     onClick={handleSharePost}
                     disabled={isSharing}
                     sx={{
-                        bgcolor: '#1877f2',
+                        bgcolor: 'primary.main',
                         color: 'white',
                         textTransform: 'none',
                         fontWeight: 600,
                         fontSize: 15,
                         py: 1,
                         borderRadius: 2,
-                        '&:hover': { bgcolor: '#166fe5' },
-                        '&:disabled': { bgcolor: '#e4e6eb', color: '#bcc0c4' }
+                        '&:hover': { bgcolor: 'primary.dark' },
+                        '&:disabled': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb', color: isDark ? 'rgba(255,255,255,0.3)' : '#bcc0c4' }
                     }}
                 >
                     {isSharing ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Chia sẻ ngay'}
@@ -244,10 +249,10 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
 
             {/* Send via Messenger */}
             <Box sx={{ px: 2, pb: 2 }}>
-                <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505', mb: 1.5 }}>Gửi bằng Messenger</Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary', mb: 1.5 }}>Gửi bằng Messenger</Typography>
                 <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', position: 'relative' }}>
                     <IconButton sx={{ p: 0 }}>
-                        <ArrowBackIcon sx={{ color: '#65676b' }} />
+                        <ArrowBackIcon sx={{ color: 'text.secondary' }} />
                     </IconButton>
                     {!friendsLoading && friendsData && friendsData?.data.map((friend) => (
                         <Box
@@ -261,28 +266,28 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                                     <Box sx={{
                                         position: 'absolute', bottom: 2, right: 2,
                                         width: 14, height: 14, borderRadius: '50%',
-                                        bgcolor: '#31a24c', border: '2px solid white'
+                                        bgcolor: '#31a24c', border: `2px solid ${theme.palette.background.paper}`
                                     }} />
                                 )}
                             </Box>
-                            <Typography sx={{ fontSize: 12, color: '#050505', textAlign: 'center', maxWidth: 64, mt: 0.5 }} noWrap>{friend.firstName + ' ' + friend.lastName}</Typography>
+                            <Typography sx={{ fontSize: 12, color: 'text.primary', textAlign: 'center', maxWidth: 64, mt: 0.5 }} noWrap>{friend.firstName + ' ' + friend.lastName}</Typography>
                         </Box>
                     ))}
                     <Box
                         sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
                         onClick={() => setOpenMessengerShare(true)}
                     >
-                        <Box sx={{ width: 56, height: 56, borderRadius: '50%', bgcolor: '#e4e6eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <MoreIcon sx={{ color: '#050505' }} />
+                        <Box sx={{ width: 56, height: 56, borderRadius: '50%', bgcolor: inputBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <MoreIcon sx={{ color: 'text.primary' }} />
                         </Box>
-                        <Typography sx={{ fontSize: 12, color: '#050505', textAlign: 'center', mt: 0.5 }}>Xem thêm</Typography>
+                        <Typography sx={{ fontSize: 12, color: 'text.primary', textAlign: 'center', mt: 0.5 }}>Xem thêm</Typography>
                     </Box>
                 </Box>
             </Box>
 
             {/* Share Options */}
             <Box sx={{ px: 2, pb: 2 }}>
-                <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505', mb: 1.5 }}>Chia sẻ lên</Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary', mb: 1.5 }}>Chia sẻ lên</Typography>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                     {shareOptions.map((option) => (
                         <Box
@@ -299,12 +304,12 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                         >
                             <Box sx={{
                                 width: 56, height: 56, borderRadius: '50%',
-                                bgcolor: option.id === 'messenger' ? '#0084ff' : option.id === 'whatsapp' ? '#25d366' : '#e4e6eb',
+                                bgcolor: option.id === 'messenger' ? '#0084ff' : option.id === 'whatsapp' ? '#25d366' : inputBg,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center'
                             }}>
-                                <option.icon sx={{ color: option.id === 'messenger' || option.id === 'whatsapp' ? 'white' : '#050505', fontSize: 28 }} />
+                                <option.icon sx={{ color: option.id === 'messenger' || option.id === 'whatsapp' ? 'white' : 'text.primary', fontSize: 28 }} />
                             </Box>
-                            <Typography sx={{ fontSize: 12, color: '#050505', textAlign: 'center', maxWidth: 70, mt: 0.5 }}>{option.label}</Typography>
+                            <Typography sx={{ fontSize: 12, color: 'text.primary', textAlign: 'center', maxWidth: 70, mt: 0.5 }}>{option.label}</Typography>
                         </Box>
                     ))}
                 </Box>

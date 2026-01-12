@@ -1,5 +1,5 @@
 'use client';
-import { Box, Card, CardContent, Avatar, Typography } from '@mui/material';
+import { Box, Card, CardContent, Avatar, Typography, useTheme } from '@mui/material';
 import { Public as PublicIcon, People as PeopleIcon, Lock as LockIcon } from '@mui/icons-material';
 import { PostType, PostPrivacy } from '@/types/post';
 import { formatPostTime, getAuthorName } from '@/utils/formatPost';
@@ -16,15 +16,17 @@ interface SharedPostPreviewProps {
 
 export default function SharedPostPreview({ sharedPost, onHashtagClick, renderPostMedia, onClick }: SharedPostPreviewProps) {
     const router = useRouter();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
 
     const getPrivacyIcon = (privacy: PostPrivacy) => {
         switch (privacy) {
             case 'FRIEND':
-                return <PeopleIcon sx={{ fontSize: '12px', color: '#65676b' }} />;
+                return <PeopleIcon sx={{ fontSize: '12px', color: 'text.secondary' }} />;
             case 'PRIVATE':
-                return <LockIcon sx={{ fontSize: '12px', color: '#65676b' }} />;
+                return <LockIcon sx={{ fontSize: '12px', color: 'text.secondary' }} />;
             default:
-                return <PublicIcon sx={{ fontSize: '12px', color: '#65676b' }} />;
+                return <PublicIcon sx={{ fontSize: '12px', color: 'text.secondary' }} />;
         }
     };
 
@@ -82,12 +84,12 @@ export default function SharedPostPreview({ sharedPost, onHashtagClick, renderPo
             onClick={onClick}
             sx={{
                 borderRadius: 2,
-                border: '1px solid #e4e6eb',
-                bgcolor: '#f5f6f7',
+                border: `1px solid ${theme.palette.divider}`,
+                bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f5f6f7',
                 boxShadow: 'none',
                 overflow: 'hidden',
                 cursor: 'pointer',
-                '&:hover': { bgcolor: '#ebedf0' }
+                '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.08)' : '#ebedf0' }
             }}
         >
             <CardContent sx={{ p: 2 }}>
@@ -109,7 +111,7 @@ export default function SharedPostPreview({ sharedPost, onHashtagClick, renderPo
                             sx={{
                                 fontSize: '14px',
                                 fontWeight: 600,
-                                color: '#050505',
+                                color: 'text.primary',
                                 cursor: 'pointer',
                                 '&:hover': { textDecoration: 'underline' }
                             }}
@@ -118,10 +120,10 @@ export default function SharedPostPreview({ sharedPost, onHashtagClick, renderPo
                             {getAuthorName(sharedPost)}
                         </Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Typography sx={{ fontSize: '12px', color: '#65676b' }}>
+                            <Typography sx={{ fontSize: '12px', color: 'text.secondary' }}>
                                 {formatPostTime(sharedPost.createdAt)}
                             </Typography>
-                            <Typography sx={{ fontSize: '12px', color: '#65676b' }}> · </Typography>
+                            <Typography sx={{ fontSize: '12px', color: 'text.secondary' }}> · </Typography>
                             {getPrivacyIcon(sharedPost.privacy)}
                         </Box>
                     </Box>
@@ -152,7 +154,7 @@ export default function SharedPostPreview({ sharedPost, onHashtagClick, renderPo
                             fontSize: '14px',
                             lineHeight: 1.4,
                             whiteSpace: 'pre-wrap',
-                            color: '#050505'
+                            color: 'text.primary'
                         }}
                     >
                         <HashtagContent content={sharedPost.content} onHashtagClick={handleHashtagClick} />

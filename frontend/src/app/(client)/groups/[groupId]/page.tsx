@@ -25,6 +25,7 @@ import {
     CircularProgress,
     Skeleton,
     Modal,
+    useTheme,
 } from '@mui/material';
 import {
     Lock as LockIcon,
@@ -72,6 +73,7 @@ import { io, Socket } from 'socket.io-client';
 export default function GroupDetailPage() {
     const params = useParams();
     const router = useRouter();
+    const theme = useTheme();
     const groupId = params.groupId as string;
     const { user, accessToken } = useAuthStore();
 
@@ -404,15 +406,15 @@ export default function GroupDetailPage() {
     const canEdit = isAdmin || isModerator;
 
     if (isLoading) {
-        return (<Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}><Header /><Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><CircularProgress /></Box></Box>);
+        return (<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}><Header /><Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><CircularProgress /></Box></Box>);
     }
 
     if (!group) {
-        return (<Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}><Header /><Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><Typography>Khong tim thay nhom</Typography></Box></Box>);
+        return (<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}><Header /><Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><Typography>Khong tim thay nhom</Typography></Box></Box>);
     }
 
     return (
-        <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
             <Header />
             <Box sx={{ maxWidth: 1250, mx: 'auto', pt: 8, px: { xs: 0, md: 2 } }}>
                 {/* Cover Image */}
@@ -432,11 +434,11 @@ export default function GroupDetailPage() {
                                     variant="contained"
                                     startIcon={<CameraAltIcon />}
                                     sx={{
-                                        bgcolor: 'white',
-                                        color: '#050505',
+                                        bgcolor: 'background.paper',
+                                        color: 'text.primary',
                                         textTransform: 'none',
                                         fontWeight: 600,
-                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                        '&:hover': { bgcolor: 'action.hover' }
                                     }}
                                 >
                                     Chỉnh sửa ảnh bìa
@@ -447,10 +449,10 @@ export default function GroupDetailPage() {
                 </Box>
 
                 {/* Group Info Header */}
-                <Box sx={{ bgcolor: 'white', borderRadius: { xs: 0, md: '0 0 12px 12px' }, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', px: { xs: 2, md: 4 }, pb: 0 }}>
+                <Box sx={{ bgcolor: 'background.paper', borderRadius: { xs: 0, md: '0 0 12px 12px' }, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', px: { xs: 2, md: 4 }, pb: 0 }}>
                     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'center', md: 'flex-start' }, gap: 2, pt: 3, pb: 2 }}>
                         <Box sx={{ position: 'relative', mt: { xs: 0, md: -10 } }}>
-                            <Avatar src={group.avatar || undefined} sx={{ width: { xs: 100, md: 168 }, height: { xs: 100, md: 168 }, border: '4px solid white', bgcolor: '#e4e6eb', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}><GroupsIcon sx={{ fontSize: { xs: 50, md: 80 }, color: '#65676b' }} /></Avatar>
+                            <Avatar src={group.avatar || undefined} sx={{ width: { xs: 100, md: 168 }, height: { xs: 100, md: 168 }, border: `4px solid ${theme.palette.background.paper}`, bgcolor: 'action.hover', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}><GroupsIcon sx={{ fontSize: { xs: 50, md: 80 }, color: 'text.secondary' }} /></Avatar>
                             {canEdit && (
                                 <Box sx={{ position: 'absolute', bottom: 8, right: 8 }}>
                                     <PhotoMenuButton
@@ -462,41 +464,41 @@ export default function GroupDetailPage() {
                                         }}
                                         onViewImage={() => setOpenAvatarViewer(true)}
                                     >
-                                        <IconButton sx={{ bgcolor: '#e4e6eb', '&:hover': { bgcolor: '#d8dadf' }, width: 36, height: 36 }}>
+                                        <IconButton sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' }, width: 36, height: 36 }}>
                                             <CameraAltIcon fontSize="small" />
                                         </IconButton>
                                     </PhotoMenuButton>
                                 </Box>
                             )}
-                            <Box sx={{ position: 'absolute', top: { xs: -10, md: 8 }, left: { xs: '50%', md: -16 }, transform: { xs: 'translateX(-50%)', md: 'none' }, bgcolor: '#e91e63', color: 'white', px: 1.5, py: 0.5, borderRadius: 1, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', zIndex: 1 }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Nhóm riêng tư' : 'Nhóm công khai'}</Box>
+                            <Box sx={{ position: 'absolute', top: { xs: -10, md: 8 }, left: { xs: '50%', md: -16 }, transform: { xs: 'translateX(-50%)', md: 'none' }, bgcolor: 'primary.main', color: 'primary.contrastText', px: 1.5, py: 0.5, borderRadius: 1, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', zIndex: 1 }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Nhóm riêng tư' : 'Nhóm công khai'}</Box>
                         </Box>
                         <Box sx={{ flex: 1, textAlign: { xs: 'center', md: 'left' }, minWidth: 0 }}>
-                            <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: 24, md: 28 }, color: '#050505' }}>{group.name}</Typography>
+                            <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: 24, md: 28 }, color: 'text.primary' }}>{group.name}</Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, justifyContent: { xs: 'center', md: 'flex-start' }, flexWrap: 'wrap' }}>
-                                {group.privacy === GroupPrivacy.PRIVATE ? <LockIcon sx={{ fontSize: 14, color: '#65676b' }} /> : <PublicIcon sx={{ fontSize: 14, color: '#65676b' }} />}
-                                <Typography variant="body2" sx={{ color: '#65676b', fontSize: 15 }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Nhóm Riêng tư' : 'Nhóm Công khai'}</Typography>
-                                <Typography variant="body2" sx={{ color: '#65676b', fontSize: 15 }}>· {group.memberCount.toLocaleString()} thành viên</Typography>
+                                {group.privacy === GroupPrivacy.PRIVATE ? <LockIcon sx={{ fontSize: 14, color: 'text.secondary' }} /> : <PublicIcon sx={{ fontSize: 14, color: 'text.secondary' }} />}
+                                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 15 }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Nhóm Riêng tư' : 'Nhóm Công khai'}</Typography>
+                                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 15 }}>· {group.memberCount.toLocaleString()} thành viên</Typography>
                             </Box>
                             <Box sx={{ display: 'flex', justifyContent: { xs: 'center', md: 'flex-start' }, mt: 1.5 }}>
-                                <AvatarGroup max={12} sx={{ '& .MuiAvatar-root': { width: 32, height: 32, border: '2px solid white', fontSize: 14 } }}>{topMembers.map((member) => (<Avatar key={member._id} src={member.avatar} alt={member.firstName}>{member.firstName?.[0]}</Avatar>))}</AvatarGroup>
+                                <AvatarGroup max={12} sx={{ '& .MuiAvatar-root': { width: 32, height: 32, border: `2px solid ${theme.palette.background.paper}`, fontSize: 14 } }}>{topMembers.map((member) => (<Avatar key={member._id} src={member.avatar} alt={member.firstName}>{member.firstName?.[0]}</Avatar>))}</AvatarGroup>
                             </Box>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: { xs: 'center', md: 'flex-end' }, alignSelf: { xs: 'center', md: 'center' } }}>
                             {group.isMember ? (
                                 <>
-                                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenInviteDialog(true)} sx={{ bgcolor: '#1877f2', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: '#166fe5' } }}>Mời</Button>
-                                    <Button variant="contained" startIcon={<ShareIcon />} sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}>Chia sẻ</Button>
-                                    <Button variant="contained" endIcon={<ArrowDownIcon />} onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}>Đã tham gia</Button>
+                                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenInviteDialog(true)} sx={{ bgcolor: 'primary.main', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' } }}>Mời</Button>
+                                    <Button variant="contained" startIcon={<ShareIcon />} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>Chia sẻ</Button>
+                                    <Button variant="contained" endIcon={<ArrowDownIcon />} onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>Đã tham gia</Button>
                                     {isAdmin && (
-                                        <IconButton onClick={(e) => setMoreMenuAnchor(e.currentTarget)} sx={{ bgcolor: '#e4e6eb', '&:hover': { bgcolor: '#d8dadf' } }}>
+                                        <IconButton onClick={(e) => setMoreMenuAnchor(e.currentTarget)} sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}>
                                             <MoreHorizIcon />
                                         </IconButton>
                                     )}
                                 </>
                             ) : group.isPending ? (
-                                <Button variant="contained" onClick={handleCancelRequest} sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}>Hủy yêu cầu</Button>
+                                <Button variant="contained" onClick={handleCancelRequest} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>Hủy yêu cầu</Button>
                             ) : (
-                                <Button variant="contained" onClick={handleJoinGroup} disabled={isJoining} sx={{ bgcolor: '#1877f2', textTransform: 'none', fontWeight: 600, px: 3, borderRadius: 1, '&:hover': { bgcolor: '#166fe5' } }}>{isJoining ? <CircularProgress size={20} color="inherit" /> : '+ Tham gia nhóm'}</Button>
+                                <Button variant="contained" onClick={handleJoinGroup} disabled={isJoining} sx={{ bgcolor: 'primary.main', textTransform: 'none', fontWeight: 600, px: 3, borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' } }}>{isJoining ? <CircularProgress size={20} color="inherit" /> : '+ Tham gia nhóm'}</Button>
                             )}
 
                             {/* "Đã tham gia" dropdown menu - only Leave option */}
@@ -526,8 +528,8 @@ export default function GroupDetailPage() {
                     </Box>
                     <Divider />
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Tabs value={tabValue} onChange={(_, newValue) => { if (newValue === 2) { setOpenMembersDialog(true); } else { setTabValue(newValue); } }} sx={{ '& .MuiTab-root': { textTransform: 'none', fontSize: 15, fontWeight: 600, color: '#65676b', minHeight: 52, px: 2, '&.Mui-selected': { color: '#1877f2' } }, '& .MuiTabs-indicator': { bgcolor: '#1877f2', height: 3, borderRadius: '3px 3px 0 0' } }}><Tab label="Thảo luận" /><Tab label="Đáng chú ý" /><Tab label="Mọi người" /><Tab label="Sự kiện" /><Tab label="File phương tiện" /><Tab label="File" /></Tabs>
-                        <Box sx={{ display: 'flex', gap: 1, pr: 1 }}><IconButton sx={{ bgcolor: '#f0f2f5' }}><SearchIcon /></IconButton><IconButton sx={{ bgcolor: '#f0f2f5' }}><MoreHorizIcon /></IconButton></Box>
+                        <Tabs value={tabValue} onChange={(_, newValue) => { if (newValue === 2) { setOpenMembersDialog(true); } else { setTabValue(newValue); } }} sx={{ '& .MuiTab-root': { textTransform: 'none', fontSize: 15, fontWeight: 600, color: 'text.secondary', minHeight: 52, px: 2, '&.Mui-selected': { color: 'primary.main' } }, '& .MuiTabs-indicator': { bgcolor: 'primary.main', height: 3, borderRadius: '3px 3px 0 0' } }}><Tab label="Thảo luận" /><Tab label="Đáng chú ý" /><Tab label="Mọi người" /><Tab label="Sự kiện" /><Tab label="File phương tiện" /><Tab label="File" /></Tabs>
+                        <Box sx={{ display: 'flex', gap: 1, pr: 1 }}><IconButton sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}><SearchIcon /></IconButton><IconButton sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}><MoreHorizIcon /></IconButton></Box>
                     </Box>
                 </Box>
 
@@ -541,23 +543,23 @@ export default function GroupDetailPage() {
                                 <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                                     <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                                         <Avatar sx={{ width: 40, height: 40 }} src={user?.avatar}>{user?.fullName?.[0]}</Avatar>
-                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ flex: 1, bgcolor: '#f0f2f5', borderRadius: '20px', display: 'flex', alignItems: 'center', px: 2, py: 1, cursor: 'pointer', '&:hover': { bgcolor: '#e4e6eb' } }}>
-                                            <Typography sx={{ color: '#65676b', fontSize: 17 }}>Bạn viết gì đi...</Typography>
+                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ flex: 1, bgcolor: 'action.hover', borderRadius: '20px', display: 'flex', alignItems: 'center', px: 2, py: 1, cursor: 'pointer', '&:hover': { bgcolor: 'action.selected' } }}>
+                                            <Typography sx={{ color: 'text.secondary', fontSize: 17 }}>Bạn viết gì đi...</Typography>
                                         </Box>
                                     </Box>
                                     <Divider sx={{ mb: 1.5 }} />
                                     <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
-                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: 'action.hover' } }}>
                                             <VisibilityOffIcon sx={{ color: '#45bd62' }} />
-                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#65676b' }}>Bài viết ẩn danh</Typography>
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.secondary' }}>Bài viết ẩn danh</Typography>
                                         </Box>
-                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: 'action.hover' } }}>
                                             <PollIcon sx={{ color: '#f7b928' }} />
-                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#65676b' }}>Thăm dò ý kiến</Typography>
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.secondary' }}>Thăm dò ý kiến</Typography>
                                         </Box>
-                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: 'action.hover' } }}>
                                             <MoodIcon sx={{ color: '#f7b928' }} />
-                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#65676b' }}>Cảm xúc/hoạt động</Typography>
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.secondary' }}>Cảm xúc/hoạt động</Typography>
                                         </Box>
                                     </Box>
                                 </CardContent>
@@ -582,7 +584,7 @@ export default function GroupDetailPage() {
                         {!isLoadingPosts && posts.length === 0 && (
                             <Card sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
                                 <CardContent sx={{ py: 6 }}>
-                                    <Typography variant="body1" sx={{ color: '#65676b', textAlign: 'center' }}>Chưa có bài viết nào trong nhóm này</Typography>
+                                    <Typography variant="body1" sx={{ color: 'text.secondary', textAlign: 'center' }}>Chưa có bài viết nào trong nhóm này</Typography>
                                 </CardContent>
                             </Card>
                         )}
@@ -614,32 +616,32 @@ export default function GroupDetailPage() {
                     <Box sx={{ width: { xs: '100%', md: 360 }, flexShrink: 0 }}>
                         <Card sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
                             <CardContent sx={{ p: 2 }}>
-                                <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color: '#050505' }}>Giới thiệu</Typography>
-                                {group.description && <Typography variant="body2" sx={{ color: '#050505', mb: 2 }}>{group.description}</Typography>}
+                                <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color: 'text.primary' }}>Giới thiệu</Typography>
+                                {group.description && <Typography variant="body2" sx={{ color: 'text.primary', mb: 2 }}>{group.description}</Typography>}
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-                                    <PublicIcon sx={{ color: '#65676b', mt: 0.5 }} />
+                                    <PublicIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                     <Box>
-                                        <Typography variant="body1" fontWeight={600} sx={{ color: '#050505' }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Riêng tư' : 'Công khai'}</Typography>
-                                        <Typography variant="body2" sx={{ color: '#65676b' }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Chỉ thành viên mới nhìn thấy mọi người trong nhóm và những gì họ đăng.' : 'Bất kỳ ai cũng có thể nhìn thấy mọi người trong nhóm và những gì họ đăng.'}</Typography>
+                                        <Typography variant="body1" fontWeight={600} sx={{ color: 'text.primary' }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Riêng tư' : 'Công khai'}</Typography>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Chỉ thành viên mới nhìn thấy mọi người trong nhóm và những gì họ đăng.' : 'Bất kỳ ai cũng có thể nhìn thấy mọi người trong nhóm và những gì họ đăng.'}</Typography>
                                     </Box>
                                 </Box>
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-                                    <VisibilityIcon sx={{ color: '#65676b', mt: 0.5 }} />
+                                    <VisibilityIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                     <Box>
-                                        <Typography variant="body1" fontWeight={600} sx={{ color: '#050505' }}>Hiển thị</Typography>
-                                        <Typography variant="body2" sx={{ color: '#65676b' }}>Ai cũng có thể tìm thấy nhóm này.</Typography>
+                                        <Typography variant="body1" fontWeight={600} sx={{ color: 'text.primary' }}>Hiển thị</Typography>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>Ai cũng có thể tìm thấy nhóm này.</Typography>
                                     </Box>
                                 </Box>
-                                <Button fullWidth variant="contained" sx={{ bgcolor: '#e4e6eb', color: '#050505', textTransform: 'none', fontWeight: 600, mt: 1, borderRadius: 1, '&:hover': { bgcolor: '#d8dadf' } }}>Tìm hiểu thêm về nhóm này</Button>
+                                <Button fullWidth variant="contained" sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, mt: 1, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>Tìm hiểu thêm về nhóm này</Button>
                             </CardContent>
                         </Card>
                         <Card sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
                             <CardContent sx={{ p: 2 }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                    <Typography variant="h6" fontWeight={700} sx={{ color: '#050505' }}>File phương tiện mới đây</Typography>
-                                    <IconButton size="small" sx={{ bgcolor: '#f0f2f5' }}><SearchIcon fontSize="small" /></IconButton>
+                                    <Typography variant="h6" fontWeight={700} sx={{ color: 'text.primary' }}>File phương tiện mới đây</Typography>
+                                    <IconButton size="small" sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}><SearchIcon fontSize="small" /></IconButton>
                                 </Box>
-                                <Typography variant="body2" sx={{ color: '#65676b', textAlign: 'center', py: 3 }}>Chưa có file phương tiện nào</Typography>
+                                <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center', py: 3 }}>Chưa có file phương tiện nào</Typography>
                             </CardContent>
                         </Card>
                     </Box>

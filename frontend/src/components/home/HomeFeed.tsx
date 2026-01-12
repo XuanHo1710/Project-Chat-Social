@@ -1,7 +1,7 @@
 'use client';
 import {
     Box, Card, CardContent, Avatar, Typography, Divider,
-    Modal, Menu, Skeleton, CircularProgress
+    Modal, Menu, Skeleton, CircularProgress, useTheme
 } from '@mui/material';
 import {
     VideoCall as VideoIcon,
@@ -499,33 +499,38 @@ export default function HomeFeed() {
         );
     };
 
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+
     return (
         <Box sx={{ maxWidth: 680, mx: 'auto', py: 2, px: { xs: 1, sm: 2 } }}>
             {/* Stories Section */}
             {user && <StoriesBar currentUser={user} />}
 
             {/* Create Post */}
-            <Card sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+            <Card sx={{ mb: 2, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
                 <CardContent sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                         <Avatar sx={{ width: 40, height: 40 }} src={user?.avatar} />
-                        <Box onClick={() => setOpenCreatePost(true)} sx={{ flex: 1, bgcolor: '#f0f2f5', borderRadius: '50px', display: 'flex', alignItems: 'center', px: 2, py: 1.5, cursor: 'pointer', '&:hover': { bgcolor: '#e4e6eb' } }}>
-                            <Typography sx={{ color: '#65676b', fontSize: 17 }}>{user?.fullName || user?.username || 'Bạn'} ơi, bạn đang nghĩ gì thế?</Typography>
+                        <Box onClick={() => setOpenCreatePost(true)} sx={{ flex: 1, bgcolor: inputBg, borderRadius: '50px', display: 'flex', alignItems: 'center', px: 2, py: 1.5, cursor: 'pointer', '&:hover': { bgcolor: hoverBg } }}>
+                            <Typography sx={{ color: 'text.secondary', fontSize: 17 }}>{user?.fullName || user?.username || 'Bạn'} ơi, bạn đang nghĩ gì thế?</Typography>
                         </Box>
                     </Box>
                     <Divider sx={{ mb: 1 }} />
                     <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
-                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
                             <VideoIcon sx={{ color: '#f3425f' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#65676b' }}>Video trực tiếp</Typography>
+                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Video trực tiếp</Typography>
                         </Box>
-                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
                             <PhotoIcon sx={{ color: '#45bd62' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#65676b' }}>Ảnh/video</Typography>
+                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Ảnh/video</Typography>
                         </Box>
-                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: '#f0f2f5' } }}>
+                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
                             <MoodIcon sx={{ color: '#f7b928' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#65676b' }}>Cảm xúc</Typography>
+                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Cảm xúc</Typography>
                         </Box>
                     </Box>
                 </CardContent>
@@ -548,7 +553,7 @@ export default function HomeFeed() {
             {/* Empty State */}
             {!isLoadingPosts && posts.length === 0 && (
                 <Card sx={{ mb: 2, borderRadius: 2, p: 4, textAlign: 'center' }}>
-                    <Typography sx={{ color: '#65676b', fontSize: 16 }}>
+                    <Typography sx={{ color: 'text.secondary', fontSize: 16 }}>
                         Chưa có bài viết nào. Hãy đăng bài viết đầu tiên của bạn!
                     </Typography>
                 </Card>
@@ -588,12 +593,12 @@ export default function HomeFeed() {
             <Box ref={loadMoreRef} sx={{ py: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: 1 }}>
                 {isFetchingNextPage && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <CircularProgress size={24} sx={{ color: '#1877f2' }} />
-                        <Typography sx={{ color: '#65676b', fontSize: 14 }}>Đang tải thêm bài viết...</Typography>
+                        <CircularProgress size={24} sx={{ color: 'primary.main' }} />
+                        <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>Đang tải thêm bài viết...</Typography>
                     </Box>
                 )}
                 {!hasNextPage && posts.length > 0 && !isFetchingNextPage && (
-                    <Typography sx={{ color: '#65676b', fontSize: 14, textAlign: 'center' }}>
+                    <Typography sx={{ color: 'text.secondary', fontSize: 14, textAlign: 'center' }}>
                         🎉 Đã hết bài viết. Bạn đã xem tất cả!
                     </Typography>
                 )}

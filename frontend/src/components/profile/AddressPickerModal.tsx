@@ -17,6 +17,7 @@ import {
     MenuItem,
     CircularProgress,
     Autocomplete,
+    useTheme,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -33,6 +34,8 @@ interface AddressPickerModalProps {
 }
 
 export default function AddressPickerModal({ open, onClose, onSave, existingAddress }: AddressPickerModalProps) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [provinces, setProvinces] = useState<Province[]>([]);
     const [districts, setDistricts] = useState<District[]>([]);
     const [wards, setWards] = useState<Ward[]>([]);
@@ -46,6 +49,12 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
     const [loadingProvinces, setLoadingProvinces] = useState(false);
     const [loadingDistricts, setLoadingDistricts] = useState(false);
     const [loadingWards, setLoadingWards] = useState(false);
+
+    // Theme helpers
+    const borderColor = theme.palette.divider;
+    const secondaryText = theme.palette.text.secondary;
+    const primaryText = theme.palette.text.primary;
+    const bgLight = isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5';
 
     // Fetch provinces on mount
     useEffect(() => {
@@ -165,14 +174,14 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
             PaperProps={{
                 sx: {
                     borderRadius: 2,
-                    bgcolor: 'white',
+                    bgcolor: 'background.paper',
                 }
             }}
         >
-            <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e4e6eb' }}>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${borderColor}` }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <HomeIcon sx={{ color: '#1877f2' }} />
-                    <Typography variant="h6" fontWeight={700} color="#050505">
+                    <HomeIcon sx={{ color: 'primary.main' }} />
+                    <Typography variant="h6" fontWeight={700} color={primaryText}>
                         {existingAddress ? 'Chỉnh sửa địa chỉ' : 'Thêm địa chỉ mới'}
                     </Typography>
                 </Box>
@@ -289,11 +298,11 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
 
                     {/* Preview */}
                     {isValid && (
-                        <Box sx={{ p: 2, bgcolor: '#f0f2f5', borderRadius: 2 }}>
-                            <Typography fontSize={12} color="#65676b" gutterBottom>
+                        <Box sx={{ p: 2, bgcolor: bgLight, borderRadius: 2 }}>
+                            <Typography fontSize={12} color={secondaryText} gutterBottom>
                                 Địa chỉ của bạn:
                             </Typography>
-                            <Typography fontSize={14} color="#050505" fontWeight={500}>
+                            <Typography fontSize={14} color={primaryText} fontWeight={500}>
                                 {detailAddress && `${detailAddress}, `}
                                 {selectedWard?.name}, {selectedDistrict?.name}, {selectedProvince?.name}
                             </Typography>
@@ -302,10 +311,10 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                 </Box>
             </DialogContent>
 
-            <DialogActions sx={{ p: 2, borderTop: '1px solid #e4e6eb' }}>
+            <DialogActions sx={{ p: 2, borderTop: `1px solid ${borderColor}` }}>
                 <Button
                     onClick={onClose}
-                    sx={{ textTransform: 'none', color: '#65676b' }}
+                    sx={{ textTransform: 'none', color: secondaryText }}
                 >
                     Hủy
                 </Button>
@@ -314,11 +323,11 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                     onClick={handleSave}
                     disabled={!isValid}
                     sx={{
-                        bgcolor: '#1877f2',
+                        bgcolor: 'primary.main',
                         textTransform: 'none',
                         fontWeight: 600,
-                        '&:hover': { bgcolor: '#166fe5' },
-                        '&:disabled': { bgcolor: '#e4e6eb' }
+                        '&:hover': { bgcolor: 'primary.dark' },
+                        '&:disabled': { bgcolor: isDark ? 'action.disabledBackground' : '#e4e6eb' }
                     }}
                 >
                     Lưu

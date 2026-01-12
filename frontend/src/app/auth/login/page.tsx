@@ -16,6 +16,7 @@ import {
   CircularProgress,
   Fade,
   Zoom,
+  useTheme,
 } from "@mui/material";
 import {
   Visibility,
@@ -40,6 +41,8 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const { setUser, setAccessToken } = useAuthStore();
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
 
   const router = useRouter();
 
@@ -88,7 +91,9 @@ export default function LoginPage() {
       sx={{
         display: "flex",
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        background: isDark
+          ? "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)"
+          : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
         position: "relative",
         overflow: "hidden",
         "&::before": {
@@ -208,9 +213,9 @@ export default function LoginPage() {
               sx={{
                 p: 5,
                 borderRadius: 4,
-                background: "rgba(255, 255, 255, 0.95)",
+                background: "background.paper",
                 backdropFilter: "blur(20px)",
-                boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.37)",
+                boxShadow: isDark ? "0 8px 32px 0 rgba(0,0,0,0.5)" : "0 8px 32px 0 rgba(31, 38, 135, 0.37)",
               }}
             >
               <form onSubmit={handleLogin}>

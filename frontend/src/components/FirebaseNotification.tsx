@@ -14,6 +14,7 @@ import {
     Paper,
     Slide,
     keyframes,
+    useTheme,
 } from "@mui/material";
 import {
     Close as CloseIcon,
@@ -136,6 +137,11 @@ export default function FirebaseNotification() {
     const { user } = useAuthStore();
     const router = useRouter();
     const pathname = usePathname();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const borderColor = isDark ? 'rgba(255,255,255,0.1)' : '#f0f0f0';
+    const headerBg = isDark ? 'rgba(255,255,255,0.05)' : '#fafafa';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
     const [notification, setNotification] = useState<NotificationState>({
         open: false,
         title: "",
@@ -268,7 +274,7 @@ export default function FirebaseNotification() {
                 onClick={handleNotificationClick}
                 sx={{
                     width: 360,
-                    bgcolor: "#ffffff",
+                    bgcolor: "background.paper",
                     borderRadius: "8px",
                     cursor: notification.conversationId ? "pointer" : "default",
                     overflow: "hidden",
@@ -290,8 +296,8 @@ export default function FirebaseNotification() {
                         justifyContent: "space-between",
                         px: 1.5,
                         py: 1,
-                        borderBottom: "1px solid #f0f0f0",
-                        bgcolor: "#fafafa",
+                        borderBottom: `1px solid ${borderColor}`,
+                        bgcolor: headerBg,
                     }}
                 >
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -312,7 +318,7 @@ export default function FirebaseNotification() {
                             sx={{
                                 fontSize: 12,
                                 fontWeight: 600,
-                                color: "#65676b",
+                                color: "text.secondary",
                                 textTransform: "uppercase",
                                 letterSpacing: "0.5px",
                             }}
@@ -329,11 +335,11 @@ export default function FirebaseNotification() {
                         sx={{
                             width: 26,
                             height: 26,
-                            color: "#65676b",
+                            color: "text.secondary",
                             transition: "all 0.2s ease",
                             "&:hover": {
-                                bgcolor: "#e4e6eb",
-                                color: "#050505",
+                                bgcolor: hoverBg,
+                                color: "text.primary",
                                 transform: "rotate(90deg)",
                             },
                         }}
@@ -361,7 +367,7 @@ export default function FirebaseNotification() {
                                     width: 52,
                                     height: 52,
                                     flexShrink: 0,
-                                    border: "2px solid #e4e6eb",
+                                    border: `2px solid ${borderColor}`,
                                 }}
                             />
                         ) : (
@@ -389,7 +395,7 @@ export default function FirebaseNotification() {
                                 height: 12,
                                 borderRadius: "50%",
                                 bgcolor: "#22c55e",
-                                border: "2px solid #ffffff",
+                                border: `2px solid ${theme.palette.background.paper}`,
                             }}
                         />
                     </Box>
@@ -400,7 +406,7 @@ export default function FirebaseNotification() {
                             sx={{
                                 fontSize: 15,
                                 fontWeight: 600,
-                                color: "#050505",
+                                color: "text.primary",
                                 lineHeight: 1.3,
                                 mb: 0.3,
                             }}
@@ -410,7 +416,7 @@ export default function FirebaseNotification() {
                         <Typography
                             sx={{
                                 fontSize: 14,
-                                color: "#65676b",
+                                color: "text.secondary",
                                 lineHeight: 1.4,
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Box, Typography, Tooltip, Grow, ClickAwayListener } from "@mui/material";
+import { Box, Typography, Tooltip, Grow, ClickAwayListener, useTheme } from "@mui/material";
 import { ThumbUpOutlined as ThumbUpOutlinedIcon } from "@mui/icons-material";
 import { useGetUserReaction } from "@/queries/useReactionQueries";
 import { ReactionType } from "@/types/reaction";
@@ -28,6 +28,9 @@ interface ReactionButtonProps {
 export default function ReactionButton({ post, initialTotalReacts = 0, variant = 'default' }: ReactionButtonProps) {
     const [showReactions, setShowReactions] = useState(false);
     const { socketReaction } = useSocket();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
 
     // Use selectors to get specific post reaction state - ensures re-render on change
     const userReaction = useReactionStore(state => state.postReactions[post._id]?.userReaction);
@@ -192,11 +195,11 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                                 mb: 1,
                                 display: "flex",
                                 gap: 1,
-                                bgcolor: "white",
+                                bgcolor: "background.paper",
                                 borderRadius: 5,
                                 px: 1,
                                 py: 0.5,
-                                boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+                                boxShadow: isDark ? "0 2px 12px rgba(0,0,0,0.5)" : "0 2px 12px rgba(0,0,0,0.15)",
                                 zIndex: 1000,
                             }}
                             onMouseEnter={() => {
@@ -277,11 +280,11 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                             mb: 1,
                             display: "flex",
                             gap: 2,
-                            bgcolor: "white",
+                            bgcolor: "background.paper",
                             borderRadius: 5,
                             px: 1,
                             py: 0.5,
-                            boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+                            boxShadow: isDark ? "0 2px 12px rgba(0,0,0,0.5)" : "0 2px 12px rgba(0,0,0,0.15)",
                             zIndex: 999,
                         }}
                         onMouseEnter={() => {
@@ -324,8 +327,8 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                         px: 2,
                         borderRadius: 2,
                         cursor: "pointer",
-                        color: currentReactionData?.color || "#65676b",
-                        "&:hover": { bgcolor: "#f0f2f5" },
+                        color: currentReactionData?.color || (isDark ? 'text.secondary' : '#65676b'),
+                        "&:hover": { bgcolor: hoverBg },
                         userSelect: "none",
                     }}
                 >
@@ -338,7 +341,7 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                         sx={{
                             fontWeight: 600,
                             fontSize: 15,
-                            color: currentReactionData?.color || "#65676b",
+                            color: currentReactionData?.color || (isDark ? 'text.secondary' : '#65676b'),
                         }}
                     >
                         {currentReactionData?.label || "Thích"}

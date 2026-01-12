@@ -15,6 +15,7 @@ import {
     Popover,
     useMediaQuery,
     useTheme,
+    alpha,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import VideocamIcon from "@mui/icons-material/Videocam";
@@ -993,7 +994,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 flex: 1,
                 display: "flex",
                 flexDirection: "row",
-                bgcolor: "white",
+                bgcolor: "background.paper",
                 height: "100vh",
                 overflow: "hidden",
                 width: "100%",
@@ -1007,8 +1008,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         alignItems: "center",
                         justifyContent: "space-between",
                         p: { xs: 1.5, md: 2 },
-                        borderBottom: "1px solid #e4e6eb",
-                        bgcolor: "white",
+                        borderBottom: `1px solid ${theme.palette.divider}`,
+                        bgcolor: 'background.paper',
                     }}
                 >
                     <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1, md: 2 } }}>
@@ -1018,7 +1019,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 onClick={onMobileBack}
                                 size="small"
                                 sx={{
-                                    color: "#1877f2",
+                                    color: 'primary.main',
                                     p: 0.5,
                                 }}
                             >
@@ -1031,8 +1032,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             variant="dot"
                             sx={{
                                 "& .MuiBadge-badge": {
-                                    backgroundColor: otherUserStatus.isOnline ? "#31a24c" : "none",
-                                    border: "2px solid white",
+                                    backgroundColor: otherUserStatus.isOnline ? theme.palette.success.main : "none",
+                                    border: `2px solid ${theme.palette.background.paper}`,
                                     display: otherUserStatus.isOnline ? "block" : "none",
                                     width: { xs: 12, md: 15 },
                                     borderRadius: '50%',
@@ -1043,13 +1044,13 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             <Avatar src={selectedConversation.avatar} sx={{ width: { xs: 36, md: 40 }, height: { xs: 36, md: 40 } }} />
                         </Badge>
                         <Box sx={{ minWidth: 0 }}>
-                            <Typography fontWeight={600} fontSize={{ xs: 14, md: 15 }} color="#050505" noWrap>
+                            <Typography fontWeight={600} fontSize={{ xs: 14, md: 15 }} color="text.primary" noWrap>
                                 {selectedConversation.fullName}
                             </Typography>
                             <Typography
                                 variant="body2"
                                 fontSize={{ xs: 11, md: 12 }}
-                                color={otherUserStatus.isOnline ? "#31a24c" : "#65676b"}
+                                color={otherUserStatus.isOnline ? 'success.main' : 'text.secondary'}
                                 noWrap
                             >
                                 {statusText}
@@ -1060,9 +1061,9 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         <IconButton
                             size="small"
                             sx={{
-                                color: "#1877f2",
-                                bgcolor: "#f0f2f5",
-                                "&:hover": { bgcolor: "#e4e6eb" },
+                                color: 'primary.main',
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
+                                "&:hover": { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : '#e4e6eb' },
                                 display: { xs: 'none', sm: 'inline-flex' },
                             }}
                         >
@@ -1071,9 +1072,9 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         <IconButton
                             size="small"
                             sx={{
-                                color: "#1877f2",
-                                bgcolor: "#f0f2f5",
-                                "&:hover": { bgcolor: "#e4e6eb" },
+                                color: 'primary.main',
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
+                                "&:hover": { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : '#e4e6eb' },
                                 display: { xs: 'none', sm: 'inline-flex' },
                             }}
                         >
@@ -1083,9 +1084,9 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             onClick={() => setShowInfo(!showInfo)}
                             size="small"
                             sx={{
-                                color: showInfo ? "white" : "#1877f2",
-                                bgcolor: showInfo ? "#1877f2" : "#f0f2f5",
-                                "&:hover": { bgcolor: showInfo ? "#166fe5" : "#e4e6eb" },
+                                color: showInfo ? "white" : 'primary.main',
+                                bgcolor: showInfo ? 'primary.main' : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5'),
+                                "&:hover": { bgcolor: showInfo ? 'primary.dark' : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : '#e4e6eb') },
                             }}
                         >
                             <InfoIcon fontSize="small" />
@@ -1163,7 +1164,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             gap: 1,
                             px: 2,
                             py: 1,
-                            bgcolor: 'white',
+                            bgcolor: 'background.paper',
                         }}
                     >
                         <Avatar
@@ -1175,7 +1176,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 0.5,
-                                bgcolor: '#e4e6eb',
+                                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
                                 borderRadius: '18px',
                                 px: 1.5,
                                 py: 1,
@@ -1195,7 +1196,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                             width: 8,
                                             height: 8,
                                             borderRadius: '50%',
-                                            bgcolor: '#65676b',
+                                            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.5)' : '#65676b',
                                             animation: 'typingBounce 1.4s infinite ease-in-out',
                                             animationDelay: `${i * 0.2}s`,
                                             '@keyframes typingBounce': {
@@ -1213,7 +1214,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 ))}
                             </Box>
                         </Box>
-                        <Typography fontSize={14} color="#65676b">
+                        <Typography fontSize={14} color="text.secondary">
                             {userTyping.nickname || `${userTyping.user.firstName} ${userTyping.user.lastName}`} đang nhập...
                         </Typography>
                     </Box>
@@ -1228,7 +1229,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             gap: 1,
                             px: 2,
                             py: 1,
-                            bgcolor: 'white',
+                            bgcolor: 'background.paper',
                             animation: 'fadeIn 0.3s ease-in-out',
                             '@keyframes fadeIn': {
                                 '0%': { opacity: 0 },
@@ -1319,8 +1320,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                     <Box
                         sx={{
                             p: 2,
-                            bgcolor: '#fef2f2',
-                            borderTop: '1px solid #fecaca',
+                            bgcolor: (theme) => alpha(theme.palette.error.main, 0.05),
+                            borderTop: (theme) => `1px solid ${alpha(theme.palette.error.main, 0.2)}`,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1328,8 +1329,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         }}
                     >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <BlockIcon sx={{ color: '#dc2626', fontSize: 20 }} />
-                            <Typography color="#dc2626" fontWeight={500} fontSize={14}>
+                            <BlockIcon sx={{ color: 'error.main', fontSize: 20 }} />
+                            <Typography color="error.main" fontWeight={500} fontSize={14}>
                                 Bạn đã chặn người dùng này
                             </Typography>
                         </Box>
@@ -1364,8 +1365,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                     <Box
                         sx={{
                             p: 2,
-                            bgcolor: "white",
-                            borderTop: "1px solid #e4e6eb",
+                            bgcolor: "background.paper",
+                            borderTop: `1px solid ${theme.palette.divider}`,
                             position: 'relative'
                         }}
                     >
@@ -1377,7 +1378,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                     bottom: '100%',
                                     left: 16,
                                     right: 16,
-                                    bgcolor: 'white',
+                                    bgcolor: 'background.paper',
                                     boxShadow: 3,
                                     borderRadius: 2,
                                     mb: 1,
@@ -1425,7 +1426,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "space-between",
-                                    bgcolor: "#f0f2f5",
+                                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
                                     p: 1,
                                     px: 2,
                                     borderRadius: 2,
@@ -1433,10 +1434,10 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 }}
                             >
                                 <Box sx={{ minWidth: 0 }}>
-                                    <Typography fontSize={12} color="#65676b">
+                                    <Typography fontSize={12} color="text.secondary">
                                         Đang trả lời <strong>{replyMsg?.type === 'CHATBOT' ? "AI Assistant" : (replyMsg.senderId._id === userId ? "chính mình" : replyMsg.senderId.firstName + " " + replyMsg.senderId.lastName)}</strong>
                                     </Typography>
-                                    <Typography fontSize={13} color="#050505" noWrap sx={{ opacity: 0.8 }}>
+                                    <Typography fontSize={13} color="text.primary" noWrap sx={{ opacity: 0.8 }}>
                                         {replyMsg.content}
                                     </Typography>
                                 </Box>
@@ -1455,7 +1456,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                     gap: 1,
                                     mb: 1.5,
                                     p: 1.5,
-                                    bgcolor: 'white',
+                                    bgcolor: 'background.paper',
                                     borderRadius: 1,
                                     overflowX: 'auto',
                                 }}
@@ -1466,17 +1467,17 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                         width: 80,
                                         height: 80,
                                         borderRadius: 2,
-                                        border: '2px dashed #555',
+                                        border: `2px dashed ${theme.palette.divider}`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         cursor: 'pointer',
                                         flexShrink: 0,
-                                        '&:hover': { borderColor: '#777' }
+                                        '&:hover': { borderColor: 'text.secondary' }
                                     }}
                                     onClick={() => fileInputRef.current?.click()}
                                 >
-                                    <AddCircleIcon sx={{ color: '#aaa', fontSize: 28 }} />
+                                    <AddCircleIcon sx={{ color: 'text.disabled', fontSize: 28 }} />
                                 </Box>
                                 {mediaPreview.map((media, index) => (
                                     <Box
@@ -1488,8 +1489,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                             borderRadius: 2,
                                             overflow: 'hidden',
                                             flexShrink: 0,
-                                            bgcolor: '#242526',
-                                            border: '1px solid #444',
+                                            bgcolor: 'background.default',
+                                            border: `1px solid ${theme.palette.divider}`,
                                         }}
                                     >
                                         {media.type === 'video' ? (
@@ -1536,11 +1537,11 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                                 position: 'absolute',
                                                 top: 4,
                                                 right: 4,
-                                                bgcolor: '#242526',
-                                                color: 'white',
+                                                bgcolor: 'background.paper',
+                                                color: 'text.primary',
                                                 p: 0.3,
-                                                border: '1px solid #3a3b3c',
-                                                '&:hover': { bgcolor: '#555' }
+                                                border: `1px solid ${theme.palette.divider}`,
+                                                '&:hover': { bgcolor: 'action.hover' }
                                             }}
                                         >
                                             <CloseIcon sx={{ fontSize: 12 }} />
@@ -1561,7 +1562,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                             alignItems: 'center',
                                             gap: 1.5,
                                             p: 1.5,
-                                            bgcolor: '#f0f2f5',
+                                            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
                                             borderRadius: 2,
                                             mb: 0.5,
                                         }}
@@ -1572,11 +1573,11 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                                 fontSize={13}
                                                 fontWeight={500}
                                                 noWrap
-                                                sx={{ color: '#050505' }}
+                                                sx={{ color: 'text.primary' }}
                                             >
                                                 {file.name}
                                             </Typography>
-                                            <Typography fontSize={12} color="#65676b">
+                                            <Typography fontSize={12} color="text.secondary">
                                                 {formatFileSize(file.size)}
                                             </Typography>
                                         </Box>
@@ -1593,7 +1594,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 1,
-                                bgcolor: "#f0f2f5",
+                                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
                                 borderRadius: 5,
                                 px: 2,
                                 py: 1,
@@ -1697,7 +1698,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 <Picker
                     data={data}
                     onEmojiSelect={handleEmojiClick}
-                    theme="light"
+                    theme={theme.palette.mode}
                     locale="vi"
                     previewPosition="none"
                     skinTonePosition="none"

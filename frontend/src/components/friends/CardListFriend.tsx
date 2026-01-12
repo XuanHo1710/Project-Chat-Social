@@ -1,5 +1,5 @@
 'use client';
-import { Box, Card, CardContent, Typography, Avatar, Button } from '@mui/material';
+import { Box, Card, CardContent, Typography, Avatar, Button, useTheme } from '@mui/material';
 import { FriendType } from '@/types/account';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSocket } from '@/contexts/SocketContext';
@@ -8,16 +8,20 @@ import { useSocket } from '@/contexts/SocketContext';
 export default function CardListFriendComponent({ friend }: { friend: FriendType }) {
     const { user } = useAuthStore();
     const { socketRelationship } = useSocket();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+
     const handleCancel = (friendId: string) => {
         socketRelationship?.emit("friend:cancel", { userId: user?.id, friendId, status: 'CANCELED' });
     }
 
-
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const cancelBg = isDark ? 'rgba(255,255,255,0.15)' : '#e4e6eb';
 
     return (
-        <Card key={friend._id} sx={{ borderRadius: 2, border: 1, borderColor: "#ddd", boxShadow: '0 1px 2px rgba(0,0,0,0.1)', bgcolor: 'white' }}>
+        <Card key={friend._id} sx={{ borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
             <CardContent sx={{ p: 0 }}>
-                <Box sx={{ position: 'relative', pb: '100%', bgcolor: '#e4e6eb', borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
+                <Box sx={{ position: 'relative', pb: '100%', bgcolor: hoverBg, borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
                     <Avatar
                         src={friend.avatar || ""}
                         sx={{
@@ -31,10 +35,10 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
                     />
                 </Box>
                 <Box sx={{ p: 2 }}>
-                    <Typography fontWeight={600} fontSize={15} color="#050505" sx={{ mb: 0.5 }}>
+                    <Typography fontWeight={600} fontSize={15} color="text.primary" sx={{ mb: 0.5 }}>
                         {friend.firstName + " " + friend.lastName}
                     </Typography>
-                    <Typography variant="body2" color="#65676b" fontSize={13} sx={{ mb: 1.5 }}>
+                    <Typography variant="body2" color="text.secondary" fontSize={13} sx={{ mb: 1.5 }}>
                         0 bạn chung
                     </Typography>
 
@@ -43,12 +47,14 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
                             fullWidth
                             variant="contained"
                             sx={{
-                                bgcolor: '#1877f2',
+                                bgcolor: 'primary.main',
                                 textTransform: 'none',
                                 fontWeight: 600,
                                 py: 1,
+                                boxShadow: 'none',
                                 '&:hover': {
-                                    bgcolor: '#166fe5',
+                                    bgcolor: 'primary.dark',
+                                    boxShadow: 'none',
                                 },
                             }}
                         >
@@ -59,13 +65,15 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
                             onClick={() => handleCancel(friend._id)}
                             variant="contained"
                             sx={{
-                                bgcolor: '#e4e6eb',
-                                color: '#050505',
+                                bgcolor: cancelBg,
+                                color: 'text.primary',
                                 textTransform: 'none',
                                 fontWeight: 600,
                                 py: 1,
+                                boxShadow: 'none',
                                 '&:hover': {
-                                    bgcolor: '#d8dadf',
+                                    bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf',
+                                    boxShadow: 'none',
                                 },
                             }}
                         >

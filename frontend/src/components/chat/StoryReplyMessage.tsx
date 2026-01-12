@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Box, Typography, keyframes } from '@mui/material';
+import { Box, Typography, keyframes, useTheme } from '@mui/material';
 import Image from 'next/image';
 
 const fadeIn = keyframes`
@@ -32,6 +32,9 @@ export default function StoryReplyMessage({
     content,
     isOwnMessage,
 }: StoryReplyMessageProps) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+
     return (
         <Box
             sx={{
@@ -48,8 +51,9 @@ export default function StoryReplyMessage({
                     maxWidth: 280,
                     borderRadius: 3,
                     overflow: 'hidden',
-                    bgcolor: isOwnMessage ? '#0084ff' : '#3a3b3c',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    bgcolor: isOwnMessage ? 'primary.main' : (isDark ? 'grey.800' : 'action.hover'),
+                    boxShadow: isDark ? 'none' : '0 2px 8px rgba(0,0,0,0.15)',
+                    color: isOwnMessage ? 'primary.contrastText' : 'text.primary',
                 }}
             >
                 {/* Story reference header */}
@@ -70,7 +74,7 @@ export default function StoryReplyMessage({
                             height: 16,
                             borderRadius: '50%',
                             border: '2px solid',
-                            borderColor: isOwnMessage ? 'rgba(255,255,255,0.6)' : '#0084ff',
+                            borderColor: isOwnMessage ? 'rgba(255,255,255,0.6)' : 'primary.main',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -81,14 +85,14 @@ export default function StoryReplyMessage({
                                 width: 6,
                                 height: 6,
                                 borderRadius: '50%',
-                                bgcolor: isOwnMessage ? 'rgba(255,255,255,0.6)' : '#0084ff',
+                                bgcolor: isOwnMessage ? 'rgba(255,255,255,0.6)' : 'primary.main',
                             }}
                         />
                     </Box>
                     <Typography
                         variant="caption"
                         sx={{
-                            color: isOwnMessage ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.6)',
+                            color: isOwnMessage ? 'rgba(255,255,255,0.8)' : 'text.secondary',
                             fontSize: 11,
                         }}
                     >
@@ -102,7 +106,7 @@ export default function StoryReplyMessage({
                         position: 'relative',
                         width: '100%',
                         height: 150,
-                        bgcolor: '#000',
+                        bgcolor: 'common.black',
                     }}
                 >
                     <Image
@@ -146,7 +150,7 @@ export default function StoryReplyMessage({
                 <Box sx={{ p: 1.5 }}>
                     <Typography
                         sx={{
-                            color: 'white',
+                            color: 'inherit',
                             fontSize: 14,
                             wordBreak: 'break-word',
                             whiteSpace: 'pre-wrap',

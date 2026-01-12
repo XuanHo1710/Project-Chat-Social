@@ -1,5 +1,5 @@
 'use client';
-import { Box, Card, CardContent, Typography, Avatar, Button, CircularProgress } from '@mui/material';
+import { Box, Card, CardContent, Typography, Avatar, Button, CircularProgress, useTheme } from '@mui/material';
 
 import {
     PersonAdd as PersonAddIcon,
@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 
 export default function CardFriendShowAllComponent({ friend }: { friend: AccountCardFriendType }) {
     const { user } = useAuthStore();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [addFriend, setAddFriend] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const { socketRelationship } = useSocket();
@@ -58,10 +60,13 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
     };
 
 
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const cancelBg = isDark ? 'rgba(255,255,255,0.15)' : '#e4e6eb';
+
     return (
-        <Card key={friend.id} sx={{ borderRadius: 2, border: 1, borderColor: "#ddd", boxShadow: '0 1px 2px rgba(0,0,0,0.1)', bgcolor: 'white' }}>
+        <Card key={friend.id} sx={{ borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
             <CardContent sx={{ p: 0 }}>
-                <Box sx={{ position: 'relative', pb: '100%', bgcolor: '#e4e6eb', borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
+                <Box sx={{ position: 'relative', pb: '100%', bgcolor: hoverBg, borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
                     <Avatar
                         src={friend.avatar || ""}
                         sx={{
@@ -75,10 +80,10 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                     />
                 </Box>
                 <Box sx={{ p: 2 }}>
-                    <Typography fontWeight={600} fontSize={15} color="#050505" sx={{ mb: 0.5 }}>
+                    <Typography fontWeight={600} fontSize={15} color="text.primary" sx={{ mb: 0.5 }}>
                         {friend.name}
                     </Typography>
-                    <Typography variant="body2" color="#65676b" fontSize={13} sx={{ mb: 1.5 }}>
+                    <Typography variant="body2" color="text.secondary" fontSize={13} sx={{ mb: 1.5 }}>
                         {friend.mutualFriends} bạn chung
                     </Typography>
 
@@ -118,19 +123,21 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                             onClick={() => handleCancelAddFriend(friend.id)}
                             disabled={isLoading}
                             variant="contained"
-                            startIcon={isLoading ? <CircularProgress size={16} sx={{ color: '#050505' }} /> : null}
+                            startIcon={isLoading ? <CircularProgress size={16} sx={{ color: 'text.primary' }} /> : null}
                             sx={{
-                                bgcolor: '#e4e6eb',
-                                color: '#050505',
+                                bgcolor: cancelBg,
+                                color: 'text.primary',
                                 textTransform: 'none',
                                 fontWeight: 600,
                                 py: 1,
+                                boxShadow: 'none',
                                 '&:hover': {
-                                    bgcolor: '#d8dadf',
+                                    bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf',
+                                    boxShadow: 'none',
                                 },
                                 '&.Mui-disabled': {
-                                    bgcolor: '#e4e6eb',
-                                    color: '#050505',
+                                    bgcolor: cancelBg,
+                                    color: 'text.primary',
                                     opacity: 0.7,
                                 },
                             }}

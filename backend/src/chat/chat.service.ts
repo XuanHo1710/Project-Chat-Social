@@ -273,9 +273,26 @@ export class ChatService {
         },
         { new: true }
       )
+      .populate('senderId', 'firstName lastName _id avatar')
       .populate('readBy', 'firstName lastName _id avatar')
-      .populate('emotions.userId', 'firstName lastName _id avatar')
-      .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
+      .populate({
+        path: 'emotions.userId',
+        select: 'firstName lastName _id avatar',
+      })
+      .populate([
+        {
+          path: 'replyTo',
+          populate: [{ path: 'senderId', select: 'firstName lastName _id' }],
+        },
+        {
+          path: 'postId',
+          populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+        },
+        {
+          path: 'postIdsRecommendationfromAI',
+          populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+        },
+      ])
       .exec();
   }
 
@@ -313,9 +330,26 @@ export class ChatService {
         },
         { new: true }
       )
+      .populate('senderId', 'firstName lastName _id avatar')
       .populate('readBy', 'firstName lastName _id avatar')
-      .populate('emotions.userId', 'firstName lastName _id avatar')
-      .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
+      .populate({
+        path: 'emotions.userId',
+        select: 'firstName lastName _id avatar',
+      })
+      .populate([
+        {
+          path: 'replyTo',
+          populate: [{ path: 'senderId', select: 'firstName lastName _id' }],
+        },
+        {
+          path: 'postId',
+          populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+        },
+        {
+          path: 'postIdsRecommendationfromAI',
+          populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+        },
+      ])
       .exec();
   }
 
@@ -332,9 +366,26 @@ export class ChatService {
         { $pull: { emotions: { userId: new Types.ObjectId(userId) } } },
         { new: true }
       )
+      .populate('senderId', 'firstName lastName _id avatar')
       .populate('readBy', 'firstName lastName _id avatar')
-      .populate('emotions.userId', 'firstName lastName _id avatar')
-      .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
+      .populate({
+        path: 'emotions.userId',
+        select: 'firstName lastName _id avatar',
+      })
+      .populate([
+        {
+          path: 'replyTo',
+          populate: [{ path: 'senderId', select: 'firstName lastName _id' }],
+        },
+        {
+          path: 'postId',
+          populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+        },
+        {
+          path: 'postIdsRecommendationfromAI',
+          populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+        },
+      ])
       .exec();
   }
 
@@ -384,9 +435,26 @@ export class ChatService {
         },
         { new: true }
       )
+      .populate('senderId', 'firstName lastName _id avatar')
       .populate('readBy', 'firstName lastName _id avatar')
-      .populate('emotions.userId', 'firstName lastName _id avatar')
-      .populate({ path: 'replyTo', populate: { path: 'senderId', select: 'firstName lastName' } })
+      .populate({
+        path: 'emotions.userId',
+        select: 'firstName lastName _id avatar',
+      })
+      .populate([
+        {
+          path: 'replyTo',
+          populate: [{ path: 'senderId', select: 'firstName lastName _id' }],
+        },
+        {
+          path: 'postId',
+          populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+        },
+        {
+          path: 'postIdsRecommendationfromAI',
+          populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+        },
+      ])
       .exec();
   }
 

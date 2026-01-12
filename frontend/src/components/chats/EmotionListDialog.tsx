@@ -10,6 +10,7 @@ import {
     IconButton,
     Tabs,
     Tab,
+    useTheme,
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { EmotionType } from '@/types/chat';
@@ -52,6 +53,8 @@ interface EmotionListDialogProps {
 }
 
 export default function EmotionListDialog({ open, onClose, emotions, participants }: EmotionListDialogProps) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [selectedTab, setSelectedTab] = useState<'ALL' | EmotionType>('ALL');
 
     // Transform emotions to user list with emotion info
@@ -113,8 +116,8 @@ export default function EmotionListDialog({ open, onClose, emotions, participant
             fullWidth
             PaperProps={{
                 sx: {
-                    bgcolor: '#fff',
-                    color: 'black',
+                    bgcolor: 'background.paper',
+                    color: 'text.primary',
                     borderRadius: 3,
                     maxHeight: '80vh'
                 }
@@ -126,18 +129,18 @@ export default function EmotionListDialog({ open, onClose, emotions, participant
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 p: 2,
-                borderBottom: '1px solid #e4e6eb'
+                borderBottom: `1px solid ${theme.palette.divider}`
             }}>
                 <Typography variant="h6" fontWeight={700}>
                     Cảm xúc về tin nhắn
                 </Typography>
-                <IconButton onClick={onClose} sx={{ color: '#65676b' }}>
+                <IconButton onClick={onClose} sx={{ color: 'text.secondary' }}>
                     <CloseIcon />
                 </IconButton>
             </Box>
 
             {/* Tabs */}
-            <Box sx={{ borderBottom: '1px solid #e4e6eb' }}>
+            <Box sx={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
                 <Tabs
                     value={selectedTab}
                     onChange={(_, v) => setSelectedTab(v)}
@@ -145,13 +148,13 @@ export default function EmotionListDialog({ open, onClose, emotions, participant
                     scrollButtons="auto"
                     sx={{
                         '& .MuiTab-root': {
-                            color: '#65676b',
+                            color: 'text.secondary',
                             textTransform: 'none',
                             minWidth: 'auto',
                             px: 2,
-                            '&.Mui-selected': { color: '#2e89ff' }
+                            '&.Mui-selected': { color: 'primary.main' }
                         },
-                        '& .MuiTabs-indicator': { bgcolor: '#2e89ff' }
+                        '& .MuiTabs-indicator': { bgcolor: 'primary.main' }
                     }}
                 >
                     {availableTabs.map(tab => (
@@ -175,7 +178,7 @@ export default function EmotionListDialog({ open, onClose, emotions, participant
             {/* Content */}
             <DialogContent sx={{ p: 0 }}>
                 {filteredUsers.length === 0 ? (
-                    <Typography color="#65676b" textAlign="center" py={4}>
+                    <Typography color="text.secondary" textAlign="center" py={4}>
                         Chưa có ai bày tỏ cảm xúc
                     </Typography>
                 ) : (
@@ -188,7 +191,7 @@ export default function EmotionListDialog({ open, onClose, emotions, participant
                                     alignItems: 'center',
                                     gap: 1.5,
                                     p: 2,
-                                    '&:hover': { bgcolor: 'rgba(0,0,0,0.03)' }
+                                    '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }
                                 }}
                             >
                                 {/* Avatar with emotion badge */}
@@ -212,7 +215,7 @@ export default function EmotionListDialog({ open, onClose, emotions, participant
                                     <Typography fontWeight={500} fontSize={15}>
                                         {user.firstName} {user.lastName}
                                     </Typography>
-                                    <Typography fontSize={12} color="#65676b">
+                                    <Typography fontSize={12} color="text.secondary">
                                         {EMOTION_LABELS[user.emotionType]}
                                     </Typography>
                                 </Box>

@@ -20,6 +20,8 @@ import {
     Divider,
     Card,
     InputAdornment,
+    useTheme,
+    alpha,
 } from '@mui/material';
 import {
     ArrowBack as ArrowBackIcon,
@@ -44,6 +46,8 @@ import { FriendType } from '@/types/account';
 export default function CreateGroupPage() {
     const router = useRouter();
     const { user } = useAuthStore();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
 
     const [createForm, setCreateForm] = useState<CreateGroupData>({
         name: '',
@@ -109,7 +113,7 @@ export default function CreateGroupPage() {
         : 'Quyền riêng tư của nhóm';
 
     return (
-        <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
             <Header />
 
             <Box sx={{ display: 'flex', pt: 7 }}>
@@ -118,8 +122,8 @@ export default function CreateGroupPage() {
                     sx={{
                         width: 360,
                         height: 'calc(100vh - 56px)',
-                        bgcolor: 'white',
-                        borderRight: '1px solid #dddfe2',
+                        bgcolor: 'background.paper',
+                        borderRight: `1px solid ${theme.palette.divider}`,
                         position: 'fixed',
                         left: 0,
                         top: 56,
@@ -129,14 +133,14 @@ export default function CreateGroupPage() {
                     }}
                 >
                     {/* Sidebar Header */}
-                    <Box sx={{ p: 2, borderBottom: '1px solid #dddfe2' }}>
+                    <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                             <IconButton
                                 size="small"
                                 onClick={() => router.push('/groups')}
                                 sx={{
-                                    bgcolor: '#e4e6eb',
-                                    '&:hover': { bgcolor: '#d8dadf' }
+                                    bgcolor: 'action.hover',
+                                    '&:hover': { bgcolor: 'action.selected' }
                                 }}
                             >
                                 <ArrowBackIcon fontSize="small" />
@@ -144,7 +148,7 @@ export default function CreateGroupPage() {
                             <Box>
                                 <Typography
                                     variant="caption"
-                                    sx={{ color: '#65676b', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                    sx={{ color: 'text.secondary', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
                                     onClick={() => router.push('/groups')}
                                 >
                                     Nhóm › Tạo nhóm
@@ -183,7 +187,7 @@ export default function CreateGroupPage() {
                                 mb: 2,
                                 '& .MuiOutlinedInput-root': {
                                     borderRadius: 1.5,
-                                    '& fieldset': { borderColor: '#dddfe2' },
+                                    '& fieldset': { borderColor: theme.palette.divider },
                                 },
                             }}
                         />
@@ -196,14 +200,14 @@ export default function CreateGroupPage() {
                                 displayEmpty
                                 sx={{
                                     borderRadius: 1.5,
-                                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#dddfe2' },
+                                    '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider },
                                 }}
                                 renderValue={(value) => (
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         {value === GroupPrivacy.PRIVATE ? (
-                                            <LockIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                                            <LockIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                                         ) : (
-                                            <PublicIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                                            <PublicIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                                         )}
                                         <Typography>
                                             {value === GroupPrivacy.PRIVATE ? 'Riêng tư' : 'Công khai'}
@@ -241,7 +245,7 @@ export default function CreateGroupPage() {
                             <Typography
                                 variant="caption"
                                 sx={{
-                                    color: '#1877f2',
+                                    color: 'primary.main',
                                     fontWeight: 500,
                                     display: 'block',
                                     mb: 0.5
@@ -257,8 +261,8 @@ export default function CreateGroupPage() {
                                 sx={{
                                     '& .MuiOutlinedInput-root': {
                                         borderRadius: 1.5,
-                                        bgcolor: '#f0f2f5',
-                                        '& fieldset': { borderColor: '#1877f2', borderWidth: 2 },
+                                        bgcolor: 'action.hover',
+                                        '& fieldset': { borderColor: 'primary.main', borderWidth: 2 },
                                     },
                                 }}
                             />
@@ -273,7 +277,7 @@ export default function CreateGroupPage() {
                                             label={`${friend.firstName} ${friend.lastName}`}
                                             onDelete={() => handleRemoveFriend(friend._id)}
                                             size="small"
-                                            sx={{ bgcolor: '#e7f3ff', color: '#1877f2' }}
+                                            sx={{ bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }}
                                         />
                                     ))}
                                 </Box>
@@ -283,7 +287,7 @@ export default function CreateGroupPage() {
                             {friendSearch && filteredFriends.length > 0 && (
                                 <Box sx={{
                                     mt: 1,
-                                    bgcolor: 'white',
+                                    bgcolor: 'background.paper',
                                     borderRadius: 2,
                                     boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
                                     maxHeight: 200,
@@ -319,7 +323,7 @@ export default function CreateGroupPage() {
                                                 component="span"
                                                 variant="caption"
                                                 sx={{
-                                                    color: '#1877f2',
+                                                    color: 'primary.main',
                                                     cursor: 'pointer',
                                                     '&:hover': { textDecoration: 'underline' }
                                                 }}
@@ -335,27 +339,27 @@ export default function CreateGroupPage() {
                     </Box>
 
                     {/* Create Button */}
-                    <Box sx={{ p: 2, borderTop: '1px solid #dddfe2' }}>
+                    <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
                         <Button
                             fullWidth
                             variant="contained"
                             onClick={handleCreateGroup}
                             disabled={!createForm.name.trim() || isCreating}
                             sx={{
-                                bgcolor: createForm.name.trim() ? '#1877f2' : '#e4e6eb',
-                                color: createForm.name.trim() ? 'white' : '#bcc0c4',
+                                bgcolor: createForm.name.trim() ? 'primary.main' : 'action.disabledBackground',
+                                color: createForm.name.trim() ? 'primary.contrastText' : 'text.disabled',
                                 textTransform: 'none',
                                 fontWeight: 600,
                                 py: 1,
                                 borderRadius: 1.5,
                                 boxShadow: 'none',
                                 '&:hover': {
-                                    bgcolor: createForm.name.trim() ? '#166fe5' : '#e4e6eb',
+                                    bgcolor: createForm.name.trim() ? 'primary.dark' : 'action.disabledBackground',
                                     boxShadow: 'none'
                                 },
                                 '&.Mui-disabled': {
-                                    bgcolor: '#e4e6eb',
-                                    color: '#bcc0c4',
+                                    bgcolor: 'action.disabledBackground',
+                                    color: 'text.disabled',
                                 }
                             }}
                         >
@@ -373,7 +377,7 @@ export default function CreateGroupPage() {
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            borderBottom: '1px solid #dddfe2'
+                            borderBottom: `1px solid ${theme.palette.divider}`
                         }}>
                             <Typography fontWeight={500} color="text.secondary">
                                 Xem trước trên máy tính
@@ -383,8 +387,8 @@ export default function CreateGroupPage() {
                                     size="small"
                                     onClick={() => setPreviewMode('desktop')}
                                     sx={{
-                                        bgcolor: previewMode === 'desktop' ? '#e7f3ff' : 'transparent',
-                                        color: previewMode === 'desktop' ? '#1877f2' : '#65676b'
+                                        bgcolor: previewMode === 'desktop' ? (theme) => alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                                        color: previewMode === 'desktop' ? 'primary.main' : 'text.secondary'
                                     }}
                                 >
                                     <ComputerIcon fontSize="small" />
@@ -393,8 +397,8 @@ export default function CreateGroupPage() {
                                     size="small"
                                     onClick={() => setPreviewMode('mobile')}
                                     sx={{
-                                        bgcolor: previewMode === 'mobile' ? '#e7f3ff' : 'transparent',
-                                        color: previewMode === 'mobile' ? '#1877f2' : '#65676b'
+                                        bgcolor: previewMode === 'mobile' ? (theme) => alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                                        color: previewMode === 'mobile' ? 'primary.main' : 'text.secondary'
                                     }}
                                 >
                                     <PhoneIcon fontSize="small" />
@@ -409,7 +413,9 @@ export default function CreateGroupPage() {
                                 sx={{
                                     height: 200,
                                     borderRadius: 2,
-                                    background: 'linear-gradient(135deg, #e8e8e8 0%, #d1d1d1 100%)',
+                                    background: isDark
+                                        ? 'linear-gradient(135deg, #2A2A2A 0%, #1a1a1a 100%)'
+                                        : 'linear-gradient(135deg, #e8e8e8 0%, #d1d1d1 100%)',
                                     mb: 2,
                                     display: 'flex',
                                     alignItems: 'center',
@@ -425,15 +431,15 @@ export default function CreateGroupPage() {
                                     display: 'flex',
                                     alignItems: 'flex-end',
                                     justifyContent: 'center',
-                                    bgcolor: '#e8e8e8',
+                                    bgcolor: 'action.hover',
                                     p: 2
                                 }}>
-                                    <GroupsIcon sx={{ fontSize: 80, color: '#bcc0c4' }} />
+                                    <GroupsIcon sx={{ fontSize: 80, color: 'text.disabled' }} />
                                 </Box>
                             </Box>
 
                             {/* Group Info */}
-                            <Typography variant="h5" fontWeight={600} sx={{ color: createForm.name ? '#050505' : '#bcc0c4', mb: 0.5 }}>
+                            <Typography variant="h5" fontWeight={600} sx={{ color: createForm.name ? 'text.primary' : 'text.disabled', mb: 0.5 }}>
                                 {createForm.name || 'Tên nhóm'}
                             </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -444,15 +450,15 @@ export default function CreateGroupPage() {
                             <Box sx={{
                                 display: 'flex',
                                 gap: 1,
-                                borderTop: '1px solid #dddfe2',
-                                borderBottom: '1px solid #dddfe2',
+                                borderTop: `1px solid ${theme.palette.divider}`,
+                                borderBottom: `1px solid ${theme.palette.divider}`,
                                 py: 1.5,
                                 mb: 2
                             }}>
-                                <Button size="small" sx={{ textTransform: 'none', color: '#65676b', minWidth: 'auto' }}>Giới thiệu</Button>
-                                <Button size="small" sx={{ textTransform: 'none', color: '#65676b', minWidth: 'auto' }}>Bài viết</Button>
-                                <Button size="small" sx={{ textTransform: 'none', color: '#65676b', minWidth: 'auto' }}>Thành viên</Button>
-                                <Button size="small" sx={{ textTransform: 'none', color: '#65676b', minWidth: 'auto' }}>Sự kiện</Button>
+                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>Giới thiệu</Button>
+                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>Bài viết</Button>
+                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>Thành viên</Button>
+                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>Sự kiện</Button>
                             </Box>
 
                             {/* Create Post Preview */}
@@ -463,26 +469,26 @@ export default function CreateGroupPage() {
                                         alignItems: 'center',
                                         gap: 1.5,
                                         p: 1.5,
-                                        bgcolor: '#f0f2f5',
+                                        bgcolor: 'action.hover',
                                         borderRadius: '20px',
                                         mb: 1.5
                                     }}>
-                                        <Avatar sx={{ width: 32, height: 32, bgcolor: '#e4e6eb' }} />
+                                        <Avatar sx={{ width: 32, height: 32, bgcolor: 'action.selected' }} />
                                         <Typography color="text.secondary" fontSize={14}>
                                             Bạn đang nghĩ gì?
                                         </Typography>
                                     </Box>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <ImageIcon sx={{ color: '#45bd62', fontSize: 18 }} />
+                                            <ImageIcon sx={{ color: 'success.main', fontSize: 18 }} />
                                             <Typography variant="caption" color="text.secondary">Ảnh/video</Typography>
                                         </Box>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <TagIcon sx={{ color: '#1877f2', fontSize: 18 }} />
+                                            <TagIcon sx={{ color: 'primary.main', fontSize: 18 }} />
                                             <Typography variant="caption" color="text.secondary">Gắn thẻ người khác</Typography>
                                         </Box>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <EmojiIcon sx={{ color: '#f7b928', fontSize: 18 }} />
+                                            <EmojiIcon sx={{ color: 'warning.main', fontSize: 18 }} />
                                             <Typography variant="caption" color="text.secondary">Feeling/activity</Typography>
                                         </Box>
                                     </Box>

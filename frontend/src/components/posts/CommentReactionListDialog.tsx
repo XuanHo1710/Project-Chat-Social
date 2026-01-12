@@ -11,6 +11,7 @@ import {
     Tabs,
     Tab,
     CircularProgress,
+    useTheme,
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { getCommentReactions } from '@/services/reaction.service';
@@ -33,6 +34,8 @@ interface CommentReactionListDialogProps {
 }
 
 export default function CommentReactionListDialog({ open, onClose, commentId }: CommentReactionListDialogProps) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [loading, setLoading] = useState(false);
     const [reactions, setReactions] = useState<Reaction[]>([]);
     const [counts, setCounts] = useState<Record<ReactionType, number>>({
@@ -40,6 +43,11 @@ export default function CommentReactionListDialog({ open, onClose, commentId }: 
     });
     const [selectedTab, setSelectedTab] = useState<'ALL' | ReactionType>('ALL');
     const { socketReaction } = useSocket();
+
+    // Theme helpers
+    const borderColor = theme.palette.divider;
+    const secondaryText = theme.palette.text.secondary;
+    const bgHover = isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5';
 
     // Fetch reactions
     const fetchData = useCallback(async () => {
@@ -133,7 +141,7 @@ export default function CommentReactionListDialog({ open, onClose, commentId }: 
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 p: 2,
-                borderBottom: '1px solid #e4e6eb'
+                borderBottom: `1px solid ${borderColor}`
             }}>
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     Cảm xúc
@@ -150,7 +158,7 @@ export default function CommentReactionListDialog({ open, onClose, commentId }: 
                 variant="scrollable"
                 scrollButtons="auto"
                 sx={{
-                    borderBottom: '1px solid #e4e6eb',
+                    borderBottom: `1px solid ${borderColor}`,
                     minHeight: 48,
                     '& .MuiTab-root': {
                         minHeight: 48,
@@ -168,7 +176,7 @@ export default function CommentReactionListDialog({ open, onClose, commentId }: 
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 {tab.emoji && <span>{tab.emoji}</span>}
                                 {tab.type === 'ALL' ? 'Tất cả' : ''}
-                                <Typography component="span" sx={{ fontSize: 13, color: '#65676b' }}>
+                                <Typography component="span" sx={{ fontSize: 13, color: secondaryText }}>
                                     {tab.count}
                                 </Typography>
                             </Box>
@@ -183,7 +191,7 @@ export default function CommentReactionListDialog({ open, onClose, commentId }: 
                         <CircularProgress size={32} />
                     </Box>
                 ) : filteredUsers.length === 0 ? (
-                    <Box sx={{ textAlign: 'center', py: 4, color: '#65676b' }}>
+                    <Box sx={{ textAlign: 'center', py: 4, color: secondaryText }}>
                         Chưa có cảm xúc nào
                     </Box>
                 ) : (
@@ -198,7 +206,7 @@ export default function CommentReactionListDialog({ open, onClose, commentId }: 
                                     px: 2,
                                     py: 1,
                                     cursor: 'pointer',
-                                    '&:hover': { bgcolor: '#f0f2f5' }
+                                    '&:hover': { bgcolor: bgHover }
                                 }}
                             >
                                 <Box sx={{ position: 'relative' }}>

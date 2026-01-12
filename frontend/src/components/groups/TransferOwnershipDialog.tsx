@@ -19,6 +19,7 @@ import {
     IconButton,
     CircularProgress,
     Alert,
+    useTheme,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -46,12 +47,21 @@ export default function TransferOwnershipDialog({
     onTransferred,
 }: TransferOwnershipDialogProps) {
     const { user } = useAuthStore();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [members, setMembers] = useState<GroupMember[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
     const [isTransferring, setIsTransferring] = useState(false);
     const [confirmStep, setConfirmStep] = useState(false);
+
+    // Theme helpers
+    const borderColor = theme.palette.divider;
+    const secondaryText = theme.palette.text.secondary;
+    const bgLight = isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5';
+    const bgSelected = isDark ? 'rgba(24, 119, 242, 0.2)' : '#e7f3ff';
+    const bgSelectedHover = isDark ? 'rgba(24, 119, 242, 0.3)' : '#d8e9ff';
 
     const loadMembers = async () => {
         setIsLoading(true);
@@ -127,7 +137,7 @@ export default function TransferOwnershipDialog({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                borderBottom: '1px solid #e4e6eb',
+                borderBottom: `1px solid ${borderColor}`,
                 pb: 2
             }}>
                 <Typography variant="h6" fontWeight={700}>
@@ -152,7 +162,7 @@ export default function TransferOwnershipDialog({
                             </Typography>
                         </Alert>
 
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, bgcolor: '#f0f2f5', borderRadius: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, bgcolor: bgLight, borderRadius: 2 }}>
                             <Avatar
                                 src={selectedMember.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedMember.firstName + ' ' + selectedMember.lastName)}&background=1877f2&color=fff`}
                                 sx={{ width: 56, height: 56 }}
@@ -161,7 +171,7 @@ export default function TransferOwnershipDialog({
                                 <Typography fontWeight={600}>
                                     {selectedMember.firstName} {selectedMember.lastName}
                                 </Typography>
-                                <Typography variant="body2" color="#65676b">
+                                <Typography variant="body2" color={secondaryText}>
                                     @{selectedMember.username}
                                 </Typography>
                             </Box>
@@ -170,7 +180,7 @@ export default function TransferOwnershipDialog({
                 ) : (
                     <>
                         {/* Search */}
-                        <Box sx={{ p: 2, borderBottom: '1px solid #e4e6eb' }}>
+                        <Box sx={{ p: 2, borderBottom: `1px solid ${borderColor}` }}>
                             <TextField
                                 fullWidth
                                 placeholder="Tìm thành viên..."
@@ -179,14 +189,14 @@ export default function TransferOwnershipDialog({
                                 InputProps={{
                                     startAdornment: (
                                         <InputAdornment position="start">
-                                            <SearchIcon sx={{ color: '#65676b' }} />
+                                            <SearchIcon sx={{ color: secondaryText }} />
                                         </InputAdornment>
                                     ),
                                 }}
                                 sx={{
                                     '& .MuiOutlinedInput-root': {
                                         borderRadius: 4,
-                                        bgcolor: '#f0f2f5',
+                                        bgcolor: bgLight,
                                         '& fieldset': { border: 'none' }
                                     }
                                 }}
@@ -200,7 +210,7 @@ export default function TransferOwnershipDialog({
                                     <CircularProgress />
                                 </Box>
                             ) : filteredMembers.length === 0 ? (
-                                <Typography color="#65676b" sx={{ textAlign: 'center', py: 4 }}>
+                                <Typography color={secondaryText} sx={{ textAlign: 'center', py: 4 }}>
                                     {members.length === 0 ? 'Không có thành viên nào khác trong nhóm' : 'Không tìm thấy thành viên'}
                                 </Typography>
                             ) : (
@@ -212,8 +222,8 @@ export default function TransferOwnershipDialog({
                                             selected={selectedMember?._id === member._id}
                                             sx={{
                                                 '&.Mui-selected': {
-                                                    bgcolor: '#e7f3ff',
-                                                    '&:hover': { bgcolor: '#d8e9ff' }
+                                                    bgcolor: bgSelected,
+                                                    '&:hover': { bgcolor: bgSelectedHover }
                                                 },
                                                 borderRadius: 1,
                                                 mx: 1,
@@ -234,7 +244,7 @@ export default function TransferOwnershipDialog({
                                                 secondary={`@${member.username}`}
                                             />
                                             {selectedMember?._id === member._id && (
-                                                <CheckIcon sx={{ color: '#1877f2' }} />
+                                                <CheckIcon sx={{ color: 'primary.main' }} />
                                             )}
                                         </ListItemButton>
                                     ))}
@@ -245,14 +255,14 @@ export default function TransferOwnershipDialog({
                 )}
             </DialogContent>
 
-            <DialogActions sx={{ p: 2, borderTop: '1px solid #e4e6eb' }}>
+            <DialogActions sx={{ p: 2, borderTop: `1px solid ${borderColor}` }}>
                 {confirmStep ? (
                     <>
                         <Button
                             onClick={handleBack}
                             sx={{
                                 textTransform: 'none',
-                                color: '#65676b',
+                                color: secondaryText,
                                 fontWeight: 600,
                             }}
                         >
@@ -277,7 +287,7 @@ export default function TransferOwnershipDialog({
                             onClick={onClose}
                             sx={{
                                 textTransform: 'none',
-                                color: '#65676b',
+                                color: secondaryText,
                                 fontWeight: 600,
                             }}
                         >
@@ -289,9 +299,9 @@ export default function TransferOwnershipDialog({
                             variant="contained"
                             sx={{
                                 textTransform: 'none',
-                                bgcolor: '#1877f2',
+                                bgcolor: 'primary.main',
                                 fontWeight: 600,
-                                '&:hover': { bgcolor: '#166fe5' },
+                                '&:hover': { bgcolor: 'primary.dark' },
                             }}
                         >
                             Tiếp tục

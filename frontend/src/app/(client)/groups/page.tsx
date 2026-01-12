@@ -16,6 +16,8 @@ import {
     IconButton,
     Divider,
     Card,
+    useTheme,
+    alpha,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -31,6 +33,8 @@ import { useRouter } from 'next/navigation';
 
 export default function GroupsPage() {
     const router = useRouter();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [suggestedGroups, setSuggestedGroups] = useState<Group[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
@@ -88,8 +92,11 @@ export default function GroupsPage() {
         ? myGroups.filter(g => g.name.toLowerCase().includes(searchQuery.toLowerCase()))
         : myGroups;
 
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : 'action.hover';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : 'action.hover';
+
     return (
-        <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
             <Header />
 
             <Box sx={{ display: 'flex', pt: 7 }}>
@@ -98,8 +105,8 @@ export default function GroupsPage() {
                     sx={{
                         width: 360,
                         height: 'calc(100vh - 56px)',
-                        bgcolor: 'white',
-                        borderRight: '1px solid #dddfe2',
+                        bgcolor: 'background.paper',
+                        borderRight: `1px solid ${theme.palette.divider}`,
                         position: 'fixed',
                         left: 0,
                         top: 56,
@@ -112,7 +119,7 @@ export default function GroupsPage() {
                         <Typography variant="h5" fontWeight={700}>
                             Nhóm
                         </Typography>
-                        <IconButton sx={{ bgcolor: '#e4e6eb' }}>
+                        <IconButton sx={{ bgcolor: hoverBg }}>
                             <SettingsIcon />
                         </IconButton>
                     </Box>
@@ -127,14 +134,14 @@ export default function GroupsPage() {
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon sx={{ color: '#65676b' }} />
+                                    <SearchIcon sx={{ color: 'text.secondary' }} />
                                 </InputAdornment>
                             ),
                         }}
                         sx={{
                             mb: 2,
                             '& .MuiOutlinedInput-root': {
-                                bgcolor: '#f0f2f5',
+                                bgcolor: inputBg,
                                 borderRadius: 20,
                                 '& fieldset': { border: 'none' },
                             },
@@ -161,12 +168,12 @@ export default function GroupsPage() {
                         startIcon={<AddIcon />}
                         onClick={() => router.push('/groups/create')}
                         sx={{
-                            bgcolor: '#e7f3ff',
-                            color: '#1877f2',
+                            bgcolor: isDark ? 'rgba(24, 119, 242, 0.2)' : (theme) => alpha(theme.palette.primary.main, 0.1),
+                            color: 'primary.main',
                             textTransform: 'none',
                             fontWeight: 600,
                             boxShadow: 'none',
-                            '&:hover': { bgcolor: '#dbe7f2', boxShadow: 'none' },
+                            '&:hover': { bgcolor: isDark ? 'rgba(24, 119, 242, 0.3)' : (theme) => alpha(theme.palette.primary.main, 0.2), boxShadow: 'none' },
                             mb: 2,
                         }}
                     >
@@ -182,7 +189,7 @@ export default function GroupsPage() {
                         </Typography>
                         <Button
                             size="small"
-                            sx={{ textTransform: 'none', color: '#1877f2' }}
+                            sx={{ textTransform: 'none', color: 'primary.main' }}
                         >
                             Xem tất cả
                         </Button>
@@ -230,7 +237,7 @@ export default function GroupsPage() {
                                 <Typography variant="h5" fontWeight={600}>
                                     Tất cả các nhóm bạn đã tham gia ({myGroups.length})
                                 </Typography>
-                                <Button sx={{ textTransform: 'none', color: '#1877f2' }}>
+                                <Button sx={{ textTransform: 'none', color: 'primary.main' }}>
                                     Sắp xếp
                                 </Button>
                             </Box>
@@ -250,10 +257,9 @@ export default function GroupsPage() {
                                             display: 'flex',
                                             p: 2,
                                             cursor: 'pointer',
-                                            '&:hover': { bgcolor: '#f5f6f7' },
+                                            '&:hover': { bgcolor: hoverBg },
                                         }}
-                                        onClick={() => router.push(`/groups/${group._id}`)}
-                                    >
+                                        onClick={() => router.push(`/groups/${group._id}`)}>
                                         <Avatar
                                             src={group.avatar || undefined}
                                             variant="rounded"
@@ -277,8 +283,8 @@ export default function GroupsPage() {
                                                     fullWidth
                                                     sx={{
                                                         textTransform: 'none',
-                                                        borderColor: '#1877f2',
-                                                        color: '#1877f2',
+                                                        borderColor: 'primary.main',
+                                                        color: 'primary.main',
                                                     }}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -287,7 +293,7 @@ export default function GroupsPage() {
                                                 >
                                                     Xem nhóm
                                                 </Button>
-                                                <IconButton size="small" sx={{ border: '1px solid #ddd' }}>
+                                                <IconButton size="small" sx={{ border: `1px solid ${theme.palette.divider}` }}>
                                                     <MoreHorizIcon fontSize="small" />
                                                 </IconButton>
                                             </Box>
@@ -372,6 +378,6 @@ export default function GroupsPage() {
                 </Box>
             </Box>
 
-        </Box>
+        </Box >
     );
 }

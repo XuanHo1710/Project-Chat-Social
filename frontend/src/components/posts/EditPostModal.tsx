@@ -13,6 +13,7 @@ import {
     LinearProgress,
     ImageList,
     ImageListItem,
+    useTheme,
 } from "@mui/material";
 import {
     Close as CloseIcon,
@@ -78,6 +79,13 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
     const { user } = useAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const updatePostMutation = useUpdatePost();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const borderColor = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const buttonBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const buttonHoverBg = isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf';
+    const selectedBg = isDark ? 'rgba(66, 133, 244, 0.3)' : '#e7f3ff';
 
     // Form state
     const [postContent, setPostContent] = useState(post.content || "");
@@ -267,7 +275,7 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                 sx={{
                     width: 800,
                     maxHeight: "90vh",
-                    bgcolor: "white",
+                    bgcolor: "background.paper",
                     borderRadius: 2,
                     boxShadow: 24,
                     overflow: "hidden",
@@ -279,7 +287,7 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                 <Box
                     sx={{
                         p: 2,
-                        borderBottom: "1px solid #e4e6eb",
+                        borderBottom: `1px solid ${borderColor}`,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -291,7 +299,7 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                             <ArrowBackIcon />
                         </IconButton>
                     )}
-                    <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#050505' }}>
+                    <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>
                         {modalView === "edit" ? "Chỉnh sửa bài viết" : "Đối tượng của bài viết"}
                     </Typography>
                     <IconButton onClick={onClose} sx={{ position: "absolute", right: 8 }}>
@@ -306,15 +314,15 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                         <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 1.5 }}>
                             <Avatar sx={{ width: 40, height: 40 }} src={user?.avatar} />
                             <Box>
-                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                     {user?.fullName || user?.username}
                                 </Typography>
                                 <Button
                                     size="small"
                                     onClick={() => setModalView("privacy")}
                                     sx={{
-                                        bgcolor: "#e4e6eb",
-                                        color: "#050505",
+                                        bgcolor: buttonBg,
+                                        color: "text.primary",
                                         textTransform: "none",
                                         fontSize: 13,
                                         fontWeight: 600,
@@ -322,7 +330,7 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                                         py: 0.25,
                                         minHeight: 0,
                                         borderRadius: 1,
-                                        "&:hover": { bgcolor: "#d8dadf" },
+                                        "&:hover": { bgcolor: buttonHoverBg },
                                     }}
                                     startIcon={<PrivacyIcon sx={{ fontSize: 14 }} />}
                                     endIcon={<ArrowDownIcon sx={{ fontSize: 16 }} />}
@@ -355,13 +363,13 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                                 sx={{
                                     fontSize: selectedBackground !== "none" && totalMedia === 0 ? 24 : 16,
                                     fontWeight: selectedBackground !== "none" && totalMedia === 0 ? 700 : 400,
-                                    color: selectedBackground !== "none" && selectedBackground !== "solid4" && totalMedia === 0 ? "white" : "#050505",
+                                    color: selectedBackground !== "none" && selectedBackground !== "solid4" && totalMedia === 0 ? "white" : "text.primary",
                                     textAlign: selectedBackground !== "none" && totalMedia === 0 ? "center" : "left",
                                     "& textarea": {
                                         textAlign: selectedBackground !== "none" && totalMedia === 0 ? "center" : "left",
                                     },
                                     "& ::placeholder": {
-                                        color: selectedBackground !== "none" && selectedBackground !== "solid4" && totalMedia === 0 ? "rgba(255,255,255,0.7)" : "#65676b",
+                                        color: selectedBackground !== "none" && selectedBackground !== "solid4" && totalMedia === 0 ? "rgba(255,255,255,0.7)" : "text.secondary",
                                     },
                                 }}
                             />
@@ -370,7 +378,7 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                         {/* Existing Media Preview */}
                         {existingMedia.length > 0 && (
                             <Box sx={{ px: 2, pb: 2 }}>
-                                <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 1, color: '#050505' }}>
+                                <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 1, color: 'text.primary' }}>
                                     Ảnh/Video hiện tại
                                 </Typography>
                                 <ImageList cols={existingMedia.length === 1 ? 1 : 2} gap={8} sx={{ m: 0 }}>
@@ -422,13 +430,13 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                         {/* Pending Media Preview */}
                         {pendingMedia.length > 0 && (
                             <Box sx={{ px: 2, pb: 2 }}>
-                                <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 1, color: '#050505' }}>
+                                <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 1, color: 'text.primary' }}>
                                     Ảnh/Video mới
                                 </Typography>
                                 {isUploading && (
                                     <Box sx={{ mb: 1 }}>
                                         <LinearProgress variant="determinate" value={uploadProgress} />
-                                        <Typography sx={{ fontSize: 12, color: "#65676b", mt: 0.5, textAlign: "center" }}>
+                                        <Typography sx={{ fontSize: 12, color: "text.secondary", mt: 0.5, textAlign: "center" }}>
                                             Đang tải lên... {uploadProgress}%
                                         </Typography>
                                     </Box>
@@ -483,7 +491,7 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                         {totalMedia === 0 && (
                             <Box sx={{ px: 2, pb: 2 }}>
                                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                    <Typography sx={{ fontSize: 14, color: "#65676b" }}>Phông nền:</Typography>
+                                    <Typography sx={{ fontSize: 14, color: "text.secondary" }}>Phông nền:</Typography>
                                     <Box sx={{ display: "flex", gap: 0.5 }}>
                                         {backgroundColors.map((bg) => (
                                             <Box
@@ -520,7 +528,7 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                                 mx: 2,
                                 mb: 2,
                                 p: 1.5,
-                                border: "1px solid #e4e6eb",
+                                border: `1px solid ${borderColor}`,
                                 borderRadius: 2,
                                 display: "flex",
                                 alignItems: "center",
@@ -528,7 +536,7 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                                 position: 'relative',
                             }}
                         >
-                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                 Thêm vào bài viết của bạn
                             </Typography>
                             <Box sx={{ display: "flex", gap: 0.5, position: 'relative' }}>
@@ -557,7 +565,7 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                                         <Picker
                                             data={data}
                                             onEmojiSelect={handleEmojiSelect}
-                                            theme="light"
+                                            theme={isDark ? 'dark' : 'light'}
                                             locale="vi"
                                             previewPosition="none"
                                         />
@@ -569,7 +577,7 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                 ) : (
                     /* Privacy Selection View */
                     <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
-                        <Typography sx={{ mb: 2, color: "#65676b", fontSize: 14 }}>
+                        <Typography sx={{ mb: 2, color: "text.secondary", fontSize: 14 }}>
                             Ai có thể xem bài viết của bạn?
                         </Typography>
                         {privacyOptions.map((option) => (
@@ -586,8 +594,8 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                                     p: 1.5,
                                     borderRadius: 2,
                                     cursor: "pointer",
-                                    bgcolor: selectedPrivacy === option.id ? "#e7f3ff" : "transparent",
-                                    "&:hover": { bgcolor: selectedPrivacy === option.id ? "#e7f3ff" : "#f0f2f5" },
+                                    bgcolor: selectedPrivacy === option.id ? selectedBg : "transparent",
+                                    "&:hover": { bgcolor: selectedPrivacy === option.id ? selectedBg : hoverBg },
                                 }}
                             >
                                 <Box
@@ -595,19 +603,19 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
                                         width: 48,
                                         height: 48,
                                         borderRadius: "50%",
-                                        bgcolor: selectedPrivacy === option.id ? "#1877f2" : "#e4e6eb",
+                                        bgcolor: selectedPrivacy === option.id ? "primary.main" : buttonBg,
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "center",
                                     }}
                                 >
-                                    <option.icon sx={{ color: selectedPrivacy === option.id ? "white" : "#050505" }} />
+                                    <option.icon sx={{ color: selectedPrivacy === option.id ? "white" : "text.primary" }} />
                                 </Box>
                                 <Box sx={{ flex: 1 }}>
-                                    <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                    <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                         {option.label}
                                     </Typography>
-                                    <Typography sx={{ fontSize: 13, color: "#65676b" }}>
+                                    <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
                                         {option.description}
                                     </Typography>
                                 </Box>
@@ -618,21 +626,21 @@ export default function EditPostModal({ open, onClose, post, onPostUpdated }: Ed
 
                 {/* Footer - Save Button */}
                 {modalView === "edit" && (
-                    <Box sx={{ p: 2, borderTop: "1px solid #e4e6eb" }}>
+                    <Box sx={{ p: 2, borderTop: `1px solid ${borderColor}` }}>
                         <Button
                             fullWidth
                             variant="contained"
                             disabled={!canSave}
                             onClick={handleSave}
                             sx={{
-                                bgcolor: canSave ? "#1877f2" : "#e4e6eb",
-                                color: canSave ? "white" : "#bcc0c4",
+                                bgcolor: canSave ? "primary.main" : buttonBg,
+                                color: canSave ? "white" : "text.disabled",
                                 textTransform: "none",
                                 fontWeight: 700,
                                 fontSize: 15,
                                 py: 1,
-                                "&:hover": { bgcolor: canSave ? "#166fe5" : "#e4e6eb" },
-                                "&.Mui-disabled": { bgcolor: "#e4e6eb", color: "#bcc0c4" },
+                                "&:hover": { bgcolor: canSave ? "primary.dark" : buttonBg },
+                                "&.Mui-disabled": { bgcolor: buttonBg, color: "text.disabled" },
                             }}
                         >
                             {updatePostMutation.isPending ? (

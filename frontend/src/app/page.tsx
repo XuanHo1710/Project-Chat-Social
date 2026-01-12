@@ -4,7 +4,7 @@ import Header from '@/components/home/Header';
 import Sidebar from '@/components/home/Sidebar';
 
 import RightSidebar from '@/components/home/RightSidebar';
-import { Box, CircularProgress } from '@mui/material';
+import { Box, CircularProgress, useTheme } from '@mui/material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -15,6 +15,7 @@ import HomeFeed from '@/components/home/HomeFeed';
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuthStore();
   const router = useRouter();
+  const theme = useTheme();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -30,10 +31,10 @@ export default function Home() {
           alignItems: 'center',
           justifyContent: 'center',
           minHeight: '100vh',
-          bgcolor: '#f0f2f5',
+          bgcolor: 'background.default',
         }}
       >
-        <CircularProgress sx={{ fontSize: 60, color: '#1877f2' }} />
+        <CircularProgress sx={{ fontSize: 60, color: 'primary.main' }} />
       </Box>
     );
   }
@@ -43,7 +44,7 @@ export default function Home() {
   }
 
   return (
-    <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
       <Header />
 
       <Box sx={{ display: 'flex', pt: '56px', justifyContent: 'space-between' }}>

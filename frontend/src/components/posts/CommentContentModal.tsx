@@ -1,6 +1,6 @@
 'use client';
 import {
-    Box, Typography, IconButton, Divider,
+    Box, Typography, IconButton, Divider, useTheme,
 } from '@mui/material';
 import {
     ThumbUp as ThumbUpIcon,
@@ -33,6 +33,9 @@ export default function CommentContentModal({
     handleOpenShare
 }: CommentContentModalProps) {
     const { user } = useAuthStore();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const [totalComments, setTotalComments] = useState<number>(commentingPost?.totalComments || 0);
 
     const [reactionListOpen, setReactionListOpen] = useState(false);
@@ -58,16 +61,16 @@ export default function CommentContentModal({
     }, [commentingPost, initPostReaction]);
 
     return (
-        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 700, maxHeight: '90vh', bgcolor: 'white', borderRadius: 2, boxShadow: 24, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, borderBottom: '1px solid #e4e6eb', position: 'relative' }}>
-                <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#050505' }}>Bài viết của {commentingPost ? getAuthorName(commentingPost) : ''}</Typography>
-                <IconButton onClick={() => setOpenCommentModal(false)} sx={{ position: 'absolute', right: 12, bgcolor: '#e4e6eb', '&:hover': { bgcolor: '#d8dadf' } }}><CloseIcon /></IconButton>
+        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 700, maxHeight: '90vh', bgcolor: 'background.paper', borderRadius: 2, boxShadow: 24, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, borderBottom: `1px solid ${theme.palette.divider}`, position: 'relative' }}>
+                <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>Bài viết của {commentingPost ? getAuthorName(commentingPost) : ''}</Typography>
+                <IconButton onClick={() => setOpenCommentModal(false)} sx={{ position: 'absolute', right: 12, bgcolor: hoverBg, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf' } }}><CloseIcon /></IconButton>
             </Box>
 
             <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
                 {commentingPost && renderPostMedia(commentingPost)}
                 {commentingPost && !commentingPost.media?.length && (
-                    <Typography sx={{ mb: 2, fontSize: 15, color: '#050505' }}>
+                    <Typography sx={{ mb: 2, fontSize: 15, color: 'text.primary' }}>
                         <HashtagContent content={commentingPost?.content || ''} />
                     </Typography>
                 )}
@@ -117,10 +120,10 @@ export default function CommentContentModal({
                             </Box>
                         ) : null}
                         {displayTotalReacts > 0 && (
-                            <Typography sx={{ fontSize: 15, color: '#65676b' }}>{displayTotalReacts}</Typography>
+                            <Typography sx={{ fontSize: 15, color: 'text.secondary' }}>{displayTotalReacts}</Typography>
                         )}
                     </Box>
-                    <Typography sx={{ fontSize: 15, color: '#65676b' }}>{totalComments} bình luận · {commentingPost?.totalShares} lượt chia sẻ</Typography>
+                    <Typography sx={{ fontSize: 15, color: 'text.secondary' }}>{totalComments} bình luận · {commentingPost?.totalShares} lượt chia sẻ</Typography>
                 </Box>
 
                 <Divider sx={{ my: 1 }} />
@@ -134,8 +137,8 @@ export default function CommentContentModal({
                         />
                     ) : (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, justifyContent: 'center', py: 1, opacity: 0.5 }}>
-                            <LockIcon sx={{ fontSize: 20, color: '#65676b' }} />
-                            <Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>Đã tắt</Typography>
+                            <LockIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                            <Typography sx={{ color: 'text.secondary', fontWeight: 600, fontSize: 15 }}>Đã tắt</Typography>
                         </Box>
                     )}
 
@@ -151,15 +154,15 @@ export default function CommentContentModal({
                             py: 1,
                             borderRadius: 2,
                             opacity: allowComments ? 1 : 0.5,
-                            '&:hover': { bgcolor: allowComments ? '#f0f2f5' : 'transparent' }
+                            '&:hover': { bgcolor: allowComments ? hoverBg : 'transparent' }
                         }}
                     >
                         {allowComments ? (
-                            <CommentIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                            <CommentIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                         ) : (
-                            <LockIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                            <LockIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                         )}
-                        <Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>
+                        <Typography sx={{ color: 'text.secondary', fontWeight: 600, fontSize: 15 }}>
                             {allowComments ? 'Bình luận' : 'Đã tắt bình luận'}
                         </Typography>
                     </Box>
@@ -176,16 +179,16 @@ export default function CommentContentModal({
                             py: 1,
                             borderRadius: 2,
                             opacity: allowShares ? 1 : 0.5,
-                            '&:hover': { bgcolor: allowShares ? '#f0f2f5' : 'transparent' }
+                            '&:hover': { bgcolor: allowShares ? hoverBg : 'transparent' }
                         }}
                         onClick={() => allowShares && commentingPost && handleOpenShare(commentingPost)}
                     >
                         {allowShares ? (
-                            <ShareIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                            <ShareIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                         ) : (
-                            <LockIcon sx={{ fontSize: 20, color: '#65676b' }} />
+                            <LockIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                         )}
-                        <Typography sx={{ color: '#65676b', fontWeight: 600, fontSize: 15 }}>
+                        <Typography sx={{ color: 'text.secondary', fontWeight: 600, fontSize: 15 }}>
                             {allowShares ? 'Chia sẻ' : 'Đã tắt chia sẻ'}
                         </Typography>
                     </Box>
@@ -197,7 +200,7 @@ export default function CommentContentModal({
                 {commentingPost && allowComments ? (
                     <CommentSection onChangeTotalComments={setTotalComments} postId={commentingPost._id} />
                 ) : (
-                    <Box sx={{ textAlign: 'center', py: 4, color: '#65676b' }}>
+                    <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
                         <LockIcon sx={{ fontSize: 48, mb: 1 }} />
                         <Typography>Chủ bài viết đã tắt bình luận</Typography>
                     </Box>

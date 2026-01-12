@@ -12,6 +12,7 @@ import {
     Tab,
     Button,
     CircularProgress,
+    useTheme,
 } from '@mui/material';
 import { Close as CloseIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import { getPostReactions } from '@/services/reaction.service';
@@ -38,6 +39,9 @@ interface ReactionListDialogProps {
 
 
 export default function ReactionListDialog({ open, onClose, postId, userId }: ReactionListDialogProps) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
     const [loading, setLoading] = useState(false);
     const [reactions, setReactions] = useState<Reaction[]>([]);
     const [counts, setCounts] = useState<Record<ReactionType, number>>({
@@ -208,8 +212,8 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
             fullWidth
             PaperProps={{
                 sx: {
-                    bgcolor: '#fff',
-                    color: 'black',
+                    bgcolor: 'background.paper',
+                    color: 'text.primary',
                     borderRadius: 3,
                     maxHeight: '80vh'
                 }
@@ -225,7 +229,7 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                 <Typography variant="h6" fontWeight={700}>
                     Cảm xúc về bài viết
                 </Typography>
-                <IconButton onClick={onClose} sx={{ color: '#b0b3b8' }}>
+                <IconButton onClick={onClose} sx={{ color: 'text.secondary' }}>
                     <CloseIcon />
                 </IconButton>
             </Box>
@@ -239,13 +243,13 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                     scrollButtons="auto"
                     sx={{
                         '& .MuiTab-root': {
-                            color: '#b0b3b8',
+                            color: 'text.secondary',
                             textTransform: 'none',
                             minWidth: 'auto',
                             px: 2,
-                            '&.Mui-selected': { color: '#2e89ff' }
+                            '&.Mui-selected': { color: 'primary.main' }
                         },
-                        '& .MuiTabs-indicator': { bgcolor: '#2e89ff' }
+                        '& .MuiTabs-indicator': { bgcolor: 'primary.main' }
                     }}
                 >
                     {availableTabs.map(tab => (
@@ -273,7 +277,7 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                         <CircularProgress size={32} />
                     </Box>
                 ) : filteredUsers.length === 0 ? (
-                    <Typography color="#b0b3b8" textAlign="center" py={4}>
+                    <Typography color="text.secondary" textAlign="center" py={4}>
                         Chưa có ai bày tỏ cảm xúc
                     </Typography>
                 ) : (
@@ -286,7 +290,7 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                                     alignItems: 'center',
                                     gap: 1.5,
                                     p: 2,
-                                    '&:hover': { bgcolor: 'rgba(0,0,0,0.03)' }
+                                    '&:hover': { bgcolor: hoverBg }
                                 }}
                             >
                                 {/* Avatar with reaction badge */}

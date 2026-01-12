@@ -29,6 +29,8 @@ import {
     Chip,
     Switch,
     Badge,
+    useTheme,
+    alpha,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -106,6 +108,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     const queryClient = useQueryClient();
     const { data: conversationData, isLoading } = useConversationDetail(conversationId);
     const { socketChat, socketRelationship } = useSocket();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
 
     // Online status store
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
@@ -693,7 +697,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         : `${otherUser?.firstName || ''} ${otherUser?.lastName || ''}`;
 
     return (
-        <Box 
+        <Box
             className="chat-info-panel"
             sx={{
                 width: { xs: '100vw', md: 360 },
@@ -701,19 +705,19 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 maxWidth: { xs: '100vw', md: 360 },
                 flexShrink: 0,
                 height: '100%',
-                borderLeft: { xs: 'none', md: '1px solid #e4e6eb' },
+                borderLeft: { xs: 'none', md: `1px solid ${theme.palette.divider}` },
                 position: { xs: 'fixed', md: 'relative' },
                 top: 0,
                 right: 0,
                 zIndex: { xs: 1100, md: 'auto' },
                 display: 'flex',
                 flexDirection: 'column',
-                bgcolor: 'white',
+                bgcolor: 'background.paper',
             }}>
             {/* Header */}
-            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f0f0f0' }}>
-                <Typography variant="h6" fontWeight={700} color="#050505">Chi tiết</Typography>
-                <IconButton onClick={onClose} size="small" sx={{ bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}>
+            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${theme.palette.divider}` }}>
+                <Typography variant="h6" fontWeight={700} color="text.primary">Chi tiết</Typography>
+                <IconButton onClick={onClose} size="small" sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}>
                     <CloseIcon fontSize="small" />
                 </IconButton>
             </Box>
@@ -739,14 +743,14 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             <IconButton
                                 size="small"
                                 onClick={handleAvatarClick}
-                                sx={{ position: 'absolute', bottom: 0, right: -5, bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}
+                                sx={{ position: 'absolute', bottom: 0, right: -5, bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}
                             >
                                 <PhotoCameraIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                         )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Typography variant="h6" fontWeight={700} color="#050505" textAlign="center">
+                        <Typography variant="h6" fontWeight={700} color="text.primary" textAlign="center">
                             {displayName}
                         </Typography>
                         {isGroup && (
@@ -761,14 +765,14 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         display: 'flex',
                         alignItems: 'center',
                         gap: 0.5,
-                        bgcolor: '#f0f2f5',
+                        bgcolor: 'action.hover',
                         px: 1.5,
                         py: 0.5,
                         borderRadius: 3,
                         mt: 1
                     }}>
-                        <LockIcon sx={{ fontSize: 14, color: '#65676b' }} />
-                        <Typography fontSize={12} color="#65676b">Được mã hóa đầu cuối</Typography>
+                        <LockIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <Typography fontSize={12} color="text.secondary">Được mã hóa đầu cuối</Typography>
                     </Box>
 
                     {/* Quick Actions */}
@@ -779,10 +783,10 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                 sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
                                 onClick={() => router.push(CLIENT_PATH.PROFILE_BY_USERNAME(otherUser.username!))}
                             >
-                                <IconButton sx={{ bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}>
-                                    <PersonIcon sx={{ color: '#050505' }} />
+                                <IconButton sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}>
+                                    <PersonIcon sx={{ color: 'text.primary' }} />
                                 </IconButton>
-                                <Typography fontSize={12} color="#050505" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
+                                <Typography fontSize={12} color="text.primary" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
                                     Trang cá nhân
                                 </Typography>
                             </Box>
@@ -793,10 +797,10 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                 sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
                                 onClick={openCreateGroupDialog}
                             >
-                                <IconButton sx={{ bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}>
-                                    <GroupAddIcon sx={{ color: '#050505' }} />
+                                <IconButton sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}>
+                                    <GroupAddIcon sx={{ color: 'text.primary' }} />
                                 </IconButton>
-                                <Typography fontSize={12} color="#050505" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
+                                <Typography fontSize={12} color="text.primary" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
                                     Tạo nhóm
                                 </Typography>
                             </Box>
@@ -809,26 +813,26 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             <IconButton
                                 disabled={isMuting}
                                 sx={{
-                                    bgcolor: isMuted ? themeColor : '#f0f2f5',
-                                    '&:hover': { bgcolor: isMuted ? themeColor : '#e4e6eb' }
+                                    bgcolor: isMuted ? themeColor : 'action.hover',
+                                    '&:hover': { bgcolor: isMuted ? themeColor : 'action.selected' }
                                 }}
                             >
                                 {isMuted ? (
                                     <NotificationsOffIcon sx={{ color: 'white' }} />
                                 ) : (
-                                    <NotificationsIcon sx={{ color: '#050505' }} />
+                                    <NotificationsIcon sx={{ color: 'text.primary' }} />
                                 )}
                             </IconButton>
-                            <Typography fontSize={12} color="#050505" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
+                            <Typography fontSize={12} color="text.primary" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
                                 {isMuted ? 'Bật thông báo' : 'Tắt thông báo'}
                             </Typography>
                         </Box>
                         {/* Search Action */}
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
-                            <IconButton sx={{ bgcolor: '#f0f2f5', '&:hover': { bgcolor: '#e4e6eb' } }}>
-                                <SearchIcon sx={{ color: '#050505' }} />
+                            <IconButton sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}>
+                                <SearchIcon sx={{ color: 'text.primary' }} />
                             </IconButton>
-                            <Typography fontSize={12} color="#050505" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
+                            <Typography fontSize={12} color="text.primary" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
                                 Tìm kiếm
                             </Typography>
                         </Box>
@@ -839,7 +843,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 <Box sx={{ px: 1 }}>
                     <ListItemButton onClick={() => setCustomizeOpen(!customizeOpen)} sx={{ borderRadius: 2 }}>
                         <ListItemText
-                            primary={<Typography fontWeight={600} color="#050505">Tùy chỉnh đoạn chat</Typography>}
+                            primary={<Typography fontWeight={600} color="text.primary">Tùy chỉnh đoạn chat</Typography>}
                         />
                         {customizeOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                     </ListItemButton>
@@ -853,17 +857,17 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     background: THEME_COLORS.find(t => t.color === conversation.theme)?.gradient || THEME_COLORS[0].gradient,
                                     mr: 2
                                 }} />
-                                <ListItemText primary={<Typography fontSize={14} color="#050505">Đổi chủ đề</Typography>} />
+                                <ListItemText primary={<Typography fontSize={14} color="text.primary">Đổi chủ đề</Typography>} />
                             </ListItemButton>
                             <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={() => setReactionDialogOpen(true)}>
                                 <Typography fontSize={24} sx={{ mr: 2 }}>{conversation.quickReaction || '👍'}</Typography>
-                                <ListItemText primary={<Typography fontSize={14} color="#050505">Thay đổi biểu tượng cảm xúc</Typography>} />
+                                <ListItemText primary={<Typography fontSize={14} color="text.primary">Thay đổi biểu tượng cảm xúc</Typography>} />
                             </ListItemButton>
                             <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={() => setNicknameListDialogOpen(true)}>
                                 <Box sx={{ width: 32, display: 'flex', justifyContent: 'center', mr: 2 }}>
-                                    <Typography fontSize={16} fontWeight={700} color="#050505">Aa</Typography>
+                                    <Typography fontSize={16} fontWeight={700} color="text.primary">Aa</Typography>
                                 </Box>
-                                <ListItemText primary={<Typography fontSize={14} color="#050505">Chỉnh sửa biệt danh</Typography>} />
+                                <ListItemText primary={<Typography fontSize={14} color="text.primary">Chỉnh sửa biệt danh</Typography>} />
                             </ListItemButton>
                         </List>
                     </Collapse>
@@ -875,19 +879,19 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 <Box sx={{ px: 1 }}>
                     <ListItemButton onClick={() => setMediaOpen(!mediaOpen)} sx={{ borderRadius: 2 }}>
                         <ListItemText
-                            primary={<Typography fontWeight={600} color="#050505">File phương tiện & file</Typography>}
+                            primary={<Typography fontWeight={600} color="text.primary">File phương tiện & file</Typography>}
                         />
                         {mediaOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                     </ListItemButton>
                     <Collapse in={mediaOpen}>
                         <List disablePadding sx={{ pl: 1 }}>
                             <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={handleOpenMediaGallery}>
-                                <PhotoIcon sx={{ mr: 2, color: '#65676b' }} />
-                                <ListItemText primary={<Typography fontSize={14} color="#050505">File phương tiện</Typography>} />
+                                <PhotoIcon sx={{ mr: 2, color: 'text.secondary' }} />
+                                <ListItemText primary={<Typography fontSize={14} color="text.primary">File phương tiện</Typography>} />
                             </ListItemButton>
                             <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={handleOpenMediaGallery}>
-                                <FileIcon sx={{ mr: 2, color: '#65676b' }} />
-                                <ListItemText primary={<Typography fontSize={14} color="#050505">File</Typography>} />
+                                <FileIcon sx={{ mr: 2, color: 'text.secondary' }} />
+                                <ListItemText primary={<Typography fontSize={14} color="text.primary">File</Typography>} />
                             </ListItemButton>
                         </List>
                     </Collapse>
@@ -900,9 +904,9 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <>
                         <Box sx={{ px: 1 }}>
                             <ListItemButton onClick={() => setSettingsOpen(!settingsOpen)} sx={{ borderRadius: 2 }}>
-                                <SettingsIcon sx={{ mr: 2, color: '#65676b' }} />
+                                <SettingsIcon sx={{ mr: 2, color: 'text.secondary' }} />
                                 <ListItemText
-                                    primary={<Typography fontWeight={600} color="#050505">Cài đặt nhóm</Typography>}
+                                    primary={<Typography fontWeight={600} color="text.primary">Cài đặt nhóm</Typography>}
                                 />
                                 {settingsOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                             </ListItemButton>
@@ -913,15 +917,15 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                         alignItems: 'center',
                                         justifyContent: 'space-between',
                                         py: 1.5,
-                                        borderBottom: '1px solid #f0f0f0'
+                                        borderBottom: `1px solid ${theme.palette.divider}`
                                     }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                            <PersonAddIcon sx={{ color: '#65676b', fontSize: 20 }} />
+                                            <PersonAddIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                                             <Box>
-                                                <Typography fontSize={14} color="#050505" fontWeight={500}>
+                                                <Typography fontSize={14} color="text.primary" fontWeight={500}>
                                                     Cho phép thành viên thêm người
                                                 </Typography>
-                                                <Typography fontSize={12} color="#65676b">
+                                                <Typography fontSize={12} color="text.secondary">
                                                     Tất cả thành viên có thể mời bạn bè
                                                 </Typography>
                                             </Box>
@@ -946,12 +950,12 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                         py: 1.5,
                                     }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                            <ChatIcon sx={{ color: '#65676b', fontSize: 20 }} />
+                                            <ChatIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                                             <Box>
-                                                <Typography fontSize={14} color="#050505" fontWeight={500}>
+                                                <Typography fontSize={14} color="text.primary" fontWeight={500}>
                                                     Chỉ quản trị viên nhắn tin
                                                 </Typography>
-                                                <Typography fontSize={12} color="#65676b">
+                                                <Typography fontSize={12} color="text.secondary">
                                                     Thành viên chỉ có thể xem tin nhắn
                                                 </Typography>
                                             </Box>
@@ -981,7 +985,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <Box sx={{ px: 1 }}>
                         <ListItemButton onClick={() => setMembersOpen(!membersOpen)} sx={{ borderRadius: 2 }}>
                             <ListItemText
-                                primary={<Typography fontWeight={600} color="#050505">Thành viên ({conversation.participants.filter(p => !p.kickedAt && !p.leftAt).length})</Typography>}
+                                primary={<Typography fontWeight={600} color="text.primary">Thành viên ({conversation.participants.filter(p => !p.kickedAt && !p.leftAt).length})</Typography>}
                             />
                             {canAddMember && (
                                 <IconButton size="small" onClick={(e) => { e.stopPropagation(); setAddMemberDialogOpen(true); }}>
@@ -1022,7 +1026,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                                     variant="dot"
                                                     sx={{
                                                         '& .MuiBadge-badge': {
-                                                            backgroundColor: isOnline ? '#31a24c' : '#65676b',
+                                                            backgroundColor: isOnline ? theme.palette.success.main : theme.palette.text.secondary,
                                                             border: '2px solid white',
                                                             width: 10,
                                                             height: 10,
@@ -1036,10 +1040,10 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                             <ListItemText
                                                 primary={member.nickname || `${member.user.firstName} ${member.user.lastName}`}
                                                 secondary={getStatusText()}
-                                                primaryTypographyProps={{ fontSize: 14, fontWeight: 500, color: '#050505' }}
+                                                primaryTypographyProps={{ fontSize: 14, fontWeight: 500, color: 'text.primary' }}
                                                 secondaryTypographyProps={{
                                                     fontSize: 12,
-                                                    color: memberIsCreator ? themeColor : isOnline ? '#31a24c' : '#65676b',
+                                                    color: memberIsCreator ? themeColor : isOnline ? 'success.main' : 'text.secondary',
                                                     fontWeight: memberIsCreator ? 600 : 400
                                                 }}
                                             />
@@ -1065,11 +1069,11 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                 sx={{
                                     justifyContent: 'flex-start',
                                     textTransform: 'none',
-                                    color: '#dc3545',
+                                    color: 'error.main',
                                     py: 1.5,
                                     borderRadius: 2,
                                     '&:hover': {
-                                        bgcolor: 'rgba(220, 53, 69, 0.08)',
+                                        bgcolor: (theme) => alpha(theme.palette.error.main, 0.08),
                                     },
                                 }}
                             >
@@ -1086,7 +1090,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         <Box sx={{ px: 1 }}>
                             <ListItemButton onClick={() => setPrivacyOpen(!privacyOpen)} sx={{ borderRadius: 2 }}>
                                 <ListItemText
-                                    primary={<Typography fontWeight={600} color="#050505">Quyền riêng tư & hỗ trợ</Typography>}
+                                    primary={<Typography fontWeight={600} color="text.primary">Quyền riêng tư & hỗ trợ</Typography>}
                                 />
                                 {privacyOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                             </ListItemButton>
@@ -1096,20 +1100,20 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                         sx={{ borderRadius: 2, py: 1 }}
                                         onClick={() => setBlockDialogOpen(true)}
                                     >
-                                        <BlockIcon sx={{ mr: 2, color: '#dc3545' }} />
+                                        <BlockIcon sx={{ mr: 2, color: 'error.main' }} />
                                         <ListItemText
-                                            primary={<Typography fontSize={14} color="#050505">Chặn {otherUser.firstName}</Typography>}
-                                            secondary={<Typography fontSize={12} color="#65676b">Các bạn sẽ không thể nhắn tin cho nhau</Typography>}
+                                            primary={<Typography fontSize={14} color="text.primary">Chặn {otherUser.firstName}</Typography>}
+                                            secondary={<Typography fontSize={12} color="text.secondary">Các bạn sẽ không thể nhắn tin cho nhau</Typography>}
                                         />
                                     </ListItemButton>
                                     <ListItemButton
                                         sx={{ borderRadius: 2, py: 1 }}
                                         onClick={() => handleRestrictUser()}
                                     >
-                                        <PersonOffIcon sx={{ mr: 2, color: '#f59e0b' }} />
+                                        <PersonOffIcon sx={{ mr: 2, color: 'warning.main' }} />
                                         <ListItemText
-                                            primary={<Typography fontSize={14} color="#050505">Hạn chế {otherUser.firstName}</Typography>}
-                                            secondary={<Typography fontSize={12} color="#65676b">Ẩn cuộc trò chuyện nhưng vẫn là bạn bè</Typography>}
+                                            primary={<Typography fontSize={14} color="text.primary">Hạn chế {otherUser.firstName}</Typography>}
+                                            secondary={<Typography fontSize={12} color="text.secondary">Ẩn cuộc trò chuyện nhưng vẫn là bạn bè</Typography>}
                                         />
                                     </ListItemButton>
                                 </List>
@@ -1157,7 +1161,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <Typography color="text.secondary" sx={{ mb: 2 }}>
                         Khi chặn người dùng này:
                     </Typography>
-                    <Box sx={{ textAlign: 'left', bgcolor: '#f8f9fa', p: 2, borderRadius: 2 }}>
+                    <Box sx={{ textAlign: 'left', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
                         <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                             • Các bạn sẽ không thể nhắn tin cho nhau trong cuộc trò chuyện riêng
                         </Typography>
@@ -1237,10 +1241,10 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     </Typography>
                 </Box>
                 <DialogContent sx={{ p: 3, textAlign: 'center' }}>
-                    <Typography color="#65676b" fontSize={14} sx={{ mb: 2 }}>
+                    <Typography color="text.secondary" fontSize={14} sx={{ mb: 2 }}>
                         Bạn sẽ không thể xem tin nhắn mới và lịch sử trò chuyện trong nhóm này nữa.
                     </Typography>
-                    <Typography color="#65676b" fontSize={13} sx={{ fontStyle: 'italic' }}>
+                    <Typography color="text.secondary" fontSize={13} sx={{ fontStyle: 'italic' }}>
                         {isCreator
                             ? 'Lưu ý: Bạn là người tạo nhóm. Quyền quản trị sẽ được chuyển cho thành viên khác.'
                             : 'Bạn có thể được mời lại bởi các thành viên khác.'}
@@ -1256,11 +1260,11 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             py: 1.2,
                             textTransform: 'none',
                             fontWeight: 600,
-                            color: '#65676b',
-                            border: '1px solid #e4e6eb',
+                            color: 'text.secondary',
+                            border: `1px solid ${theme.palette.divider}`,
                             '&:hover': {
-                                bgcolor: '#f0f2f5',
-                                border: '1px solid #e4e6eb',
+                                bgcolor: 'action.hover',
+                                border: `1px solid ${theme.palette.divider}`,
                             },
                         }}
                     >
@@ -1290,18 +1294,18 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
 
             {/* Theme Dialog */}
-            <Dialog open={themeDialogOpen} onClose={() => setThemeDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'white', borderRadius: 3 } }}>
-                <DialogTitle sx={{ color: '#050505' }}>Đổi chủ đề</DialogTitle>
+            <Dialog open={themeDialogOpen} onClose={() => setThemeDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 3 } }}>
+                <DialogTitle sx={{ color: 'text.primary' }}>Đổi chủ đề</DialogTitle>
                 <DialogContent>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, py: 1 }}>
-                        {THEME_COLORS.map(theme => (
+                        {THEME_COLORS.map(item => (
                             <Box
-                                key={theme.color}
-                                onClick={() => handleThemeChange(theme.color)}
+                                key={item.color}
+                                onClick={() => handleThemeChange(item.color)}
                                 sx={{
                                     width: 40, height: 40, borderRadius: '50%',
-                                    background: theme.gradient, cursor: 'pointer',
-                                    border: conversation.theme === theme.color ? '3px solid #050505' : 'none',
+                                    background: item.gradient, cursor: 'pointer',
+                                    border: conversation.theme === item.color ? `3px solid ${theme.palette.text.primary}` : 'none',
                                     '&:hover': { transform: 'scale(1.1)' },
                                     transition: 'transform 0.15s'
                                 }}
@@ -1321,7 +1325,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <Picker
                         data={data}
                         onEmojiSelect={handleQuickReaction}
-                        theme="light"
+                        theme={isDark ? 'dark' : 'light'}
                         locale="vi"
                         previewPosition="none"
                         skinTonePosition="none"
@@ -1332,8 +1336,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             </Dialog>
 
             {/* Edit Name Dialog */}
-            <Dialog open={editNameDialogOpen} onClose={() => setEditNameDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'white', borderRadius: 1, padding: 1 } }}>
-                <DialogTitle sx={{ color: '#050505' }}>Đổi tên nhóm</DialogTitle>
+            <Dialog open={editNameDialogOpen} onClose={() => setEditNameDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 1, padding: 1 } }}>
+                <DialogTitle sx={{ color: 'text.primary' }}>Đổi tên nhóm</DialogTitle>
                 <DialogContent>
                     <TextField
                         autoFocus margin="dense" label="Tên nhóm" fullWidth variant="outlined"
@@ -1352,9 +1356,9 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 onClose={() => setNicknameListDialogOpen(false)}
                 fullWidth
                 maxWidth="xs"
-                PaperProps={{ sx: { bgcolor: 'white', borderRadius: 3 } }}
+                PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 3 } }}
             >
-                <DialogTitle sx={{ color: '#050505', display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
+                <DialogTitle sx={{ color: 'text.primary', display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
                     <IconButton onClick={() => setNicknameListDialogOpen(false)} size="small">
                         <ArrowBackIcon />
                     </IconButton>
@@ -1371,7 +1375,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     key={participant.user._id}
                                     sx={{
                                         cursor: 'pointer',
-                                        '&:hover': { bgcolor: '#f0f2f5' },
+                                        '&:hover': { bgcolor: 'action.hover' },
                                         borderRadius: 2,
                                         mx: 1,
                                         width: 'auto'
@@ -1387,24 +1391,24 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     </ListItemAvatar>
                                     <ListItemText
                                         primary={
-                                            <Typography fontWeight={500} color="#050505">
+                                            <Typography fontWeight={500} color="text.primary">
                                                 {participant.nickname || fullName}
                                                 {isCurrentUser && ' (Bạn)'}
                                             </Typography>
                                         }
                                         secondary={
                                             participant.nickname ? (
-                                                <Typography fontSize={13} color="#65676b">
+                                                <Typography fontSize={13} color="text.secondary">
                                                     {fullName}
                                                 </Typography>
                                             ) : (
-                                                <Typography fontSize={13} color="#65676b">
+                                                <Typography fontSize={13} color="text.secondary">
                                                     Đặt biệt danh
                                                 </Typography>
                                             )
                                         }
                                     />
-                                    <EditIcon sx={{ color: '#65676b', fontSize: 20 }} />
+                                    <EditIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                                 </ListItem>
                             );
                         })}
@@ -1413,10 +1417,10 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             </Dialog>
 
             {/* Edit Nickname Dialog */}
-            <Dialog open={editNicknameDialogOpen} onClose={() => setEditNicknameDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'white', borderRadius: 3 } }}>
-                <DialogTitle sx={{ color: '#050505' }}>Đặt biệt danh</DialogTitle>
+            <Dialog open={editNicknameDialogOpen} onClose={() => setEditNicknameDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 3 } }}>
+                <DialogTitle sx={{ color: 'text.primary' }}>Đặt biệt danh</DialogTitle>
                 <DialogContent>
-                    <Typography variant="body2" sx={{ mb: 1, color: '#65676b' }}>
+                    <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
                         Đặt biệt danh cho {selectedMember?.user.firstName} {selectedMember?.user.lastName}
                     </Typography>
                     <TextField
@@ -1431,8 +1435,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             </Dialog>
 
             {/* Add Member Dialog */}
-            <Dialog open={addMemberDialogOpen} onClose={() => { setAddMemberDialogOpen(false); setSearchQuery(''); }} fullWidth maxWidth="xs" PaperProps={{ sx: { bgcolor: 'white', borderRadius: 3 } }}>
-                <DialogTitle sx={{ color: '#050505' }}>Thêm thành viên</DialogTitle>
+            <Dialog open={addMemberDialogOpen} onClose={() => { setAddMemberDialogOpen(false); setSearchQuery(''); }} fullWidth maxWidth="xs" PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 3 } }}>
+                <DialogTitle sx={{ color: 'text.primary' }}>Thêm thành viên</DialogTitle>
                 <DialogContent>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Chỉ có thể thêm bạn bè vào nhóm
@@ -1481,17 +1485,17 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 anchorEl={memberMenuAnchor}
                 open={Boolean(memberMenuAnchor)}
                 onClose={handleMemberMenuClose}
-                slotProps={{ paper: { sx: { bgcolor: 'white', borderRadius: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.15)' } } }}
+                slotProps={{ paper: { sx: { bgcolor: 'background.paper', borderRadius: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.15)' } } }}
             >
                 <MenuItem onClick={() => { setEditNicknameDialogOpen(true); setNewNickname(selectedMember?.nickname || ''); }}>
-                    <EditIcon fontSize="small" sx={{ mr: 1, color: '#65676b' }} />
-                    <Typography color="#050505">Đặt biệt danh</Typography>
+                    <EditIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                    <Typography color="text.primary">Đặt biệt danh</Typography>
                 </MenuItem>
                 {/* Admin can promote/demote other members (but can't demote creator) */}
                 {isAdmin && selectedMember && selectedMember.user._id !== userId && !isMemberCreator(selectedMember.user._id) && (
                     <MenuItem onClick={handlePromoteAdmin}>
-                        <SecurityIcon fontSize="small" sx={{ mr: 1, color: '#65676b' }} />
-                        <Typography color="#050505">{selectedMember.isAdmin ? 'Gỡ quyền quản trị' : 'Chỉ định làm quản trị viên'}</Typography>
+                        <SecurityIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                        <Typography color="text.primary">{selectedMember.isAdmin ? 'Gỡ quyền quản trị' : 'Chỉ định làm quản trị viên'}</Typography>
                     </MenuItem>
                 )}
                 {/* Admin can kick other members and other admins (but not creator) */}
@@ -1511,7 +1515,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 maxWidth="sm"
                 PaperProps={{
                     sx: {
-                        bgcolor: 'white',
+                        bgcolor: 'background.paper',
                         borderRadius: 3,
                         height: '80vh',
                         maxHeight: '600px'
@@ -1519,11 +1523,11 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 }}
             >
                 <DialogTitle sx={{
-                    color: '#050505',
+                    color: 'text.primary',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 1,
-                    borderBottom: '1px solid #e4e6eb',
+                    borderBottom: `1px solid ${theme.palette.divider}`,
                     pb: 1
                 }}>
                     <IconButton onClick={() => setMediaGalleryOpen(false)} size="small">
@@ -1539,7 +1543,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             '& .MuiTab-root': {
                                 textTransform: 'none',
                                 fontWeight: 600,
-                                color: '#65676b',
+                                color: 'text.secondary',
                                 '&.Mui-selected': { color: themeColor }
                             },
                             '& .MuiTabs-indicator': { backgroundColor: themeColor }

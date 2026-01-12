@@ -16,6 +16,7 @@ import {
     Select,
     MenuItem,
     SelectChangeEvent,
+    useTheme,
 } from '@mui/material';
 import {
     Add as AddIcon,
@@ -44,6 +45,8 @@ const DEFAULT_CAPTION_STYLE: CaptionStyle = {
 export default function StoriesBar({ currentUser }: { currentUser: UserLoginType }) {
     const { data: storyGroups, isLoading } = useStoriesFeed();
     const createStoryMutation = useCreateStory();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
 
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -178,12 +181,12 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                     gap: 1,
                     p: 2,
                     overflowX: 'auto',
-                    bgcolor: 'white',
+                    bgcolor: 'background.paper',
                     borderRadius: 2,
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
                     mb: 2,
                     '&::-webkit-scrollbar': { height: 6 },
-                    '&::-webkit-scrollbar-thumb': { bgcolor: '#ccc', borderRadius: 3 },
+                    '&::-webkit-scrollbar-thumb': { bgcolor: isDark ? '#555' : '#ccc', borderRadius: 3 },
                 }}
             >
 
@@ -198,8 +201,8 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                         overflow: 'hidden',
                         position: 'relative',
                         cursor: 'pointer',
-                        bgcolor: '#f0f2f5',
-                        border: '1px solid #e4e6eb',
+                        bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
+                        border: `1px solid ${theme.palette.divider}`,
                         '&:hover': { opacity: 0.9 },
                     }}
                 >
@@ -220,7 +223,7 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                                 left: 0,
                                 right: 0,
                                 height: '25%',
-                                bgcolor: 'white',
+                                bgcolor: 'background.paper',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
@@ -231,9 +234,9 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                                 sx={{
                                     position: 'absolute',
                                     top: -18,
-                                    bgcolor: '#1877f2',
+                                    bgcolor: 'primary.main',
                                     borderRadius: '50%',
-                                    border: '4px solid white',
+                                    border: `4px solid ${theme.palette.background.paper}`,
                                     width: 36,
                                     height: 36,
                                     display: 'flex',
@@ -243,7 +246,7 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                             >
                                 <AddIcon sx={{ color: 'white', fontSize: 20 }} />
                             </Box>
-                            <Typography fontSize={12} color="#050505" fontWeight={600} mt={1}>
+                            <Typography fontSize={12} color="text.primary" fontWeight={600} mt={1}>
                                 Tạo tin
                             </Typography>
                         </Box>
@@ -294,7 +297,7 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                                 position: 'absolute',
                                 top: 8,
                                 left: 8,
-                                border: group.hasUnviewed ? '3px solid #1877f2' : '3px solid #65676b',
+                                border: group.hasUnviewed ? '3px solid #1877f2' : `3px solid ${theme.palette.text.secondary}`,
                                 borderRadius: '50%',
                             }}
                         >
@@ -333,14 +336,11 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                 onClose={handleCloseDialog}
                 maxWidth="sm"
                 fullWidth
-                PaperProps={{
-                    sx: { bgcolor: 'white', color: '#050505' },
-                }}
             >
                 <DialogContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography variant="h6" fontWeight={700}>Tạo tin</Typography>
-                        <IconButton onClick={handleCloseDialog} sx={{ color: '#65676b' }}>
+                        <IconButton onClick={handleCloseDialog} sx={{ color: 'text.secondary' }}>
                             <CloseIcon />
                         </IconButton>
                     </Box>
@@ -349,19 +349,19 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                         <Box
                             onClick={() => fileInputRef.current?.click()}
                             sx={{
-                                border: '2px dashed #ccc',
+                                border: `2px dashed ${theme.palette.divider}`,
                                 borderRadius: 2,
                                 p: 4,
                                 textAlign: 'center',
                                 cursor: 'pointer',
-                                '&:hover': { borderColor: '#1877f2', bgcolor: '#f0f2f5' },
+                                '&:hover': { borderColor: 'primary.main', bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' },
                             }}
                         >
                             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 2 }}>
-                                <ImageIcon sx={{ fontSize: 40, color: '#65676b' }} />
-                                <VideocamIcon sx={{ fontSize: 40, color: '#65676b' }} />
+                                <ImageIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
+                                <VideocamIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
                             </Box>
-                            <Typography color="#65676b">
+                            <Typography color="text.secondary">
                                 Nhấn để chọn ảnh hoặc video (tối đa 15s)
                             </Typography>
                         </Box>
@@ -515,9 +515,9 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                         onClick={handleCreateStory}
                         sx={{
                             mt: 2,
-                            bgcolor: '#1877f2',
-                            '&:hover': { bgcolor: '#166fe5' },
-                            '&:disabled': { bgcolor: '#e4e6eb', color: '#bcc0c4' },
+                            bgcolor: 'primary.main',
+                            '&:hover': { bgcolor: 'primary.dark' },
+                            '&:disabled': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb', color: isDark ? 'rgba(255,255,255,0.3)' : '#bcc0c4' },
                         }}
                     >
                         {isUploading ? <CircularProgress size={24} /> : 'CHIA SẺ LÊN TIN'}

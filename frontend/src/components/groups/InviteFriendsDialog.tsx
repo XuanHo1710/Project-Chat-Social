@@ -18,6 +18,7 @@ import {
     IconButton,
     CircularProgress,
     Chip,
+    useTheme,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -39,6 +40,10 @@ interface InviteFriendsDialogProps {
 
 export default function InviteFriendsDialog({ open, onClose, groupId, groupName }: InviteFriendsDialogProps) {
     const { user } = useAuthStore();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const [friends, setFriends] = useState<FriendType[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -128,7 +133,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                borderBottom: '1px solid #e4e6eb',
+                borderBottom: `1px solid ${theme.palette.divider}`,
                 pb: 2
             }}>
                 <Typography variant="h6" fontWeight={700}>
@@ -141,7 +146,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
 
             <DialogContent sx={{ p: 0, overflow: "hidden" }}>
                 {/* Search */}
-                <Box sx={{ p: 2, borderBottom: '1px solid #e4e6eb' }}>
+                <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                     <TextField
                         fullWidth
                         placeholder="Tìm kiếm bạn bè..."
@@ -150,14 +155,14 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon sx={{ color: '#65676b' }} />
+                                    <SearchIcon sx={{ color: 'text.secondary' }} />
                                 </InputAdornment>
                             ),
                         }}
                         sx={{
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: 4,
-                                bgcolor: '#f0f2f5',
+                                bgcolor: inputBg,
                                 '& fieldset': { border: 'none' }
                             }
                         }}
@@ -171,7 +176,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                             <CircularProgress />
                         </Box>
                     ) : filteredFriends.length === 0 ? (
-                        <Typography color="#65676b" sx={{ textAlign: 'center', py: 4 }}>
+                        <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
                             {friends.length === 0 ? 'Bạn chưa có bạn bè nào' : 'Không tìm thấy bạn bè'}
                         </Typography>
                     ) : (
@@ -187,7 +192,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                                                 <Chip
                                                     label="Đã là thành viên"
                                                     size="small"
-                                                    sx={{ bgcolor: '#e4e6eb', color: '#65676b' }}
+                                                    sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb', color: 'text.secondary' }}
                                                 />
                                             ) : status === 'invited' || status === 'pending' ? (
                                                 <Button
@@ -195,7 +200,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                                                     startIcon={<CheckIcon />}
                                                     sx={{
                                                         textTransform: 'none',
-                                                        color: '#65676b'
+                                                        color: 'text.secondary'
                                                     }}
                                                 >
                                                     {status === 'pending' ? 'Đang chờ' : 'Đã mời'}
@@ -207,8 +212,8 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                                                     disabled={invitingId === friend._id}
                                                     sx={{
                                                         textTransform: 'none',
-                                                        bgcolor: '#1877f2',
-                                                        '&:hover': { bgcolor: '#166fe5' }
+                                                        bgcolor: 'primary.main',
+                                                        '&:hover': { bgcolor: 'primary.dark' }
                                                     }}
                                                 >
                                                     {invitingId === friend._id ? (
@@ -220,7 +225,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                                             )
                                         }
                                         sx={{
-                                            '&:hover': { bgcolor: '#f0f2f5' },
+                                            '&:hover': { bgcolor: hoverBg },
                                             borderRadius: 1,
                                         }}
                                     >

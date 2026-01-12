@@ -8,6 +8,7 @@ import {
     ListItemIcon,
     ListItemText,
     CircularProgress,
+    useTheme,
 } from '@mui/material';
 import {
     Visibility as ViewIcon,
@@ -33,6 +34,8 @@ export default function PhotoMenuButton({
     children,
     disabled = false,
 }: PhotoMenuButtonProps) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -133,7 +136,8 @@ export default function PhotoMenuButton({
                     sx: {
                         minWidth: 200,
                         borderRadius: 2,
-                        boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                        boxShadow: isDark ? 'none' : '0 2px 12px rgba(0,0,0,0.15)',
+                        border: isDark ? `1px solid ${theme.palette.divider}` : 'none',
                         mt: 1,
                     }
                 }}

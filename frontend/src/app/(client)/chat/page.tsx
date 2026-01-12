@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Box, useMediaQuery, useTheme } from "@mui/material";
+import { Box, useMediaQuery, useTheme, Typography } from "@mui/material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId } from "@/queries/useConversationQueries";
 import AreaChatMessages from "@/components/chats/AreaChatMessage";
@@ -118,7 +118,7 @@ export default function ChatPage() {
                 display: "flex",
                 height: "100vh",
                 width: "100vw",
-                bgcolor: "#f0f2f5",
+                bgcolor: "background.default",
                 overflow: "hidden",
                 position: "relative",
             }}
@@ -130,7 +130,7 @@ export default function ChatPage() {
                 selectedConversationId={selectedConversation?._id}
                 onSelectConversation={handleSelectConversation}
                 isMobileVisible={true}
-                onMobileClose={() => {}}
+                onMobileClose={() => { }}
             />
 
             {/* Main Chat Area - Show placeholder on /chat page (hidden on mobile) */}
@@ -140,10 +140,10 @@ export default function ChatPage() {
                     display: { xs: "none", md: "flex" },
                     alignItems: "center",
                     justifyContent: "center",
-                    bgcolor: "white",
+                    bgcolor: "background.paper",
                 }}
             >
-                <Box sx={{ textAlign: "center", color: "#65676b", p: 3 }}>
+                <Box sx={{ textAlign: "center", color: "text.secondary", p: 3 }}>
                     <svg
                         width="100"
                         height="100"
@@ -162,12 +162,12 @@ export default function ChatPage() {
                         <circle cx="35" cy="40" r="3" fill="currentColor" />
                         <circle cx="65" cy="40" r="3" fill="currentColor" />
                     </svg>
-                    <p style={{ fontSize: "20px", fontWeight: 600, marginBottom: "8px", color: "#050505" }}>
+                    <Typography sx={{ fontSize: "20px", fontWeight: 600, marginBottom: "8px", color: "text.primary" }}>
                         Chọn một cuộc trò chuyện
-                    </p>
-                    <p style={{ fontSize: "14px", color: "#65676b" }}>
+                    </Typography>
+                    <Typography sx={{ fontSize: "14px", color: "text.secondary" }}>
                         Chọn một người từ danh sách để bắt đầu trò chuyện
-                    </p>
+                    </Typography>
                 </Box>
             </Box>
         </Box>

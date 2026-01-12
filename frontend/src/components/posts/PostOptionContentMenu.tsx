@@ -1,5 +1,5 @@
 import {
-    Box, Typography, Divider, MenuItem, ListItemIcon, Switch
+    Box, Typography, Divider, MenuItem, ListItemIcon, Switch, useTheme
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -48,7 +48,7 @@ export default function PostOptionContentMenu({
                 <>
                     <MenuItem onClick={handleEditPost} sx={{ py: 1.5 }}>
                         <ListItemIcon><EditIcon /></ListItemIcon>
-                        <Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>Chỉnh sửa bài viết</Typography></Box>
+                        <Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>Chỉnh sửa bài viết</Typography></Box>
                     </MenuItem>
                     <MenuItem onClick={handleDeletePost} disabled={isDeleting} sx={{ py: 1.5 }}>
                         <ListItemIcon><CloseIcon sx={{ color: '#f44336' }} /></ListItemIcon>
@@ -64,10 +64,10 @@ export default function PostOptionContentMenu({
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <ListItemIcon><CommentIcon /></ListItemIcon>
                             <Box>
-                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                     Cho phép bình luận
                                 </Typography>
-                                <Typography sx={{ fontSize: 12, color: '#65676b' }}>
+                                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
                                     {menuPost.allowComments !== false ? 'Đang bật' : 'Đang tắt'}
                                 </Typography>
                             </Box>
@@ -87,10 +87,10 @@ export default function PostOptionContentMenu({
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <ListItemIcon><ShareIcon /></ListItemIcon>
                             <Box>
-                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                     Cho phép chia sẻ
                                 </Typography>
-                                <Typography sx={{ fontSize: 12, color: '#65676b' }}>
+                                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
                                     {menuPost.allowShares !== false ? 'Đang bật' : 'Đang tắt'}
                                 </Typography>
                             </Box>
@@ -110,10 +110,10 @@ export default function PostOptionContentMenu({
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <ListItemIcon><ThumbUpIcon /></ListItemIcon>
                             <Box>
-                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                     Cho phép tương tác
                                 </Typography>
-                                <Typography sx={{ fontSize: 12, color: '#65676b' }}>
+                                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
                                     {menuPost.allowReactions !== false ? 'Đang bật' : 'Đang tắt'}
                                 </Typography>
                             </Box>
@@ -128,20 +128,20 @@ export default function PostOptionContentMenu({
                     <Divider />
                 </>
             ) : null}
-            <MenuItem sx={{ py: 1.5 }}><ListItemIcon><FavoriteIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>Quan tâm</Typography><Typography sx={{ fontSize: 12, color: '#65676b' }}>Bạn sẽ nhìn thấy nhiều bài viết tương tự hơn.</Typography></Box></MenuItem>
-            <MenuItem sx={{ py: 1.5 }}><ListItemIcon><RemoveIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>Không quan tâm</Typography><Typography sx={{ fontSize: 12, color: '#65676b' }}>Bạn sẽ nhìn thấy ít bài viết tương tự hơn.</Typography></Box></MenuItem>
+            <MenuItem sx={{ py: 1.5 }}><ListItemIcon><FavoriteIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>Quan tâm</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Bạn sẽ nhìn thấy nhiều bài viết tương tự hơn.</Typography></Box></MenuItem>
+            <MenuItem sx={{ py: 1.5 }}><ListItemIcon><RemoveIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>Không quan tâm</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Bạn sẽ nhìn thấy ít bài viết tương tự hơn.</Typography></Box></MenuItem>
             <Divider />
-            <MenuItem sx={{ py: 1.5 }}><ListItemIcon><BookmarkBorderIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>Lưu bài viết</Typography><Typography sx={{ fontSize: 12, color: '#65676b' }}>Thêm vào danh sách mục đã lưu.</Typography></Box></MenuItem>
+            <MenuItem sx={{ py: 1.5 }}><ListItemIcon><BookmarkBorderIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>Lưu bài viết</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Thêm vào danh sách mục đã lưu.</Typography></Box></MenuItem>
             <Divider />
-            <MenuItem sx={{ py: 1.5 }}><ListItemIcon><NotificationIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>Bật thông báo về bài viết này</Typography></Box></MenuItem>
-            <MenuItem sx={{ py: 1.5 }}><ListItemIcon><InfoIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>Tại sao tôi nhìn thấy bài viết này?</Typography></Box></MenuItem>
+            <MenuItem sx={{ py: 1.5 }}><ListItemIcon><NotificationIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>Bật thông báo về bài viết này</Typography></Box></MenuItem>
+            <MenuItem sx={{ py: 1.5 }}><ListItemIcon><InfoIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>Tại sao tôi nhìn thấy bài viết này?</Typography></Box></MenuItem>
             {/* Non-owner actions */}
             {menuPost && user?.id !== menuPost.userId?._id ? (
                 <>
                     <Divider />
-                    <MenuItem sx={{ py: 1.5 }}><ListItemIcon><ReportIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>Báo cáo bài viết</Typography></Box></MenuItem>
-                    <MenuItem sx={{ py: 1.5 }}><ListItemIcon><HideIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>Ẩn bài viết</Typography><Typography sx={{ fontSize: 12, color: '#65676b' }}>Ẩn bớt các bài viết tương tự.</Typography></Box></MenuItem>
-                    <MenuItem sx={{ py: 1.5 }}><ListItemIcon><BlockIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>Tạm ẩn trong 30 ngày</Typography></Box></MenuItem>
+                    <MenuItem sx={{ py: 1.5 }}><ListItemIcon><ReportIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>Báo cáo bài viết</Typography></Box></MenuItem>
+                    <MenuItem sx={{ py: 1.5 }}><ListItemIcon><HideIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>Ẩn bài viết</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Ẩn bớt các bài viết tương tự.</Typography></Box></MenuItem>
+                    <MenuItem sx={{ py: 1.5 }}><ListItemIcon><BlockIcon /></ListItemIcon><Box><Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>Tạm ẩn trong 30 ngày</Typography></Box></MenuItem>
                 </>
             ) : null}
         </>

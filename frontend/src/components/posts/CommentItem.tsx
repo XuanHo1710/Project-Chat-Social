@@ -10,6 +10,7 @@ import {
     MenuItem,
     Portal,
     LinearProgress,
+    useTheme,
 } from "@mui/material";
 import {
     Send as SendIcon,
@@ -61,6 +62,11 @@ function EditCommentInput({
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const updateComment = useUpdateComment();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const borderColor = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const iconColor = isDark ? 'text.secondary' : '#65676b';
 
     React.useEffect(() => {
         inputRef.current?.focus();
@@ -162,10 +168,10 @@ function EditCommentInput({
                 </Box>
             )}
 
-            {/* Edit Box Container - Light theme */}
+            {/* Edit Box Container - Theme aware */}
             <Box
                 sx={{
-                    bgcolor: "#f0f2f5",
+                    bgcolor: inputBg,
                     borderRadius: 2,
                     overflow: "hidden",
                 }}
@@ -191,7 +197,7 @@ function EditCommentInput({
                         justifyContent: "space-between",
                         px: 1,
                         py: 0.5,
-                        borderTop: "1px solid #e4e6eb",
+                        borderTop: `1px solid ${borderColor}`,
                     }}
                 >
                     {/* Icons */}
@@ -204,7 +210,7 @@ function EditCommentInput({
                             }}
                             sx={{ p: 0.5 }}
                         >
-                            <MoodIcon sx={{ fontSize: 20, color: "#65676b" }} />
+                            <MoodIcon sx={{ fontSize: 20, color: iconColor }} />
                         </IconButton>
                         <IconButton
                             size="small"
@@ -212,10 +218,10 @@ function EditCommentInput({
                             onClick={() => fileInputRef.current?.click()}
                             disabled={isUploading}
                         >
-                            <CameraIcon sx={{ fontSize: 20, color: "#65676b" }} />
+                            <CameraIcon sx={{ fontSize: 20, color: iconColor }} />
                         </IconButton>
                         <IconButton size="small" sx={{ p: 0.5 }}>
-                            <GifIcon sx={{ fontSize: 20, color: "#65676b" }} />
+                            <GifIcon sx={{ fontSize: 20, color: iconColor }} />
                         </IconButton>
                     </Box>
 
@@ -246,13 +252,13 @@ function EditCommentInput({
             />
 
             {/* Hint */}
-            <Typography sx={{ fontSize: 12, color: "#65676b", mt: 0.5 }}>
+            <Typography sx={{ fontSize: 12, color: iconColor, mt: 0.5 }}>
                 Nhấn Esc để{" "}
                 <Typography
                     component="span"
                     onClick={onCancel}
                     sx={{
-                        color: "#1877f2",
+                        color: "primary.main",
                         cursor: "pointer",
                         "&:hover": { textDecoration: "underline" },
                     }}
@@ -291,7 +297,7 @@ function EditCommentInput({
                         <Picker
                             data={data}
                             onEmojiSelect={handleEmojiSelect}
-                            theme="light"
+                            theme={isDark ? 'dark' : 'light'}
                             locale="vi"
                             previewPosition="none"
                         />
@@ -332,6 +338,10 @@ function InlineReplyInput({
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const createComment = useCreateComment();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const iconColor = isDark ? 'text.secondary' : '#65676b';
 
     React.useEffect(() => {
         inputRef.current?.focus();
@@ -469,7 +479,7 @@ function InlineReplyInput({
                 <Box
                     sx={{
                         flex: 1,
-                        bgcolor: "#f0f2f5",
+                        bgcolor: inputBg,
                         borderRadius: 3,
                         px: 1.5,
                         py: 0.5,
@@ -482,7 +492,7 @@ function InlineReplyInput({
                     <Typography
                         component="span"
                         sx={{
-                            color: "#1877f2",
+                            color: "primary.main",
                             fontWeight: 600,
                             fontSize: 13,
                             mr: 0.5,
@@ -508,7 +518,7 @@ function InlineReplyInput({
                             }}
                             sx={{ p: 0.5 }}
                         >
-                            <MoodIcon sx={{ fontSize: 16, color: "#65676b" }} />
+                            <MoodIcon sx={{ fontSize: 16, color: iconColor }} />
                         </IconButton>
                         <IconButton
                             size="small"
@@ -516,10 +526,10 @@ function InlineReplyInput({
                             disabled={isUploading}
                             sx={{ p: 0.5 }}
                         >
-                            <CameraIcon sx={{ fontSize: 16, color: "#65676b" }} />
+                            <CameraIcon sx={{ fontSize: 16, color: iconColor }} />
                         </IconButton>
                         <IconButton size="small" sx={{ p: 0.5 }}>
-                            <GifIcon sx={{ fontSize: 16, color: "#65676b" }} />
+                            <GifIcon sx={{ fontSize: 16, color: iconColor }} />
                         </IconButton>
                     </Box>
                 </Box>
@@ -531,9 +541,9 @@ function InlineReplyInput({
                         sx={{ p: 0.5 }}
                     >
                         {isSubmitting ? (
-                            <CircularProgress size={16} sx={{ color: '#1877f2' }} />
+                            <CircularProgress size={16} sx={{ color: 'primary.main' }} />
                         ) : (
-                            <SendIcon sx={{ fontSize: 18, color: "#1877f2" }} />
+                            <SendIcon sx={{ fontSize: 18, color: "primary.main" }} />
                         )}
                     </IconButton>
                 )}
@@ -578,7 +588,7 @@ function InlineReplyInput({
                         <Picker
                             data={data}
                             onEmojiSelect={handleEmojiSelect}
-                            theme="light"
+                            theme={isDark ? 'dark' : 'light'}
                             locale="vi"
                             previewPosition="none"
                         />
@@ -613,6 +623,10 @@ export default function CommentItem({
     const [imageViewerIndex, setImageViewerIndex] = useState(0);
     const [reactionListOpen, setReactionListOpen] = useState(false);
     const deleteComment = useDeleteComment();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const commentBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const textSecondary = isDark ? 'text.secondary' : '#65676b';
     const { data: repliesData, fetchNextPage, hasNextPage, isFetchingNextPage } = useGetReplies(
         comment._id,
         showReplies && !isReply
@@ -676,7 +690,7 @@ export default function CommentItem({
                     <>
                         <Box
                             sx={{
-                                bgcolor: "#f0f2f5",
+                                bgcolor: commentBg,
                                 borderRadius: 2,
                                 px: 1.5,
                                 py: 1,
@@ -685,16 +699,16 @@ export default function CommentItem({
                             }}
                         >
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                <Typography sx={{ fontWeight: 600, fontSize: 13, color: "#050505" }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 13, color: "text.primary" }}>
                                     {userName}
                                 </Typography>
                                 {comment.isEdited && (
-                                    <Typography sx={{ fontSize: 11, color: "#65676b", fontStyle: "italic" }}>
+                                    <Typography sx={{ fontSize: 11, color: textSecondary, fontStyle: "italic" }}>
                                         · Đã chỉnh sửa
                                     </Typography>
                                 )}
                             </Box>
-                            <Typography sx={{ fontSize: 14, color: "#050505", whiteSpace: "pre-wrap" }}>
+                            <Typography sx={{ fontSize: 14, color: "text.primary", whiteSpace: "pre-wrap" }}>
                                 {renderContentWithMentions(comment.content)}
                             </Typography>
                         </Box>
@@ -769,14 +783,14 @@ export default function CommentItem({
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 0.3,
-                            bgcolor: 'white',
+                            bgcolor: 'background.paper',
                             borderRadius: 3,
                             px: 0.8,
                             py: 0.3,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                            boxShadow: isDark ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.12)',
                             cursor: 'pointer',
                             mt: 0.5,
-                            '&:hover': { boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }
+                            '&:hover': { boxShadow: isDark ? '0 1px 4px rgba(0,0,0,0.4)' : '0 1px 4px rgba(0,0,0,0.2)' }
                         }}
                     >
                         {comment.topReactions && comment.topReactions.length > 0 ? (
@@ -807,7 +821,7 @@ export default function CommentItem({
                         ) : (
                             <Box sx={{ fontSize: 13 }}>👍</Box>
                         )}
-                        <Typography sx={{ fontSize: 12, color: '#65676b', ml: 0.2 }}>
+                        <Typography sx={{ fontSize: 12, color: textSecondary, ml: 0.2 }}>
                             {comment.totalLikes}
                         </Typography>
                     </Box>
@@ -824,7 +838,7 @@ export default function CommentItem({
                             onClick={handleReplyClick}
                             sx={{
                                 fontSize: 12,
-                                color: "#65676b",
+                                color: textSecondary,
                                 fontWeight: 600,
                                 lineHeight: 1,
                                 cursor: "pointer",
@@ -833,7 +847,7 @@ export default function CommentItem({
                         >
                             Phản hồi
                         </Typography>
-                        <Typography sx={{ fontSize: 12, color: "#65676b", lineHeight: 1 }}>
+                        <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1 }}>
                             {timeAgo(comment.createdAt)}
                         </Typography>
                         {isOwner && (
@@ -884,7 +898,7 @@ export default function CommentItem({
                         onClick={() => setShowReplies(true)}
                         sx={{
                             fontSize: 13,
-                            color: "#65676b",
+                            color: textSecondary,
                             fontWeight: 600,
                             cursor: "pointer",
                             mt: 0.5,
@@ -919,7 +933,7 @@ export default function CommentItem({
                                 onClick={() => !isFetchingNextPage && fetchNextPage()}
                                 sx={{
                                     fontSize: 13,
-                                    color: "#65676b",
+                                    color: textSecondary,
                                     fontWeight: 600,
                                     cursor: isFetchingNextPage ? "default" : "pointer",
                                     display: "flex",
@@ -930,7 +944,7 @@ export default function CommentItem({
                                 }}
                             >
                                 {isFetchingNextPage ? (
-                                    <CircularProgress sx={{ fontSize: 12, color: "#65676b" }} />
+                                    <CircularProgress size={12} sx={{ color: textSecondary }} />
                                 ) : (
                                     <ReplyIcon sx={{ fontSize: 14, transform: "scaleX(-1)" }} />
                                 )}

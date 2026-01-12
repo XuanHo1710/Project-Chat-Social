@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { Box, Typography, Avatar, Paper, keyframes } from '@mui/material';
+import { Box, Typography, Avatar, Paper, keyframes, useTheme } from '@mui/material';
 import {
     Public as PublicIcon,
     People as PeopleIcon,
@@ -40,6 +40,10 @@ export default function PostShareMessage({
     onClick,
 }: PostShareMessageProps) {
     const router = useRouter();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const cardBg = isDark ? 'rgba(255,255,255,0.1)' : '#ffffff';
+    const footerBg = isDark ? 'rgba(255,255,255,0.05)' : '#f7f8fa';
 
     // Navigate to feed with post highlighted
     const handlePostClick = () => {
@@ -79,8 +83,8 @@ export default function PostShareMessage({
                     <Paper
                         elevation={0}
                         sx={{
-                            bgcolor: isOwn ? themeColor : '#e4e6eb',
-                            color: isOwn ? 'white' : '#050505',
+                            bgcolor: isOwn ? themeColor : (isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb'),
+                            color: isOwn ? 'white' : 'text.primary',
                             borderRadius: '18px',
                             p: 1.5,
                             maxWidth: 280,
@@ -128,17 +132,17 @@ export default function PostShareMessage({
                     elevation={0}
                     onClick={handlePostClick}
                     sx={{
-                        bgcolor: '#ffffff',
+                        bgcolor: cardBg,
                         borderRadius: '12px',
                         overflow: 'hidden',
                         maxWidth: 300,
                         cursor: 'pointer',
                         animation: `${fadeIn} 0.3s ease-out`,
                         transition: 'all 0.2s ease',
-                        border: '1px solid #e4e6eb',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                        border: `1px solid ${theme.palette.divider}`,
+                        boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
                         '&:hover': onClick ? {
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                            boxShadow: isDark ? '0 2px 8px rgba(255,255,255,0.1)' : '0 2px 8px rgba(0,0,0,0.15)',
                         } : {},
                     }}
                 >
@@ -149,7 +153,7 @@ export default function PostShareMessage({
                             alignItems: 'center',
                             gap: 1,
                             p: 1.5,
-                            bgcolor: '#fff',
+                            bgcolor: cardBg,
                         }}
                     >
                         <Avatar
@@ -164,15 +168,15 @@ export default function PostShareMessage({
                                 fontSize={14}
                                 fontWeight={600}
                                 sx={{
-                                    color: '#050505',
+                                    color: 'text.primary',
                                     lineHeight: 1.2,
                                 }}
                             >
                                 {authorName}
                             </Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                                <PrivacyIcon sx={{ fontSize: 12, color: '#65676b' }} />
-                                <Typography fontSize={12} sx={{ color: '#65676b' }}>
+                                <PrivacyIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
+                                <Typography fontSize={12} sx={{ color: 'text.secondary' }}>
                                     Bài viết
                                 </Typography>
                             </Box>
@@ -190,7 +194,7 @@ export default function PostShareMessage({
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden',
                                     lineHeight: 1.4,
-                                    color: '#050505',
+                                    color: 'text.primary',
                                 }}
                             >
                                 {post.content}
@@ -301,8 +305,8 @@ export default function PostShareMessage({
                             justifyContent: 'space-between',
                             px: 1.5,
                             py: 1,
-                            bgcolor: '#f7f8fa',
-                            borderTop: '1px solid #e4e6eb',
+                            bgcolor: footerBg,
+                            borderTop: `1px solid ${theme.palette.divider}`,
                         }}
                     >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -319,16 +323,16 @@ export default function PostShareMessage({
                             >
                                 <ThumbUpIcon sx={{ fontSize: 10, color: 'white' }} />
                             </Box>
-                            <Typography fontSize={12} sx={{ color: '#65676b' }}>
+                            <Typography fontSize={12} sx={{ color: 'text.secondary' }}>
                                 {post.totalReacts || 0}
                             </Typography>
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Typography fontSize={12} sx={{ color: '#65676b' }}>
+                            <Typography fontSize={12} sx={{ color: 'text.secondary' }}>
                                 {post.totalComments || 0} bình luận
                             </Typography>
                             {(post.totalShares || 0) > 0 && (
-                                <Typography fontSize={12} sx={{ color: '#65676b' }}>
+                                <Typography fontSize={12} sx={{ color: 'text.secondary' }}>
                                     {post.totalShares} chia sẻ
                                 </Typography>
                             )}

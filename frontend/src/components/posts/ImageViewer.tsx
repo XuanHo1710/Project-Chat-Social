@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Box, IconButton, Typography, Modal, Fade } from "@mui/material";
+import { Box, IconButton, Typography, Modal, Fade, useTheme } from "@mui/material";
 import {
     Close as CloseIcon,
     ChevronLeft as PrevIcon,
@@ -22,6 +22,7 @@ interface ImageViewerProps {
 }
 
 export default function ImageViewer({ open, onClose, media, initialIndex = 0 }: ImageViewerProps) {
+    const theme = useTheme();
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const [zoom, setZoom] = useState(1);
     const imageRef = useRef<HTMLImageElement>(null);
@@ -365,7 +366,7 @@ export default function ImageViewer({ open, onClose, media, initialIndex = 0 }: 
                                         borderRadius: 1,
                                         overflow: "hidden",
                                         cursor: "pointer",
-                                        border: index === currentIndex ? "2px solid #1877f2" : "2px solid transparent",
+                                        border: index === currentIndex ? `2px solid ${theme.palette.primary.main}` : "2px solid transparent",
                                         opacity: index === currentIndex ? 1 : 0.6,
                                         transition: "all 0.2s",
                                         "&:hover": { opacity: 1 },

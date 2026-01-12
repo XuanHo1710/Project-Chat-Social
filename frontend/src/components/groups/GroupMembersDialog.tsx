@@ -24,6 +24,7 @@ import {
     MenuItem,
     ListItemIcon,
     Divider,
+    useTheme,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -56,6 +57,10 @@ export default function GroupMembersDialog({
     currentUserRole,
     isCreator
 }: GroupMembersDialogProps) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const { user } = useAuthStore();
     const [members, setMembers] = useState<GroupMember[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -169,7 +174,7 @@ export default function GroupMembersDialog({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                borderBottom: '1px solid #e4e6eb',
+                borderBottom: `1px solid ${theme.palette.divider}`,
                 pb: 2
             }}>
                 <Typography variant="h6" fontWeight={700}>
@@ -182,7 +187,7 @@ export default function GroupMembersDialog({
 
             <DialogContent sx={{ p: 0 }}>
                 {/* Search */}
-                <Box sx={{ p: 2, borderBottom: '1px solid #e4e6eb' }}>
+                <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                     <TextField
                         fullWidth
                         placeholder="Tìm thành viên..."
@@ -191,14 +196,14 @@ export default function GroupMembersDialog({
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon sx={{ color: '#65676b' }} />
+                                    <SearchIcon sx={{ color: 'text.secondary' }} />
                                 </InputAdornment>
                             ),
                         }}
                         sx={{
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: 4,
-                                bgcolor: '#f0f2f5',
+                                bgcolor: inputBg,
                                 '& fieldset': { border: 'none' }
                             }
                         }}
@@ -212,7 +217,7 @@ export default function GroupMembersDialog({
                             <CircularProgress />
                         </Box>
                     ) : filteredMembers.length === 0 ? (
-                        <Typography color="#65676b" sx={{ textAlign: 'center', py: 4 }}>
+                        <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
                             Không tìm thấy thành viên
                         </Typography>
                     ) : (
@@ -221,7 +226,7 @@ export default function GroupMembersDialog({
                                 <ListItem
                                     key={member._id}
                                     sx={{
-                                        '&:hover': { bgcolor: '#f0f2f5' },
+                                        '&:hover': { bgcolor: hoverBg },
                                         borderRadius: 1,
                                         mx: 1
                                     }}
@@ -239,7 +244,7 @@ export default function GroupMembersDialog({
                                                 </Typography>
                                                 {getRoleChip(member.role)}
                                                 {member._id === user?.id && (
-                                                    <Typography variant="caption" color="#65676b">(Bạn)</Typography>
+                                                    <Typography variant="caption" color="text.secondary">(Bạn)</Typography>
                                                 )}
                                             </Box>
                                         }
@@ -273,7 +278,7 @@ export default function GroupMembersDialog({
             >
                 {selectedMember && (
                     <>
-                        <Typography sx={{ px: 2, py: 1, fontWeight: 600, color: '#050505' }}>
+                        <Typography sx={{ px: 2, py: 1, fontWeight: 600, color: 'text.primary' }}>
                             {selectedMember.firstName} {selectedMember.lastName}
                         </Typography>
                         <Divider />
@@ -295,7 +300,7 @@ export default function GroupMembersDialog({
                         {(selectedMember.role === GroupRole.MODERATOR || selectedMember.role === GroupRole.ADMIN) &&
                             (isCreator || selectedMember.role !== GroupRole.ADMIN) && (
                                 <MenuItem onClick={() => handleUpdateRole(GroupRole.MEMBER)}>
-                                    <ListItemIcon><ShieldIcon sx={{ color: '#65676b' }} /></ListItemIcon>
+                                    <ListItemIcon><ShieldIcon sx={{ color: 'text.secondary' }} /></ListItemIcon>
                                     <ListItemText>Hạ xuống thành viên</ListItemText>
                                 </MenuItem>
                             )}

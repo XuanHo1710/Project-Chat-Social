@@ -16,6 +16,7 @@ import {
     Menu,
     MenuItem,
     Divider,
+    useTheme,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -65,10 +66,17 @@ export default function ChatSidebar({
 }: ChatSidebarProps) {
     const user = useAuthStore((state) => state.user);
     const logout = useAuthStore((state) => state.logout);
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const router = useRouter();
     const { socketChat } = useSocket();
+
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const selectedBg = isDark ? 'rgba(66, 133, 244, 0.3)' : '#e7f3ff';
+    const scrollbarColor = isDark ? 'rgba(255,255,255,0.3)' : '#c4c4c4';
 
     // Online status store - just read, don't subscribe to socket here
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
@@ -189,8 +197,8 @@ export default function ChatSidebar({
                 maxWidth: { xs: '100vw', md: '360px' },
                 flexShrink: 0,
                 height: '100vh',
-                bgcolor: 'white',
-                borderRight: { xs: 'none', md: '1px solid #e4e6eb' },
+                bgcolor: 'background.paper',
+                borderRight: { xs: 'none', md: `1px solid ${theme.palette.divider}` },
                 display: isMobileVisible ? 'flex' : { xs: 'none', md: 'flex' },
                 flexDirection: 'column',
                 position: { xs: 'fixed', md: 'relative' },
@@ -200,18 +208,17 @@ export default function ChatSidebar({
             }}
         >
             {/* User Profile Header */}
-            <Box sx={{ p: 2, borderBottom: '1px solid #e4e6eb' }}>
+            <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h6" fontWeight={700} color="#050505">
+                    <Typography variant="h6" fontWeight={700} color="text.primary">
                         Đoạn chat
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
                         <IconButton
                             size="small"
                             sx={{
-                                color: '#65676b',
-                                bgcolor: '#f0f2f5',
-                                '&:hover': { bgcolor: '#e4e6eb' },
+                                color: 'text.secondary',
+                                bgcolor: hoverBg,
                             }}
                         >
                             <MoreVertIcon fontSize="small" />
@@ -219,9 +226,8 @@ export default function ChatSidebar({
                         <IconButton
                             size="small"
                             sx={{
-                                color: '#65676b',
-                                bgcolor: '#f0f2f5',
-                                '&:hover': { bgcolor: '#e4e6eb' },
+                                color: 'text.secondary',
+                                bgcolor: hoverBg,
                             }}
                         >
                             <EditIcon fontSize="small" />
@@ -238,7 +244,7 @@ export default function ChatSidebar({
                         p: 1.5,
                         borderRadius: 2,
                         cursor: 'pointer',
-                        '&:hover': { bgcolor: '#f0f2f5' },
+                        '&:hover': { bgcolor: hoverBg },
                     }}
                     onClick={handleMenuOpen}
                 >
@@ -249,7 +255,7 @@ export default function ChatSidebar({
                         sx={{
                             '& .MuiBadge-badge': {
                                 backgroundColor: '#31a24c',
-                                border: '2px solid white',
+                                border: `2px solid ${theme.palette.background.paper}`,
                                 width: 15,
                                 borderRadius: '50%',
                                 height: 15,
@@ -262,14 +268,14 @@ export default function ChatSidebar({
                         />
                     </Badge>
                     <Box sx={{ flex: 1 }}>
-                        <Typography fontWeight={600} fontSize={15} color="#050505">
+                        <Typography fontWeight={600} fontSize={15} color="text.primary">
                             {user?.fullName}
                         </Typography>
-                        <Typography variant="body2" color="#65676b" fontSize={13}>
+                        <Typography variant="body2" color="text.secondary" fontSize={13}>
                             Đang hoạt động
                         </Typography>
                     </Box>
-                    <MoreVertIcon sx={{ color: '#65676b', fontSize: 20 }} />
+                    <MoreVertIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                 </Box>
 
                 <Menu
@@ -278,9 +284,6 @@ export default function ChatSidebar({
                     onClose={handleMenuClose}
                     PaperProps={{
                         sx: {
-                            bgcolor: 'white',
-                            color: '#050505',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                             borderRadius: 2,
                             mt: 1,
                             minWidth: 200,
@@ -291,34 +294,28 @@ export default function ChatSidebar({
                         onClick={handleMenuClose}
                         sx={{
                             py: 1.5,
-                            color: '#050505',
-                            '&:hover': { bgcolor: '#f0f2f5' },
                         }}
                     >
-                        <PersonIcon sx={{ mr: 2, color: '#65676b' }} fontSize="small" />
+                        <PersonIcon sx={{ mr: 2, color: 'text.secondary' }} fontSize="small" />
                         Hồ sơ
                     </MenuItem>
                     <MenuItem
                         onClick={handleMenuClose}
                         sx={{
                             py: 1.5,
-                            color: '#050505',
-                            '&:hover': { bgcolor: '#f0f2f5' },
                         }}
                     >
-                        <SettingsIcon sx={{ mr: 2, color: '#65676b' }} fontSize="small" />
+                        <SettingsIcon sx={{ mr: 2, color: 'text.secondary' }} fontSize="small" />
                         Cài đặt
                     </MenuItem>
-                    <Divider sx={{ borderColor: '#e4e6eb', my: 0.5 }} />
+                    <Divider sx={{ my: 0.5 }} />
                     <MenuItem
                         onClick={handleLogout}
                         sx={{
                             py: 1.5,
-                            color: '#050505',
-                            '&:hover': { bgcolor: '#f0f2f5' },
                         }}
                     >
-                        <LogoutIcon sx={{ mr: 2, color: '#65676b' }} fontSize="small" />
+                        <LogoutIcon sx={{ mr: 2, color: 'text.secondary' }} fontSize="small" />
                         Đăng xuất
                     </MenuItem>
                 </Menu>
@@ -333,22 +330,16 @@ export default function ChatSidebar({
                     InputProps={{
                         startAdornment: (
                             <InputAdornment position="start">
-                                <SearchIcon sx={{ color: '#65676b', fontSize: 18 }} />
+                                <SearchIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
                             </InputAdornment>
                         ),
                         sx: {
                             borderRadius: 5,
-                            bgcolor: '#f0f2f5',
-                            color: '#050505',
+                            bgcolor: inputBg,
+                            color: 'text.primary',
                             fontSize: '14px',
                             '& .MuiOutlinedInput-notchedOutline': {
                                 border: 'none',
-                            },
-                            '&:hover': {
-                                bgcolor: '#e4e6eb',
-                            },
-                            '&.Mui-focused': {
-                                bgcolor: '#e4e6eb',
                             },
                         },
                     }}
@@ -356,7 +347,7 @@ export default function ChatSidebar({
                         sx: {
                             py: 1,
                             '&::placeholder': {
-                                color: '#65676b',
+                                color: 'text.secondary',
                                 opacity: 1,
                             },
                         },
@@ -372,7 +363,7 @@ export default function ChatSidebar({
                     overflow: 'auto',
                     '&::-webkit-scrollbar': { width: '8px' },
                     '&::-webkit-scrollbar-thumb': {
-                        backgroundColor: '#c4c4c4',
+                        backgroundColor: scrollbarColor,
                         borderRadius: '4px',
                     },
                 }}
@@ -427,14 +418,14 @@ export default function ChatSidebar({
                                         py: 1.5,
                                         px: 2,
                                         gap: 1,
-                                        bgcolor: isSelected ? '#e7f3ff' : 'transparent',
+                                        bgcolor: isSelected ? selectedBg : 'transparent',
                                         '&:hover': {
-                                            bgcolor: isSelected ? '#e7f3ff' : '#f0f2f5',
+                                            bgcolor: isSelected ? selectedBg : hoverBg,
                                         },
                                         '&.Mui-selected': {
-                                            bgcolor: '#e7f3ff',
+                                            bgcolor: selectedBg,
                                             '&:hover': {
-                                                bgcolor: '#e7f3ff',
+                                                bgcolor: selectedBg,
                                             },
                                         },
                                     }}
@@ -447,7 +438,7 @@ export default function ChatSidebar({
                                             sx={{
                                                 '& .MuiBadge-badge': {
                                                     backgroundColor: !isGroup && status.isOnline ? '#31a24c' : 'transparent',
-                                                    border: !isGroup && status.isOnline ? '2px solid white' : 'none',
+                                                    border: !isGroup && status.isOnline ? `2px solid ${theme.palette.background.paper}` : 'none',
                                                     width: 15,
                                                     borderRadius: '50%',
                                                     height: 15,
@@ -463,7 +454,7 @@ export default function ChatSidebar({
                                     <ListItemText
                                         primary={
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                <Typography noWrap fontWeight={600} fontSize={15} color="#050505">
+                                                <Typography noWrap fontWeight={600} fontSize={15} color="text.primary">
                                                     {displayName}
                                                 </Typography>
                                             </Box>
@@ -474,7 +465,7 @@ export default function ChatSidebar({
                                                 <Typography
                                                     noWrap
                                                     variant="body2"
-                                                    color="#65676b"
+                                                    color="text.secondary"
                                                     component="span"
                                                     fontSize={13}
                                                     sx={{ flex: 1, maxWidth: '75%' }}
@@ -514,7 +505,7 @@ export default function ChatSidebar({
                                                         }
                                                     })()}
                                                 </Typography>
-                                                <Typography variant="caption" color="#65676b" fontSize={12} sx={{ whiteSpace: 'nowrap' }}>
+                                                <Typography variant="caption" color="text.secondary" fontSize={12} sx={{ whiteSpace: 'nowrap' }}>
                                                     · {conversation.lastMessageAt ? formatTime(conversation.lastMessageAt) : ''}
                                                 </Typography>
                                             </Box>

@@ -11,9 +11,11 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     const isChat = pathname?.startsWith('/chat');
     const isReels = pathname?.startsWith('/reels');
     const isFriends = pathname?.startsWith('/friends');
+    const isProfile = pathname?.startsWith('/profile');
+
 
     // If it's a standalone page like Chat or Reels (full screen), just render children
-    if (isChat || isReels || isFriends) {
+    if (isChat || isReels || isFriends || isProfile) {
         return <>{children}</>;
     }
 
@@ -25,8 +27,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 <Box
                     sx={{
                         flex: 1,
-                        ml: { xs: 0, lg: '280px' },
-                        mr: { xs: 0, xl: '280px' },
+                        ml: { xs: 0, md: '280px' },
+                        mr: { xs: 0, lg: '280px' },
                         minWidth: 0,
                     }}
                 >

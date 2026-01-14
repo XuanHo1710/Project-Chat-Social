@@ -27,7 +27,8 @@ export default function PongPage() {
         const handleMouseMove = (e: MouseEvent) => {
             if (!canvasRef.current) return;
             const rect = canvasRef.current.getBoundingClientRect();
-            const relativeY = e.clientY - rect.top;
+            const scaleY = CANVAS_HEIGHT / rect.height;
+            const relativeY = (e.clientY - rect.top) * scaleY;
 
             // Limit paddle within canvas
             const y = Math.max(0, Math.min(CANVAS_HEIGHT - PADDLE_HEIGHT, relativeY - PADDLE_HEIGHT / 2));

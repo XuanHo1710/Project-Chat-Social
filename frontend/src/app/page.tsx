@@ -53,8 +53,8 @@ export default function Home() {
         <Box
           sx={{
             flex: 1,
-            ml: { xs: 0, lg: '280px' },
-            mr: { xs: 0, xl: '280px' },
+            ml: { xs: 0, md: '280px' },
+            mr: { xs: 0, lg: '280px' },
           }}
         >
           <HomeFeed />

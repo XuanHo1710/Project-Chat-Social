@@ -81,6 +81,10 @@ import { toast } from 'sonner';
 import { usePostStore } from '@/stores/usePostStore';
 import { useDeletePost } from '@/queries/usePostQueries';
 import { useSocket } from '@/contexts/SocketContext';
+import { useGetUserPostsInfinite } from '@/queries/usePostQueries';
+import { useInView } from 'react-intersection-observer';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@/constants/query-keys';
 
 interface ProfilePageProps {
     userName: string;
@@ -92,6 +96,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     const deletePostMutation = useDeletePost();
     const { addPost, deletePost: deletePostFromStore } = usePostStore();
     const { socketRelationship } = useSocket();
+    const queryClient = useQueryClient();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const mainBg = theme.palette.mode === 'dark' ? theme.palette.background.default : '#f0f2f5';
@@ -109,12 +114,35 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     const [friendsLoading, setFriendsLoading] = useState(false);
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [uploadingCover, setUploadingCover] = useState(false);
-    const [posts, setPosts] = useState<PostType[]>([]);
-    const [postsLoading, setPostsLoading] = useState(false);
     const [friendSearchQuery, setFriendSearchQuery] = useState('');
 
     // Friendship status
     const [isFriend, setIsFriend] = useState(false);
+
+    // Infinite Scroll Posts
+    const { ref: loadMoreRef, inView } = useInView();
+    const {
+        data: postsData,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        isLoading: postsLoading
+    } = useGetUserPostsInfinite(
+        profile?._id || '',
+        5, // limit
+        isFriend ? [user?.id || ''] : []
+    );
+
+    // Flatten pages
+    const posts = React.useMemo(() => {
+        return postsData?.pages.flatMap(page => page.data || []) || [];
+    }, [postsData]);
+
+    useEffect(() => {
+        if (inView && hasNextPage) {
+            fetchNextPage();
+        }
+    }, [inView, hasNextPage, fetchNextPage]);
     const [friendshipStatus, setFriendshipStatus] = useState<string | null>(null);
     const [friendshipLoading, setFriendshipLoading] = useState(false);
 
@@ -232,33 +260,16 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         checkFriendshipStatus();
     }, [profile?._id, isOwnProfile]);
 
-    // Fetch user posts with privacy filtering
-    useEffect(() => {
-        const fetchPosts = async () => {
-            if (!profile?._id) return;
-            try {
-                setPostsLoading(true);
-                // Pass friendIds if the current user is a friend of the profile owner
-                const friendIds = isFriend ? [user?.id || ''] : [];
-                const response = await postService.getPostsByUserId(profile._id, { friendIds });
-                setPosts(response.data || []);
-            } catch (error) {
-                console.error('Error fetching posts:', error);
-            } finally {
-                setPostsLoading(false);
-            }
-        };
-
-        if (profile?._id) {
-            fetchPosts();
-        }
-    }, [profile?._id, isFriend, user?.id]);
+    // Fetched by hook now
+    // useEffect(() => {
+    //     const fetchPosts = async () => { ... }
+    // }, ...);
 
     const handlePostCreated = useCallback((newPost: PostType) => {
-        setPosts(prev => [newPost, ...prev]);
-        addPost(newPost);
         setCreatePostModalOpen(false);
-    }, [addPost]);
+        // Invalidating query is handled by the hook usually, or we do it here if needed
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER_POSTS] });
+    }, [queryClient]);
 
     const handleProfileUpdate = (updatedProfile: ProfileType) => {
         setProfile(updatedProfile);
@@ -386,9 +397,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
             // Delete post from backend
             await deletePostMutation.mutateAsync(menuPost._id);
-            // Remove from local state
-            setPosts(prev => prev.filter(p => p._id !== menuPost._id));
-            deletePostFromStore(menuPost._id);
+            // Invalidate triggers refetch
             handleCloseMenu();
             toast.success('Xóa bài viết thành công!');
         } catch (error) {
@@ -442,8 +451,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         if (!menuPost) return;
         try {
             await postService.updatePost(menuPost._id, { allowComments: allow });
-            // Update local posts state
-            setPosts(prev => prev.map(p => p._id === menuPost._id ? { ...p, allowComments: allow } : p));
+            // Update local posts state via invalidation
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER_POSTS] });
             setMenuPost({ ...menuPost, allowComments: allow });
         } catch (error) {
             console.error('Error toggling comments:', error);
@@ -454,7 +463,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         if (!menuPost) return;
         try {
             await postService.updatePost(menuPost._id, { allowShares: allow });
-            setPosts(prev => prev.map(p => p._id === menuPost._id ? { ...p, allowShares: allow } : p));
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER_POSTS] });
             setMenuPost({ ...menuPost, allowShares: allow });
         } catch (error) {
             console.error('Error toggling shares:', error);
@@ -465,7 +474,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         if (!menuPost) return;
         try {
             await postService.updatePost(menuPost._id, { allowReactions: allow });
-            setPosts(prev => prev.map(p => p._id === menuPost._id ? { ...p, allowReactions: allow } : p));
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER_POSTS] });
             setMenuPost({ ...menuPost, allowReactions: allow });
         } catch (error) {
             console.error('Error toggling reactions:', error);
@@ -873,7 +882,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                         <Box
                             sx={{
                                 position: 'relative',
-                                height: 350,
+                                height: { xs: 200, sm: 250, md: 350 },
                                 borderRadius: '0 0 8px 8px',
                                 overflow: 'hidden',
                                 background: profile.background
@@ -920,14 +929,22 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                         </Box>
 
                         {/* Profile Info */}
-                        <Box sx={{ display: 'flex', alignItems: 'flex-end', mt: -6, px: 4, pb: 2, position: 'relative' }}>
+                        <Box sx={{
+                            display: 'flex',
+                            flexDirection: { xs: 'column', md: 'row' },
+                            alignItems: { xs: 'center', md: 'flex-end' },
+                            mt: { xs: -8, md: -6 },
+                            px: { xs: 2, md: 4 },
+                            pb: 2,
+                            position: 'relative'
+                        }}>
                             {/* Avatar */}
                             <Box sx={{ position: 'relative' }}>
                                 <Avatar
                                     src={profile.avatar}
                                     sx={{
-                                        width: 168,
-                                        height: 168,
+                                        width: { xs: 140, md: 168 },
+                                        height: { xs: 140, md: 168 },
                                         border: `4px solid ${paperBg}`,
                                         boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                         bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
@@ -972,8 +989,15 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             </Box>
 
                             {/* Name & Friends Count */}
-                            <Box sx={{ ml: 3, flex: 1, mb: 1 }}>
-                                <Typography variant="h4" fontWeight={700} color={textPrimary}>
+                            <Box sx={{
+                                ml: { xs: 0, md: 3 },
+                                mt: { xs: 2, md: 0 },
+                                mb: 1,
+                                flex: 1,
+                                textAlign: { xs: 'center', md: 'left' },
+                                width: { xs: '100%', md: 'auto' }
+                            }}>
+                                <Typography variant="h4" fontWeight={700} color={textPrimary} sx={{ fontSize: { xs: '1.75rem', md: '2.125rem' } }}>
                                     {fullName}
                                 </Typography>
                                 <Typography color={textSecondary} fontWeight={500} fontSize={15}>
@@ -981,7 +1005,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 </Typography>
                                 {/* Friends avatars preview */}
                                 {friends.length > 0 && (
-                                    <Box sx={{ display: 'flex', mt: 0.5 }}>
+                                    <Box sx={{ display: 'flex', mt: 0.5, justifyContent: { xs: 'center', md: 'flex-start' } }}>
                                         {friends.slice(0, 8).map((friend, idx) => (
                                             <Avatar
                                                 key={friend._id}
@@ -1003,7 +1027,13 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             </Box>
 
                             {/* Action Buttons */}
-                            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                            <Box sx={{
+                                display: 'flex',
+                                flexDirection: { xs: 'column', sm: 'row' },
+                                gap: 1,
+                                mb: 1,
+                                width: { xs: '100%', md: 'auto' }
+                            }}>
                                 {isOwnProfile ? (
                                     <>
                                         <Button
@@ -1111,12 +1141,19 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         </Button>
                                     </>
                                 )}
-                                <IconButton
-                                    sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb', '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf' } }}
+                                <Button
+                                    variant="contained"
+                                    sx={{
+                                        bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb',
+                                        color: textPrimary,
+                                        minWidth: 48,
+                                        px: 0,
+                                        '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf' }
+                                    }}
                                     onClick={handleOpenProfileSettings}
                                 >
-                                    <MoreIcon sx={{ color: textPrimary }} />
-                                </IconButton>
+                                    <MoreIcon />
+                                </Button>
                             </Box>
                         </Box>
 
@@ -1426,6 +1463,21 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         );
                                     })
                                 )}
+
+                                {/* Load More Trigger & Indicator */}
+                                <Box ref={loadMoreRef} sx={{ py: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: 1 }}>
+                                    {isFetchingNextPage && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                            <CircularProgress size={24} sx={{ color: 'primary.main' }} />
+                                            <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>Đang tải thêm...</Typography>
+                                        </Box>
+                                    )}
+                                    {!hasNextPage && posts.length > 0 && !isFetchingNextPage && (
+                                        <Typography sx={{ color: 'text.secondary', fontSize: 14, textAlign: 'center' }}>
+                                            Đã hiển thị tất cả bài viết
+                                        </Typography>
+                                    )}
+                                </Box>
                             </Grid>
                         </Grid>
                     )}
@@ -1778,8 +1830,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                         }}
                         post={editingPost}
                         onPostUpdated={(updatedPost) => {
-                            // Update local posts state
-                            setPosts(prev => prev.map(p => p._id === updatedPost._id ? updatedPost : p));
+                            // Update local posts state via invalidation
+                            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER_POSTS] });
                             // Update global post store
                             usePostStore.getState().updatePost(updatedPost._id, updatedPost);
                         }}

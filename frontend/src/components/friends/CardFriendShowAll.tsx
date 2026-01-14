@@ -100,7 +100,7 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                                 bgcolor: '#1877f2',
                                 textTransform: 'none',
                                 fontWeight: 600,
-                                fontSize: 15,
+                                fontSize: 14,
                                 py: 1,
                                 boxShadow: 'none',
                                 '&:hover': {
@@ -114,7 +114,7 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                                 },
                             }}
                         >
-                            {isLoading ? 'Đang gửi...' : 'Thêm bạn bè'}
+                            {isLoading ? 'Đang gửi...' : 'Thêm bạn'}
                         </Button>
                         :
                         // Đã gửi lời mời
@@ -129,6 +129,7 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                                 color: 'text.primary',
                                 textTransform: 'none',
                                 fontWeight: 600,
+                                fontSize: 14,
                                 py: 1,
                                 boxShadow: 'none',
                                 '&:hover': {
@@ -142,7 +143,7 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                                 },
                             }}
                         >
-                            {isLoading ? 'Đang hủy...' : 'Hủy lời mời'}
+                            {isLoading ? 'Đang hủy...' : 'Hủy'}
                         </Button>
                     }
 

@@ -210,9 +210,32 @@ export default function ChatSidebar({
             {/* User Profile Header */}
             <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h6" fontWeight={700} color="text.primary">
-                        Đoạn chat
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <IconButton
+                            onClick={() => router.push('/')}
+                            sx={{ p: 0 }}
+                        >
+                            <Box
+                                sx={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: '50%',
+                                    bgcolor: '#1877f2', // Facebook blue
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '24px',
+                                    fontWeight: 'bold',
+                                    color: 'white',
+                                }}
+                            >
+                                f
+                            </Box>
+                        </IconButton>
+                        <Typography variant="h5" fontWeight={700} color="text.primary">
+                            Đoạn chat
+                        </Typography>
+                    </Box>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
                         <IconButton
                             size="small"

@@ -97,6 +97,34 @@ export const useGetUserPosts = (
 };
 
 /**
+ * Hook to fetch user posts with infinite scroll
+ */
+export const useGetUserPostsInfinite = (
+  userId: string,
+  limit: number = 10,
+  friendIds: string[] = []
+) => {
+  return useInfiniteQuery({
+    queryKey: [QUERY_KEYS.USER_POSTS, "infinite", userId, limit, friendIds],
+    queryFn: ({ pageParam = 1 }) =>
+      postService.getPostsByUserId(userId, {
+        page: pageParam,
+        limit,
+        friendIds,
+      }),
+    getNextPageParam: (lastPage, allPages) => {
+      const totalPosts = lastPage?.data?.length || 0;
+      if (totalPosts < limit) {
+        return undefined;
+      }
+      return allPages.length + 1;
+    },
+    initialPageParam: 1,
+    enabled: !!userId,
+  });
+};
+
+/**
  * Hook to fetch posts by group ID
  */
 export const useGetGroupPosts = (

@@ -171,6 +171,8 @@ export default function Game2048Page() {
                         p: 1.5,
                         borderRadius: 2,
                         width: 320,
+                        maxWidth: '100%',
+                        aspectRatio: '1/1',
                         height: 320,
                         mx: 'auto',
                         mb: 4,

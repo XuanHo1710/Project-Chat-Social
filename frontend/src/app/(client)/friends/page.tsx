@@ -95,21 +95,20 @@ export default function FriendsPage() {
         <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
             <Header />
 
-            <Box sx={{ pt: '56px', display: 'flex' }}>
+            <Box sx={{ pt: '56px', display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
                 {/* Left Sidebar */}
                 <Box
                     sx={{
-                        width: 360,
-                        height: 'calc(100vh - 56px)',
-                        position: 'sticky',
+                        width: { xs: '100%', md: 360 },
+                        height: { xs: 'auto', md: 'calc(100vh - 56px)' },
+                        position: { xs: 'sticky', md: 'sticky' },
                         top: 56,
                         bgcolor: 'background.paper',
                         boxShadow: isDark ? 'none' : '2px 0 4px rgba(0,0,0,0.1)',
-                        overflowY: 'auto',
-                        p: 1,
+                        zIndex: 10,
                     }}
                 >
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, py: 1.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, py: 1.5 }}>
                         <Typography variant="h5" fontWeight={700} sx={{ color: 'text.primary' }}>
                             Bạn bè
                         </Typography>
@@ -118,22 +117,33 @@ export default function FriendsPage() {
                         </IconButton>
                     </Box>
 
-                    <List sx={{ p: 0 }}>
+                    <List sx={{
+                        p: { xs: 1, md: 0 },
+                        display: { xs: 'flex', md: 'block' },
+                        overflowX: { xs: 'auto', md: 'visible' },
+                        '&::-webkit-scrollbar': { display: 'none' }, // Hide scrollbar for cleaner look
+                        scrollbarWidth: 'none'
+                    }}>
                         {menuItems.map((item) => (
                             <ListItemButton
                                 key={item.id}
                                 onClick={() => setTabValue(item.id)}
                                 sx={{
                                     borderRadius: 2,
-                                    mb: 0.5,
+                                    mb: { xs: 0, md: 0.5 },
+                                    mr: { xs: 1, md: 0 },
                                     bgcolor: tabValue === item.id ? (isDark ? 'rgba(24, 119, 242, 0.2)' : '#e7f3ff') : 'transparent',
                                     '&:hover': {
                                         bgcolor: tabValue === item.id ? (isDark ? 'rgba(24, 119, 242, 0.2)' : '#e7f3ff') : hoverBg,
                                     },
+                                    minWidth: { xs: 'auto', md: '100%' },
+                                    whiteSpace: 'nowrap',
+                                    px: { xs: 2, md: 2 }
                                 }}
                             >
                                 <ListItemIcon sx={{
-                                    minWidth: 36,
+                                    minWidth: { xs: 0, md: 36 },
+                                    mr: { xs: 1, md: 0 },
                                     color: tabValue === item.id ? 'primary.main' : 'text.primary'
                                 }}>
                                     {item.icon}
@@ -152,7 +162,7 @@ export default function FriendsPage() {
                 </Box>
 
                 {/* Main Content */}
-                <Box sx={{ flex: 1, p: 3, overflowY: 'auto' }}>
+                <Box sx={{ flex: 1, p: { xs: 2, md: 3 }, overflowY: 'auto' }}>
                     {/* Tab 0 & 1: Lời mời kết bạn */}
                     {(tabValue === 0 || tabValue === 1) && (
                         <Box sx={{ mb: 4 }}>
@@ -177,7 +187,7 @@ export default function FriendsPage() {
                             {!isLoadingReceivedRequests && receivedRequests?.data && receivedRequests.data.length > 0 ? (
                                 <Box sx={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
                                     gap: 2
                                 }}>
                                     {receivedRequests.data.map((request) => (
@@ -217,7 +227,7 @@ export default function FriendsPage() {
                             {!isLoadingAccounts && allAccounts?.items && allAccounts.items.length > 0 ? (
                                 <Box sx={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
                                     gap: 2
                                 }}>
                                     {allAccounts.items.slice(0, 10).map((account, index) => (
@@ -242,7 +252,7 @@ export default function FriendsPage() {
                             {!isLoadingAccounts && allAccounts?.items && allAccounts.items.length > 0 ? (
                                 <Box sx={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
                                     gap: 2
                                 }}>
                                     {allAccounts.items.map((account, index) => (
@@ -267,7 +277,7 @@ export default function FriendsPage() {
                             {!isLoadingListFriends && listFriends?.data && listFriends.data.length > 0 ? (
                                 <Box sx={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
                                     gap: 2
                                 }}>
                                     {listFriends.data.map(friend => (
@@ -304,7 +314,7 @@ export default function FriendsPage() {
                             {!isLoadingSentRequests && sentRequests?.data && sentRequests.data.length > 0 ? (
                                 <Box sx={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
                                     gap: 2
                                 }}>
                                     {sentRequests.data.map((request) => (

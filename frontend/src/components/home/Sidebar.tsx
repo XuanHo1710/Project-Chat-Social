@@ -87,7 +87,7 @@ export default function Sidebar() {
                 overflowY: 'auto',
                 pt: 1,
                 px: 1,
-                display: { xs: 'none', lg: 'block' },
+                display: { xs: 'none', md: 'block' },
                 '&::-webkit-scrollbar': {
                     width: '8px',
                 },

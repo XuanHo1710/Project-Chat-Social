@@ -128,8 +128,8 @@ export default function SnakePage() {
                         <Typography variant="h5" fontWeight={800} color="primary">Score: {score}</Typography>
                     </Box>
 
-                    <Box sx={{ border: `4px solid ${theme.palette.divider}`, borderRadius: 2, overflow: 'hidden', lineHeight: 0 }}>
-                        <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} />
+                    <Box sx={{ border: `4px solid ${theme.palette.divider}`, borderRadius: 2, overflow: 'hidden', lineHeight: 0, maxWidth: '100%' }}>
+                        <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} style={{ maxWidth: '100%', height: 'auto' }} />
                     </Box>
 
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 2, mb: 3 }}>

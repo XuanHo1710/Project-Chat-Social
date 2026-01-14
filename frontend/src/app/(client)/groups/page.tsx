@@ -99,19 +99,21 @@ export default function GroupsPage() {
         <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
             <Header />
 
-            <Box sx={{ display: 'flex', pt: 7 }}>
+            <Box sx={{ display: 'flex', pt: '56px', flexDirection: { xs: 'column', md: 'row' } }}>
                 {/* Left Sidebar */}
                 <Box
                     sx={{
-                        width: 360,
-                        height: 'calc(100vh - 56px)',
+                        width: { xs: '100%', md: 360 },
+                        height: { xs: 'auto', md: 'calc(100vh - 56px)' },
                         bgcolor: 'background.paper',
-                        borderRight: `1px solid ${theme.palette.divider}`,
-                        position: 'fixed',
+                        borderRight: { xs: 'none', md: `1px solid ${theme.palette.divider}` },
+                        borderBottom: { xs: `1px solid ${theme.palette.divider}`, md: 'none' },
+                        position: { xs: 'static', md: 'fixed' },
                         left: 0,
                         top: 56,
                         overflowY: 'auto',
                         p: 2,
+                        zIndex: 10,
                     }}
                 >
                     {/* Sidebar Header */}
@@ -182,60 +184,62 @@ export default function GroupsPage() {
 
                     <Divider sx={{ my: 2 }} />
 
-                    {/* Groups List */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="subtitle1" fontWeight={600}>
-                            Nhóm bạn đã tham gia
-                        </Typography>
-                        <Button
-                            size="small"
-                            sx={{ textTransform: 'none', color: 'primary.main' }}
-                        >
-                            Xem tất cả
-                        </Button>
-                    </Box>
-
-                    {isLoading ? (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                            <CircularProgress size={24} />
+                    {/* Groups List (Sidebar) */}
+                    <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="subtitle1" fontWeight={600}>
+                                Nhóm bạn đã tham gia
+                            </Typography>
+                            <Button
+                                size="small"
+                                sx={{ textTransform: 'none', color: 'primary.main' }}
+                            >
+                                Xem tất cả
+                            </Button>
                         </Box>
-                    ) : (
-                        <List sx={{ p: 0 }}>
-                            {filteredGroups.slice(0, 5).map((group) => (
-                                <ListItemButton
-                                    key={group._id}
-                                    sx={{ borderRadius: 2, mb: 0.5 }}
-                                    onClick={() => router.push(`/groups/${group._id}`)}
-                                >
-                                    <ListItemAvatar>
-                                        <Avatar
-                                            src={group.avatar || undefined}
-                                            variant="rounded"
-                                            sx={{ width: 48, height: 48 }}
-                                        >
-                                            <GroupsIcon />
-                                        </Avatar>
-                                    </ListItemAvatar>
-                                    <ListItemText
-                                        primary={group.name}
-                                        secondary={`Lần hoạt động gần nhất: ${formatLastActivity(group.updatedAt)}`}
-                                        primaryTypographyProps={{ fontWeight: 500, noWrap: true }}
-                                        secondaryTypographyProps={{ fontSize: 12 }}
-                                    />
-                                </ListItemButton>
-                            ))}
-                        </List>
-                    )}
+
+                        {isLoading ? (
+                            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                                <CircularProgress size={24} />
+                            </Box>
+                        ) : (
+                            <List sx={{ p: 0 }}>
+                                {filteredGroups.slice(0, 5).map((group) => (
+                                    <ListItemButton
+                                        key={group._id}
+                                        sx={{ borderRadius: 2, mb: 0.5 }}
+                                        onClick={() => router.push(`/groups/${group._id}`)}
+                                    >
+                                        <ListItemAvatar>
+                                            <Avatar
+                                                src={group.avatar || undefined}
+                                                variant="rounded"
+                                                sx={{ width: 48, height: 48 }}
+                                            >
+                                                <GroupsIcon />
+                                            </Avatar>
+                                        </ListItemAvatar>
+                                        <ListItemText
+                                            primary={group.name}
+                                            secondary={`Lần hoạt động gần nhất: ${formatLastActivity(group.updatedAt)}`}
+                                            primaryTypographyProps={{ fontWeight: 500, noWrap: true }}
+                                            secondaryTypographyProps={{ fontSize: 12 }}
+                                        />
+                                    </ListItemButton>
+                                ))}
+                            </List>
+                        )}
+                    </Box>
                 </Box>
 
                 {/* Main Content */}
-                <Box sx={{ flex: 1, ml: '360px', p: 3 }}>
+                <Box sx={{ flex: 1, ml: { xs: 0, md: '360px' }, p: { xs: 2, md: 3 } }}>
                     {myGroups.length > 0 ? (
                         <>
                             {/* Header */}
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
                                 <Typography variant="h5" fontWeight={600}>
-                                    Tất cả các nhóm bạn đã tham gia ({myGroups.length})
+                                    Tất cả các nhóm ({myGroups.length})
                                 </Typography>
                                 <Button sx={{ textTransform: 'none', color: 'primary.main' }}>
                                     Sắp xếp
@@ -246,7 +250,7 @@ export default function GroupsPage() {
                             <Box
                                 sx={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(3, 1fr)',
+                                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' },
                                     gap: 2,
                                 }}
                             >
@@ -331,7 +335,7 @@ export default function GroupsPage() {
                             <Box
                                 sx={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(3, 1fr)',
+                                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' },
                                     gap: 2,
                                 }}
                             >

@@ -79,6 +79,39 @@ export default function ReelsPage() {
     // Reaction store
     const { postReactions, initPostReaction } = useReactionStore();
 
+    // Touch handling for swipe
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+    // Minimum swipe distance (in px)
+    const minSwipeDistance = 50;
+
+    const onTouchStart = (e: React.TouchEvent) => {
+        setTouchEnd(null); // Reset touch end
+        setTouchStart(e.targetTouches[0].clientY);
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientY);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+
+        if (isLeftSwipe) {
+            // Swiped up (next)
+            goToNext();
+        }
+        if (isRightSwipe) {
+            // Swiped down (prev)
+            goToPrev();
+        }
+    };
+
     // Fetch video posts from dedicated reels API
     const {
         data,
@@ -270,7 +303,12 @@ export default function ReelsPage() {
                     position: 'relative',
                     bgcolor: '#000',
                     minWidth: 0,
-                }}>
+                    touchAction: 'none', // Prevent default browser scroll
+                }}
+                    onTouchStart={onTouchStart}
+                    onTouchMove={onTouchMove}
+                    onTouchEnd={onTouchEnd}
+                >
                     {/* Video Container - Contains video and all overlays */}
                     <Box sx={{
                         width: '100%',
@@ -523,7 +561,8 @@ export default function ReelsPage() {
                     {/* Navigation Arrows - Outside video container */}
                     <Box sx={{
                         position: 'absolute',
-                        right: 24,
+                        right: { xs: 'auto', md: 24 },
+                        left: { xs: 16, md: 'auto' },
                         top: '50%',
                         transform: 'translateY(-50%)',
                         display: 'flex',
@@ -562,19 +601,37 @@ export default function ReelsPage() {
                     </Box>
                 </Box>
 
-                {/* Right Panel - Comments (chỉ hiện khi bấm nút comment) */}
+                {/* Right Panel - Comments (Responsive: Overlay on mobile, Side panel on desktop) */}
                 {showComments && currentPost && (
                     <Box sx={{
-                        width: 420,
-                        minWidth: 420,
-                        maxWidth: 420,
+                        width: { xs: '100%', md: 420 },
+                        minWidth: { xs: '100%', md: 420 },
+                        maxWidth: { xs: '100%', md: 420 },
                         bgcolor: 'background.paper',
                         display: 'flex',
                         flexDirection: 'column',
-                        height: 'calc(100vh - 56px)',
-                        borderLeft: `1px solid ${theme.palette.divider}`,
+                        height: { xs: '75vh', md: 'calc(100vh - 56px)' },
+                        borderLeft: { xs: 'none', md: `1px solid ${theme.palette.divider}` },
+                        borderTopLeftRadius: { xs: 16, md: 0 },
+                        borderTopRightRadius: { xs: 16, md: 0 },
+                        position: { xs: 'fixed', md: 'static' },
+                        bottom: 0,
+                        left: 0,
+                        zIndex: 1200,
                         flexShrink: 0,
+                        boxShadow: { xs: '0 -4px 20px rgba(0,0,0,0.5)', md: 'none' },
+                        transition: 'transform 0.3s ease-in-out',
                     }}>
+                        {/* Mobile Drag Handle */}
+                        <Box sx={{
+                            display: { xs: 'flex', md: 'none' },
+                            justifyContent: 'center',
+                            pt: 1.5,
+                            pb: 0.5,
+                            cursor: 'grab'
+                        }}>
+                            <Box sx={{ width: 40, height: 4, bgcolor: 'grey.300', borderRadius: 2 }} />
+                        </Box>
                         {/* Post Header */}
                         <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                             <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>

@@ -58,7 +58,8 @@ export default function BreakoutPage() {
         const handleMouseMove = (e: MouseEvent) => {
             if (!canvasRef.current) return;
             const rect = canvasRef.current.getBoundingClientRect();
-            const relativeX = e.clientX - rect.left;
+            const scaleX = CANVAS_WIDTH / rect.width;
+            const relativeX = (e.clientX - rect.left) * scaleX;
 
             if (relativeX > 0 && relativeX < CANVAS_WIDTH) {
                 state.current.paddleX = relativeX - PADDLE_WIDTH / 2;

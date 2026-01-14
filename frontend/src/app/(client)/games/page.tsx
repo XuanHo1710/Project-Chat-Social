@@ -122,19 +122,20 @@ export default function GameHubPage() {
                     Trò chơi nổi bật
                 </Typography>
 
-                <Grid container spacing={3}>
+                <Grid container spacing={{ xs: 2, md: 3 }}>
                     {games.map((game, index) => (
                         // @ts-ignore
-                        <Grid item xs={12} sm={6} md={4} key={game.id}>
+                        <Grid item xs={6} sm={4} md={3} key={game.id}>
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: index * 0.1 }}
                                 whileHover={{ y: -5 }}
+                                style={{ height: '100%' }}
                             >
                                 <Card sx={{
                                     height: '100%',
-                                    borderRadius: 4,
+                                    borderRadius: { xs: 3, md: 4 },
                                     overflow: 'visible',
                                     boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 24px rgba(0,0,0,0.05)',
                                     bgcolor: isDark ? 'background.paper' : game.color,
@@ -142,27 +143,52 @@ export default function GameHubPage() {
                                 }}>
                                     <CardActionArea
                                         onClick={() => router.push(game.path)}
-                                        sx={{ height: '100%', p: 3 }}
+                                        sx={{ height: '100%', p: { xs: 2, md: 3 } }}
                                     >
                                         <Box sx={{
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'center',
                                             textAlign: 'center',
-                                            gap: 2
+                                            gap: { xs: 1, md: 2 }
                                         }}>
                                             <Box sx={{
-                                                p: 3,
+                                                p: { xs: 2, md: 3 },
                                                 borderRadius: '50%',
                                                 bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'white',
-                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
                                             }}>
-                                                {game.icon}
+                                                {/* Scale icon for mobile */}
+                                                <Box sx={{
+                                                    transform: { xs: 'scale(0.8)', md: 'scale(1)' },
+                                                    display: 'flex'
+                                                }}>
+                                                    {game.icon}
+                                                </Box>
                                             </Box>
-                                            <Typography variant="h5" fontWeight={700} color="text.primary">
+                                            <Typography
+                                                sx={{
+                                                    fontWeight: 700,
+                                                    color: 'text.primary',
+                                                    fontSize: { xs: '1rem', md: '1.25rem' }
+                                                }}
+                                            >
                                                 {game.title}
                                             </Typography>
-                                            <Typography variant="body2" color="text.secondary">
+                                            <Typography
+                                                variant="body2"
+                                                color="text.secondary"
+                                                sx={{
+                                                    fontSize: { xs: '0.75rem', md: '0.875rem' },
+                                                    display: { xs: '-webkit-box', md: 'block' },
+                                                    WebkitLineClamp: { xs: 2, md: 'none' },
+                                                    WebkitBoxOrient: 'vertical',
+                                                    overflow: 'hidden'
+                                                }}
+                                            >
                                                 {game.description}
                                             </Typography>
                                         </Box>

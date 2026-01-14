@@ -1064,7 +1064,6 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 color: 'primary.main',
                                 bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
                                 "&:hover": { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : '#e4e6eb' },
-                                display: { xs: 'none', sm: 'inline-flex' },
                             }}
                         >
                             <CallIcon fontSize="small" />
@@ -1075,7 +1074,6 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 color: 'primary.main',
                                 bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
                                 "&:hover": { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : '#e4e6eb' },
-                                display: { xs: 'none', sm: 'inline-flex' },
                             }}
                         >
                             <VideocamIcon fontSize="small" />

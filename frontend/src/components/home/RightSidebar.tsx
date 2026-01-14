@@ -75,7 +75,7 @@ export default function RightSidebar() {
                 px: 2,
                 bgcolor: 'background.default',
                 zIndex: 100,
-                display: { xs: 'none', xl: 'block' },
+                display: { xs: 'none', lg: 'block' },
                 '&::-webkit-scrollbar': {
                     width: '8px',
                 },

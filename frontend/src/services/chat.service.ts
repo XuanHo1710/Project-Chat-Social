@@ -2,8 +2,25 @@ import axios from "@/config/axios";
 import { MessageResponse, SendMessagePayload } from "@/types/chat";
 import { APIResponse } from "@/types/common";
 
+export interface MessageReadStatus {
+  _id: string;
+  conversationId: string;
+  userId: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    avatar?: string;
+  };
+  lastReadMessageId: {
+    _id: string;
+    createdAt: string;
+  } | null;
+  lastReadAt: string;
+}
+
 export interface MessagesResponse {
   data: MessageResponse[];
+  readStatuses?: MessageReadStatus[];
   pagination: {
     page: number;
     limit: number;
@@ -81,6 +98,13 @@ class ChatService {
     const response = await axios.get<APIResponse<MessageResponse>>(
       "/chat/" + id
     );
+    return response.data;
+  }
+
+  async markAsRead(conversationId: string, messageId?: string): Promise<any> {
+    const response = await axios.put(`/chat/conversations/${conversationId}/read`, {
+      messageId
+    });
     return response.data;
   }
 }

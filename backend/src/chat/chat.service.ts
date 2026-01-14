@@ -10,6 +10,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Conversation, ConversationDocument } from 'src/conversation/entities/conversation.entity';
 import { Model, Types } from 'mongoose';
 import { Message, EmotionType, MessageType } from 'src/chat/entities/message.entity';
+import {
+  ConversationReadStatus,
+  ConversationReadStatusDocument,
+} from './entities/conversation-read-status.entity';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Injectable()
@@ -17,6 +21,8 @@ export class ChatService {
   constructor(
     @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
     @InjectModel(Message.name) private readonly messageModel: Model<Message>,
+    @InjectModel(ConversationReadStatus.name)
+    private readonly readStatusModel: Model<ConversationReadStatusDocument>,
     private readonly cloudinaryService: CloudinaryService
   ) { }
 
@@ -25,7 +31,7 @@ export class ChatService {
     return await this.messageModel
       .findById(message._id)
       .populate('senderId', 'firstName lastName _id avatar')
-      .populate('readBy', 'firstName lastName _id avatar')
+      // .populate('readBy', 'firstName lastName _id avatar')
       .populate({
         path: 'replyTo',
         populate: { path: 'senderId', select: 'firstName lastName _id' },
@@ -132,7 +138,7 @@ export class ChatService {
         .sort({ createdAt: -1 }) // Newest first for pagination
         .limit(limit)
         .populate('senderId', 'firstName lastName _id avatar')
-        .populate('readBy', 'firstName lastName _id avatar')
+        // .populate('readBy', 'firstName lastName _id avatar')
         .populate({
           path: 'emotions.userId',
           select: 'firstName lastName _id avatar',
@@ -158,14 +164,42 @@ export class ChatService {
     // Reverse to show oldest first in UI
     const sortedMessages = messages.reverse();
 
-    // Ensure readBy is always an array (for old messages that might not have this field)
-    const normalizedMessages = sortedMessages.map((msg) => ({
-      ...msg,
-      readBy: msg.readBy || [],
-    }));
+    // Ensure readBy is removed or handled via separate API
+    const normalizedMessages = sortedMessages;
+
+    // Fetch read statuses (cursors) for this conversation
+    const readStatuses = await this.readStatusModel
+      .find({
+        conversationId: new Types.ObjectId(conversationId),
+      })
+      .populate('userId', 'firstName lastName _id avatar')
+      .populate('lastReadMessageId', 'createdAt')
+      .lean();
+
+    // Visualize data: Sanitize ObjectIds to Strings for Frontend
+    const sanitizedReadStatuses = readStatuses
+      .filter((status) => status.lastReadMessageId) // Exclude status without message pointer
+      .map((status) => ({
+        ...status,
+        _id: status._id.toString(),
+        conversationId: status.conversationId.toString(),
+        userId: status.userId
+          ? {
+            ...status.userId,
+            _id: (status.userId as any)._id?.toString() || status.userId.toString(),
+          }
+          : null,
+        lastReadMessageId: status.lastReadMessageId
+          ? {
+            ...(status.lastReadMessageId as any),
+            _id: (status.lastReadMessageId as any)._id?.toString(),
+          }
+          : status.lastReadMessageId,
+      }));
 
     return {
       data: normalizedMessages,
+      readStatuses: sanitizedReadStatuses, // Include read statuses in response
       pagination: {
         page,
         limit,
@@ -274,7 +308,7 @@ export class ChatService {
         { new: true }
       )
       .populate('senderId', 'firstName lastName _id avatar')
-      .populate('readBy', 'firstName lastName _id avatar')
+      // .populate('readBy', 'firstName lastName _id avatar')
       .populate({
         path: 'emotions.userId',
         select: 'firstName lastName _id avatar',
@@ -331,7 +365,7 @@ export class ChatService {
         { new: true }
       )
       .populate('senderId', 'firstName lastName _id avatar')
-      .populate('readBy', 'firstName lastName _id avatar')
+      // .populate('readBy', 'firstName lastName _id avatar')
       .populate({
         path: 'emotions.userId',
         select: 'firstName lastName _id avatar',
@@ -367,7 +401,7 @@ export class ChatService {
         { new: true }
       )
       .populate('senderId', 'firstName lastName _id avatar')
-      .populate('readBy', 'firstName lastName _id avatar')
+      // .populate('readBy', 'firstName lastName _id avatar')
       .populate({
         path: 'emotions.userId',
         select: 'firstName lastName _id avatar',
@@ -436,7 +470,7 @@ export class ChatService {
         { new: true }
       )
       .populate('senderId', 'firstName lastName _id avatar')
-      .populate('readBy', 'firstName lastName _id avatar')
+      // .populate('readBy', 'firstName lastName _id avatar')
       .populate({
         path: 'emotions.userId',
         select: 'firstName lastName _id avatar',
@@ -481,28 +515,90 @@ export class ChatService {
     return { mentions, hasMentionAll };
   }
 
-  // 6. Mark message as read
-  async markAsRead(conversationId: string, userId: string) {
-    const userObjectId = new Types.ObjectId(userId);
+  // 6. Mark message as read - NEW LOGIC using ConversationReadStatus
+  // Optional messageId parameter: if provided, use it as cursor; otherwise use latest message
+  async markAsRead(conversationId: string, userId: string, messageId?: string) {
+    // Validate IDs
+    if (!Types.ObjectId.isValid(conversationId)) {
+      throw new BadRequestException('Invalid conversationId');
+    }
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
 
-    // Update all unread messages in this conversation (not sent by this user)
-    const result = await this.messageModel.updateMany(
-      {
-        conversationId: new Types.ObjectId(conversationId),
-        senderId: { $ne: userObjectId },
-        readBy: { $ne: userObjectId },
+    const userObjectId = new Types.ObjectId(userId);
+    const convObjectId = new Types.ObjectId(conversationId);
+
+
+
+    let targetMessageId: Types.ObjectId;
+    let foundMessage = false;
+
+    if (messageId && Types.ObjectId.isValid(messageId)) {
+      // Use provided messageId as cursor
+      const messageExists = await this.messageModel.findOne({
+        _id: new Types.ObjectId(messageId),
         isDeleted: { $ne: true },
-      },
-      {
-        $addToSet: { readBy: userObjectId },
-        $set: { status: 'READ' },
+      });
+
+      if (messageExists && messageExists.conversationId.toString() === conversationId) {
+        targetMessageId = messageExists._id;
+        foundMessage = true;
       }
-    );
+    }
+
+    // STRICT MODE: If no specific message ID provided or found, DO NOT Mark All As Read.
+    // This prevents the cursor from jumping to the end when opening the chat or switching tabs.
+    // The frontend must explicitly send the message ID it wants to mark as read.
+    if (!foundMessage) {
+      console.warn('[Service] markAsRead skipped: No valid messageId provided or found.');
+      return { modifiedCount: 0 };
+    }
+
+    // 2. Upsert ConversationReadStatus for this user
+    const result = await this.readStatusModel
+      .findOneAndUpdate(
+        { conversationId: convObjectId, userId: userObjectId },
+        {
+          $set: {
+            lastReadMessageId: targetMessageId!, // Assert non-null because we checked foundMessage
+            lastReadAt: new Date(),
+          },
+        },
+        { upsert: true, new: true }
+      )
+      .populate('userId', 'firstName lastName _id avatar')
+      .populate('lastReadMessageId', 'createdAt')
+      .lean();
+
+    // Serialize check
+    if (!result) return { modifiedCount: 0 };
+
+    // Normalize readStatus to ensure consistent format (same as findAllMessagesByConversationId)
+    const normalizedReadStatus = {
+      ...result,
+      _id: result._id.toString(),
+      conversationId: result.conversationId.toString(),
+      userId: result.userId
+        ? {
+          ...(result.userId as any),
+          _id: (result.userId as any)._id?.toString() || (result.userId as any).toString(),
+        }
+        : null,
+      lastReadMessageId: result.lastReadMessageId
+        ? {
+          ...(result.lastReadMessageId as any),
+          _id: (result.lastReadMessageId as any)._id?.toString(),
+        }
+        : null,
+    };
 
     return {
-      modifiedCount: result.modifiedCount,
+      modifiedCount: 1,
       conversationId,
       readBy: userId,
+      lastReadMessageId: targetMessageId!,
+      readStatus: normalizedReadStatus,
     };
   }
 
@@ -525,14 +621,37 @@ export class ChatService {
 
   // Get latest read status for conversation (who read what)
   async getReadStatus(conversationId: string) {
-    // Get the last message read by each participant
-    const lastMessage = await this.messageModel
-      .findOne({ conversationId, isDeleted: { $ne: true } })
-      .sort({ createdAt: -1 })
-      .select('_id status readBy senderId')
+    // Return list of ReadStatus for all users in this conversation
+    const readStatuses = await this.readStatusModel
+      .find({
+        conversationId: new Types.ObjectId(conversationId),
+      })
+      .populate('userId', 'firstName lastName _id avatar')
+      .populate('lastReadMessageId', 'createdAt') // Populate message to get createdAt for comparison
       .lean();
 
-    return lastMessage;
+    // Normalize readStatuses to ensure consistent format (same as findAllMessagesByConversationId)
+    const normalizedReadStatuses = readStatuses
+      .filter((status) => status.lastReadMessageId)
+      .map((status) => ({
+        ...status,
+        _id: status._id.toString(),
+        conversationId: status.conversationId.toString(),
+        userId: status.userId
+          ? {
+            ...(status.userId as any),
+            _id: (status.userId as any)._id?.toString() || (status.userId as any).toString(),
+          }
+          : null,
+        lastReadMessageId: status.lastReadMessageId
+          ? {
+            ...(status.lastReadMessageId as any),
+            _id: (status.lastReadMessageId as any)._id?.toString(),
+          }
+          : null,
+      }));
+
+    return normalizedReadStatuses;
   }
 
   // Legacy methods

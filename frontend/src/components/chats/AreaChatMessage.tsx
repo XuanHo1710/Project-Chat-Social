@@ -36,7 +36,30 @@ import { useSocket } from "@/contexts/SocketContext";
 import { useQueryClient, InfiniteData } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/constants/query-keys";
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
-import { MessagesResponse } from "@/services/chat.service";
+import { MessagesResponse, MessageReadStatus } from "@/services/chat.service";
+
+// Type helpers for ID extraction
+type ObjectIdLike = string | { _id: string | ObjectIdLike } | { toString(): string };
+
+// Helper function to extract string ID from various formats
+function extractId(id: ObjectIdLike | null | undefined): string {
+    if (!id) return '';
+    if (typeof id === 'string') return id;
+    if (typeof id === 'object' && id !== null) {
+        if ('_id' in id) {
+            const innerId = (id as { _id: ObjectIdLike })._id;
+            if (typeof innerId === 'string') return innerId;
+            if (typeof innerId === 'object' && innerId !== null && '_id' in innerId) {
+                return extractId(innerId);
+            }
+            return String(innerId);
+        }
+        if ('toString' in id && typeof id.toString === 'function') {
+            return id.toString();
+        }
+    }
+    return '';
+}
 import { useOnlineStatusStore, formatLastActiveDetailed } from "@/stores/useOnlineStatusStore";
 import { useMessageCacheStore } from "@/stores/useMessageCacheStore";
 import MessageItem from "./MessageItem";
@@ -167,9 +190,14 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     const [replyMsg, setReplyMsg] = useState<MessageResponse | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string; type: 'image' | 'video' }[]>([]);
     const [filePreview, setFilePreview] = useState<{ file: File; name: string; size: number; type: string }[]>([]);
+    const [readStatuses, setReadStatuses] = useState<MessageReadStatus[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
     const fileDocInputRef = useRef<HTMLInputElement>(null);
+
+    // Track current cursor (lastReadMessageId) for optimization
+    const currentCursorRef = useRef<string | null>(null);
+    const cursorUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const [mentionStartIndex, setMentionStartIndex] = useState(-1);
 
@@ -239,6 +267,156 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             .reduce((sum, page) => sum + page.data.length, 0);
         return 10000 - totalOlderMessages;
     }, [pages]);
+
+    // Sync readStatuses from chatData and fetch from socket when opening conversation
+    // Sync readStatuses from chatData and fetch from socket when opening conversation
+    useEffect(() => {
+        // Initialize cursor to latest message when messages load
+        if (allMessages.length > 0) {
+            const latestMsg = allMessages[allMessages.length - 1];
+            const latestMsgId = typeof latestMsg._id === 'string' ? latestMsg._id : String(latestMsg._id);
+            currentCursorRef.current = latestMsgId;
+        }
+
+        // 1. PRIORITIZE: Load initial read statuses from REST API data (chatData)
+        // This ensures data is immediately available on tab switch/mount without waiting for socket
+        if (chatData?.pages?.[0]?.readStatuses) {
+            const rawStatuses = chatData.pages[0].readStatuses;
+            const currentUserIdStr = extractId(userId as ObjectIdLike);
+
+            // Normalize & Filter immediately
+            const normalizedStatuses = rawStatuses.map((status: any) => ({
+                ...status,
+                _id: extractId(status._id),
+                conversationId: extractId(status.conversationId),
+                userId: {
+                    ...status.userId,
+                    _id: extractId(status.userId?._id || status.userId)
+                },
+                lastReadMessageId: status.lastReadMessageId ? {
+                    ...status.lastReadMessageId,
+                    _id: extractId(status.lastReadMessageId._id || status.lastReadMessageId)
+                } : null
+            }));
+
+            const filteredStatuses = normalizedStatuses.filter((s: MessageReadStatus) => {
+                const statusUserId = extractId(s.userId?._id || s.userId);
+                // STRICT filtering of current user
+                return statusUserId.toString().trim() !== currentUserIdStr.toString().trim();
+            });
+
+            setReadStatuses(filteredStatuses);
+        }
+
+        // 2. Fetch fresh status from socket (Background update)
+        // Request read statuses from socket when opening conversation (ALWAYS fetch fresh data)
+        if (socketChat && selectedConversation._id) {
+            socketChat.emit("message:read:status", { conversationId: selectedConversation._id }, (response: { success: boolean; lastMessage?: MessageReadStatus[] }) => {
+                if (response.success && response.lastMessage) {
+                    // Normalize readStatuses
+                    const getId = (id: unknown): string => {
+                        if (!id) return '';
+                        if (typeof id === 'string') return id;
+                        if (typeof id === 'object' && id !== null && '_id' in id) {
+                            const objId = (id as { _id: unknown })._id;
+                            if (typeof objId === 'string') return objId;
+                            if (objId && typeof objId === 'object' && '_id' in objId) {
+                                return String((objId as { _id: unknown })._id);
+                            }
+                            return String(objId);
+                        }
+                        if (typeof id === 'object' && id !== null && 'toString' in id && typeof id.toString === 'function') {
+                            return id.toString();
+                        }
+                        return '';
+                    };
+
+                    const normalizedStatuses: MessageReadStatus[] = response.lastMessage.map(status => {
+                        let normalizedLastReadMessageId: { _id: string; createdAt: string } | null = null;
+                        if (status.lastReadMessageId) {
+                            if (typeof status.lastReadMessageId === 'object' && status.lastReadMessageId !== null) {
+                                const msgId = getId((status.lastReadMessageId as { _id: unknown })._id);
+                                const createdAt = (status.lastReadMessageId as { createdAt?: string }).createdAt || '';
+                                if (msgId) {
+                                    normalizedLastReadMessageId = { _id: msgId, createdAt };
+                                }
+                            }
+                        }
+                        return {
+                            ...status,
+                            _id: getId(status._id),
+                            conversationId: getId(status.conversationId),
+                            userId: {
+                                ...status.userId,
+                                _id: getId(status.userId._id)
+                            },
+                            lastReadMessageId: normalizedLastReadMessageId
+                        };
+                    });
+
+                    // Filter out current user's read status
+                    const currentUserIdStr = extractId(userId as ObjectIdLike);
+                    const filteredStatuses = normalizedStatuses.filter((s: MessageReadStatus) => {
+                        const statusUserId = typeof s.userId._id === 'string'
+                            ? s.userId._id
+                            : extractId(s.userId._id as ObjectIdLike);
+                        return statusUserId.toString().trim() !== currentUserIdStr.toString().trim();
+                    });
+
+                    // Update state with fresh data from socket
+                    setReadStatuses(filteredStatuses);
+                }
+                // DO NOT reset to [] if socket fails, keep REST data
+            });
+        }
+    }, [chatData, allMessages, socketChat, selectedConversation._id, userId]);
+
+    // Optimized cursor update function with debounce - ONLY via socket
+    const updateCursor = useCallback((messageId: string | undefined) => {
+        // Validate messageId
+        if (!messageId || typeof messageId !== 'string' || messageId.trim() === '') {
+            return;
+        }
+
+        // Validate MongoDB ObjectId format (24 hex characters)
+        if (!/^[a-fA-F0-9]{24}$/.test(messageId)) {
+            return;
+        }
+
+        // Verify message exists in current messages list (to avoid race conditions)
+        const messageExists = allMessages.some(m => {
+            const msgId = typeof m._id === 'string' ? m._id : String(m._id);
+            return msgId === messageId && !m.isDeleted;
+        });
+
+        if (!messageExists) {
+            return;
+        }
+
+        // Only update if cursor actually changed
+        if (currentCursorRef.current === messageId) return;
+
+        // Clear existing timeout
+        if (cursorUpdateTimeoutRef.current) {
+            clearTimeout(cursorUpdateTimeoutRef.current);
+        }
+
+        // Debounce cursor updates (300ms for faster response)
+        cursorUpdateTimeoutRef.current = setTimeout(() => {
+            // Double check after debounce (cursor might have changed)
+            if (currentCursorRef.current !== messageId && socketChat && messageId) {
+                // Update cursor ref immediately to prevent duplicate emits
+                currentCursorRef.current = messageId;
+
+                // Update cursor via socket ONLY (no API call for smoother UX)
+                socketChat.emit("message:read", {
+                    conversationId: selectedConversation._id,
+                    messageId
+                });
+
+            }
+        }, 300);
+    }, [socketChat, selectedConversation._id, allMessages]);
 
     // Consume pending messages when opening conversation
     useEffect(() => {
@@ -312,8 +490,10 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             }
         );
 
-        // Then emit to server (background sync)
-        socketChat.emit("message:read", { conversationId: selectedConversation._id });
+        // REMOVED: Do not automatically mark all as read on open
+        // This causes the cursor to jump to the latest message, which might be wrong if the user is scrolling up/reading history.
+        // We rely on scroll tracking (Virtuoso) and 'handleNewMessage' to update the cursor.
+        // socketChat.emit("message:read", { conversationId: selectedConversation._id });
 
         // Query online status of the other user when opening chat (only for DIRECT)
         if (selectedConversation.type !== 'GROUP' && selectedConversation.otherId) {
@@ -333,7 +513,12 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         }
 
         return () => {
-            // No leave event in backend, just clean up
+            // Clean up cursor update timeout
+            if (cursorUpdateTimeoutRef.current) {
+                clearTimeout(cursorUpdateTimeoutRef.current);
+            }
+            // Reset cursor when leaving conversation
+            currentCursorRef.current = null;
         }
     }, [socketChat, selectedConversation._id, userId, selectedConversation.otherId, selectedConversation.type, queryClient]);
 
@@ -401,9 +586,15 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 }
             );
 
-            // If message is from other user and we're viewing this conversation, mark as read immediately
-            if (msg.senderId?._id !== userId) {
-                socketChat.emit("message:read", { conversationId: selectedConversation._id });
+            // If message is from other user and we're viewing this conversation, mark as read immediately via socket
+            // If message is new (from anyone), we are viewing it right now, so update our cursor to this message.
+            // This is critical so that if WE send a message, our "seen" cursor moves to it, 
+            // alerting others that we are active up to this point.
+            if (socketChat && selectedConversation._id && msg._id) {
+                socketChat.emit("message:read", {
+                    conversationId: selectedConversation._id,
+                    messageId: msg._id // Use the new message as cursor
+                });
             }
 
             // Scroll to bottom when new message
@@ -465,41 +656,136 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             readBy: { _id: string; firstName: string; lastName: string; avatar?: string } | null;
             readByUserId: string;
             modifiedCount: number;
+            lastReadMessageId?: string | { _id: string; createdAt: string };
+            readStatus?: MessageReadStatus;
         }) => {
-            if (data.conversationId === selectedConversation._id && data.readBy) {
-                // Skip if reader is current user (don't mark my messages as read by myself)
-                if (data.readByUserId === userId) {
-                    return;
-                }
-                // Mark all my messages as read in cache
-                queryClient.setQueryData<InfiniteData<MessagesResponse>>(
-                    [QUERY_KEYS.CHATS, selectedConversation._id],
-                    (oldData) => {
-                        if (!oldData) return oldData;
-                        const newPages = oldData.pages.map(page => ({
-                            ...page,
-                            data: page.data.map(msg => {
-                                // Check if this is my message (handle both object and string senderId)
-                                const senderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
-                                const isMyMessage = senderId === userId || senderId?.toString() === userId;
+            if (data.conversationId === selectedConversation._id && data.readStatus) {
+                // Helper to safely get ID string
+                const getId = (id: unknown): string => {
+                    if (!id) return '';
+                    if (typeof id === 'string') return id;
+                    if (typeof id === 'object' && id !== null && '_id' in id) {
+                        const objId = (id as { _id: unknown })._id;
+                        if (typeof objId === 'string') return objId;
+                        if (objId && typeof objId === 'object' && '_id' in objId) {
+                            return String((objId as { _id: unknown })._id);
+                        }
+                        return String(objId);
+                    }
+                    if (typeof id === 'object' && id !== null && 'toString' in id && typeof id.toString === 'function') {
+                        return id.toString();
+                    }
+                    return '';
+                };
 
-                                if (isMyMessage) {
-                                    // Check if this user already exists in readBy array
-                                    const alreadyRead = msg.readBy?.some(r => r._id === data.readBy!._id);
-                                    if (alreadyRead) {
-                                        return msg;
+                const rawStatus = data.readStatus;
+
+                // Normalize the incoming status to ensure it matches our state shape
+                let normalizedLastReadMessageId: { _id: string; createdAt: string } | null = null;
+
+                if (rawStatus.lastReadMessageId) {
+                    if (typeof rawStatus.lastReadMessageId === 'object' && rawStatus.lastReadMessageId !== null) {
+                        const msgId = getId((rawStatus.lastReadMessageId as { _id: unknown })._id);
+                        const createdAt = (rawStatus.lastReadMessageId as { createdAt?: string }).createdAt || '';
+                        if (msgId) {
+                            normalizedLastReadMessageId = {
+                                _id: msgId,
+                                createdAt
+                            };
+                        }
+                    } else if (typeof rawStatus.lastReadMessageId === 'string') {
+                        // If it's just a string ID, we need to fetch createdAt from message
+                        // For now, assume it's valid if string
+                        normalizedLastReadMessageId = {
+                            _id: rawStatus.lastReadMessageId,
+                            createdAt: ''
+                        };
+                    } else if (rawStatus.lastReadMessageId) {
+                        // Fallback for any other truthy value
+                        try {
+                            const idStr = getId(rawStatus.lastReadMessageId);
+                            if (idStr) {
+                                normalizedLastReadMessageId = {
+                                    _id: idStr,
+                                    createdAt: ''
+                                }
+                            }
+                        } catch (e) {
+                            console.warn("Invalid lastReadMessageId format", rawStatus.lastReadMessageId);
+                        }
+                    }
+                }
+
+                const normalizedStatus: MessageReadStatus = {
+                    ...rawStatus,
+                    _id: getId(rawStatus._id),
+                    conversationId: getId(rawStatus.conversationId),
+                    userId: {
+                        ...rawStatus.userId,
+                        _id: getId(rawStatus.userId?._id)
+                    },
+                    lastReadMessageId: normalizedLastReadMessageId || null
+                };
+
+                const incomingUserId = getId(normalizedStatus.userId._id);
+                const currentUserIdStr = getId(userId);
+
+                // If this is our own cursor update, sync currentCursorRef but DON'T add to readStatuses
+                if (incomingUserId.toString().trim() === currentUserIdStr.toString().trim() && normalizedStatus.lastReadMessageId) {
+                    const cursorMsgId = normalizedStatus.lastReadMessageId._id;
+                    if (cursorMsgId) {
+                        currentCursorRef.current = cursorMsgId;
+                    }
+                    return; // CRITICAL: Don't add current user's read status to readStatuses
+                }
+
+                setReadStatuses(prev => {
+                    // Check if we already have a status for this user
+                    const existsIndex = prev.findIndex(s => getId(s.userId._id).toString().trim() === incomingUserId.toString().trim());
+
+                    if (existsIndex !== -1) {
+                        // Update existing
+                        const newStatuses = [...prev];
+                        newStatuses[existsIndex] = normalizedStatus;
+                        return newStatuses;
+                    } else {
+                        // Add new (only if not current user)
+                        return [...prev, normalizedStatus];
+                    }
+                });
+
+                // CRITICAL: Update React Query Cache to persist between tab switches
+                // This updates the 'chatData' for the NEXT mount
+                queryClient.setQueryData<any>( // Type as any for now or specific generic if available
+                    [QUERY_KEYS.CHATS, selectedConversation._id],
+                    (oldData: any) => {
+                        if (!oldData || !oldData.pages) return oldData;
+
+                        return {
+                            ...oldData,
+                            pages: oldData.pages.map((page: any, index: number) => {
+                                // Only update readStatuses in the first page (usually where metadata lives)
+                                if (index === 0) {
+                                    const currentStatuses = page.readStatuses || [];
+                                    const existsIndex = currentStatuses.findIndex((s: any) =>
+                                        getId(s.userId?._id || s.userId) === incomingUserId
+                                    );
+
+                                    let newStatuses = [...currentStatuses];
+                                    if (existsIndex !== -1) {
+                                        newStatuses[existsIndex] = normalizedStatus;
+                                    } else {
+                                        newStatuses.push(normalizedStatus);
                                     }
-                                    // Add new reader to readBy array and update status
+
                                     return {
-                                        ...msg,
-                                        status: 'READ' as const,
-                                        readBy: [...(msg.readBy || []), data.readBy!]
+                                        ...page,
+                                        readStatuses: newStatuses
                                     };
                                 }
-                                return msg;
+                                return page;
                             })
-                        }));
-                        return { ...oldData, pages: newPages };
+                        };
                     }
                 );
             }
@@ -1110,6 +1396,40 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             initialTopMostItemIndex={allMessages.length - 1}
                             followOutput="smooth"
                             startReached={handleStartReached}
+                            rangeChanged={(range) => {
+                                // Update cursor based on visible range
+                                // Use the message with highest index in visible range as cursor
+                                if (range.startIndex !== undefined && range.endIndex !== undefined && allMessages.length > 0) {
+                                    // Find the message with highest index in visible range
+                                    let highestIndex = -1;
+                                    for (let i = range.startIndex; i <= range.endIndex; i++) {
+                                        const actualIndex = i - firstItemIndex;
+                                        if (actualIndex >= 0 && actualIndex < allMessages.length) {
+                                            highestIndex = Math.max(highestIndex, actualIndex);
+                                        }
+                                    }
+
+                                    if (highestIndex >= 0 && highestIndex < allMessages.length) {
+                                        const visibleMessage = allMessages[highestIndex];
+                                        // Only update cursor if message is valid and not deleted
+                                        if (visibleMessage && visibleMessage._id && !visibleMessage.isDeleted) {
+                                            let messageId: string | undefined;
+                                            if (typeof visibleMessage._id === 'string') {
+                                                messageId = visibleMessage._id;
+                                            } else if (visibleMessage._id && typeof visibleMessage._id === 'object' && '_id' in visibleMessage._id) {
+                                                messageId = String((visibleMessage._id as { _id: unknown })._id);
+                                            } else if (visibleMessage._id) {
+                                                messageId = String(visibleMessage._id);
+                                            }
+
+                                            // Validate messageId format (MongoDB ObjectId is 24 hex chars)
+                                            if (messageId && /^[a-fA-F0-9]{24}$/.test(messageId)) {
+                                                updateCursor(messageId);
+                                            }
+                                        }
+                                    }
+                                }
+                            }}
                             components={{
                                 Header,
                             }}
@@ -1125,12 +1445,112 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 ).filter(i => i !== -1).pop();
                                 const isLastOwnMessage = actualIndex === lastOwnMessageIndex;
 
-                                // Get avatars of users who read the message, excluding the sender
-                                const senderId = message.senderId._id?.toString() || message.senderId?.toString() || '';
-                                const otherAvatarsNotRead = message.readBy
-                                    ?.filter(r => r._id !== senderId && r._id !== userId) // Exclude sender and current user
-                                    .map(r => r.avatar)
-                                    .filter(avatar => avatar !== undefined) || [];
+                                // Helper for safe ID comparison
+                                const getSafeId = (id: unknown): string => {
+                                    if (!id) return '';
+                                    if (typeof id === 'string') return id;
+                                    if (typeof id === 'object' && id !== null && '_id' in id) {
+                                        const objId = (id as { _id: unknown })._id;
+                                        if (typeof objId === 'string') return objId;
+                                        if (objId && typeof objId === 'object' && '_id' in objId) {
+                                            return String((objId as { _id: unknown })._id);
+                                        }
+                                        return String(objId);
+                                    }
+                                    if (typeof id === 'object' && id !== null && 'toString' in id && typeof id.toString === 'function') {
+                                        return id.toString();
+                                    }
+                                    return '';
+                                };
+
+                                // Get avatars of users who have their read cursor at or after this message
+                                // CURSOR LOGIC: lastReadMessageId is the cursor - all messages <= cursor are "seen"
+                                const senderId = getSafeId(message.senderId);
+                                // CRITICAL: Normalize userId prop - handle both string and object formats
+                                const currentUserIdStr = getSafeId(userId);
+                                const messageId = getSafeId(message._id);
+                                const messageCreatedAt = message.createdAt ? new Date(message.createdAt).getTime() : 0;
+
+
+                                // Find users who have read this message (cursor is at or after this message)
+                                // EXCLUDE: current user (không hiển thị seen của chính mình) và sender (không hiển thị seen của người gửi)
+                                const seenUsers = readStatuses.filter(s => {
+                                    // Extract user ID from readStatus - s.userId is always an object with _id
+                                    let cursorUserId = '';
+                                    if (s.userId && typeof s.userId === 'object') {
+                                        // s.userId is { _id: string, firstName: string, lastName: string, avatar?: string }
+                                        if ('_id' in s.userId) {
+                                            cursorUserId = getSafeId(s.userId._id);
+                                        } else {
+                                            return false; // Invalid format
+                                        }
+                                    } else if (typeof s.userId === 'string') {
+                                        cursorUserId = getSafeId(s.userId);
+                                    } else {
+                                        return false; // Invalid userId format
+                                    }
+
+                                    // CRITICAL: Exclude current user - không hiển thị seen của chính mình
+                                    if (cursorUserId.toString().trim() === currentUserIdStr.toString().trim()) {
+                                        return false; // Exclude current user
+                                    }
+
+                                    // Exclude sender - không hiển thị seen của người gửi tin nhắn đó
+                                    if (cursorUserId.toString().trim() === senderId.toString().trim()) {
+                                        return false; // Exclude sender
+                                    }
+
+                                    // Check if user's cursor (lastReadMessageId) is at or after this message
+                                    if (!s.lastReadMessageId || typeof s.lastReadMessageId !== 'object') {
+                                        return false;
+                                    }
+
+                                    // Compare IDs directly (lexicographical comparison for MongoDB ObjectIds determines chronological order)
+                                    // Logic: if cursorMsgId >= messageId, then it is seen.
+                                    const cursorMsgId = getSafeId(s.lastReadMessageId._id);
+
+                                    // Use direct string comparison for ObjectIds
+                                    // In MongoDB, later timestamps have greater ObjectId strings
+                                    const isSeenValues = cursorMsgId.localeCompare(messageId) >= 0;
+
+                                    // Also check createdAt if available as fallback/confirmation
+                                    const cursorMsgCreatedAt = s.lastReadMessageId.createdAt
+                                        ? new Date(s.lastReadMessageId.createdAt).getTime()
+                                        : 0;
+                                    const isSeenTime = cursorMsgCreatedAt && messageCreatedAt ? cursorMsgCreatedAt >= messageCreatedAt : false;
+
+                                    // Return true if EITHER ID comparison OR Time comparison says it's seen
+                                    return isSeenValues || isSeenTime;
+                                });
+
+                                // For the last own message, show all seen avatars (users who have cursor at or after this message)
+                                // For other messages, only show if cursor is exactly at this message
+                                // CRITICAL: Double-check to exclude current user avatar before mapping
+                                const otherAvatarsNotRead = isLastOwnMessage
+                                    ? seenUsers
+                                        .filter((s: MessageReadStatus) => {
+                                            const checkUserId = typeof s.userId._id === 'string'
+                                                ? s.userId._id
+                                                : getSafeId(s.userId._id);
+                                            return checkUserId.toString().trim() !== currentUserIdStr.toString().trim();
+                                        })
+                                        .map((s: MessageReadStatus) => s.userId.avatar || '')
+                                        .filter((a: string) => !!a)
+                                    : seenUsers
+                                        .filter((s: MessageReadStatus) => {
+                                            const checkUserId = typeof s.userId._id === 'string'
+                                                ? s.userId._id
+                                                : getSafeId(s.userId._id);
+                                            if (checkUserId.toString().trim() === currentUserIdStr.toString().trim()) {
+                                                return false; // Exclude current user
+                                            }
+                                            if (!s.lastReadMessageId || typeof s.lastReadMessageId !== 'object') return false;
+                                            const cursorMsgId = getSafeId(s.lastReadMessageId._id);
+                                            // Only show if cursor is exactly at this message
+                                            return cursorMsgId === messageId;
+                                        })
+                                        .map((s: MessageReadStatus) => s.userId.avatar || '')
+                                        .filter((a: string) => !!a);
 
                                 return (
                                     conversationDetail?.data &&

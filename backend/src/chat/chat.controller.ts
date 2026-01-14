@@ -1,16 +1,66 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Put } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { UserInfo } from '../../decorators/customize';
+import { ChatGateway } from './chat.gateway';
+import { ConversationService } from 'src/conversation/conversation.service';
 
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly chatGateway: ChatGateway,
+    private readonly conversationService: ConversationService
+  ) {}
 
   @Post('/messages')
   sendMessageByConversationId(@Body() createMessageDto: CreateMessageDto) {
     return this.chatService.sendMessage(createMessageDto);
+  }
+
+  @Put('/conversations/:id/read')
+  async markAsRead(
+    @Param('id') conversationId: string,
+    @UserInfo() user: any,
+    @Body() body?: { messageId?: string }
+  ) {
+    const userId = user._id.toString();
+    const result = await this.chatService.markAsRead(conversationId, userId, body?.messageId);
+
+    // Also reset unread count in ConversationService
+    await this.conversationService.resetUnreadCount(conversationId, userId);
+
+    // Helper to get user info (duplicated from Gateway, but necessary for event payload)
+    // Actually result from markAsRead now populates userId and lastReadMessageId, so we can use that.
+
+    // We need to format the payload to match what Gateway emits
+    const readerUser = result.readStatus
+      ? {
+          _id: (result.readStatus.userId as any)._id.toString(),
+          firstName: (result.readStatus.userId as any).firstName,
+          lastName: (result.readStatus.userId as any).lastName,
+          avatar: (result.readStatus.userId as any).avatar,
+        }
+      : null;
+
+    if (this.chatGateway.server) {
+      this.chatGateway.server.to(`room:${conversationId}`).emit('message:read:updated', {
+        conversationId: conversationId,
+        readBy: readerUser,
+        readByUserId: userId,
+        modifiedCount: result.modifiedCount,
+        lastReadMessageId: result.lastReadMessageId,
+        readStatus: result.readStatus,
+      });
+
+      this.chatGateway.server.to(`room:${conversationId}`).emit('conversation:unread:reset', {
+        conversationId: conversationId,
+        userId: userId,
+      });
+    }
+
+    return result;
   }
 
   @Get('/messages')

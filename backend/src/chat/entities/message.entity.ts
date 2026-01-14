@@ -102,8 +102,7 @@ export class Message {
   @Prop({ type: String, enum: MessageStatus, default: MessageStatus.SENT })
   status: MessageStatus;
 
-  @Prop({ type: [{ type: Types.ObjectId, ref: Account.name }], default: [] })
-  readBy: Types.ObjectId[]; // Danh sách user đã đọc
+
 
   @Prop({ type: Date, default: Date.now })
   createdAt: Date;

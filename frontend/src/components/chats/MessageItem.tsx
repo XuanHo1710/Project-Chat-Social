@@ -119,14 +119,12 @@ export default function MessageItem({
 
     // Render message status indicator (SENT, DELIVERED, READ) - Messenger style
     const renderMessageStatus = () => {
-        if (!isOwn || message.isDeleted || !isLastOwnMessage) return null;
+        if (!isOwn || message.isDeleted) return null;
 
-        const status = message.status || 'SENT';
-
-        // Show avatar of reader for READ status (đã xem)
-        if (status === 'READ' && otherAvatarsNotRead && otherAvatarsNotRead.length > 0) {
+        // Show avatar of reader (Facepile) - independent of status
+        if (otherAvatarsNotRead && otherAvatarsNotRead.length > 0) {
             return (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
                     {otherAvatarsNotRead.map((avatar, index) => (
                         <Avatar
                             src={avatar}
@@ -140,6 +138,11 @@ export default function MessageItem({
                 </Box>
             );
         }
+
+        // Text status only for the Last Own Message
+        if (!isLastOwnMessage) return null;
+
+        const status = message.status || 'SENT';
 
         // DELIVERED status - "Đã gửi"
         if (status === 'DELIVERED') {

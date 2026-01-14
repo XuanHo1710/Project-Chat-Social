@@ -45,7 +45,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly httpService: HttpService,
     private readonly firebaseService: FirebaseService,
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>
-  ) { }
+  ) {}
 
   private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
@@ -476,7 +476,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         participantId
       );
       if (isMuted) {
-        this.logger.log(`User ${participantId} has muted conversation ${data.conversationId}, skipping FCM`);
+        this.logger.log(
+          `User ${participantId} has muted conversation ${data.conversationId}, skipping FCM`
+        );
         continue;
       }
 
@@ -1185,18 +1187,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // Mark messages as read when user views conversation
   @SubscribeMessage('message:read')
-  async handleMarkAsRead(
-    @MessageBody() data: { conversationId: string },
-    @ConnectedSocket() client: Socket
-  ) {
+  async handleMarkAsRead(@MessageBody() rawData: any, @ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
     if (!userId) {
       return { success: false, error: 'User not authenticated' };
     }
 
+    // Parse data manually to ensure messageId is captured correctly
+    const data = {
+      conversationId: rawData?.conversationId || rawData?.[0]?.conversationId,
+      messageId: rawData?.messageId || rawData?.[0]?.messageId || undefined,
+    };
+
+    if (!data.conversationId) {
+      return { success: false, error: 'conversationId is required' };
+    }
+
     try {
-      // Mark messages as read
-      const result = await this.chatService.markAsRead(data.conversationId, userId);
+      // Mark messages as read (with optional messageId for cursor)
+      const result = await this.chatService.markAsRead(data.conversationId, userId, data.messageId);
 
       // Reset unread count for this user
       await this.conversationService.resetUnreadCount(data.conversationId, userId);
@@ -1207,19 +1216,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .select('firstName lastName _id avatar');
       const readByUser = readerUser
         ? {
-          _id: readerUser._id.toString(),
-          firstName: readerUser.firstName,
-          lastName: readerUser.lastName,
-          avatar: readerUser.avatar,
-        }
+            _id: readerUser._id.toString(),
+            firstName: readerUser.firstName,
+            lastName: readerUser.lastName,
+            avatar: readerUser.avatar,
+          }
         : null;
 
-      // Notify all users in conversation that messages have been read
-      this.server.to(`room:${data.conversationId}`).emit('message:read:updated', {
+      // CRITICAL: Only emit to OTHER users in the conversation, NOT to the user who updated their cursor
+      // This prevents the user from seeing their own read status in the UI
+      this.server.to(`room:${data.conversationId}`).except(client.id).emit('message:read:updated', {
         conversationId: data.conversationId,
         readBy: readByUser,
         readByUserId: userId, // Keep userId for backward compatibility
         modifiedCount: result.modifiedCount,
+        lastReadMessageId: result.lastReadMessageId, // New field for cursor Logic
+        readStatus: result.readStatus, // Full status object
       });
 
       // Also emit unread reset for conversation list update

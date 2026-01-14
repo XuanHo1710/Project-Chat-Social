@@ -4,6 +4,7 @@ import { ChatController } from './chat.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Conversation, ConversationSchema } from 'src/conversation/entities/conversation.entity';
 import { Message, MessageSchema } from 'src/chat/entities/message.entity';
+import { ConversationReadStatus, ConversationReadStatusSchema } from './entities/conversation-read-status.entity';
 import { ChatGateway } from 'src/chat/chat.gateway';
 import { AuthModule } from 'src/auth/auth.module';
 import { ConversationModule } from 'src/conversation/conversation.module';
@@ -19,6 +20,7 @@ import { FirebaseService } from 'src/firebase/firebase.service';
       { name: Conversation.name, schema: ConversationSchema },
       { name: Message.name, schema: MessageSchema },
       { name: Account.name, schema: AccountSchema },
+      { name: ConversationReadStatus.name, schema: ConversationReadStatusSchema },
     ]),
     AuthModule,
     ConversationModule,
@@ -29,4 +31,4 @@ import { FirebaseService } from 'src/firebase/firebase.service';
   controllers: [ChatController],
   providers: [ChatGateway, ChatService, FirebaseService],
 })
-export class ChatModule {}
+export class ChatModule { }

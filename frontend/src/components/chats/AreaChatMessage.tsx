@@ -144,8 +144,10 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
     // Generate gradient from theme color
     const getGradientBg = (color: string) => {
+        const isDark = theme.palette.mode === 'dark';
+        const endColor = isDark ? theme.palette.background.default : '#ffffff';
         // Darken the color slightly for gradient end
-        return `linear-gradient(180deg, ${color}15 0%, ${color}08 50%, #ffffff 100%)`;
+        return `linear-gradient(180deg, ${color}${isDark ? '20' : '15'} 0%, ${color}${isDark ? '10' : '08'} 50%, ${endColor} 100%)`;
     };
 
     // Get real-time online status - just read from store

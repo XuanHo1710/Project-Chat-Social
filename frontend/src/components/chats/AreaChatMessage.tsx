@@ -71,6 +71,7 @@ import data from '@emoji-mart/data';
 import { ConversationParticipant, ConversationResponseData } from "@/types/conversation";
 import { toast } from 'sonner';
 import { relationshipService } from "@/services/relationship.service";
+import { useCall } from "@/contexts/CallContext";
 
 interface SelectedConversation {
     _id: string;
@@ -97,6 +98,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     const [showInfo, setShowInfo] = useState(false);
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const { callUser, startGroupCall } = useCall();
 
     // Get conversation detail for theme
     const { data: conversationDetail } = useConversationDetail(selectedConversation._id);
@@ -1358,6 +1360,13 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         </IconButton>
                         <IconButton
                             size="small"
+                            onClick={() => {
+                                if (!isGroup) {
+                                    callUser(selectedConversation.otherId, selectedConversation._id);
+                                } else {
+                                    startGroupCall(selectedConversation._id);
+                                }
+                            }}
                             sx={{
                                 color: 'primary.main',
                                 bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',

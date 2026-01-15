@@ -23,8 +23,32 @@ import { firstValueFrom } from 'rxjs';
 import { Conversation } from 'src/conversation/entities/conversation.entity';
 import { FirebaseService } from 'src/firebase/firebase.service';
 
+interface CallPayload {
+  toUserId: string;
+  offer: any;
+  conversationId: string;
+}
+
+interface AnswerPayload {
+  toUserId: string;
+  answer: any;
+  conversationId: string;
+}
+
+interface IceCandidatePayload {
+  toUserId: string;
+  candidate: any;
+  conversationId: string;
+}
+
 // Map để lưu userId -> Set<socketId> (support multiple connections per user)
 const userSockets = new Map<string, Set<string>>();
+
+// Store pending calls for persistence on reload (recipientId -> CallData)
+const pendingCalls = new Map<string, { fromUserId: string; offer: any; conversationId: string; timestamp: number }>();
+
+// Map conversationId -> Set<userId> for active group calls
+const activeGroupCalls = new Map<string, Set<string>>();
 
 @WebSocketGateway({
   cors: {
@@ -45,7 +69,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly httpService: HttpService,
     private readonly firebaseService: FirebaseService,
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>
-  ) {}
+  ) { }
 
   private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
@@ -104,6 +128,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       conversations.forEach((conv) => {
         client.join(`room:${conv._id.toString()}`);
       });
+
+      // CHECK PENDING CALLS (Persistence)
+      // Check 1v1 pending calls
+      const pendingCall = pendingCalls.get(userId);
+      if (pendingCall) {
+        // Check expiry (e.g. 45 seconds)
+        if (Date.now() - pendingCall.timestamp < 45000) {
+          const callerProfile = await this.getSenderProfile(pendingCall.fromUserId);
+          client.emit('call:incoming', {
+            fromUserId: pendingCall.fromUserId,
+            callerName: callerProfile.name,
+            callerAvatar: callerProfile.avatar,
+            offer: pendingCall.offer,
+            conversationId: pendingCall.conversationId
+          });
+          this.logger.log(`Re-emitted pending call to ${userId}`);
+        } else {
+          pendingCalls.delete(userId);
+        }
+      }
+
+      // Check active group calls? Maybe notify if a group call is active in one of their rooms?
+      // (Optional - for now user sees it via UI "Join" button if we implement that, or Notification Persistence)
+
     } catch (error) {
       this.logger.error('Connection error:', error);
     }
@@ -158,6 +206,218 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     client.join(`room:${data.conversationId}`);
     return { success: true };
+  }
+
+  // ============ VIDEO CALL SIGNALING ============
+
+  @SubscribeMessage('call:start')
+  async handleCallStart(
+    @MessageBody() data: CallPayload,
+    @ConnectedSocket() client: Socket
+  ) {
+    const fromUserId = client.data.userId;
+    // Tìm socket của người nhận
+    const recipientSockets = userSockets.get(data.toUserId);
+
+    // Lấy thông tin người gọi
+    const callerProfile = await this.getSenderProfile(fromUserId);
+
+    // Save pending call for reliability/refresh
+    pendingCalls.set(data.toUserId, {
+      fromUserId,
+      offer: data.offer,
+      conversationId: data.conversationId,
+      timestamp: Date.now()
+    });
+
+    if (recipientSockets && recipientSockets.size > 0) {
+      recipientSockets.forEach(socketId => {
+        this.server.to(socketId).emit('call:incoming', {
+          fromUserId,
+          callerName: callerProfile.name,
+          callerAvatar: callerProfile.avatar,
+          offer: data.offer,
+          conversationId: data.conversationId
+        });
+      });
+      // Báo lại cho người gọi là đã đổ chuông
+      return { success: true };
+    } else {
+      // Người nhận offline, vẫn giữ pending call một lúcเผื่อ online lại
+      return { success: false, reason: 'User offline (Calling...)' };
+    }
+  }
+
+  @SubscribeMessage('call:answer')
+  async handleCallAnswer(
+    @MessageBody() data: AnswerPayload,
+    @ConnectedSocket() client: Socket
+  ) {
+    const fromUserId = client.data.userId; // Người nhận (Callee) trả lời
+
+    // Call accepted, remove pending
+    pendingCalls.delete(fromUserId);
+
+    // Gửi answer lại cho người gọi (Caller)
+    const callerSockets = userSockets.get(data.toUserId);
+    if (callerSockets) {
+      callerSockets.forEach(socketId => {
+        this.server.to(socketId).emit('call:accepted', {
+          fromUserId, // ID của người nhận
+          answer: data.answer
+        });
+      });
+    }
+  }
+
+  @SubscribeMessage('call:ice-candidate')
+  async handleIceCandidate(
+    @MessageBody() data: IceCandidatePayload,
+    @ConnectedSocket() client: Socket
+  ) {
+    const fromUserId = client.data.userId;
+
+    const targetSockets = userSockets.get(data.toUserId);
+    if (targetSockets) {
+      targetSockets.forEach(socketId => {
+        this.server.to(socketId).emit('call:ice-candidate', {
+          fromUserId,
+          candidate: data.candidate
+        });
+      });
+    }
+  }
+
+  @SubscribeMessage('call:end')
+  async handleCallEnd(
+    @MessageBody() data: { toUserId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const fromUserId = client.data.userId;
+    const targetSockets = userSockets.get(data.toUserId);
+
+    // Remove pending call if exists (either cancelled by caller or rejected by callee)
+    pendingCalls.delete(data.toUserId); // If caller cancels
+    pendingCalls.delete(fromUserId); // If callee rejects
+
+    if (targetSockets) {
+      targetSockets.forEach(socketId => {
+        this.server.to(socketId).emit('call:ended', { fromUserId });
+      });
+    }
+  }
+
+  // ============ GROUP VIDEO CALL ============
+  @SubscribeMessage('group-call:start')
+  async handleGroupCallStart(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    const conversation = await this.conversationService.findById(data.conversationId);
+    const callerProfile = await this.getSenderProfile(userId);
+
+    // Notify all participants in the group
+    conversation.participants.forEach(p => {
+      const pId = p.user._id.toString();
+      if (pId === userId) return; // Don't notify self
+
+      const sockets = userSockets.get(pId);
+      if (sockets) {
+        sockets.forEach(sId => {
+          this.server.to(sId).emit('group-call:incoming', {
+            conversationId: data.conversationId,
+            callerName: callerProfile.name,
+            callerAvatar: callerProfile.avatar,
+            fromUserId: userId,
+            isGroup: true
+          });
+        });
+      }
+    });
+  }
+
+  @SubscribeMessage('group-call:join')
+  async handleGroupCallJoin(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!activeGroupCalls.has(data.conversationId)) {
+      activeGroupCalls.set(data.conversationId, new Set());
+    }
+
+    const currentParticipants = activeGroupCalls.get(data.conversationId);
+
+    if (currentParticipants) {
+      // Notify existing participants that a new user joined
+      currentParticipants.forEach(pId => {
+        if (pId === userId) return;
+        const sockets = userSockets.get(pId);
+        if (sockets) {
+          sockets.forEach(sId => {
+            this.server.to(sId).emit('group-call:user-joined', { userId });
+          });
+        }
+      });
+
+      // Add current user
+      currentParticipants.add(userId);
+
+      // Return list of existing users to the joiner
+      // They will initiate P2P connections to these users
+      const participantsList = Array.from(currentParticipants).filter(id => id !== userId);
+      return { success: true, users: participantsList };
+    }
+
+    return { success: false, users: [] };
+  }
+
+  @SubscribeMessage('group-call:leave')
+  async handleGroupCallLeave(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (activeGroupCalls.has(data.conversationId)) {
+      const currentParticipants = activeGroupCalls.get(data.conversationId);
+
+      if (currentParticipants) {
+        currentParticipants.delete(userId);
+
+        // Notify others
+        currentParticipants.forEach(pId => {
+          const sockets = userSockets.get(pId);
+          if (sockets) {
+            sockets.forEach(sId => {
+              this.server.to(sId).emit('group-call:user-left', { userId });
+            });
+          }
+        });
+
+        if (currentParticipants.size === 0) {
+          activeGroupCalls.delete(data.conversationId);
+        }
+      }
+    }
+  }
+
+  @SubscribeMessage('call:signal')
+  async handleCallSignal(
+    @MessageBody() data: { toUserId: string; signal: any; conversationId: string }, // Generic signal (offer/answer/ice)
+    @ConnectedSocket() client: Socket
+  ) {
+    const fromUserId = client.data.userId;
+    const targetSockets = userSockets.get(data.toUserId);
+    if (targetSockets) {
+      targetSockets.forEach(sId => {
+        this.server.to(sId).emit('call:signal', {
+          fromUserId,
+          signal: data.signal,
+          conversationId: data.conversationId
+        });
+      });
+    }
   }
 
   // ============ ACTIVITY STATUS TOGGLE ============
@@ -1216,11 +1476,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .select('firstName lastName _id avatar');
       const readByUser = readerUser
         ? {
-            _id: readerUser._id.toString(),
-            firstName: readerUser.firstName,
-            lastName: readerUser.lastName,
-            avatar: readerUser.avatar,
-          }
+          _id: readerUser._id.toString(),
+          firstName: readerUser.firstName,
+          lastName: readerUser.lastName,
+          avatar: readerUser.avatar,
+        }
         : null;
 
       // CRITICAL: Only emit to OTHER users in the conversation, NOT to the user who updated their cursor

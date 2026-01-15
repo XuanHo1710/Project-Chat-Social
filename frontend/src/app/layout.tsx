@@ -10,6 +10,10 @@ import { MediaUploadProvider } from "@/contexts/MediaUploadContext";
 import { ThemeProvider } from "@/contexts/ThemeProvider";
 import FirebaseNotification from "@/components/FirebaseNotification";
 
+import "@/lib/polyfills"; // Import polyfills first
+import { CallProvider } from "@/contexts/CallContext";
+import CallOverlay from "@/components/call/CallOverlay";
+
 export const metadata: Metadata = {
   title: {
     default: "Social Chat - Mạng xã hội kết nối bạn bè",
@@ -72,15 +76,18 @@ export default function RootLayout({
             <AuthProvider>
               <FirebaseNotification />
               <SocketProvider>
-                <MediaUploadProvider>
-                  {children}
-                  <Toaster
-                    position="top-right"
-                    richColors
-                    closeButton
-                    duration={4000}
-                  />
-                </MediaUploadProvider>
+                <CallProvider>
+                  <CallOverlay />
+                  <MediaUploadProvider>
+                    {children}
+                    <Toaster
+                      position="top-right"
+                      richColors
+                      closeButton
+                      duration={4000}
+                    />
+                  </MediaUploadProvider>
+                </CallProvider>
               </SocketProvider>
             </AuthProvider>
           </ThemeProvider>

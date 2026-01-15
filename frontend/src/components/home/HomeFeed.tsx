@@ -22,6 +22,8 @@ import ImageViewer from '../posts/ImageViewer';
 import { deleteCloudinaryMedia } from '@/services/cloudinary.service';
 import PostItem from '@/components/posts/PostItem';
 import { getPrivacyIcon } from '@/utils/formatPost';
+import LiveStreamModal from '@/components/posts/LiveStreamModal';
+import LiveStreamViewerModal from '@/components/posts/LiveStreamViewerModal';
 import CommentContentModal from '@/components/posts/CommentContentModal';
 import ShareContentModal from '@/components/posts/ShareContentModal';
 import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
@@ -94,6 +96,10 @@ export default function HomeFeed() {
 
     // Emoji Picker
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+    // Livestream
+    const [openLiveStudio, setOpenLiveStudio] = useState(false);
+    const [viewingLivePost, setViewingLivePost] = useState<PostType | null>(null);
 
     // Highlight animation state (separate from URL so we can turn it off after timeout)
     const [showHighlightAnimation, setShowHighlightAnimation] = useState<string | null>(null);
@@ -408,6 +414,42 @@ export default function HomeFeed() {
 
     // Render media grid for post
     const renderPostMedia = (post: PostType) => {
+        // Handle Livestream Post
+        if (post.type === 'LIVESTREAM') {
+            const isLive = post.livestreamStatus === 'LIVE';
+            return (
+                <Box
+                    sx={{ mb: 2, position: 'relative', cursor: 'pointer', height: 400, bgcolor: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={() => {
+                        if (isLive) setViewingLivePost(post);
+                    }}
+                >
+                    {/* Placeholder for Live */}
+                    <Box sx={{ position: 'absolute', inset: 0, opacity: 0.6 }}>
+                        {/* Could use user avatar as background blurred */}
+                        <Box
+                            component="img"
+                            src={typeof post.userId !== 'string' ? post.userId?.avatar : ''}
+                            sx={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(20px)' }}
+                        />
+                    </Box>
+
+                    <Box sx={{ position: 'relative', textAlign: 'center', color: 'white' }}>
+                        {isLive ? (
+                            <>
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, bgcolor: 'red', px: 2, py: 0.5, borderRadius: 1, mb: 2 }}>
+                                    <Typography fontWeight="bold" variant="body2">TRỰC TIẾP</Typography>
+                                </Box>
+                                <Typography variant="h5" fontWeight="bold">Bấm để xem Live</Typography>
+                            </>
+                        ) : (
+                            <Typography variant="h6" color="gray">Live stream đã kết thúc</Typography>
+                        )}
+                    </Box>
+                </Box>
+            );
+        }
+
         if (!post.media || post.media.length === 0) return null;
 
         const mediaCount = post.media.length;
@@ -520,7 +562,7 @@ export default function HomeFeed() {
                     </Box>
                     <Divider sx={{ mb: 1 }} />
                     <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
-                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
+                        <Box onClick={() => setOpenLiveStudio(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
                             <VideoIcon sx={{ color: '#f3425f' }} />
                             <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Video trực tiếp</Typography>
                         </Box>
@@ -676,6 +718,21 @@ export default function HomeFeed() {
                     sharingPost={sharingPost}
                 />
             </Modal>
+
+            {/* Livestream Studio */}
+            <LiveStreamModal
+                open={openLiveStudio}
+                onClose={() => setOpenLiveStudio(false)}
+            />
+
+            {/* Livestream Viewer */}
+            {viewingLivePost && (
+                <LiveStreamViewerModal
+                    open={Boolean(viewingLivePost)}
+                    onClose={() => setViewingLivePost(null)}
+                    post={viewingLivePost}
+                />
+            )}
         </Box >
     );
 }

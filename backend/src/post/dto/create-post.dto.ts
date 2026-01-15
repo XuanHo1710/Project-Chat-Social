@@ -1,6 +1,6 @@
 import { IsArray, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { MediaType, PostPrivacy } from '../entities/post.entity';
+import { MediaType, PostPrivacy, PostType, LivestreamStatus } from '../entities/post.entity';
 
 export class MediaItemDto {
   @IsEnum(MediaType)
@@ -67,4 +67,12 @@ export class CreatePostDto {
 
   @IsOptional()
   allowReactions?: boolean;
+
+  @IsOptional()
+  @IsEnum(PostType)
+  type?: PostType;
+
+  @IsOptional()
+  @IsEnum(LivestreamStatus)
+  livestreamStatus?: LivestreamStatus;
 }

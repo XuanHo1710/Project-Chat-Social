@@ -16,6 +16,18 @@ export enum MediaType {
   VIDEO = 'VIDEO',
 }
 
+export enum PostType {
+  POST = 'POST',
+  LIVESTREAM = 'LIVESTREAM',
+  SHARE = 'SHARE',
+}
+
+export enum LivestreamStatus {
+  PREPARING = 'PREPARING',
+  LIVE = 'LIVE',
+  ENDED = 'ENDED',
+}
+
 export interface MediaItem {
   mediaType: MediaType;
   url: string;
@@ -31,6 +43,12 @@ export class Post {
 
   @Prop({ enum: PostPrivacy, default: PostPrivacy.PUBLIC })
   privacy: PostPrivacy;
+
+  @Prop({ enum: PostType, default: PostType.POST })
+  type: PostType;
+
+  @Prop({ enum: LivestreamStatus, default: null })
+  livestreamStatus: LivestreamStatus;
 
   @Prop()
   content: string;

@@ -40,6 +40,8 @@ export interface PostType {
   totalShares: number;
   isActive: boolean;
   isDeleted: boolean;
+  type?: 'POST' | 'LIVESTREAM' | 'SHARE';
+  livestreamStatus?: 'PREPARING' | 'LIVE' | 'ENDED';
   createdAt: string;
   updatedAt: string;
   // Top reactions for display (3 most recent types)
@@ -65,6 +67,8 @@ export interface CreatePostRequest {
   sharedPostId?: string | null;
   groupId?: string | null;
   isAnonymous?: boolean;
+  type?: 'POST' | 'LIVESTREAM' | 'SHARE';
+  livestreamStatus?: 'PREPARING' | 'LIVE' | 'ENDED';
 }
 
 export interface UpdatePostRequest {

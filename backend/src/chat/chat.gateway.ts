@@ -420,6 +420,76 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  // ============ LIVESTREAM SIGNALING ============
+  @SubscribeMessage('livestream:join')
+  async handleLivestreamJoin(
+    @MessageBody() data: { postId: string; broadcasterId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    client.join(`livestream:${data.postId}`);
+
+    // Notify broadcaster that a viewer joined
+    const broadcasterSockets = userSockets.get(data.broadcasterId);
+    if (broadcasterSockets) {
+      broadcasterSockets.forEach(sId => {
+        this.server.to(sId).emit('livestream:viewer-joined', {
+          viewerId: userId,
+          postId: data.postId
+        });
+      });
+    }
+  }
+
+  @SubscribeMessage('livestream:leave')
+  async handleLivestreamLeave(
+    @MessageBody() data: { postId: string; broadcasterId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    client.leave(`livestream:${data.postId}`);
+
+    const broadcasterSockets = userSockets.get(data.broadcasterId);
+    if (broadcasterSockets) {
+      broadcasterSockets.forEach(sId => {
+        this.server.to(sId).emit('livestream:viewer-left', {
+          viewerId: userId,
+          postId: data.postId
+        });
+      });
+    }
+  }
+
+  @SubscribeMessage('livestream:signal')
+  async handleLivestreamSignal(
+    @MessageBody() data: { toUserId: string; signal: any; postId: string }, // Generic P2P signal
+    @ConnectedSocket() client: Socket
+  ) {
+    const fromUserId = client.data.userId;
+    const targetSockets = userSockets.get(data.toUserId);
+
+    if (targetSockets) {
+      targetSockets.forEach(sId => {
+        this.server.to(sId).emit('livestream:signal', {
+          fromUserId,
+          signal: data.signal,
+          postId: data.postId
+        });
+      });
+    }
+  }
+
+  @SubscribeMessage('livestream:end')
+  async handleLivestreamEnd(
+    @MessageBody() data: { postId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    // Notify all viewers in the room
+    this.server.to(`livestream:${data.postId}`).emit('livestream:ended', { postId: data.postId });
+    // Clear room
+    this.server.in(`livestream:${data.postId}`).socketsLeave(`livestream:${data.postId}`);
+  }
+
   // ============ ACTIVITY STATUS TOGGLE ============
   @SubscribeMessage('activity:toggle')
   async handleActivityToggle(

@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
     Dialog,
-    DialogContent,
     Box,
     Typography,
     Button,
@@ -12,7 +11,11 @@ import {
     Avatar,
     useTheme,
     CircularProgress,
-    Chip
+    Chip,
+    InputAdornment,
+    Tooltip,
+    alpha,
+    Fade
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -20,207 +23,347 @@ import {
     Mic as MicIcon,
     MicOff as MicOffIcon,
     VideocamOff as VideocamOffIcon,
-    Settings as SettingsIcon,
-    Public as PublicIcon
+    Cameraswitch as SwitchIcon,
+    Public as PublicIcon,
+    ScreenShare as ScreenShareIcon,
+    Send as SendIcon,
+    Visibility as VisibilityIcon,
+    FiberManualRecord as LiveIcon,
+    AccessTime as TimeIcon
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { postService } from '@/services/post.service';
 import { useSocket } from '@/contexts/SocketContext';
 import SimplePeer, { Instance } from 'simple-peer';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
+import { uploadLivestreamVideo } from '@/services/api-video.service';
 
 interface LiveStreamModalProps {
     open: boolean;
     onClose: () => void;
 }
 
+interface LiveComment {
+    id: string;
+    userId: string;
+    userName: string;
+    userAvatar: string;
+    content: string;
+    createdAt: string;
+}
+
+interface FloatingReaction {
+    id: string;
+    emoji: string;
+    x: number;
+}
+
+const LIVE_REACTIONS = ['❤️', '👍', '😂', '😮', '😢', '🔥'];
+
 export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps) {
     const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const { user } = useAuthStore();
     const { socket } = useSocket();
 
+    // Styles
+    const bgPrimary = isDark ? '#18191a' : '#ffffff';
+    const bgSecondary = isDark ? '#242526' : '#f0f2f5';
+    const bgTertiary = isDark ? '#3a3b3c' : '#e4e6eb';
+    const textPrimary = theme.palette.text.primary;
+    const textSecondary = theme.palette.text.secondary;
+    const borderColor = isDark ? '#3e4042' : '#dddfe2';
+    const primaryColor = theme.palette.primary.main;
+    const errorColor = '#e41e3f';
+
+    // States
+    const [streamSource, setStreamSource] = useState<'camera' | 'screen' | null>(null);
     const [description, setDescription] = useState('');
     const [isLive, setIsLive] = useState(false);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [cameraError, setCameraError] = useState(false);
-
-    // Media Controls
+    const [isLoadingSource, setIsLoadingSource] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
-
-    // Live Data
     const [postId, setPostId] = useState<string | null>(null);
     const [viewers, setViewers] = useState<number>(0);
-    const [comments, setComments] = useState<any[]>([]); // To be implemented with live comments
+    const [comments, setComments] = useState<LiveComment[]>([]);
+    const [commentInput, setCommentInput] = useState('');
+    const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+    const [duration, setDuration] = useState(0);
+    const [isSavingVideo, setIsSavingVideo] = useState(false);
+    const [liveStreamId, setLiveStreamId] = useState<string>(''); // For api.video livestream container
 
     // Refs
     const videoRef = useRef<HTMLVideoElement>(null);
+    const commentsEndRef = useRef<HTMLDivElement>(null);
     const peersRef = useRef<Map<string, Instance>>(new Map());
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordedChunksRef = useRef<Blob[]>([]);
+    const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Start Camera Preview on Open
-    useEffect(() => {
-        if (open && !stream) {
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                .then((currentStream) => {
-                    setStream(currentStream);
-                    if (videoRef.current) {
-                        videoRef.current.srcObject = currentStream;
-                    }
-                    setCameraError(false);
-                })
-                .catch((err) => {
-                    console.error("Camera Error:", err);
-                    setCameraError(true);
-                    toast.error("Không thể truy cập Camera/Microphone");
-                });
+    // Format duration
+    const formatDuration = (seconds: number) => {
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        if (hrs > 0) {
+            return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
 
-        return () => {
-            // Cleanup if closed without going live (handled in handleClose)
-        };
-    }, [open]);
+    // Start Camera
+    const startCamera = useCallback(async () => {
+        setIsLoadingSource(true);
+        try {
+            const currentStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 1280, height: 720, facingMode: 'user' },
+                audio: true
+            });
+            setStream(currentStream);
+            if (videoRef.current) videoRef.current.srcObject = currentStream;
+            setStreamSource('camera');
+            setCameraError(false);
+        } catch (err) {
+            console.error("Camera Error:", err);
+            setCameraError(true);
+            toast.error("Không thể truy cập Camera");
+        } finally {
+            setIsLoadingSource(false);
+        }
+    }, []);
 
-    // Handle Stream Updates
+    // Start Screen Share
+    const startScreenShare = useCallback(async () => {
+        setIsLoadingSource(true);
+        try {
+            const displayStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { width: 1920, height: 1080 },
+                audio: true
+            });
+            let audioStream: MediaStream | null = null;
+            try {
+                audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (e) { /* no mic */ }
+
+            const combinedTracks = [
+                ...displayStream.getVideoTracks(),
+                ...(audioStream ? audioStream.getAudioTracks() : displayStream.getAudioTracks())
+            ];
+            const combinedStream = new MediaStream(combinedTracks);
+            setStream(combinedStream);
+            if (videoRef.current) videoRef.current.srcObject = combinedStream;
+            setStreamSource('screen');
+
+            displayStream.getVideoTracks()[0].onended = () => {
+                stopStream();
+                setStreamSource(null);
+                toast.info("Chia sẻ màn hình đã dừng");
+            };
+        } catch (err) {
+            console.error("Screen Share Error:", err);
+            toast.error("Không thể chia sẻ màn hình");
+        } finally {
+            setIsLoadingSource(false);
+        }
+    }, []);
+
+    const stopStream = useCallback(() => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            setStream(null);
+        }
+    }, [stream]);
+
+    // Start Recording
+    const startRecording = useCallback((mediaStream: MediaStream) => {
+        try {
+            recordedChunksRef.current = [];
+            const options = { mimeType: 'video/webm;codecs=vp9,opus' };
+            const recorder = new MediaRecorder(mediaStream, options);
+
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunksRef.current.push(event.data);
+                }
+            };
+
+            recorder.start(1000); // Record in 1s chunks
+            mediaRecorderRef.current = recorder;
+            console.log('Recording started');
+        } catch (err) {
+            console.error('Failed to start recording:', err);
+        }
+    }, []);
+
+    // Stop Recording & Save
+    const stopRecordingAndSave = useCallback(async (): Promise<{ url: string; publicId: string; duration: number } | null> => {
+        return new Promise((resolve) => {
+            const recorder = mediaRecorderRef.current;
+            if (!recorder || recorder.state === 'inactive') {
+                resolve(null);
+                return;
+            }
+
+            recorder.onstop = async () => {
+                try {
+                    const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+                    if (blob.size < 1000) {
+                        resolve(null);
+                        return;
+                    }
+
+                    const file = new File([blob], `livestream_${Date.now()}.webm`, { type: 'video/webm' });
+                    console.log('[Livestream] Uploading video...', file.size);
+
+                    // Use api.video or fallback to Cloudinary
+                    const uploadResult = await uploadLivestreamVideo(file, `Livestream ${new Date().toLocaleString()}`);
+                    if (uploadResult) {
+                        console.log('[Livestream] Upload success via:', uploadResult.provider);
+                        resolve({
+                            url: uploadResult.url,
+                            publicId: uploadResult.publicId,
+                            duration: duration
+                        });
+                    } else {
+                        resolve(null);
+                    }
+                } catch (err) {
+                    console.error('Failed to upload recording:', err);
+                    resolve(null);
+                }
+            };
+
+            recorder.stop();
+        });
+    }, [duration]);
+
     useEffect(() => {
         if (stream && videoRef.current) {
             videoRef.current.srcObject = stream;
         }
     }, [stream, open]);
 
-    // Handle Socket Events for Broadcasting
+    // Socket handlers
     useEffect(() => {
         if (!socket || !isLive || !postId) return;
 
-        const handleViewerJoined = (data: { viewerId: string }) => {
-            console.log('Viewer Joined:', data.viewerId);
-            setViewers(prev => prev + 1);
-            toast.info('Một người xem đã tham gia');
-
-            // Wait for Viewer to Offer? Or specific logic?
-            // In our design: Viewer initiates Offer to Broadcaster.
+        const handleViewerJoined = (data: { viewerId: string; postId: string }) => {
+            if (data.postId === postId) setViewers(prev => prev + 1);
         };
 
-        const handleViewerLeft = (data: { viewerId: string }) => {
-            console.log('Viewer Left:', data.viewerId);
-            setViewers(prev => Math.max(0, prev - 1));
-
-            // Cleanup Peer
-            if (peersRef.current.has(data.viewerId)) {
-                peersRef.current.get(data.viewerId)?.destroy();
-                peersRef.current.delete(data.viewerId);
+        const handleViewerLeft = (data: { viewerId: string; postId: string }) => {
+            if (data.postId === postId) {
+                setViewers(prev => Math.max(0, prev - 1));
+                if (peersRef.current.has(data.viewerId)) {
+                    peersRef.current.get(data.viewerId)?.destroy();
+                    peersRef.current.delete(data.viewerId);
+                }
             }
         };
 
-        const handleSignal = (data: { fromUserId: string; signal: any }) => {
+        const handleSignal = (data: { fromUserId: string; signal: any; postId: string }) => {
+            if (data.postId !== postId) return;
             const viewerId = data.fromUserId;
 
             if (peersRef.current.has(viewerId)) {
-                // Existing peer signal (answer/candidate - though usually viewer sends offer)
+                console.log('[Broadcaster] Signal with existing peer for viewer:', viewerId);
                 peersRef.current.get(viewerId)?.signal(data.signal);
-            } else {
-                // New Peer Connection (Viewer -> Broadcaster)
-                // Viewer sends Offer. Broadcaster (We) Answer.
-                if (!stream) return;
-
+            } else if (stream) {
+                console.log('[Broadcaster] Creating new peer for viewer:', viewerId);
                 const peer = new SimplePeer({
-                    initiator: false, // Viewer is initiator
+                    initiator: false,
                     trickle: true,
                     stream: stream,
-                    config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+                    config: {
+                        iceServers: [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun1.l.google.com:19302' }
+                        ]
+                    }
                 });
-
                 peer.on('signal', (signal) => {
-                    socket.emit('livestream:signal', {
-                        toUserId: viewerId,
-                        signal,
-                        postId
-                    });
+                    console.log('[Broadcaster] Sending signal to viewer:', viewerId);
+                    socket.emit('livestream:signal', { toUserId: viewerId, signal, postId });
                 });
-
-                peer.on('error', (err) => {
-                    console.error('Peer Error:', err);
+                peer.on('connect', () => {
+                    console.log('[Broadcaster] Connected with viewer:', viewerId);
                 });
-
+                peer.on('error', (err) => console.error('[Broadcaster] Peer Error:', err));
                 peer.on('close', () => {
+                    console.log('[Broadcaster] Connection closed with viewer:', viewerId);
                     peersRef.current.delete(viewerId);
                 });
-
                 peer.signal(data.signal);
                 peersRef.current.set(viewerId, peer);
+            } else {
+                console.warn('[Broadcaster] Received signal but no stream available yet');
+            }
+        };
+
+        const handleNewComment = (data: { postId: string; comment: LiveComment }) => {
+            if (data.postId === postId) {
+                setComments(prev => [...prev.slice(-100), data.comment]);
+            }
+        };
+
+        const handleNewReaction = (data: { postId: string; reaction: { id: string; emoji: string } }) => {
+            if (data.postId === postId) {
+                const newReaction: FloatingReaction = {
+                    id: data.reaction.id,
+                    emoji: data.reaction.emoji,
+                    x: Math.random() * 60 + 20
+                };
+                setFloatingReactions(prev => [...prev, newReaction]);
+                setTimeout(() => {
+                    setFloatingReactions(prev => prev.filter(r => r.id !== newReaction.id));
+                }, 3000);
             }
         };
 
         socket.on('livestream:viewer-joined', handleViewerJoined);
         socket.on('livestream:viewer-left', handleViewerLeft);
         socket.on('livestream:signal', handleSignal);
+        socket.on('livestream:comment:new', handleNewComment);
+        socket.on('livestream:reaction:new', handleNewReaction);
+        socket.emit('livestream:join', { postId, broadcasterId: user?.id });
 
         return () => {
             socket.off('livestream:viewer-joined', handleViewerJoined);
             socket.off('livestream:viewer-left', handleViewerLeft);
             socket.off('livestream:signal', handleSignal);
+            socket.off('livestream:comment:new', handleNewComment);
+            socket.off('livestream:reaction:new', handleNewReaction);
         };
-    }, [socket, isLive, postId, stream]);
+    }, [socket, isLive, postId, stream, user?.id]);
 
+    useEffect(() => {
+        commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [comments]);
 
-    const handleGoLive = async () => {
-        if (!description) {
-            toast.error("Vui lòng nhập mô tả cho buổi live");
-            return;
+    // Duration timer
+    useEffect(() => {
+        if (isLive) {
+            durationIntervalRef.current = setInterval(() => {
+                setDuration(prev => prev + 1);
+            }, 1000);
         }
-
-        try {
-            // Create Post
-            const res = await postService.createPost({
-                content: description,
-                type: 'LIVESTREAM',
-                livestreamStatus: 'LIVE',
-                privacy: 'PUBLIC',
-                userId: user?.id || "",
-            });
-
-            console.log('Live Post Created:', res);
-            setPostId(res.data._id);
-            setIsLive(true);
+        return () => {
+            if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+        };
+    }, [isLive]);
 
 
-            toast.success("Đang phát trực tiếp!");
-
-        } catch (error) {
-            console.error(error);
-            toast.error("Không thể bắt đầu Live");
-        }
-    };
-
-    const handleEndLive = async () => {
-        if (postId) {
-            socket?.emit('livestream:end', { postId });
-            // Update API to status ENDED
-            // await postService.updatePost(postId, { livestreamStatus: 'ENDED' }); 
-            // (assuming update endpoint supports this, or custom endpoint)
-        }
-
-        stopStream();
-        setIsLive(false);
-        setPostId(null);
-        peersRef.current.forEach(p => p.destroy());
-        peersRef.current.clear();
-        onClose();
-    };
-
-    const stopStream = () => {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            setStream(null);
-        }
-    };
 
     const handleClose = () => {
         if (isLive) {
-            if (confirm("Bạn có chắc muốn kết thúc Live stream?")) {
-                handleEndLive();
-            }
+            if (confirm("Kết thúc Live stream?")) handleEndLive();
         } else {
             stopStream();
+            setStreamSource(null);
+            setDescription('');
             onClose();
         }
     };
@@ -228,126 +371,547 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
     const toggleAudio = () => {
         if (stream) {
             stream.getAudioTracks().forEach(t => t.enabled = !t.enabled);
-            setIsMuted(!stream.getAudioTracks()[0].enabled);
+            setIsMuted(!stream.getAudioTracks()[0]?.enabled);
         }
     };
 
     const toggleVideo = () => {
         if (stream) {
             stream.getVideoTracks().forEach(t => t.enabled = !t.enabled);
-            setIsVideoOff(!stream.getVideoTracks()[0].enabled);
+            setIsVideoOff(!stream.getVideoTracks()[0]?.enabled);
+        }
+    };
+
+    const handleSendComment = () => {
+        if (!commentInput.trim() || !postId || !socket) return;
+        socket.emit('livestream:comment', { postId, content: commentInput.trim() });
+        setCommentInput('');
+    };
+
+    const handleSendReaction = (emoji: string) => {
+        if (!postId || !socket) return;
+        socket.emit('livestream:reaction', { postId, emoji });
+    };
+
+    const handleGoLive = async () => {
+        if (!stream) return;
+
+        try {
+            // 1. Create Post & Get Stream Keys (even if we don't use RTMP yet)
+            const res = await postService.startLivestream({
+                description: description || `Livestream của ${user?.fullName}`,
+                privacy: 'PUBLIC'
+            });
+            const { post, liveStreamId: streamId } = res.data;
+
+            setPostId(post._id);
+            setLiveStreamId(streamId);
+            setIsLive(true);
+            setDuration(0);
+
+            // 2. Start Recording (Fallback for VOD)
+            // Use camera stream for recording
+            if (stream) startRecording(stream);
+
+            // 3. Join socket room for P2P viewing
+            socket?.emit('livestream:join', { postId: post._id });
+
+            toast.success('Đang phát trực tiếp!');
+        } catch (error) {
+            console.error('Start live error:', error);
+            toast.error('Không thể bắt đầu livestream');
+        }
+    };
+
+    const handleEndLive = async () => {
+        if (!postId) {
+            handleClose();
+            return;
+        }
+
+        const currentPostId = postId;
+
+        // 1. Notify socket end
+        socket?.emit('livestream:end', { postId });
+
+        // 2. Capture Blob Promise
+        const recorder = mediaRecorderRef.current;
+        let blobPromise: Promise<Blob | null> = Promise.resolve(null);
+
+        if (recorder && recorder.state !== 'inactive') {
+            blobPromise = new Promise((resolve) => {
+                recorder.onstop = () => {
+                    const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+                    resolve(blob.size > 1000 ? blob : null);
+                };
+                recorder.stop();
+            });
+        }
+
+        // 3. Close UI Immediately & Cleanup
+        setIsLive(false);
+        stopStream();
+        setPostId(null);
+        setComments([]);
+        setDuration(0);
+        setIsSavingVideo(false);
+        // Clean peers
+        peersRef.current.forEach(p => p.destroy());
+        peersRef.current.clear();
+
+        onClose(); // Close dialog directly
+
+        toast.info("Livestream kết thúc. Video đang được xử lý ngầm...");
+
+        // 4. Background Process: Set Status ENDED & Upload Video
+        try {
+            // Mark ended first
+            await postService.endLivestream(currentPostId);
+
+            // Wait for blob and upload
+            const blob = await blobPromise;
+            if (blob) {
+                const file = new File([blob], `livestream_${Date.now()}.webm`, { type: 'video/webm' });
+
+                // Using existing upload service which tries api.video then Cloudinary
+                const uploadResult = await uploadLivestreamVideo(file, `Livestream ${new Date().toLocaleString()}`);
+
+                if (uploadResult) {
+                    await postService.updatePost(currentPostId, {
+                        livestreamStatus: 'ENDED',
+                        media: [{
+                            mediaType: 'VIDEO',
+                            url: uploadResult.url,
+                            publicId: uploadResult.publicId,
+                            duration: uploadResult.duration
+                        }]
+                    });
+                    toast.success("Video livestream đã được lưu xong!");
+                }
+            }
+        } catch (e) {
+            console.error("Background Task Error:", e);
         }
     };
 
     return (
-        <Dialog
-            open={open}
-            onClose={handleClose}
-            fullScreen
-            PaperProps={{
-                sx: {
-                    bgcolor: 'black',
-                    color: 'white'
-                }
-            }}
-        >
-            <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-
-                {/* Header (Overlay) */}
-                <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, p: 2, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        {isLive && <Chip label="TRỰC TIẾP" color="error" sx={{ fontWeight: 'bold' }} />}
-                        {isLive && <Chip label={`${viewers} người xem`} color="default" sx={{ bgcolor: 'rgba(0,0,0,0.5)', color: 'white' }} />}
-                    </Box>
-                    <IconButton onClick={handleClose} sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.1)' }}>
-                        <CloseIcon />
-                    </IconButton>
+        <Dialog open={open} onClose={handleClose} fullScreen PaperProps={{ sx: { bgcolor: bgPrimary } }}>
+            {/* Saving overlay */}
+            {isSavingVideo && (
+                <Box sx={{
+                    position: 'fixed',
+                    inset: 0,
+                    bgcolor: 'rgba(0,0,0,0.8)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                    flexDirection: 'column',
+                    gap: 2
+                }}>
+                    <CircularProgress sx={{ color: 'white' }} size={48} />
+                    <Typography sx={{ color: 'white', fontWeight: 500 }}>Đang lưu video...</Typography>
                 </Box>
+            )}
 
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: { xs: 'column', lg: 'row' } }}>
                 {/* Main Video Area */}
-                <Box sx={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#1a1a1a' }}>
-                    {!stream && !cameraError && <CircularProgress />}
-                    {cameraError && <Typography color="error">Không tìm thấy Camera</Typography>}
-                    <video
-                        ref={videoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        style={{ width: '100%', height: '100%', objectFit: 'contain' }} // Contain to see full video
-                    />
-                </Box>
+                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                    {/* Header */}
+                    <Box sx={{
+                        p: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderBottom: `1px solid ${borderColor}`,
+                        bgcolor: bgSecondary
+                    }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 700, color: textPrimary }}>
+                                {isLive ? '🔴 Đang phát trực tiếp' : 'Phát trực tiếp'}
+                            </Typography>
+                            {isLive && (
+                                <>
+                                    <Chip
+                                        icon={<TimeIcon sx={{ fontSize: 14, color: 'white !important' }} />}
+                                        label={formatDuration(duration)}
+                                        size="small"
+                                        sx={{ bgcolor: alpha(errorColor, 0.15), color: errorColor, fontWeight: 600 }}
+                                    />
+                                    <Chip
+                                        icon={<VisibilityIcon sx={{ fontSize: 14 }} />}
+                                        label={`${viewers} người xem`}
+                                        size="small"
+                                        sx={{ bgcolor: bgTertiary }}
+                                    />
+                                </>
+                            )}
+                        </Box>
+                        <IconButton onClick={handleClose} sx={{ color: textSecondary }}>
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
 
-                {/* Footer Controls */}
-                <Box sx={{ p: 3, bgcolor: '#242526' }}>
-                    {!isLive ? (
-                        // PRE-LIVE SETUP
-                        <Box sx={{ maxWidth: 600, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Avatar src={user?.avatar} sx={{ width: 50, height: 50 }} />
-                                <Box>
-                                    <Typography variant="h6">{user?.fullName}</Typography>
-                                    <Chip icon={<PublicIcon sx={{ fontSize: 16 }} />} label="Công khai" size="small" variant="outlined" sx={{ color: 'gray', borderColor: 'gray' }} />
+                    {/* Video Container */}
+                    <Box sx={{
+                        flex: 1,
+                        bgcolor: '#000',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        overflow: 'hidden'
+                    }}>
+                        {isLoadingSource && (
+                            <Box sx={{ textAlign: 'center' }}>
+                                <CircularProgress sx={{ color: 'white' }} />
+                                <Typography sx={{ mt: 2, color: 'gray' }}>Đang khởi tạo...</Typography>
+                            </Box>
+                        )}
+
+                        {cameraError && (
+                            <Box sx={{ textAlign: 'center' }}>
+                                <VideocamOffIcon sx={{ fontSize: 64, color: errorColor, mb: 2 }} />
+                                <Typography color="error">Không tìm thấy Camera</Typography>
+                            </Box>
+                        )}
+
+                        {/* Source Selection */}
+                        {!streamSource && !isLoadingSource && !cameraError && (
+                            <Box sx={{ textAlign: 'center', p: 4 }}>
+                                <Typography variant="h5" sx={{ mb: 4, color: 'white', fontWeight: 600 }}>
+                                    Chọn nguồn phát
+                                </Typography>
+                                <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
+                                    <Box
+                                        onClick={startCamera}
+                                        sx={{
+                                            p: 4,
+                                            borderRadius: 3,
+                                            bgcolor: alpha(primaryColor, 0.1),
+                                            border: `2px solid ${alpha(primaryColor, 0.3)}`,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.3s',
+                                            '&:hover': {
+                                                bgcolor: alpha(primaryColor, 0.2),
+                                                borderColor: primaryColor,
+                                                transform: 'translateY(-4px)'
+                                            }
+                                        }}
+                                    >
+                                        <VideocamIcon sx={{ fontSize: 48, color: primaryColor, mb: 1 }} />
+                                        <Typography sx={{ color: 'white', fontWeight: 600 }}>Camera</Typography>
+                                    </Box>
+                                    <Box
+                                        onClick={startScreenShare}
+                                        sx={{
+                                            p: 4,
+                                            borderRadius: 3,
+                                            bgcolor: alpha('#ec4899', 0.1),
+                                            border: `2px solid ${alpha('#ec4899', 0.3)}`,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.3s',
+                                            '&:hover': {
+                                                bgcolor: alpha('#ec4899', 0.2),
+                                                borderColor: '#ec4899',
+                                                transform: 'translateY(-4px)'
+                                            }
+                                        }}
+                                    >
+                                        <ScreenShareIcon sx={{ fontSize: 48, color: '#ec4899', mb: 1 }} />
+                                        <Typography sx={{ color: 'white', fontWeight: 600 }}>Màn hình</Typography>
+                                    </Box>
                                 </Box>
                             </Box>
+                        )}
 
-                            <TextField
-                                placeholder="Nhập mô tả cho video trực tiếp của bạn..."
-                                multiline
-                                rows={2}
-                                fullWidth
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                sx={{
-                                    bgcolor: 'rgba(255,255,255,0.05)',
-                                    borderRadius: 1,
-                                    input: { color: 'white' },
-                                    textarea: { color: 'white' }
-                                }}
-                            />
+                        {/* Video */}
+                        <video
+                            ref={videoRef}
+                            autoPlay
+                            muted
+                            playsInline
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: streamSource === 'screen' ? 'contain' : 'cover',
+                                display: stream ? 'block' : 'none',
+                                transform: streamSource === 'camera' ? 'scaleX(-1)' : 'none'
+                            }}
+                        />
 
-                            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-                                <IconButton onClick={toggleAudio} sx={{ bgcolor: isMuted ? 'error.main' : 'rgba(255,255,255,0.1)', color: 'white', p: 2 }}>
+                        {/* Floating Reactions */}
+                        <AnimatePresence>
+                            {floatingReactions.map(reaction => (
+                                <motion.div
+                                    key={reaction.id}
+                                    initial={{ bottom: '15%', left: `${reaction.x}%`, opacity: 1, scale: 1 }}
+                                    animate={{ bottom: '85%', opacity: 0, scale: 1.5 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 2.5, ease: 'easeOut' }}
+                                    style={{ position: 'absolute', fontSize: 32, pointerEvents: 'none', zIndex: 10 }}
+                                >
+                                    {reaction.emoji}
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+                    </Box>
+
+                    {/* Controls Footer */}
+                    <Box sx={{ p: 2, borderTop: `1px solid ${borderColor}`, bgcolor: bgSecondary }}>
+                        {!isLive ? (
+                            streamSource && (
+                                <Box sx={{ maxWidth: 500, mx: 'auto' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                                        <Avatar src={user?.avatar} sx={{ width: 44, height: 44 }} />
+                                        <Box>
+                                            <Typography sx={{ fontWeight: 600, color: textPrimary }}>{user?.fullName}</Typography>
+                                            <Chip
+                                                icon={<PublicIcon sx={{ fontSize: 14 }} />}
+                                                label="Công khai"
+                                                size="small"
+                                                sx={{ bgcolor: bgTertiary, height: 24, '& .MuiChip-label': { px: 1 } }}
+                                            />
+                                        </Box>
+                                    </Box>
+
+                                    <TextField
+                                        fullWidth
+                                        placeholder="Tiêu đề buổi live..."
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        sx={{
+                                            mb: 2,
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: 2,
+                                                bgcolor: bgTertiary
+                                            }
+                                        }}
+                                    />
+
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1.5, mb: 2 }}>
+                                        <Tooltip title={isMuted ? "Bật mic" : "Tắt mic"}>
+                                            <IconButton
+                                                onClick={toggleAudio}
+                                                sx={{
+                                                    bgcolor: isMuted ? errorColor : bgTertiary,
+                                                    color: isMuted ? 'white' : textPrimary,
+                                                    '&:hover': { bgcolor: isMuted ? alpha(errorColor, 0.8) : alpha(bgTertiary, 0.8) }
+                                                }}
+                                            >
+                                                {isMuted ? <MicOffIcon /> : <MicIcon />}
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title={isVideoOff ? "Bật camera" : "Tắt camera"}>
+                                            <IconButton
+                                                onClick={toggleVideo}
+                                                sx={{
+                                                    bgcolor: isVideoOff ? errorColor : bgTertiary,
+                                                    color: isVideoOff ? 'white' : textPrimary,
+                                                    '&:hover': { bgcolor: isVideoOff ? alpha(errorColor, 0.8) : alpha(bgTertiary, 0.8) }
+                                                }}
+                                            >
+                                                {isVideoOff ? <VideocamOffIcon /> : <VideocamIcon />}
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="Đổi nguồn">
+                                            {/* Old handlers removed */}
+                                            <IconButton
+                                                onClick={() => { stopStream(); setStreamSource(null); }}
+                                                sx={{ bgcolor: bgTertiary, color: textPrimary }}
+                                            >
+                                                <SwitchIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </Box>
+
+                                    <Button
+                                        fullWidth
+                                        variant="contained"
+                                        onClick={handleGoLive}
+                                        startIcon={<LiveIcon />}
+                                        sx={{
+                                            py: 1.5,
+                                            borderRadius: 2,
+                                            bgcolor: errorColor,
+                                            fontWeight: 700,
+                                            fontSize: 16,
+                                            '&:hover': { bgcolor: alpha(errorColor, 0.9) }
+                                        }}
+                                    >
+                                        Phát trực tiếp
+                                    </Button>
+                                </Box>
+                            )
+                        ) : (
+                            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1.5 }}>
+                                <Button
+                                    variant="contained"
+                                    onClick={handleEndLive}
+                                    sx={{
+                                        px: 4,
+                                        bgcolor: primaryColor,
+                                        fontWeight: 600,
+                                        '&:hover': { bgcolor: alpha(primaryColor, 0.9) }
+                                    }}
+                                >
+                                    Kết thúc Live
+                                </Button>
+                                <IconButton
+                                    onClick={toggleAudio}
+                                    sx={{ bgcolor: isMuted ? errorColor : bgTertiary, color: isMuted ? 'white' : textPrimary }}
+                                >
                                     {isMuted ? <MicOffIcon /> : <MicIcon />}
                                 </IconButton>
-                                <IconButton onClick={toggleVideo} sx={{ bgcolor: isVideoOff ? 'error.main' : 'rgba(255,255,255,0.1)', color: 'white', p: 2 }}>
+                                <IconButton
+                                    onClick={toggleVideo}
+                                    sx={{ bgcolor: isVideoOff ? errorColor : bgTertiary, color: isVideoOff ? 'white' : textPrimary }}
+                                >
                                     {isVideoOff ? <VideocamOffIcon /> : <VideocamIcon />}
                                 </IconButton>
-                                <IconButton sx={{ bgcolor: 'rgba(255,255,255,0.1)', color: 'white', p: 2 }}>
-                                    <SettingsIcon />
-                                </IconButton>
                             </Box>
-
-                            <Button
-                                variant="contained"
-                                color="error"
-                                size="large"
-                                onClick={handleGoLive}
-                                sx={{ py: 1.5, fontSize: 18, fontWeight: 'bold' }}
-                            >
-                                PHÁT TRỰC TIẾP
-                            </Button>
-                        </Box>
-                    ) : (
-                        // LIVE CONTROLS
-                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
-                            <Button
-                                variant="contained"
-                                color="error"
-                                onClick={handleEndLive}
-                                sx={{ px: 4 }}
-                            >
-                                KẾT THÚC
-                            </Button>
-                            <IconButton onClick={toggleAudio} sx={{ bgcolor: isMuted ? 'error.main' : 'rgba(255,255,255,0.1)', color: 'white' }}>
-                                {isMuted ? <MicOffIcon /> : <MicIcon />}
-                            </IconButton>
-                            <IconButton onClick={toggleVideo} sx={{ bgcolor: isVideoOff ? 'error.main' : 'rgba(255,255,255,0.1)', color: 'white' }}>
-                                {isVideoOff ? <VideocamOffIcon /> : <VideocamIcon />}
-                            </IconButton>
-                        </Box>
-                    )}
+                        )}
+                    </Box>
                 </Box>
 
+                {/* Comments Sidebar */}
+                {isLive && (
+                    <Box sx={{
+                        width: { xs: '100%', lg: 380 },
+                        height: { xs: '40%', lg: '100%' },
+                        borderLeft: { lg: `1px solid ${borderColor}` },
+                        borderTop: { xs: `1px solid ${borderColor}`, lg: 'none' },
+                        display: 'flex',
+                        flexDirection: 'column',
+                        bgcolor: bgPrimary
+                    }}>
+                        {/* Header */}
+                        <Box sx={{
+                            p: 2,
+                            borderBottom: `1px solid ${borderColor}`,
+                            bgcolor: bgSecondary,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                        }}>
+                            <Typography sx={{ fontWeight: 700, color: textPrimary, fontSize: 16 }}>
+                                💬 Bình luận trực tiếp
+                            </Typography>
+                            <Chip
+                                label={comments.length}
+                                size="small"
+                                sx={{ bgcolor: alpha(primaryColor, 0.15), color: primaryColor, fontWeight: 600 }}
+                            />
+                        </Box>
+
+                        {/* Comments List */}
+                        <Box sx={{
+                            flex: 1,
+                            overflowY: 'auto',
+                            p: 2,
+                            '&::-webkit-scrollbar': { width: 6 },
+                            '&::-webkit-scrollbar-thumb': { bgcolor: borderColor, borderRadius: 3 }
+                        }}>
+                            {comments.length === 0 ? (
+                                <Box sx={{ textAlign: 'center', py: 6 }}>
+                                    <Typography sx={{ fontSize: 48, mb: 2 }}>💬</Typography>
+                                    <Typography sx={{ color: textSecondary, fontWeight: 500 }}>
+                                        Chưa có bình luận
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: textSecondary, mt: 0.5 }}>
+                                        Hãy là người đầu tiên bình luận!
+                                    </Typography>
+                                </Box>
+                            ) : (
+                                <AnimatePresence>
+                                    {comments.map((comment) => (
+                                        <motion.div
+                                            key={comment.id}
+                                            initial={{ opacity: 0, x: 20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                        >
+                                            <Box sx={{ display: 'flex', gap: 1.5, mb: 2 }}>
+                                                <Avatar src={comment.userAvatar} sx={{ width: 32, height: 32 }} />
+                                                <Box sx={{
+                                                    flex: 1,
+                                                    bgcolor: bgSecondary,
+                                                    px: 2,
+                                                    py: 1.5,
+                                                    borderRadius: 3,
+                                                    borderTopLeftRadius: 4
+                                                }}>
+                                                    <Typography sx={{
+                                                        fontWeight: 600,
+                                                        color: primaryColor,
+                                                        fontSize: 13,
+                                                        mb: 0.25
+                                                    }}>
+                                                        {comment.userName}
+                                                    </Typography>
+                                                    <Typography sx={{ color: textPrimary, fontSize: 14, lineHeight: 1.4 }}>
+                                                        {comment.content}
+                                                    </Typography>
+                                                </Box>
+                                            </Box>
+                                        </motion.div>
+                                    ))}
+                                </AnimatePresence>
+                            )}
+                            <div ref={commentsEndRef} />
+                        </Box>
+
+                        {/* Reactions */}
+                        <Box sx={{
+                            px: 2,
+                            py: 1.5,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            gap: 0.5,
+                            borderTop: `1px solid ${borderColor}`,
+                            bgcolor: bgSecondary
+                        }}>
+                            {LIVE_REACTIONS.map((emoji) => (
+                                <IconButton
+                                    key={emoji}
+                                    onClick={() => handleSendReaction(emoji)}
+                                    sx={{
+                                        transition: 'transform 0.2s',
+                                        '&:hover': { transform: 'scale(1.3)', bgcolor: alpha(primaryColor, 0.1) }
+                                    }}
+                                >
+                                    <span style={{ fontSize: 22 }}>{emoji}</span>
+                                </IconButton>
+                            ))}
+                        </Box>
+
+                        {/* Comment Input */}
+                        <Box sx={{ p: 2, borderTop: `1px solid ${borderColor}`, bgcolor: bgSecondary }}>
+                            <TextField
+                                fullWidth
+                                size="small"
+                                placeholder="Viết bình luận..."
+                                value={commentInput}
+                                onChange={(e) => setCommentInput(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSendComment()}
+                                InputProps={{
+                                    endAdornment: (
+                                        <InputAdornment position="end">
+                                            <IconButton
+                                                onClick={handleSendComment}
+                                                disabled={!commentInput.trim()}
+                                                sx={{ color: commentInput.trim() ? primaryColor : textSecondary }}
+                                            >
+                                                <SendIcon />
+                                            </IconButton>
+                                        </InputAdornment>
+                                    ),
+                                    sx: { borderRadius: 5, bgcolor: bgTertiary }
+                                }}
+                            />
+                        </Box>
+                    </Box>
+                )}
             </Box>
         </Dialog>
     );

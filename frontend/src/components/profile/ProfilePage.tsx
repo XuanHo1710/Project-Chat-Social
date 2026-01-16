@@ -75,6 +75,7 @@ import ImageViewer from '@/components/posts/ImageViewer';
 import CommentContentModal from '@/components/posts/CommentContentModal';
 import ShareContentModal from '@/components/posts/ShareContentModal';
 import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
+import LiveStreamViewerModal from '@/components/posts/LiveStreamViewerModal';
 import Header from '@/components/home/Header';
 import { CLIENT_PATH } from '@/constants/paths';
 import { toast } from 'sonner';
@@ -173,6 +174,9 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     const [sharingPost, setSharingPost] = useState<PostType | null>(null);
     const [shareCaption, setShareCaption] = useState('');
     const sharePrivacy: PostPrivacy = 'PUBLIC'; // Initial privacy for share modal
+
+    // Livestream Viewer Modal
+    const [viewingLivePost, setViewingLivePost] = useState<PostType | null>(null);
 
 
     // Profile Settings Menu (3-dot menu)
@@ -426,6 +430,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     // Comment Modal handlers
     const handleOpenComments = (post: PostType) => {
+        // If it's a live stream, open the viewer instead of comments
+        if (post.type === 'LIVESTREAM' && post.livestreamStatus === 'LIVE') {
+            setViewingLivePost(post);
+            return;
+        }
         setCommentingPost(post);
         setOpenCommentModal(true);
     };
@@ -745,6 +754,138 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     // Render media grid for post
     const renderPostMedia = (post: PostType) => {
+        // Handle Livestream Post
+        if (post.type === 'LIVESTREAM') {
+            const isLive = post.livestreamStatus === 'LIVE';
+            const isEnded = post.livestreamStatus === 'ENDED';
+            const hasVideo = post.media && post.media.length > 0 && post.media[0].url;
+            const userAvatar = typeof post.userId !== 'string' ? post.userId?.avatar : '';
+
+            // If currently LIVE - show clickable card to watch
+            if (isLive) {
+                return (
+                    <Box
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingLivePost(post);
+                        }}
+                        sx={{
+                            mb: 2,
+                            position: 'relative',
+                            height: 260,
+                            bgcolor: isDark ? '#1c1e21' : '#e4e6eb',
+                            borderRadius: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
+                            cursor: 'pointer',
+                            transition: 'transform 0.2s',
+                            '&:hover': { transform: 'scale(1.01)' }
+                        }}
+                    >
+                        {/* Background */}
+                        {userAvatar && (
+                            <Box
+                                component="img"
+                                src={userAvatar}
+                                sx={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    filter: 'blur(30px) brightness(0.4)',
+                                    opacity: 0.8
+                                }}
+                            />
+                        )}
+                        <Box sx={{ position: 'relative', textAlign: 'center', zIndex: 1 }}>
+                            <Box sx={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                bgcolor: '#e41e3f',
+                                color: 'white',
+                                px: 2,
+                                py: 0.75,
+                                borderRadius: 1,
+                                mb: 2,
+                                fontWeight: 700
+                            }}>
+                                🔴 TRỰC TIẾP
+                            </Box>
+                            <Typography variant="h6" sx={{ color: 'white', fontWeight: 600, mb: 1 }}>
+                                Bấm để xem Live
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                                Đang phát trực tiếp
+                            </Typography>
+                        </Box>
+                    </Box>
+                );
+            }
+
+            // Ended with video
+            if (hasVideo) {
+                return (
+                    <Box sx={{ mb: 2, width: '100%', position: 'relative' }}>
+                        <video
+                            src={post.media[0].url}
+                            controls
+                            poster={userAvatar}
+                            style={{
+                                width: '100%',
+                                maxHeight: 500,
+                                objectFit: 'contain',
+                                borderRadius: 8
+                            }}
+                        />
+                        <Box sx={{
+                            position: 'absolute',
+                            top: 12,
+                            left: 12,
+                            bgcolor: 'rgba(0,0,0,0.7)',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1
+                        }}>
+                            <Typography sx={{ color: 'white', fontSize: 12, fontWeight: 600 }}>
+                                📺 Phát lại
+                            </Typography>
+                        </Box>
+                    </Box>
+                );
+            }
+
+            // Ended without video
+            return (
+                <Box
+                    sx={{
+                        mb: 2,
+                        position: 'relative',
+                        height: 220,
+                        bgcolor: isDark ? '#1c1e21' : '#e4e6eb',
+                        borderRadius: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden'
+                    }}
+                >
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <Typography sx={{ fontSize: 48, mb: 1 }}>📺</Typography>
+                        <Typography variant="body1" sx={{ color: textSecondary, fontWeight: 500 }}>
+                            Video trực tiếp đã kết thúc
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: textSecondary, mt: 0.5 }}>
+                            Video không được lưu
+                        </Typography>
+                    </Box>
+                </Box>
+            );
+        }
+
         if (!post.media || post.media.length === 0) return null;
 
         const mediaCount = post.media.length;
@@ -2402,6 +2543,15 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                         </Button>
                     </DialogActions>
                 </Dialog>
+
+                {/* Livestream Viewer Modal */}
+                {viewingLivePost && (
+                    <LiveStreamViewerModal
+                        open={Boolean(viewingLivePost)}
+                        onClose={() => setViewingLivePost(null)}
+                        post={viewingLivePost}
+                    />
+                )}
             </Box>
         </Box>
     );

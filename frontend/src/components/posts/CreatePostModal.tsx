@@ -251,7 +251,7 @@ export default function CreatePostModal({
                     boxShadow: 24,
                     display: "flex",
                     flexDirection: "column",
-                    position: "relative"
+                    position: "relative",
                 }}
             >
                 {/* Header */}
@@ -284,7 +284,8 @@ export default function CreatePostModal({
                 <Box
                     sx={{
                         flex: 1,
-                        overflow: "hidden",
+                        overflowY: "scroll",
+                        scrollbarWidth: "none",
                         position: 'relative'
                     }}
                 >

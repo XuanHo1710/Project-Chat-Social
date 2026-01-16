@@ -13,6 +13,8 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { RelationshipModule } from 'src/relationship/relationship.module';
 import { HttpModule } from '@nestjs/axios';
 import { FirebaseService } from 'src/firebase/firebase.service';
+import { CommentModule } from 'src/comment/comment.module';
+import { ReactionModule } from 'src/reaction/reaction.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { FirebaseService } from 'src/firebase/firebase.service';
     ConversationModule,
     CloudinaryModule,
     RelationshipModule,
+    CommentModule,
+    ReactionModule,
     HttpModule,
   ],
   controllers: [ChatController],

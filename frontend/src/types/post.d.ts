@@ -79,6 +79,8 @@ export interface UpdatePostRequest {
   allowComments?: boolean;
   allowShares?: boolean;
   allowReactions?: boolean;
+  type?: 'POST' | 'LIVESTREAM' | 'SHARE';
+  livestreamStatus?: 'PREPARING' | 'LIVE' | 'ENDED';
 }
 
 export interface PostPageResponse {

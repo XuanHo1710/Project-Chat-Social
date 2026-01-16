@@ -18,11 +18,24 @@ import { UserInfo } from 'decorators/customize';
 
 @Controller('post')
 export class PostController {
-  constructor(private readonly postService: PostService) {}
+  constructor(private readonly postService: PostService) { }
 
   @Post()
   create(@Body() createPostDto: CreatePostDto) {
     return this.postService.create(createPostDto);
+  }
+
+  @Post('livestream/start')
+  @UseGuards(JwtAuthGuard)
+  startLivestream(@Body() body: { description: string; privacy: string }, @UserInfo() user: any) {
+    // Cast privacy string to enum if needed, or service handles it if type matches
+    return this.postService.startLivestream(user._id, body.description, body.privacy as any);
+  }
+
+  @Post('livestream/end')
+  @UseGuards(JwtAuthGuard)
+  endLivestream(@Body() body: { postId: string }, @UserInfo() user: any) {
+    return this.postService.endLivestream(body.postId, user._id);
   }
 
   @Get()

@@ -6,10 +6,12 @@ import { MoreHoriz as MoreIcon, VideoCall as VideoIcon, Search as SearchIcon } f
 import { useDisplayListFriends } from '@/queries/useRelationshipQueries';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useOnlineStatusStore, formatLastActive } from '@/stores/useOnlineStatusStore';
+import { useRouter } from 'next/navigation';
 
 export default function RightSidebar() {
     const { user } = useAuthStore();
     const theme = useTheme();
+    const router = useRouter();
     const isDark = theme.palette.mode === 'dark';
     const { data: friends, isLoading: isLoadingFriends } = useDisplayListFriends(user?.id || "");
 
@@ -158,6 +160,7 @@ export default function RightSidebar() {
                                         bgcolor: hoverBg,
                                     },
                                 }}
+                                onClick={() => router.push(`/profile/${friend.username}`)}
                             >
                                 <Badge
                                     overlap="circular"

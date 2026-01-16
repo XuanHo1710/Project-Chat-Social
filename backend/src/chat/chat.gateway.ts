@@ -22,6 +22,9 @@ import { AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { Conversation } from 'src/conversation/entities/conversation.entity';
 import { FirebaseService } from 'src/firebase/firebase.service';
+import { CommentService } from 'src/comment/comment.service';
+import { ReactionService } from 'src/reaction/reaction.service';
+import { TypeFactor } from 'src/reaction/entities/reaction.entity';
 
 interface CallPayload {
   toUserId: string;
@@ -68,7 +71,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly relationshipService: RelationshipService,
     private readonly httpService: HttpService,
     private readonly firebaseService: FirebaseService,
-    @InjectModel(Account.name) private accountModel: Model<AccountDocument>
+    @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
+    private readonly commentService: CommentService,
+    private readonly reactionService: ReactionService
   ) { }
 
   private readonly aiServerUrl = 'http://localhost:8000/api/v1';
@@ -488,6 +493,116 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`livestream:${data.postId}`).emit('livestream:ended', { postId: data.postId });
     // Clear room
     this.server.in(`livestream:${data.postId}`).socketsLeave(`livestream:${data.postId}`);
+  }
+
+  // ============ LIVESTREAM COMMENTS & REACTIONS ============
+  @SubscribeMessage('livestream:comment')
+  async handleLivestreamComment(
+    @MessageBody() data: { postId: string; content: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      // 1. Save to database
+      const savedComment = await this.commentService.create({
+        content: data.content,
+        postId: data.postId
+      }, userId);
+
+      // 2. Prepare payload for socket
+      const userProfile = await this.getSenderProfile(userId);
+      const comment = {
+        id: savedComment._id.toString(), // Use DB ID
+        userId,
+        userName: userProfile.name,
+        userAvatar: userProfile.avatar,
+        content: data.content,
+        createdAt: savedComment.createdAt.toISOString(),
+      };
+
+      // 3. Broadcast to all viewers in livestream room
+      this.server.to(`livestream:${data.postId}`).emit('livestream:comment:new', {
+        postId: data.postId,
+        comment,
+      });
+
+      return { success: true, comment };
+    } catch (err) {
+      this.logger.error('Failed to send livestream comment', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  @SubscribeMessage('livestream:reaction')
+  async handleLivestreamReaction(
+    @MessageBody() data: { postId: string; emoji: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      // Map emoji to ReactionType
+      const emojiMap: Record<string, string> = {
+        '👍': 'LIKE',
+        '❤️': 'LOVE',
+        '😂': 'HAHA',
+        '😯': 'WOW',
+        '😢': 'SAD',
+        '😡': 'ANGRY'
+      };
+      const reactionType = emojiMap[data.emoji] || 'LIKE';
+
+      // 1. Save reaction to DB (toggle)
+      const result = await this.reactionService.toggleReaction({
+        type: reactionType as any,
+        factorId: data.postId,
+        typeFactor: TypeFactor.POST
+      }, userId);
+
+      // Only emit if added or moved (not removed) - though for livestream we might want to show flying hearts even if toggled off
+      // But standard logic is persistent state.
+      // For floating animations, we might want to emit anyway.
+
+      const reaction = {
+        id: `${Date.now()}`, // Floating reaction doesn't need persistent ID for animation
+        userId,
+        emoji: data.emoji,
+        createdAt: new Date().toISOString(),
+        action: result.action
+      };
+
+      // 2. Broadcast to all viewers in livestream room
+      this.server.to(`livestream:${data.postId}`).emit('livestream:reaction:new', {
+        postId: data.postId,
+        reaction,
+      });
+
+      return { success: true, reaction };
+    } catch (err) {
+      this.logger.error('Failed to send livestream reaction', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  @SubscribeMessage('livestream:viewer-count')
+  async handleLivestreamViewerCount(
+    @MessageBody() data: { postId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    try {
+      const room = this.server.sockets.adapter.rooms.get(`livestream:${data.postId}`);
+      const viewerCount = room ? room.size : 0;
+      return { success: true, viewerCount };
+    } catch (err) {
+      return { success: false, viewerCount: 0 };
+    }
   }
 
   // ============ ACTIVITY STATUS TOGGLE ============

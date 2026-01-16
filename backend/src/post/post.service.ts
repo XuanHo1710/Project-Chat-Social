@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { Post, PostDocument, PostPrivacy, MediaItem } from './entities/post.entity';
+import { Post, PostDocument, PostPrivacy, MediaItem, LivestreamStatus } from './entities/post.entity';
 import { HashtagService } from 'src/hashtag/hashtag.service';
 import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
@@ -13,6 +13,7 @@ import { HttpService } from '@nestjs/axios';
 import { AxiosResponse } from 'axios';
 import { AIResponse } from 'src/recommendation/types';
 import { firstValueFrom } from 'rxjs';
+import { ApiVideoService } from 'src/common/services/api-video.service';
 interface ReactInfo {
   isReact: boolean;
   type: string | null;
@@ -30,8 +31,9 @@ export class PostService {
     private hashtagService: HashtagService,
     private reactionService: ReactionService,
     private cloudinaryService: CloudinaryService,
-    private readonly httpService: HttpService
-  ) {}
+    private readonly httpService: HttpService,
+    private apiVideoService: ApiVideoService
+  ) { }
   private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
   async create(createPostDto: CreatePostDto): Promise<Post> {
@@ -85,6 +87,54 @@ export class PostService {
     }
 
     return savedPost;
+  }
+
+  // Adding the method properly after constructor update
+  async startLivestream(userId: string, description: string, privacy: PostPrivacy = PostPrivacy.PUBLIC): Promise<any> {
+    const liveStream = await this.apiVideoService.createLiveStream(description || `Livestream của ${userId}`);
+
+    // Create Post immediately
+    const newPost = new this.postModel({
+      userId: new Types.ObjectId(userId),
+      content: description,
+      type: 'LIVESTREAM',
+      livestreamStatus: 'LIVE',
+      privacy: privacy,
+      media: [{
+        mediaType: 'VIDEO',
+        url: liveStream.assets?.hls || '', // Use HLS URL if available
+        publicId: liveStream.liveStreamId,
+      }],
+      isActive: true,
+      // Default counters
+      totalReacts: 0,
+      totalComments: 0,
+      totalShares: 0
+    });
+
+    const savedPost = await newPost.save();
+
+    return {
+      post: savedPost,
+      streamKey: liveStream.streamKey, // IMPORTANT: Send this back to client for broadcasting
+      RMTPUrl: "rtmp://broadcast.api.video/s", // Standard entry point
+      liveStreamId: liveStream.liveStreamId,
+      hlsUrl: liveStream.assets?.hls
+    };
+  }
+
+  async endLivestream(postId: string, userId: string) {
+    const post = await this.postModel.findOne({ _id: postId, userId: new Types.ObjectId(userId) });
+    if (!post) throw new NotFoundException('Post not found');
+
+    // Update status to ENDED
+    post.livestreamStatus = LivestreamStatus.ENDED;
+
+    // We could optionally fetch the latest assets from api.video to get the recorded MP4 or verify HLS
+    // but for now, just marking as ENDED is enough. The HLS URL creates a VOD automatically.
+
+    await post.save();
+    return post;
   }
 
   async findAll(

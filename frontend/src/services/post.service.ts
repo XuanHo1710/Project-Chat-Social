@@ -156,6 +156,29 @@ class PostService {
     );
     return response.data.data;
   }
+
+  /**
+   * Start a new livestream
+   * Returns created post and stream details
+   */
+  async startLivestream(data: { description: string; privacy: string }) {
+    const response = await axios.post<APIResponse<{ post: PostType; streamKey: string; RMTPUrl: string; liveStreamId: string }>>(
+      `/${PREFIX}/livestream/start`,
+      data
+    );
+    return response.data;
+  }
+
+  /**
+   * End a livestream
+   */
+  async endLivestream(postId: string) {
+    const response = await axios.post<APIResponse<PostType>>(
+      `/${PREFIX}/livestream/end`,
+      { postId }
+    );
+    return response.data;
+  }
 }
 
 export const postService = new PostService();

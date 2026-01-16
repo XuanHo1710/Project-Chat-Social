@@ -1,7 +1,7 @@
 'use client';
 import {
     Box, Card, CardContent, Avatar, Typography, Divider,
-    Modal, Menu, Skeleton, CircularProgress, useTheme
+    Modal, Menu, Skeleton, CircularProgress, useTheme, Chip
 } from '@mui/material';
 import {
     VideoCall as VideoIcon,
@@ -417,33 +417,106 @@ export default function HomeFeed() {
         // Handle Livestream Post
         if (post.type === 'LIVESTREAM') {
             const isLive = post.livestreamStatus === 'LIVE';
+            const isEnded = post.livestreamStatus === 'ENDED';
+            const hasVideo = post.media && post.media.length > 0 && post.media[0].url;
+            const userAvatar = typeof post.userId !== 'string' ? post.userId?.avatar : '';
+
+            // If ended and has recorded video - show video player
+            if (isEnded && hasVideo) {
+                return (
+                    <Box sx={{ mb: 2, position: 'relative' }}>
+                        <video
+                            src={post.media[0].url}
+                            controls
+                            poster={userAvatar}
+                            style={{
+                                width: '100%',
+                                maxHeight: 500,
+                                objectFit: 'contain',
+                                borderRadius: 8
+                            }}
+                        />
+                        <Chip
+                            label="📺 Phát lại"
+                            size="small"
+                            sx={{
+                                position: 'absolute',
+                                top: 12,
+                                left: 12,
+                                bgcolor: 'rgba(0,0,0,0.7)',
+                                color: 'white',
+                                fontWeight: 600
+                            }}
+                        />
+                    </Box>
+                );
+            }
+
+            // Live or ended without video
             return (
                 <Box
-                    sx={{ mb: 2, position: 'relative', cursor: 'pointer', height: 400, bgcolor: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    sx={{
+                        mb: 2,
+                        position: 'relative',
+                        cursor: isLive ? 'pointer' : 'default',
+                        height: 260,
+                        bgcolor: isDark ? '#1c1e21' : '#e4e6eb',
+                        borderRadius: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden'
+                    }}
                     onClick={() => {
                         if (isLive) setViewingLivePost(post);
                     }}
                 >
-                    {/* Placeholder for Live */}
-                    <Box sx={{ position: 'absolute', inset: 0, opacity: 0.6 }}>
-                        {/* Could use user avatar as background blurred */}
+                    {userAvatar && (
                         <Box
                             component="img"
-                            src={typeof post.userId !== 'string' ? post.userId?.avatar : ''}
-                            sx={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(20px)' }}
+                            src={userAvatar}
+                            sx={{
+                                position: 'absolute',
+                                inset: 0,
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                filter: 'blur(30px) brightness(0.4)',
+                                opacity: 0.8
+                            }}
                         />
-                    </Box>
+                    )}
 
-                    <Box sx={{ position: 'relative', textAlign: 'center', color: 'white' }}>
+                    <Box sx={{ position: 'relative', textAlign: 'center', zIndex: 1 }}>
                         {isLive ? (
                             <>
-                                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, bgcolor: 'red', px: 2, py: 0.5, borderRadius: 1, mb: 2 }}>
-                                    <Typography fontWeight="bold" variant="body2">TRỰC TIẾP</Typography>
-                                </Box>
-                                <Typography variant="h5" fontWeight="bold">Bấm để xem Live</Typography>
+                                <Chip
+                                    label="🔴 TRỰC TIẾP"
+                                    sx={{
+                                        bgcolor: '#e41e3f',
+                                        color: 'white',
+                                        fontWeight: 700,
+                                        fontSize: 14,
+                                        mb: 2
+                                    }}
+                                />
+                                <Typography variant="h6" sx={{ color: 'white', fontWeight: 600, mb: 1 }}>
+                                    Bấm để xem Live
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                                    Đang phát trực tiếp
+                                </Typography>
                             </>
                         ) : (
-                            <Typography variant="h6" color="gray">Live stream đã kết thúc</Typography>
+                            <>
+                                <Typography sx={{ fontSize: 48, mb: 1 }}>📺</Typography>
+                                <Typography variant="body1" sx={{ color: textSecondary, fontWeight: 500 }}>
+                                    Video trực tiếp đã kết thúc
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: textSecondary, mt: 0.5 }}>
+                                    Video không được lưu
+                                </Typography>
+                            </>
                         )}
                     </Box>
                 </Box>
@@ -545,6 +618,7 @@ export default function HomeFeed() {
     const isDark = theme.palette.mode === 'dark';
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const textSecondary = isDark ? '#b0b3b8' : '#65676b';
 
     return (
         <Box sx={{ maxWidth: 680, mx: 'auto', py: 2, px: { xs: 1, sm: 2 } }}>

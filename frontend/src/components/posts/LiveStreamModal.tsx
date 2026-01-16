@@ -250,18 +250,9 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
     useEffect(() => {
         if (!socket || !isLive || !postId) return;
 
-        const handleViewerJoined = (data: { viewerId: string; postId: string }) => {
-            if (data.postId === postId) setViewers(prev => prev + 1);
-        };
-
-        const handleViewerLeft = (data: { viewerId: string; postId: string }) => {
-            if (data.postId === postId) {
-                setViewers(prev => Math.max(0, prev - 1));
-                if (peersRef.current.has(data.viewerId)) {
-                    peersRef.current.get(data.viewerId)?.destroy();
-                    peersRef.current.delete(data.viewerId);
-                }
-            }
+        const handleViewersUpdate = (data: { postId: string; count: number }) => {
+            console.log('[Broadcaster] Viewers update:', data.count);
+            if (String(data.postId) === String(postId)) setViewers(data.count);
         };
 
         const handleSignal = (data: { fromUserId: string; signal: any; postId: string }) => {
@@ -323,16 +314,17 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
             }
         };
 
-        socket.on('livestream:viewer-joined', handleViewerJoined);
-        socket.on('livestream:viewer-left', handleViewerLeft);
+        socket.on('livestream:viewers', handleViewersUpdate);
         socket.on('livestream:signal', handleSignal);
         socket.on('livestream:comment:new', handleNewComment);
         socket.on('livestream:reaction:new', handleNewReaction);
         socket.emit('livestream:join', { postId, broadcasterId: user?.id });
+        socket.emit('livestream:viewer-count', { postId }, (res: any) => {
+            if (res?.viewerCount !== undefined) setViewers(res.viewerCount);
+        });
 
         return () => {
-            socket.off('livestream:viewer-joined', handleViewerJoined);
-            socket.off('livestream:viewer-left', handleViewerLeft);
+            socket.off('livestream:viewers', handleViewersUpdate);
             socket.off('livestream:signal', handleSignal);
             socket.off('livestream:comment:new', handleNewComment);
             socket.off('livestream:reaction:new', handleNewReaction);
@@ -807,49 +799,47 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                         {/* Comments List */}
                         <Box sx={{
                             flex: 1,
-                            overflowY: 'auto',
+                            overflowY: 'hidden',
                             p: 2,
-                            '&::-webkit-scrollbar': { width: 6 },
-                            '&::-webkit-scrollbar-thumb': { bgcolor: borderColor, borderRadius: 3 }
+                            position: 'relative',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'flex-end',
+                            maskImage: 'linear-gradient(to bottom, transparent 0%, black 20%)',
+                            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20%)'
                         }}>
                             {comments.length === 0 ? (
-                                <Box sx={{ textAlign: 'center', py: 6 }}>
-                                    <Typography sx={{ fontSize: 48, mb: 2 }}>💬</Typography>
-                                    <Typography sx={{ color: textSecondary, fontWeight: 500 }}>
-                                        Chưa có bình luận
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ color: textSecondary, mt: 0.5 }}>
-                                        Hãy là người đầu tiên bình luận!
-                                    </Typography>
+                                <Box sx={{ textAlign: 'center', py: 4, opacity: 0.7 }}>
+                                    <Typography sx={{ fontSize: 32, mb: 1 }}>💬</Typography>
+                                    <Typography variant="body2" sx={{ color: textSecondary }}>Chưa có bình luận</Typography>
+                                    <Typography variant="caption" sx={{ color: textSecondary }}>Hãy bắt đầu trò chuyện với khán giả!</Typography>
                                 </Box>
                             ) : (
-                                <AnimatePresence>
-                                    {comments.map((comment) => (
+                                <AnimatePresence initial={false}>
+                                    {comments.slice(-15).map((comment) => (
                                         <motion.div
                                             key={comment.id}
-                                            initial={{ opacity: 0, x: 20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ duration: 0.2 }}
+                                            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.9 }}
+                                            transition={{ duration: 0.3, ease: 'easeOut' }}
+                                            layout
+                                            style={{ marginBottom: 12, originX: 0 }}
                                         >
-                                            <Box sx={{ display: 'flex', gap: 1.5, mb: 2 }}>
-                                                <Avatar src={comment.userAvatar} sx={{ width: 32, height: 32 }} />
+                                            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                                                <Avatar src={comment.userAvatar} sx={{ width: 32, height: 32, border: `1px solid ${borderColor}` }} />
                                                 <Box sx={{
-                                                    flex: 1,
                                                     bgcolor: bgSecondary,
-                                                    px: 2,
-                                                    py: 1.5,
-                                                    borderRadius: 3,
-                                                    borderTopLeftRadius: 4
+                                                    px: 2, py: 1,
+                                                    borderRadius: '18px',
+                                                    borderTopLeftRadius: 4,
+                                                    maxWidth: '85%',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                                                 }}>
-                                                    <Typography sx={{
-                                                        fontWeight: 600,
-                                                        color: primaryColor,
-                                                        fontSize: 13,
-                                                        mb: 0.25
-                                                    }}>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: textPrimary, fontSize: 13, mb: 0.2 }}>
                                                         {comment.userName}
                                                     </Typography>
-                                                    <Typography sx={{ color: textPrimary, fontSize: 14, lineHeight: 1.4 }}>
+                                                    <Typography variant="body2" sx={{ color: textPrimary, fontSize: 14, wordBreak: 'break-word' }}>
                                                         {comment.content}
                                                     </Typography>
                                                 </Box>
@@ -858,7 +848,6 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                                     ))}
                                 </AnimatePresence>
                             )}
-                            <div ref={commentsEndRef} />
                         </Box>
 
                         {/* Reactions */}

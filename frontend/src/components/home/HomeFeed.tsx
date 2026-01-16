@@ -489,24 +489,51 @@ export default function HomeFeed() {
 
                     <Box sx={{ position: 'relative', textAlign: 'center', zIndex: 1 }}>
                         {isLive ? (
-                            <>
-                                <Chip
-                                    label="🔴 TRỰC TIẾP"
-                                    sx={{
-                                        bgcolor: '#e41e3f',
-                                        color: 'white',
-                                        fontWeight: 700,
-                                        fontSize: 14,
-                                        mb: 2
-                                    }}
-                                />
-                                <Typography variant="h6" sx={{ color: 'white', fontWeight: 600, mb: 1 }}>
-                                    Bấm để xem Live
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <Box sx={{
+                                    position: 'relative',
+                                    mb: 2,
+                                    animation: 'pulse 1.5s infinite ease-in-out',
+                                    '@keyframes pulse': {
+                                        '0%': { transform: 'scale(1)' },
+                                        '50%': { transform: 'scale(1.05)' },
+                                        '100%': { transform: 'scale(1)' },
+                                    }
+                                }}>
+                                    <Chip
+                                        icon={<Box sx={{ width: 8, height: 8, bgcolor: 'white', borderRadius: '50%', ml: 0.5 }} />}
+                                        label="TRỰC TIẾP"
+                                        sx={{
+                                            bgcolor: '#e41e3f',
+                                            color: 'white',
+                                            fontWeight: 800,
+                                            fontSize: 14,
+                                            px: 1,
+                                            boxShadow: '0 0 15px rgba(228, 30, 63, 0.6)',
+                                            '& .MuiChip-label': { px: 1 }
+                                        }}
+                                    />
+                                </Box>
+                                <Typography variant="h5" sx={{ color: 'white', fontWeight: 700, mb: 1, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                                    {post.userId?.firstName + " " + post.userId?.lastName} đang phát trực tiếp
                                 </Typography>
-                                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-                                    Đang phát trực tiếp
-                                </Typography>
-                            </>
+                                <Box sx={{
+                                    mt: 1,
+                                    bgcolor: 'rgba(255,255,255,0.2)',
+                                    px: 2, py: 0.8,
+                                    borderRadius: 50,
+                                    backdropFilter: 'blur(10px)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    transition: 'all 0.2s',
+                                    '&:hover': { bgcolor: 'rgba(255,255,255,0.3)', transform: 'scale(1.05)' }
+                                }}>
+                                    <Typography sx={{ color: 'white', fontWeight: 600, fontSize: 13 }}>
+                                        Bấm để tham gia ngay ▶
+                                    </Typography>
+                                </Box>
+                            </Box>
                         ) : (
                             <>
                                 <Typography sx={{ fontSize: 48, mb: 1 }}>📺</Typography>

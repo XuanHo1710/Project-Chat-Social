@@ -434,16 +434,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const userId = client.data.userId;
     client.join(`livestream:${data.postId}`);
 
-    // Notify broadcaster that a viewer joined
-    const broadcasterSockets = userSockets.get(data.broadcasterId);
-    if (broadcasterSockets) {
-      broadcasterSockets.forEach(sId => {
-        this.server.to(sId).emit('livestream:viewer-joined', {
-          viewerId: userId,
-          postId: data.postId
-        });
-      });
-    }
+    // Broadcast viewer count to everyone in the room
+    const roomName = `livestream:${data.postId}`;
+    const viewerCount = this.server.sockets.adapter.rooms.get(roomName)?.size || 0;
+
+    this.server.to(roomName).emit('livestream:viewers', {
+      postId: data.postId,
+      count: viewerCount
+    });
   }
 
   @SubscribeMessage('livestream:leave')
@@ -454,15 +452,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const userId = client.data.userId;
     client.leave(`livestream:${data.postId}`);
 
-    const broadcasterSockets = userSockets.get(data.broadcasterId);
-    if (broadcasterSockets) {
-      broadcasterSockets.forEach(sId => {
-        this.server.to(sId).emit('livestream:viewer-left', {
-          viewerId: userId,
-          postId: data.postId
-        });
-      });
-    }
+    // Broadcast viewer count update
+    const roomName = `livestream:${data.postId}`;
+    const viewerCount = this.server.sockets.adapter.rooms.get(roomName)?.size || 0;
+
+    this.server.to(roomName).emit('livestream:viewers', {
+      postId: data.postId,
+      count: viewerCount
+    });
   }
 
   @SubscribeMessage('livestream:signal')
@@ -582,6 +579,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.to(`livestream:${data.postId}`).emit('livestream:reaction:new', {
         postId: data.postId,
         reaction,
+      });
+
+      // 3. Global broadcast for Feed reaction counters
+      this.server.emit('post:reaction:update', {
+        postId: data.postId,
+        action: result.action,
+        reactionType
       });
 
       return { success: true, reaction };

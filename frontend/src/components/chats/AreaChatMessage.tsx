@@ -652,10 +652,32 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     useEffect(() => {
         if (!socketChat) return;
 
-        const handleNewMessage = (msg: MessageResponse) => {
+        const handleNewMessage = (msg: MessageResponse & { _unreadCount?: Record<string, number> }) => {
             // IMPORTANT: Only add message if it belongs to current conversation
             if (msg.conversationId !== selectedConversation._id) {
                 return;
+            }
+
+            // CRITICAL: Update unread count immediately if provided in message payload
+            // This syncs the seen avatars logic with the new message arrival
+            if (msg._unreadCount) {
+                const newUnreadCount = msg._unreadCount;
+                setStableUnreadCount(newUnreadCount);
+
+                // Also update query cache for conversation detail
+                queryClient.setQueryData<{ data: ConversationResponseData }>(
+                    [QUERY_KEYS.CONVERSATION_BY_USER, "detail", selectedConversation._id],
+                    (oldData) => {
+                        if (!oldData?.data) return oldData;
+                        return {
+                            ...oldData,
+                            data: {
+                                ...oldData.data,
+                                unreadCount: newUnreadCount
+                            }
+                        };
+                    }
+                );
             }
 
             // Clear this message from pending cache since we're handling it here
@@ -753,6 +775,54 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         socketChat.on("conversation:kicked", handleConversationUpdate);
         socketChat.on("conversation:admin:updated", handleConversationUpdate);
         socketChat.on("conversation:settings:updated", handleConversationUpdate);
+
+        // Handle unread count updates (from backend increment/reset)
+        // Handle unread count updates (from backend increment/reset)
+        const handleUnreadUpdate = (data: { conversationId: string; unreadCount: Record<string, number> }) => {
+            // Validate data
+            if (!data?.conversationId || !data?.unreadCount || typeof data.unreadCount !== 'object') return;
+
+            // 1. Always update global conversation list cache (for sidebar unread badges)
+            // This ensures the left sidebar updates immediately when unread counts change
+            queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                [QUERY_KEYS.CONVERSATION_BY_USER, userId],
+                (oldData) => {
+                    if (!oldData?.data) return oldData;
+                    return {
+                        ...oldData,
+                        data: oldData.data.map(conv => {
+                            if (conv._id === data.conversationId) {
+                                return { ...conv, unreadCount: data.unreadCount };
+                            }
+                            return conv;
+                        })
+                    };
+                }
+            );
+
+            // 2. If this is the active conversation, update local state + detail cache
+            // This ensures the main chat area (and seen avatars) updates immediately
+            if (data.conversationId === selectedConversation._id) {
+                setStableUnreadCount(data.unreadCount);
+
+                queryClient.setQueryData<{ data: ConversationResponseData }>(
+                    [QUERY_KEYS.CONVERSATION_BY_USER, "detail", selectedConversation._id],
+                    (oldData) => {
+                        if (!oldData?.data) return oldData;
+                        return {
+                            ...oldData,
+                            data: {
+                                ...oldData.data,
+                                unreadCount: data.unreadCount
+                            }
+                        };
+                    }
+                );
+            }
+        };
+
+        socketChat.on("conversation:unread:updated", handleUnreadUpdate);
+        socketChat.on("conversation:unread:reset", handleUnreadUpdate);
 
         // Handle message read updates
         const handleMessageReadUpdate = (data: {
@@ -897,98 +967,6 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
         socketChat.on("message:read:updated", handleMessageReadUpdate);
 
-        // Handle unread count updates - OPTIMISTIC UPDATE in local cache
-        const handleUnreadUpdate = (data?: { conversationId?: string; unreadCount?: Record<string, number> }) => {
-            // If it's a reset for current user viewing this conversation, update cache immediately
-            // CRITICAL: Only update if unreadCount is defined and is an object
-            if (data?.conversationId && data?.unreadCount && typeof data.unreadCount === 'object' && conversation) {
-                // Update conversation list cache
-                queryClient.setQueryData<{ data: ConversationResponseData[] }>(
-                    [QUERY_KEYS.CONVERSATION_BY_USER, userId],
-                    (oldData) => {
-                        if (!oldData?.data) return oldData;
-                        return {
-                            ...oldData,
-                            data: oldData.data.map(conv => {
-                                if (conv._id === data.conversationId) {
-                                    return {
-                                        ...conv,
-                                        unreadCount: data.unreadCount
-                                    };
-                                }
-                                return conv;
-                            })
-                        };
-                    }
-                );
-
-                // ALSO update conversation detail cache (used by useConversationDetail)
-                queryClient.setQueryData<{ data: ConversationResponseData }>(
-                    [QUERY_KEYS.CONVERSATION_BY_USER, "detail", data.conversationId],
-                    (oldData) => {
-                        if (!oldData?.data) return oldData;
-                        return {
-                            ...oldData,
-                            data: {
-                                ...oldData.data,
-                                unreadCount: data.unreadCount
-                            }
-                        };
-                    }
-                );
-
-                // Update local conversation object as well
-                conversation.unreadCount = data.unreadCount;
-            }
-        };
-
-        // Handle unread increment when someone sends a message
-        const handleUnreadIncrement = (data?: { conversationId?: string; unreadCount?: Record<string, number> }) => {
-            // Both update increatement unreadcount for users to handle seen chat
-            // CRITICAL: Only update if unreadCount is defined and is an object
-            if (data?.conversationId && data?.unreadCount && typeof data.unreadCount === 'object' && conversation) {
-                // Update conversation list cache
-                queryClient.setQueryData<{ data: ConversationResponseData[] }>(
-                    [QUERY_KEYS.CONVERSATION_BY_USER, userId],
-                    (oldData) => {
-                        if (!oldData?.data) return oldData;
-                        return {
-                            ...oldData,
-                            data: oldData.data.map(conv => {
-                                if (conv._id === data.conversationId) {
-                                    return {
-                                        ...conv,
-                                        unreadCount: data.unreadCount
-                                    };
-                                }
-                                return conv;
-                            })
-                        };
-                    }
-                );
-
-                // ALSO update conversation detail cache (used by useConversationDetail)
-                queryClient.setQueryData<{ data: ConversationResponseData }>(
-                    [QUERY_KEYS.CONVERSATION_BY_USER, "detail", data.conversationId],
-                    (oldData) => {
-                        if (!oldData?.data) return oldData;
-                        return {
-                            ...oldData,
-                            data: {
-                                ...oldData.data,
-                                unreadCount: data.unreadCount
-                            }
-                        };
-                    }
-                );
-
-                // Update local conversation object as well
-                conversation.unreadCount = data.unreadCount;
-            }
-        };
-
-        socketChat.on("conversation:unread:updated", handleUnreadIncrement);
-        socketChat.on("conversation:unread:reset", handleUnreadUpdate);
 
         return () => {
             socketChat.off("message:new", handleNewMessage);
@@ -1008,7 +986,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             socketChat.off("conversation:admin:updated", handleConversationUpdate);
             socketChat.off("conversation:settings:updated", handleConversationUpdate);
             socketChat.off("message:read:updated", handleMessageReadUpdate);
-            socketChat.off("conversation:unread:updated", handleUnreadIncrement);
+            socketChat.off("conversation:unread:updated", handleUnreadUpdate);
             socketChat.off("conversation:unread:reset", handleUnreadUpdate);
         };
     }, [socketChat, selectedConversation._id, queryClient, updateMessageInCache, userId, conversation]);

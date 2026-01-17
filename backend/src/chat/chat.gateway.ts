@@ -869,13 +869,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Chỉ emit message cho những participants chưa bị kick/left
     const activeParticipants = conversation.participants.filter((p) => !p.kickedAt && !p.leftAt);
 
+    // CRITICAL: Increment unread count BEFORE emitting message:new
+    // This ensures frontend receives message AND updated unreadCount simultaneously
+    const updatedUnreadCount = await this.conversationService.incrementUnreadCount(
+      data.conversationId.toString(),
+      userId
+    );
+
+    // Include unreadCount in message:new payload for synchronized update
+    const messageWithUnread = {
+      ...messageToEmit,
+      _unreadCount: updatedUnreadCount?.unreadCount, // Prefixed with _ to indicate metadata
+    };
+
     activeParticipants.forEach((participant) => {
       const participantId = participant.user._id.toString();
       const participantSockets = userSockets.get(participantId);
 
       if (participantSockets && participantSockets.size > 0) {
         participantSockets.forEach((socketId) => {
-          this.server.to(socketId).emit('message:new', messageToEmit);
+          this.server.to(socketId).emit('message:new', messageWithUnread);
         });
       }
     });
@@ -885,13 +898,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       savedMessage._id.toString()
     );
 
-    // Increment unread count for active participants except sender
-    const updatedUnreadCount = await this.conversationService.incrementUnreadCount(
-      data.conversationId.toString(),
-      userId
-    );
-
-    // Emit unread update chỉ cho active participants
+    // Also emit conversation:unread:updated for backward compatibility with conversation list
     activeParticipants.forEach((participant) => {
       const participantId = participant.user._id.toString();
       const participantSockets = userSockets.get(participantId);

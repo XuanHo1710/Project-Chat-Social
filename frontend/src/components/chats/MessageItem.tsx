@@ -33,7 +33,7 @@ import { Socket } from 'socket.io-client';
 import { handleDownload } from '@/utils/formatFile';
 import PostShareMessage from "@/components/chat/PostShareMessage";
 import EmotionListDialog from "@/components/chats/EmotionListDialog";
-import { ConversationResponseData } from "@/types/conversation";
+import { ConversationParticipantUser, ConversationResponseData } from "@/types/conversation";
 import { renderContentWithMentions } from "@/utils/hashtagParser";
 import TypewriterText from "@/components/chats/TypewriterText";
 
@@ -49,7 +49,6 @@ const EMOTIONS: { type: EmotionType; emoji: string; label: string }[] = [
 interface MessageItemProps {
     message: MessageResponse;
     isOwn: boolean;
-    showAvatar: boolean;
     avatar: string;
     conversation: ConversationResponseData;
     socket: Socket | null;
@@ -57,13 +56,12 @@ interface MessageItemProps {
     onReply?: (message: MessageResponse) => void;
     themeColor?: string;
     isLastOwnMessage?: boolean;
-    otherAvatarsNotRead?: string[];
+    otherAvatarsNotRead: Array<{ user: ConversationParticipantUser, userId: string, seenIndex: number }> | [];
 }
 
 export default function MessageItem({
     message,
     isOwn,
-    showAvatar,
     avatar,
     conversation,
     socket,
@@ -125,9 +123,9 @@ export default function MessageItem({
         if (otherAvatarsNotRead && otherAvatarsNotRead.length > 0) {
             return (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                    {otherAvatarsNotRead.map((avatar, index) => (
+                    {otherAvatarsNotRead.map((data, index) => (
                         <Avatar
-                            src={avatar}
+                            src={data?.user.avatar || ''}
                             key={index}
                             sx={{
                                 width: 14,
@@ -681,7 +679,7 @@ export default function MessageItem({
                     {!isOwn && (
                         <Avatar
                             src={avatar}
-                            sx={{ width: 28, height: 28, visibility: showAvatar ? "visible" : "hidden", mb: 0.5 }}
+                            sx={{ width: 28, height: 28, visibility: "visible", mb: 0.5 }}
                         />
                     )}
 
@@ -852,7 +850,7 @@ export default function MessageItem({
 
 
                 {/* Message Status Indicator - only show on last own message */}
-                {isOwn && isLastOwnMessage && (
+                {isOwn && (
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 2, mt: 0.3 }}>
                         {renderMessageStatus()}
                     </Box>
@@ -950,7 +948,7 @@ export default function MessageItem({
                     {!isOwn && (
                         <Avatar
                             src={avatar}
-                            sx={{ width: 28, height: 28, visibility: showAvatar ? "visible" : "hidden", mb: 0.5 }}
+                            sx={{ width: 28, height: 28, visibility: "visible", mb: 0.5 }}
                         />
                     )}
                     <Box
@@ -1010,7 +1008,7 @@ export default function MessageItem({
                     {!isOwn && (
                         <Avatar
                             src={avatar}
-                            sx={{ width: 28, height: 28, visibility: showAvatar ? "visible" : "hidden", mb: 0.5 }}
+                            sx={{ width: 28, height: 28, visibility: "visible", mb: 0.5 }}
                         />
                     )}
 
@@ -1176,7 +1174,7 @@ export default function MessageItem({
                 </Box>
 
                 {/* Message Status Indicator - only show on last own message */}
-                {isOwn && isLastOwnMessage && (
+                {isOwn && (
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 2, mt: 0.3 }}>
                         {renderMessageStatus()}
                     </Box>

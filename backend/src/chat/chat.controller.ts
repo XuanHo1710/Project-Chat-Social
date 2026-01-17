@@ -12,7 +12,7 @@ export class ChatController {
     private readonly chatService: ChatService,
     private readonly chatGateway: ChatGateway,
     private readonly conversationService: ConversationService
-  ) {}
+  ) { }
 
   @Post('/messages')
   sendMessageByConversationId(@Body() createMessageDto: CreateMessageDto) {
@@ -29,7 +29,7 @@ export class ChatController {
     const result = await this.chatService.markAsRead(conversationId, userId, body?.messageId);
 
     // Also reset unread count in ConversationService
-    await this.conversationService.resetUnreadCount(conversationId, userId);
+    const conversationUpdated = await this.conversationService.resetUnreadCount(conversationId, userId);
 
     // Helper to get user info (duplicated from Gateway, but necessary for event payload)
     // Actually result from markAsRead now populates userId and lastReadMessageId, so we can use that.
@@ -37,11 +37,11 @@ export class ChatController {
     // We need to format the payload to match what Gateway emits
     const readerUser = result.readStatus
       ? {
-          _id: (result.readStatus.userId as any)._id.toString(),
-          firstName: (result.readStatus.userId as any).firstName,
-          lastName: (result.readStatus.userId as any).lastName,
-          avatar: (result.readStatus.userId as any).avatar,
-        }
+        _id: (result.readStatus.userId as any)._id.toString(),
+        firstName: (result.readStatus.userId as any).firstName,
+        lastName: (result.readStatus.userId as any).lastName,
+        avatar: (result.readStatus.userId as any).avatar,
+      }
       : null;
 
     if (this.chatGateway.server) {
@@ -56,7 +56,7 @@ export class ChatController {
 
       this.chatGateway.server.to(`room:${conversationId}`).emit('conversation:unread:reset', {
         conversationId: conversationId,
-        userId: userId,
+        unreadCount: conversationUpdated.unreadCount,
       });
     }
 

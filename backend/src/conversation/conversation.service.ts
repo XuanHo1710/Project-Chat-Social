@@ -19,7 +19,7 @@ export class ConversationService {
     @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
     @Inject(forwardRef(() => RelationshipService))
     private readonly relationshipService: RelationshipService
-  ) {}
+  ) { }
 
   async create(createConversationDto: CreateConversationDto) {
     const converstation = await this.conversationModel.create(createConversationDto);
@@ -109,15 +109,30 @@ export class ConversationService {
       }
     }
 
+    // Đảm bảo unreadCount luôn là object với giá trị cho mỗi participant
+    let unreadCountObj: Record<string, number> = {};
+    if (conv.unreadCount) {
+      if (conv.unreadCount instanceof Map) {
+        unreadCountObj = Object.fromEntries(conv.unreadCount);
+      } else if (typeof conv.unreadCount === 'object') {
+        unreadCountObj = conv.unreadCount as Record<string, number>;
+      }
+    }
+
+    // Đảm bảo mỗi participant đều có entry trong unreadCount (mặc định = 0)
+    transformedParticipants.forEach((p: any) => {
+      const participantId = p.user._id.toString();
+      if (typeof unreadCountObj[participantId] !== 'number') {
+        unreadCountObj[participantId] = 0;
+      }
+    });
+
     return {
       ...conv,
       blockedByMe,
       participants: transformedParticipants,
-      mutedBy: (conv.mutedBy || []).map((id: any) => id.toString()), // Ensure mutedBy is string array
-      unreadCount:
-        conv.unreadCount instanceof Map
-          ? Object.fromEntries(conv.unreadCount)
-          : conv.unreadCount || {},
+      mutedBy: (conv.mutedBy || []).map((id: any) => id.toString()),
+      unreadCount: unreadCountObj,
     };
   }
 
@@ -180,27 +195,42 @@ export class ConversationService {
         }
       }
 
+      // Process unreadCount to ensure it's a plain object with entries for all participants
+      let unreadCountObj: Record<string, number> = {};
+      if (conv.unreadCount) {
+        if (conv.unreadCount instanceof Map) {
+          unreadCountObj = Object.fromEntries(conv.unreadCount);
+        } else if (typeof conv.unreadCount === 'object') {
+          unreadCountObj = conv.unreadCount as Record<string, number>;
+        }
+      }
+
+      // Ensure each participant has an entry in unreadCount (default = 0)
+      const transformedParticipants = conv.participants.map((p: any) => {
+        const participantId = p.user._id.toString();
+        if (typeof unreadCountObj[participantId] !== 'number') {
+          unreadCountObj[participantId] = 0;
+        }
+
+        if (p.user && p.user.showActivityStatus === false) {
+          return {
+            ...p,
+            user: {
+              ...p.user,
+              status: 'HIDDEN',
+              lastActive: null,
+            },
+          };
+        }
+        return p;
+      });
+
       return {
         ...conv,
-        blockedByMe, // Add block status to response
-        mutedBy: (conv.mutedBy || []).map((id: any) => id.toString()), // Ensure mutedBy is string array
-        participants: conv.participants.map((p: any) => {
-          if (p.user && p.user.showActivityStatus === false) {
-            return {
-              ...p,
-              user: {
-                ...p.user,
-                status: 'HIDDEN',
-                lastActive: null,
-              },
-            };
-          }
-          return p;
-        }),
-        unreadCount:
-          conv.unreadCount instanceof Map
-            ? Object.fromEntries(conv.unreadCount)
-            : conv.unreadCount || {},
+        blockedByMe,
+        mutedBy: (conv.mutedBy || []).map((id: any) => id.toString()),
+        participants: transformedParticipants,
+        unreadCount: unreadCountObj,
       };
     });
   }
@@ -212,9 +242,9 @@ export class ConversationService {
   }
 
   // Increment unread count for all participants except sender
-  async incrementUnreadCount(conversationId: string, senderId: string) {
+  async incrementUnreadCount(conversationId: string, senderId: string): Promise<any> {
     const conversation = await this.conversationModel.findById(conversationId);
-    if (!conversation) return;
+    if (!conversation) return null;
 
     const updateObj: Record<string, number> = {};
     conversation.participants.forEach((p) => {
@@ -225,15 +255,55 @@ export class ConversationService {
     });
 
     if (Object.keys(updateObj).length > 0) {
-      await this.conversationModel.updateOne({ _id: conversationId }, { $inc: updateObj }).exec();
+      const updated = await this.conversationModel.findOneAndUpdate(
+        { _id: conversationId },
+        { $inc: updateObj },
+        { new: true }
+      );
+
+      if (!updated) return null;
+
+      // Convert Map to plain object for socket emission
+      let unreadCountObj: Record<string, number> = {};
+      if (updated.unreadCount) {
+        if (updated.unreadCount instanceof Map) {
+          unreadCountObj = Object.fromEntries(updated.unreadCount);
+        } else if (typeof updated.unreadCount === 'object') {
+          unreadCountObj = updated.unreadCount as unknown as Record<string, number>;
+        }
+      }
+
+      return {
+        ...updated.toObject(),
+        unreadCount: unreadCountObj,
+      };
     }
+
+    return null;
   }
 
   // Reset unread count for a specific user
-  async resetUnreadCount(conversationId: string, userId: string) {
-    await this.conversationModel
-      .updateOne({ _id: conversationId }, { $set: { [`unreadCount.${userId}`]: 0 } })
+  async resetUnreadCount(conversationId: string, userId: string): Promise<any> {
+    const updated = await this.conversationModel
+      .findOneAndUpdate({ _id: conversationId }, { $set: { [`unreadCount.${userId}`]: 0 } }, { new: true })
       .exec();
+
+    if (!updated) return null;
+
+    // Convert Map to plain object for socket emission
+    let unreadCountObj: Record<string, number> = {};
+    if (updated.unreadCount) {
+      if (updated.unreadCount instanceof Map) {
+        unreadCountObj = Object.fromEntries(updated.unreadCount);
+      } else if (typeof updated.unreadCount === 'object') {
+        unreadCountObj = updated.unreadCount as unknown as Record<string, number>;
+      }
+    }
+
+    return {
+      ...updated.toObject(),
+      unreadCount: unreadCountObj,
+    };
   }
 
   // Get unread count for a specific user

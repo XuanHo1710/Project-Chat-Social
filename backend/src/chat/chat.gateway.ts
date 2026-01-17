@@ -48,7 +48,10 @@ interface IceCandidatePayload {
 const userSockets = new Map<string, Set<string>>();
 
 // Store pending calls for persistence on reload (recipientId -> CallData)
-const pendingCalls = new Map<string, { fromUserId: string; offer: any; conversationId: string; timestamp: number }>();
+const pendingCalls = new Map<
+  string,
+  { fromUserId: string; offer: any; conversationId: string; timestamp: number }
+>();
 
 // Map conversationId -> Set<userId> for active group calls
 const activeGroupCalls = new Map<string, Set<string>>();
@@ -146,7 +149,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             callerName: callerProfile.name,
             callerAvatar: callerProfile.avatar,
             offer: pendingCall.offer,
-            conversationId: pendingCall.conversationId
+            conversationId: pendingCall.conversationId,
           });
           this.logger.log(`Re-emitted pending call to ${userId}`);
         } else {
@@ -156,7 +159,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Check active group calls? Maybe notify if a group call is active in one of their rooms?
       // (Optional - for now user sees it via UI "Join" button if we implement that, or Notification Persistence)
-
     } catch (error) {
       this.logger.error('Connection error:', error);
     }
@@ -216,10 +218,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // ============ VIDEO CALL SIGNALING ============
 
   @SubscribeMessage('call:start')
-  async handleCallStart(
-    @MessageBody() data: CallPayload,
-    @ConnectedSocket() client: Socket
-  ) {
+  async handleCallStart(@MessageBody() data: CallPayload, @ConnectedSocket() client: Socket) {
     const fromUserId = client.data.userId;
     // Tìm socket của người nhận
     const recipientSockets = userSockets.get(data.toUserId);
@@ -232,17 +231,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       fromUserId,
       offer: data.offer,
       conversationId: data.conversationId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     if (recipientSockets && recipientSockets.size > 0) {
-      recipientSockets.forEach(socketId => {
+      recipientSockets.forEach((socketId) => {
         this.server.to(socketId).emit('call:incoming', {
           fromUserId,
           callerName: callerProfile.name,
           callerAvatar: callerProfile.avatar,
           offer: data.offer,
-          conversationId: data.conversationId
+          conversationId: data.conversationId,
         });
       });
       // Báo lại cho người gọi là đã đổ chuông
@@ -254,10 +253,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('call:answer')
-  async handleCallAnswer(
-    @MessageBody() data: AnswerPayload,
-    @ConnectedSocket() client: Socket
-  ) {
+  async handleCallAnswer(@MessageBody() data: AnswerPayload, @ConnectedSocket() client: Socket) {
     const fromUserId = client.data.userId; // Người nhận (Callee) trả lời
 
     // Call accepted, remove pending
@@ -266,10 +262,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Gửi answer lại cho người gọi (Caller)
     const callerSockets = userSockets.get(data.toUserId);
     if (callerSockets) {
-      callerSockets.forEach(socketId => {
+      callerSockets.forEach((socketId) => {
         this.server.to(socketId).emit('call:accepted', {
           fromUserId, // ID của người nhận
-          answer: data.answer
+          answer: data.answer,
         });
       });
     }
@@ -284,10 +280,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const targetSockets = userSockets.get(data.toUserId);
     if (targetSockets) {
-      targetSockets.forEach(socketId => {
+      targetSockets.forEach((socketId) => {
         this.server.to(socketId).emit('call:ice-candidate', {
           fromUserId,
-          candidate: data.candidate
+          candidate: data.candidate,
         });
       });
     }
@@ -306,7 +302,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     pendingCalls.delete(fromUserId); // If callee rejects
 
     if (targetSockets) {
-      targetSockets.forEach(socketId => {
+      targetSockets.forEach((socketId) => {
         this.server.to(socketId).emit('call:ended', { fromUserId });
       });
     }
@@ -323,19 +319,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const callerProfile = await this.getSenderProfile(userId);
 
     // Notify all participants in the group
-    conversation.participants.forEach(p => {
+    conversation.participants.forEach((p) => {
       const pId = p.user._id.toString();
       if (pId === userId) return; // Don't notify self
 
       const sockets = userSockets.get(pId);
       if (sockets) {
-        sockets.forEach(sId => {
+        sockets.forEach((sId) => {
           this.server.to(sId).emit('group-call:incoming', {
             conversationId: data.conversationId,
             callerName: callerProfile.name,
             callerAvatar: callerProfile.avatar,
             fromUserId: userId,
-            isGroup: true
+            isGroup: true,
           });
         });
       }
@@ -356,11 +352,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (currentParticipants) {
       // Notify existing participants that a new user joined
-      currentParticipants.forEach(pId => {
+      currentParticipants.forEach((pId) => {
         if (pId === userId) return;
         const sockets = userSockets.get(pId);
         if (sockets) {
-          sockets.forEach(sId => {
+          sockets.forEach((sId) => {
             this.server.to(sId).emit('group-call:user-joined', { userId });
           });
         }
@@ -371,7 +367,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Return list of existing users to the joiner
       // They will initiate P2P connections to these users
-      const participantsList = Array.from(currentParticipants).filter(id => id !== userId);
+      const participantsList = Array.from(currentParticipants).filter((id) => id !== userId);
       return { success: true, users: participantsList };
     }
 
@@ -391,10 +387,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         currentParticipants.delete(userId);
 
         // Notify others
-        currentParticipants.forEach(pId => {
+        currentParticipants.forEach((pId) => {
           const sockets = userSockets.get(pId);
           if (sockets) {
-            sockets.forEach(sId => {
+            sockets.forEach((sId) => {
               this.server.to(sId).emit('group-call:user-left', { userId });
             });
           }
@@ -415,11 +411,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const fromUserId = client.data.userId;
     const targetSockets = userSockets.get(data.toUserId);
     if (targetSockets) {
-      targetSockets.forEach(sId => {
+      targetSockets.forEach((sId) => {
         this.server.to(sId).emit('call:signal', {
           fromUserId,
           signal: data.signal,
-          conversationId: data.conversationId
+          conversationId: data.conversationId,
         });
       });
     }
@@ -440,7 +436,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.server.to(roomName).emit('livestream:viewers', {
       postId: data.postId,
-      count: viewerCount
+      count: viewerCount,
     });
   }
 
@@ -458,7 +454,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.server.to(roomName).emit('livestream:viewers', {
       postId: data.postId,
-      count: viewerCount
+      count: viewerCount,
     });
   }
 
@@ -471,11 +467,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const targetSockets = userSockets.get(data.toUserId);
 
     if (targetSockets) {
-      targetSockets.forEach(sId => {
+      targetSockets.forEach((sId) => {
         this.server.to(sId).emit('livestream:signal', {
           fromUserId,
           signal: data.signal,
-          postId: data.postId
+          postId: data.postId,
         });
       });
     }
@@ -505,10 +501,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       // 1. Save to database
-      const savedComment = await this.commentService.create({
-        content: data.content,
-        postId: data.postId
-      }, userId);
+      const savedComment = await this.commentService.create(
+        {
+          content: data.content,
+          postId: data.postId,
+        },
+        userId
+      );
 
       // 2. Prepare payload for socket
       const userProfile = await this.getSenderProfile(userId);
@@ -552,16 +551,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         '😂': 'HAHA',
         '😯': 'WOW',
         '😢': 'SAD',
-        '😡': 'ANGRY'
+        '😡': 'ANGRY',
       };
       const reactionType = emojiMap[data.emoji] || 'LIKE';
 
       // 1. Save reaction to DB (toggle)
-      const result = await this.reactionService.toggleReaction({
-        type: reactionType as any,
-        factorId: data.postId,
-        typeFactor: TypeFactor.POST
-      }, userId);
+      const result = await this.reactionService.toggleReaction(
+        {
+          type: reactionType as any,
+          factorId: data.postId,
+          typeFactor: TypeFactor.POST,
+        },
+        userId
+      );
 
       // Only emit if added or moved (not removed) - though for livestream we might want to show flying hearts even if toggled off
       // But standard logic is persistent state.
@@ -572,7 +574,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userId,
         emoji: data.emoji,
         createdAt: new Date().toISOString(),
-        action: result.action
+        action: result.action,
       };
 
       // 2. Broadcast to all viewers in livestream room
@@ -585,7 +587,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.emit('post:reaction:update', {
         postId: data.postId,
         action: result.action,
-        reactionType
+        reactionType,
       });
 
       return { success: true, reaction };
@@ -884,7 +886,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
 
     // Increment unread count for active participants except sender
-    await this.conversationService.incrementUnreadCount(data.conversationId.toString(), userId);
+    const updatedUnreadCount = await this.conversationService.incrementUnreadCount(
+      data.conversationId.toString(),
+      userId
+    );
 
     // Emit unread update chỉ cho active participants
     activeParticipants.forEach((participant) => {
@@ -895,7 +900,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         participantSockets.forEach((socketId) => {
           this.server.to(socketId).emit('conversation:unread:updated', {
             conversationId: data.conversationId.toString(),
-            senderId: userId,
+            unreadCount: updatedUnreadCount?.unreadCount,
           });
         });
       }
@@ -1657,7 +1662,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const result = await this.chatService.markAsRead(data.conversationId, userId, data.messageId);
 
       // Reset unread count for this user
-      await this.conversationService.resetUnreadCount(data.conversationId, userId);
+      const conversationUpdated = await this.conversationService.resetUnreadCount(data.conversationId, userId);
 
       // Get user info for the reader
       const readerUser = await this.accountModel
@@ -1686,7 +1691,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Also emit unread reset for conversation list update
       this.server.to(`room:${data.conversationId}`).emit('conversation:unread:reset', {
         conversationId: data.conversationId,
-        userId: userId,
+        unreadCount: conversationUpdated.unreadCount,
       });
 
       return { success: true, ...result };

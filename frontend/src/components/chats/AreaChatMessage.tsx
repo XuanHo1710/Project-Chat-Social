@@ -996,7 +996,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         if (!socketChat) return;
 
         const handleTypingStart = (data: { conversationId: string; userId: string }) => {
-            if (data.conversationId === selectedConversation._id && data.userId !== userId) {
+            if (data.conversationId === selectedConversation._id) {
                 setIsOtherTyping(true);
                 const userTyping = conversation?.participants.find(p => p.user._id === data.userId);
                 if (!userTyping) return;
@@ -1015,7 +1015,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         };
 
         const handleTypingStop = (data: { conversationId: string; userId: string }) => {
-            if (data.conversationId === selectedConversation._id && data.userId !== userId) {
+            if (data.conversationId === selectedConversation._id) {
                 const userTypingsLeft = usersTyping.filter(u => u.user._id !== data.userId);
                 setUsersTyping([...userTypingsLeft]);
                 if (userTypingsLeft.length === 0)
@@ -1028,7 +1028,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
         // Also hide typing when new message arrives
         const handleNewMessageTyping = (msg: MessageResponse) => {
-            if (msg.conversationId === selectedConversation._id && msg.senderId?._id !== userId) {
+            if (msg.conversationId === selectedConversation._id) {
                 const userTypingsLeft = usersTyping.filter(u => u.user._id !== msg.senderId?._id);
                 setUsersTyping([...userTypingsLeft]);
                 setIsOtherTyping(false);
@@ -1595,7 +1595,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 </Box>
 
                 {/* Typing Indicator */}
-                {isOtherTyping && usersTyping.length > 0 && usersTyping.map((userTyping) => (
+                {isOtherTyping && usersTyping.length > 0 && usersTyping.filter(u => u.user._id !== userId).map((userTyping) => (
                     <Box
                         key={userTyping.user._id}
                         sx={{

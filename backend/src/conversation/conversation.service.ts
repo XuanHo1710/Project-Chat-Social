@@ -255,26 +255,30 @@ export class ConversationService {
     });
 
     if (Object.keys(updateObj).length > 0) {
-      const updated = await this.conversationModel.findOneAndUpdate(
+      // Use updateOne then findById to ensure we get the absolute latest state
+      // This avoids issues with findOneAndUpdate returning stale Map data in some Mongoose versions
+      await this.conversationModel.updateOne(
         { _id: conversationId },
-        { $inc: updateObj },
-        { new: true }
+        { $inc: updateObj }
       );
+
+      const updated = await this.conversationModel.findById(conversationId).lean();
 
       if (!updated) return null;
 
-      // Convert Map to plain object for socket emission
+      // Convert Map/Object to plain object for socket emission
       let unreadCountObj: Record<string, number> = {};
       if (updated.unreadCount) {
         if (updated.unreadCount instanceof Map) {
           unreadCountObj = Object.fromEntries(updated.unreadCount);
         } else if (typeof updated.unreadCount === 'object') {
+          // In lean(), it typically returns a plain object for Map types
           unreadCountObj = updated.unreadCount as unknown as Record<string, number>;
         }
       }
 
       return {
-        ...updated.toObject(),
+        ...updated,
         unreadCount: unreadCountObj,
       };
     }
@@ -284,9 +288,12 @@ export class ConversationService {
 
   // Reset unread count for a specific user
   async resetUnreadCount(conversationId: string, userId: string): Promise<any> {
-    const updated = await this.conversationModel
-      .findOneAndUpdate({ _id: conversationId }, { $set: { [`unreadCount.${userId}`]: 0 } }, { new: true })
-      .exec();
+    await this.conversationModel.updateOne(
+      { _id: conversationId },
+      { $set: { [`unreadCount.${userId}`]: 0 } }
+    );
+
+    const updated = await this.conversationModel.findById(conversationId).lean();
 
     if (!updated) return null;
 
@@ -301,7 +308,7 @@ export class ConversationService {
     }
 
     return {
-      ...updated.toObject(),
+      ...updated,
       unreadCount: unreadCountObj,
     };
   }

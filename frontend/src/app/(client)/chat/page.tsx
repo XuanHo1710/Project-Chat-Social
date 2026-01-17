@@ -65,6 +65,7 @@ export default function ChatPage() {
                                         attachments: msg.attachments?.map(a => typeof a === 'string' ? a : a.url),
                                     },
                                     lastMessageAt: new Date(msg.createdAt),
+                                    unreadCount: (msg as any)._unreadCount || conv.unreadCount,
                                 };
                             }
                             return conv;
@@ -96,6 +97,30 @@ export default function ChatPage() {
         socketChat.on("conversation:settings:updated", handleConversationUpdate);
         socketChat.on("conversation:created", handleConversationUpdate);
 
+        // Handle unread count updates
+        const handleUnreadUpdate = (data: { conversationId: string; unreadCount: Record<string, number> }) => {
+            if (!data?.conversationId || !data?.unreadCount) return;
+
+            queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
+                (oldData) => {
+                    if (!oldData?.data) return oldData;
+                    return {
+                        ...oldData,
+                        data: oldData.data.map(conv => {
+                            if (conv._id === data.conversationId) {
+                                return { ...conv, unreadCount: data.unreadCount };
+                            }
+                            return conv;
+                        })
+                    };
+                }
+            );
+        };
+
+        socketChat.on("conversation:unread:updated", handleUnreadUpdate);
+        socketChat.on("conversation:unread:reset", handleUnreadUpdate);
+
         return () => {
             socketChat.off("message:new", handleGlobalMessageNew);
             socketChat.off("conversation:member:added", handleConversationUpdate);
@@ -107,6 +132,8 @@ export default function ChatPage() {
             socketChat.off("conversation:nickname:updated", handleConversationUpdate);
             socketChat.off("conversation:settings:updated", handleConversationUpdate);
             socketChat.off("conversation:created", handleConversationUpdate);
+            socketChat.off("conversation:unread:updated", handleUnreadUpdate);
+            socketChat.off("conversation:unread:reset", handleUnreadUpdate);
         };
     }, [socketChat, queryClient, user?.id]);
 

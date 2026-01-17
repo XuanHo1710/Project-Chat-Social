@@ -123,6 +123,7 @@ export default function ChatDetailPage() {
                                         attachments: msg.attachments?.map(a => typeof a === 'string' ? a : a.url),
                                     },
                                     lastMessageAt: new Date(msg.createdAt),
+                                    unreadCount: (msg as any)._unreadCount || conv.unreadCount,
                                 };
                             }
                             return conv;
@@ -267,11 +268,11 @@ export default function ChatDetailPage() {
             />
 
             {/* Main Chat Area */}
-            <Box 
+            <Box
                 className="chat-main"
-                sx={{ 
-                    flex: 1, 
-                    display: "flex", 
+                sx={{
+                    flex: 1,
+                    display: "flex",
                     flexDirection: "column",
                     minWidth: 0,
                     width: { xs: '100%', md: 'auto' },

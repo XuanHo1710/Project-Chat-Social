@@ -3,6 +3,11 @@ import { APIResponse } from "@/types/common";
 import { ConversationResponseData } from "@/types/conversation";
 
 class ConversationService {
+  async unreadCountAllConversationByUserId(): Promise<{ unreadCount: number }> {
+    const response = await axios.get<APIResponse<{ unreadCount: number }>>("/conversation/total-unread-count");
+    return response.data.data;
+  }
+
   async getConversationByUserId(
     userId: string
   ): Promise<APIResponse<ConversationResponseData[]>> {

@@ -12,7 +12,7 @@ export class ChatController {
     private readonly chatService: ChatService,
     private readonly chatGateway: ChatGateway,
     private readonly conversationService: ConversationService
-  ) {}
+  ) { }
 
   @Post('/messages')
   sendMessageByConversationId(@Body() createMessageDto: CreateMessageDto) {
@@ -40,11 +40,11 @@ export class ChatController {
     // We need to format the payload to match what Gateway emits
     const readerUser = result.readStatus
       ? {
-          _id: (result.readStatus.userId as any)._id.toString(),
-          firstName: (result.readStatus.userId as any).firstName,
-          lastName: (result.readStatus.userId as any).lastName,
-          avatar: (result.readStatus.userId as any).avatar,
-        }
+        _id: (result.readStatus.userId as any)._id.toString(),
+        firstName: (result.readStatus.userId as any).firstName,
+        lastName: (result.readStatus.userId as any).lastName,
+        avatar: (result.readStatus.userId as any).avatar,
+      }
       : null;
 
     if (this.chatGateway.server) {

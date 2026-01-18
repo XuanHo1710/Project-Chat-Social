@@ -14,7 +14,8 @@ import {
     Slider,
     ListItemButton,
     Avatar,
-    Collapse
+    Collapse,
+    useTheme
 } from '@mui/material';
 
 import {
@@ -52,10 +53,21 @@ import Link from 'next/link';
 function SearchContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const { isAuthenticated, isLoading: authLoading } = useAuthStore();
     const { user } = useAuthStore();
 
     const { posts: storePosts, setPosts: setStorePosts } = usePostStore();
+
+    // Theme-aware colors
+    const bgColor = isDark ? theme.palette.background.default : '#f0f2f5';
+    const cardBg = isDark ? theme.palette.background.paper : 'white';
+    const borderColor = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const textSecondary = isDark ? 'rgba(255,255,255,0.7)' : '#65676b';
+    const chipBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const chipText = isDark ? 'white' : '#050505';
 
     // Search input state with debounce for performance
     const [inputValue, setInputValue] = useState('');
@@ -449,8 +461,8 @@ function SearchContent() {
     // Loading auth
     if (authLoading) {
         return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: '#f0f2f5' }}>
-                <CircularProgress sx={{ color: '#1877f2' }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: bgColor }}>
+                <CircularProgress sx={{ color: 'primary.main' }} />
             </Box>
         );
     }
@@ -460,17 +472,17 @@ function SearchContent() {
     }
 
     return (
-        <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: bgColor, minHeight: '100vh' }}>
             {/* Header */}
             <Header />
 
-            <Box sx={{ display: 'flex', pt: '56px' }}>
+            <Box sx={{ display: 'flex' }}>
                 {/* Left Sidebar - Like Home Sidebar */}
                 <Box
                     sx={{
                         width: 360,
-                        bgcolor: 'white',
-                        borderRight: '1px solid #e4e6eb',
+                        bgcolor: cardBg,
+                        borderRight: `1px solid ${borderColor}`,
                         height: 'calc(100vh - 56px)',
                         position: 'fixed',
                         left: 0,
@@ -480,7 +492,7 @@ function SearchContent() {
                         display: { xs: 'none', md: 'block' },
                         '&::-webkit-scrollbar': { width: '8px' },
                         '&::-webkit-scrollbar-thumb': { backgroundColor: 'transparent', borderRadius: '4px' },
-                        '&:hover::-webkit-scrollbar-thumb': { backgroundColor: '#bcc0c4' },
+                        '&:hover::-webkit-scrollbar-thumb': { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : '#bcc0c4' },
                     }}
                 >
                     <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>
@@ -492,7 +504,7 @@ function SearchContent() {
                         {/* User Profile */}
                         <ListItemButton
                             onClick={() => router.push(user?.username ? `/profile/${user.username}` : '/')}
-                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: hoverBg } }}
                         >
                             <Avatar
                                 src={user?.avatar}
@@ -510,10 +522,10 @@ function SearchContent() {
                         <ListItemButton
                             component={Link}
                             href="/friends"
-                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: hoverBg } }}
                         >
                             <ListItemIcon sx={{ minWidth: 44 }}>
-                                <PeopleIcon sx={{ fontSize: 28, color: '#1877f2' }} />
+                                <PeopleIcon sx={{ fontSize: 28, color: 'primary.main' }} />
                             </ListItemIcon>
                             <ListItemText primary="Bạn bè" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
                         </ListItemButton>
@@ -522,10 +534,10 @@ function SearchContent() {
                         <ListItemButton
                             component={Link}
                             href="/groups"
-                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: hoverBg } }}
                         >
                             <ListItemIcon sx={{ minWidth: 44 }}>
-                                <GroupsIcon sx={{ fontSize: 28, color: '#1877f2' }} />
+                                <GroupsIcon sx={{ fontSize: 28, color: 'primary.main' }} />
                             </ListItemIcon>
                             <ListItemText primary="Nhóm" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
                         </ListItemButton>
@@ -534,10 +546,10 @@ function SearchContent() {
                         <ListItemButton
                             component={Link}
                             href="/reels"
-                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: hoverBg } }}
                         >
                             <ListItemIcon sx={{ minWidth: 44 }}>
-                                <VideoIcon sx={{ fontSize: 28, color: '#1877f2' }} />
+                                <VideoIcon sx={{ fontSize: 28, color: 'primary.main' }} />
                             </ListItemIcon>
                             <ListItemText primary="Watch" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
                         </ListItemButton>
@@ -546,7 +558,7 @@ function SearchContent() {
                         <ListItemButton
                             component={Link}
                             href="/saved"
-                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                            sx={{ borderRadius: 2, py: 1, '&:hover': { bgcolor: hoverBg } }}
                         >
                             <ListItemIcon sx={{ minWidth: 44 }}>
                                 <BookmarkIcon sx={{ fontSize: 28, color: '#a333c8' }} />
@@ -560,10 +572,10 @@ function SearchContent() {
                     {/* Filters Section - Collapsible */}
                     <ListItemButton
                         onClick={() => setShowFilters(!showFilters)}
-                        sx={{ borderRadius: 2, py: 1, mb: 1, '&:hover': { bgcolor: '#f0f2f5' } }}
+                        sx={{ borderRadius: 2, py: 1, mb: 1, '&:hover': { bgcolor: hoverBg } }}
                     >
                         <ListItemIcon sx={{ minWidth: 44 }}>
-                            <FilterIcon sx={{ fontSize: 24, color: '#65676b' }} />
+                            <FilterIcon sx={{ fontSize: 24, color: textSecondary }} />
                         </ListItemIcon>
                         <ListItemText
                             primary="Bộ lọc tìm kiếm"
@@ -585,10 +597,10 @@ function SearchContent() {
                                         px: 2, py: 0.75,
                                         borderRadius: 5,
                                         cursor: 'pointer',
-                                        bgcolor: activeFilter === 'all' ? '#1877f2' : '#e4e6eb',
-                                        color: activeFilter === 'all' ? 'white' : '#050505',
+                                        bgcolor: activeFilter === 'all' ? 'primary.main' : chipBg,
+                                        color: activeFilter === 'all' ? 'white' : chipText,
                                         fontSize: 14, fontWeight: 500,
-                                        '&:hover': { bgcolor: activeFilter === 'all' ? '#166fe5' : '#d8dadf' }
+                                        '&:hover': { bgcolor: activeFilter === 'all' ? 'primary.dark' : (isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf') }
                                     }}
                                 >
                                     Tất cả
@@ -599,10 +611,10 @@ function SearchContent() {
                                         px: 2, py: 0.75,
                                         borderRadius: 5,
                                         cursor: 'pointer',
-                                        bgcolor: activeFilter === 'posts' ? '#1877f2' : '#e4e6eb',
-                                        color: activeFilter === 'posts' ? 'white' : '#050505',
+                                        bgcolor: activeFilter === 'posts' ? 'primary.main' : chipBg,
+                                        color: activeFilter === 'posts' ? 'white' : chipText,
                                         fontSize: 14, fontWeight: 500,
-                                        '&:hover': { bgcolor: activeFilter === 'posts' ? '#166fe5' : '#d8dadf' }
+                                        '&:hover': { bgcolor: activeFilter === 'posts' ? 'primary.dark' : (isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf') }
                                     }}
                                 >
                                     Bài viết
@@ -643,7 +655,7 @@ function SearchContent() {
                                         { value: 2026, label: '2026' }
                                     ]}
                                     sx={{
-                                        color: '#1877f2',
+                                        color: 'primary.main',
                                         '& .MuiSlider-thumb': { width: 14, height: 14 },
                                         '& .MuiSlider-mark': { display: 'none' },
                                     }}
@@ -657,7 +669,7 @@ function SearchContent() {
                 <Box
                     sx={{
                         flex: 1,
-                        ml: { xs: 0, md: '360px' },
+                        ml: { xs: 0, md: '80px' },
                         p: 3,
                         width: "100%",
                         mx: 'auto'
@@ -672,10 +684,11 @@ function SearchContent() {
                             alignItems: 'center',
                             gap: 1,
                             mb: 3,
-                            bgcolor: 'white',
+                            bgcolor: cardBg,
                             borderRadius: 2,
                             p: 1,
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                            boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
+                            border: isDark ? `1px solid ${borderColor}` : 'none',
                         }}
                     >
                         <IconButton onClick={handleBack}>
@@ -747,12 +760,12 @@ function SearchContent() {
                             <Box ref={loadMoreRef} sx={{ py: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: 1 }}>
                                 {isFetchingNextPage && (
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                        <CircularProgress size={24} sx={{ color: '#1877f2' }} />
-                                        <Typography sx={{ color: '#65676b', fontSize: 14 }}>Đang tải thêm bài viết...</Typography>
+                                        <CircularProgress size={24} sx={{ color: 'primary.main' }} />
+                                        <Typography sx={{ color: textSecondary, fontSize: 14 }}>Đang tải thêm bài viết...</Typography>
                                     </Box>
                                 )}
                                 {!hasNextPage && posts.length > 0 && !isFetchingNextPage && (
-                                    <Typography sx={{ color: '#65676b', fontSize: 14, textAlign: 'center' }}>
+                                    <Typography sx={{ color: textSecondary, fontSize: 14, textAlign: 'center' }}>
                                         🎉 Đã hết bài viết. Bạn đã xem tất cả!
                                     </Typography>
                                 )}
@@ -833,8 +846,8 @@ function SearchContent() {
 export default function SearchPage() {
     return (
         <Suspense fallback={
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: '#f0f2f5' }}>
-                <CircularProgress sx={{ color: '#1877f2' }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: 'background.default' }}>
+                <CircularProgress sx={{ color: 'primary.main' }} />
             </Box>
         }>
             <SearchContent />

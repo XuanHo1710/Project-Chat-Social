@@ -7,7 +7,12 @@ import { Account } from 'src/account/entities/account.entity';
 
 @Controller('conversation')
 export class ConversationController {
-  constructor(private readonly conversationService: ConversationService) {}
+  constructor(private readonly conversationService: ConversationService) { }
+
+  @Get('/total-unread-count')
+  unreadCountAllConversationByUserId(@UserInfo() user: Account) {
+    return this.conversationService.unreadCountAllConversationByUserId(user._id.toString());
+  }
 
   @Post()
   create(@Body() createConversationDto: CreateConversationDto) {

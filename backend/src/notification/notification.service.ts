@@ -26,7 +26,7 @@ export class NotificationService {
     private groupService: GroupService,
     @Inject(forwardRef(() => NotificationGateway))
     private notificationGateway: NotificationGateway
-  ) {}
+  ) { }
 
   // Create a notification
   async create(dto: CreateNotificationDto): Promise<any> {
@@ -67,25 +67,41 @@ export class NotificationService {
   }
 
   // Get user notifications
-  async getUserNotifications(userId: string, page = 1, limit = 20): Promise<any> {
+  async getUserNotifications(
+    userId: string,
+    page = 1,
+    limit = 20,
+    status?: string,
+    type?: string
+  ): Promise<any> {
     const skip = (page - 1) * limit;
+
+    // Build filter query
+    const filter: any = {
+      recipientId: new Types.ObjectId(userId),
+      isActive: true,
+    };
+
+    // Add status filter if provided
+    if (status) {
+      filter.status = status;
+    }
+
+    // Add type filter if provided
+    if (type) {
+      filter.type = type;
+    }
 
     const [notifications, total, unreadCount] = await Promise.all([
       this.notificationModel
-        .find({
-          recipientId: new Types.ObjectId(userId),
-          isActive: true,
-        })
+        .find(filter)
         .populate('senderId', 'firstName lastName avatar username')
         .populate('groupId', 'name avatar coverImage')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      this.notificationModel.countDocuments({
-        recipientId: new Types.ObjectId(userId),
-        isActive: true,
-      }),
+      this.notificationModel.countDocuments(filter),
       this.notificationModel.countDocuments({
         recipientId: new Types.ObjectId(userId),
         status: NotificationStatus.UNREAD,

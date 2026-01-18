@@ -146,7 +146,6 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
         const handleEnded = (data: { postId: string }) => {
             if (data.postId === post._id) {
                 setConnectionStatus('ended');
-                toast.info("Buổi phát trực tiếp đã kết thúc");
             }
         };
         const handleNewComment = (data: { postId: string; comment: LiveComment }) => {

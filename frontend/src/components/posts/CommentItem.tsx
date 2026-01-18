@@ -627,10 +627,17 @@ export default function CommentItem({
     const isDark = theme.palette.mode === 'dark';
     const commentBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const textSecondary = isDark ? 'text.secondary' : '#65676b';
-    const { data: repliesData, fetchNextPage, hasNextPage, isFetchingNextPage } = useGetReplies(
+    const { data: repliesData, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useGetReplies(
         comment._id,
         showReplies && !isReply
     );
+
+    // Refetch replies when expanding to get the latest data
+    React.useEffect(() => {
+        if (showReplies && !isReply) {
+            refetch();
+        }
+    }, [showReplies, isReply, refetch]);
 
     const isOwner = user?.id === comment?.userId?._id;
     const replies = repliesData?.pages?.flatMap((page) => page?.data || []) || [];

@@ -21,6 +21,41 @@ export class ConversationService {
     private readonly relationshipService: RelationshipService
   ) { }
 
+  async unreadCountAllConversationByUserId(userId: string) {
+    const result = await this.conversationModel.aggregate([
+      {
+        $match: {
+          'participants.user': new Types.ObjectId(userId),
+        },
+      },
+      {
+        $project: {
+          unread: {
+            $ifNull: [
+              {
+                $getField: {
+                  field: userId,          // key của Map
+                  input: '$unreadCount',  // Map<string, number>
+                },
+              },
+              0,
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalUnread: { $sum: '$unread' },
+        },
+      },
+    ]);
+
+    return {
+      unreadCount: result[0]?.totalUnread ?? 0,
+    };
+  }
+
   async create(createConversationDto: CreateConversationDto) {
     const converstation = await this.conversationModel.create(createConversationDto);
     return await converstation.save();

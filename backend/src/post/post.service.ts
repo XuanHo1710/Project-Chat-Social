@@ -42,7 +42,7 @@ export class PostService {
     private readonly httpService: HttpService,
     private apiVideoService: ApiVideoService,
     private notificationService: NotificationService
-  ) {}
+  ) { }
   private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
   async create(createPostDto: CreatePostDto, user: any): Promise<Post> {
@@ -696,9 +696,29 @@ export class PostService {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
+        .lean()
         .exec(),
       this.postModel.countDocuments(privacyFilter),
     ]);
+
+    const postIds = data.map((p) => p._id);
+    const postIdStrings = postIds.map((id) => id.toString());
+
+    const [userReactions, reactionsSummary] = await Promise.all([
+      this.reactionService.userReactions(postIds, userId),
+      this.reactionService.getPostsReactionsSummary(postIdStrings, userId),
+    ]);
+
+    const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
+
+    (data as PostWithReactInfo[]).forEach((post) => {
+      const postIdStr = post._id.toString();
+      const r = reactionMap.get(postIdStr) as any;
+      const summary = reactionsSummary[postIdStr];
+
+      post.reactInfo = { isReact: !!r, type: r ? r.type : null };
+      (post as any).topReactions = summary?.topReactions || [];
+    });
 
     return {
       data,

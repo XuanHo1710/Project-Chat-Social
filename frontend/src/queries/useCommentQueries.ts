@@ -46,6 +46,9 @@ export const useGetComments = (postId: string, limit: number = 10) => {
     },
     initialPageParam: 1,
     enabled: !!postId,
+    // Always refetch when modal opens to get the latest comments
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 };
 
@@ -63,6 +66,9 @@ export const useGetReplies = (commentId: string, enabled: boolean = false) => {
     },
     initialPageParam: 1,
     enabled: enabled && !!commentId,
+    // Always refetch when replies are expanded to get the latest
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 };
 

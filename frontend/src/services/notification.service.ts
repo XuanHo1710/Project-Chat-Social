@@ -7,9 +7,20 @@ import {
 } from "@/types/notification";
 
 class NotificationService {
-  async getNotifications(page = 1, limit = 20): Promise<NotificationResponse> {
+  async getNotifications(
+    page = 1,
+    limit = 20,
+    status?: 'UNREAD' | 'READ',
+    type?: string
+  ): Promise<NotificationResponse> {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+    if (status) params.append('status', status);
+    if (type) params.append('type', type);
+
     const response = await axios.get<APIResponse<NotificationResponse>>(
-      `/notification?page=${page}&limit=${limit}`
+      `/notification?${params.toString()}`
     );
     return response.data.data;
   }

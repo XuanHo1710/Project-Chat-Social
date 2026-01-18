@@ -27,7 +27,7 @@ export class ReactionService implements OnModuleInit {
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
     private readonly notificationService: NotificationService
-  ) {}
+  ) { }
 
   async onModuleInit() {
     // Auto-run migration on startup
@@ -233,8 +233,6 @@ export class ReactionService implements OnModuleInit {
   ): Promise<void> {
     // Implementation for sending notifications
     const id = new Types.ObjectId(factorId);
-    console.log(user);
-
     switch (typeFactor) {
       case TypeFactor.POST:
         const post = await this.postModel.findById(id);
@@ -243,29 +241,39 @@ export class ReactionService implements OnModuleInit {
         if (post.allowReactions === false) {
           throw new BadRequestException('Tương tác đã bị tắt cho bài viết này');
         }
-        this.notificationService.create({
-          recipientId: post.userId.toString(),
-          senderId: user._id,
-          type: NotificationType.POST_REACTED,
-          title: 'Reaction post',
-          message: `${user?.firstName + ' ' + user?.lastName || 'Someone'} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bài viết của bạn`,
-          postId: post._id.toString(),
-          typeReaction: this.formatReactionTypeToView(type),
-        });
+
+        console.log(post.userId)
+        console.log(user._id)
+
+        if (post.userId.toString() !== user._id.toString()) {
+          this.notificationService.create({
+            recipientId: post.userId.toString(),
+            senderId: user._id,
+            type: NotificationType.POST_REACTED,
+            title: 'Reaction post',
+            message: `${user?.firstName + ' ' + user?.lastName || 'Someone'} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bài viết của bạn`,
+            postId: post._id.toString(),
+            typeReaction: this.formatReactionTypeToView(type),
+          });
+        }
+
         break;
       case TypeFactor.COMMENT:
         const comment = await this.commentModel.findById(id);
         if (!comment) throw new NotFoundException('Comment not found');
-        this.notificationService.create({
-          recipientId: comment.userId.toString(),
-          senderId: user._id,
-          type: NotificationType.COMMENT_REACTED,
-          title: 'Reaction comment',
-          message: `${user?.firstName + ' ' + user?.lastName || 'Someone'} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bình luận của bạn`,
-          commentId: comment._id.toString(),
-          postId: comment.postId.toString(),
-          typeReaction: this.formatReactionTypeToView(type),
-        });
+
+        if (comment.userId.toString() !== user._id.toString()) {
+          this.notificationService.create({
+            recipientId: comment.userId.toString(),
+            senderId: user._id,
+            type: NotificationType.COMMENT_REACTED,
+            title: 'Reaction comment',
+            message: `${user?.firstName + ' ' + user?.lastName || 'Someone'} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bình luận của bạn`,
+            commentId: comment._id.toString(),
+            postId: comment.postId.toString(),
+            typeReaction: this.formatReactionTypeToView(type),
+          });
+        }
         break;
       case TypeFactor.MESSAGE:
         // TODO: Add message validation when Message model is available

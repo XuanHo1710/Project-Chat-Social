@@ -34,6 +34,9 @@ import { QUERY_KEYS } from '@/constants/query-keys';
 import { ConversationResponseData } from '@/types/conversation';
 import { MessageResponse } from '@/types/chat';
 import { CLIENT_PATH } from '@/constants/paths';
+import { notificationService } from '@/services/notification.service';
+import { chatService } from '@/services/chat.service';
+import { conversationService } from '@/services/conversation.service';
 
 export default function Header() {
     const { user } = useAuthStore();
@@ -53,8 +56,29 @@ export default function Header() {
 
     // Lazy load - only fetch conversations when popup is opened
     const { data: listConversation, isLoading: isLoadingConversations, refetch: refetchConversations } = useConversationByUserId(
-        showChatPopup ? (user?.id || "") : "" // Only fetch when popup is open
+        showChatPopup ? (user?.id || "") : ""
     );
+
+
+    useEffect(() => {
+        const fetchUnreadCountNotification = async () => {
+            const response = await notificationService.getUnreadCount();
+            if (response && response.unreadCount) {
+                setNotificationUnreadCount(response.unreadCount);
+            }
+        }
+        fetchUnreadCountNotification();
+    }, []);
+
+    useEffect(() => {
+        const fetchUnreadCountMessage = async () => {
+            const response = await conversationService.unreadCountAllConversationByUserId();
+            if (response && response.unreadCount) {
+                setChatUnreadCount(response.unreadCount);
+            }
+        }
+        fetchUnreadCountMessage();
+    }, []);
 
     // Calculate total unread count from conversations
     useEffect(() => {

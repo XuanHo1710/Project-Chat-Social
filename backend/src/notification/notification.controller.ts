@@ -7,18 +7,22 @@ import { RespondGroupInvitationDto } from './dto/notification.dto';
 @Controller('notification')
 @UseGuards(JwtAuthGuard)
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(private readonly notificationService: NotificationService) { }
 
   @Get()
   getNotifications(
     @UserInfo() user: any,
     @Query('page') page?: string,
-    @Query('limit') limit?: string
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('type') type?: string
   ) {
     return this.notificationService.getUserNotifications(
       user._id,
       page ? parseInt(page) : 1,
-      limit ? parseInt(limit) : 20
+      limit ? parseInt(limit) : 20,
+      status,
+      type
     );
   }
 

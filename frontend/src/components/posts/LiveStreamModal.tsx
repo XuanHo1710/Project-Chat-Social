@@ -160,7 +160,6 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
             displayStream.getVideoTracks()[0].onended = () => {
                 stopStream();
                 setStreamSource(null);
-                toast.info("Chia sẻ màn hình đã dừng");
             };
         } catch (err) {
             console.error("Screen Share Error:", err);
@@ -452,8 +451,6 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
         peersRef.current.clear();
 
         onClose(); // Close dialog directly
-
-        toast.info("Livestream kết thúc. Video đang được xử lý ngầm...");
 
         // 4. Background Process: Set Status ENDED & Upload Video
         try {

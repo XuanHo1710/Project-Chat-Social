@@ -233,7 +233,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         const handleCallEnded = (data: any) => {
             // If 1v1
             if (!isGroupCall) {
-                toast.info('Cuộc gọi đã kết thúc');
                 leaveCall(false);
             }
         };

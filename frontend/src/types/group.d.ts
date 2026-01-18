@@ -1,24 +1,10 @@
-export enum GroupPrivacy {
-  PUBLIC = "PUBLIC",
-  PRIVATE = "PRIVATE",
-}
+export type GroupPrivacy = "PUBLIC" | "PRIVATE";
 
-export enum GroupVisibility {
-  VISIBLE = "VISIBLE",
-  HIDDEN = "HIDDEN",
-}
+export type GroupVisibility = "VISIBLE" | "HIDDEN";
 
-export enum GroupRole {
-  ADMIN = "ADMIN",
-  MODERATOR = "MODERATOR",
-  MEMBER = "MEMBER",
-}
+export type GroupRole = "MEMBER" | "MODERATOR" | "ADMIN" | "OWNER";
 
-export enum MemberStatus {
-  PENDING = "PENDING",
-  APPROVED = "APPROVED",
-  BANNED = "BANNED",
-}
+export type MemberStatus = "PENDING" | "APPROVED" | "BANNED";
 
 export interface GroupCreator {
   _id: string;

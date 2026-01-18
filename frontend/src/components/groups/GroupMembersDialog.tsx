@@ -5,11 +5,9 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
-    DialogActions,
     Box,
     Typography,
     Avatar,
-    Button,
     TextField,
     InputAdornment,
     List,
@@ -69,8 +67,8 @@ export default function GroupMembersDialog({
     const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
     const [isRemoving, setIsRemoving] = useState(false);
 
-    const isAdmin = currentUserRole === GroupRole.ADMIN;
-    const isModerator = currentUserRole === GroupRole.MODERATOR;
+    const isAdmin = currentUserRole === "ADMIN";
+    const isModerator = currentUserRole === "MODERATOR";
 
     useEffect(() => {
         if (open) {
@@ -111,9 +109,8 @@ export default function GroupMembersDialog({
             setMembers(prev => prev.filter(m => m._id !== selectedMember._id));
             toast.success(`Đã xóa ${selectedMember.firstName} ${selectedMember.lastName} khỏi nhóm`);
             handleCloseMenu();
-        } catch (error: any) {
-            const message = error?.response?.data?.message || 'Không thể xóa thành viên';
-            toast.error(message);
+        } catch {
+            toast.error('Không thể xóa thành viên');
         } finally {
             setIsRemoving(false);
         }
@@ -128,9 +125,8 @@ export default function GroupMembersDialog({
             ));
             toast.success(`Đã cập nhật vai trò của ${selectedMember.firstName} ${selectedMember.lastName}`);
             handleCloseMenu();
-        } catch (error: any) {
-            const message = error?.response?.data?.message || 'Không thể cập nhật vai trò';
-            toast.error(message);
+        } catch {
+            toast.error('Không thể cập nhật vai trò');
         }
     };
 
@@ -141,9 +137,9 @@ export default function GroupMembersDialog({
 
     const getRoleChip = (role: GroupRole) => {
         switch (role) {
-            case GroupRole.ADMIN:
+            case "ADMIN":
                 return <Chip label="Quản trị viên" size="small" sx={{ bgcolor: '#1877f2', color: 'white', fontSize: 11 }} />;
-            case GroupRole.MODERATOR:
+            case "MODERATOR":
                 return <Chip label="Người kiểm duyệt" size="small" sx={{ bgcolor: '#42b72a', color: 'white', fontSize: 11 }} />;
             default:
                 return null;
@@ -156,7 +152,7 @@ export default function GroupMembersDialog({
         // Only admins can manage others
         if (!isAdmin) return false;
         // Only creator can manage other admins
-        if (member.role === GroupRole.ADMIN && !isCreator) return false;
+        if (member.role === "ADMIN" && !isCreator) return false;
         return true;
     };
 
@@ -283,23 +279,23 @@ export default function GroupMembersDialog({
                         </Typography>
                         <Divider />
 
-                        {isCreator && selectedMember.role !== GroupRole.ADMIN && (
-                            <MenuItem onClick={() => handleUpdateRole(GroupRole.ADMIN)}>
+                        {isCreator && selectedMember.role !== "ADMIN" && (
+                            <MenuItem onClick={() => handleUpdateRole("ADMIN")}>
                                 <ListItemIcon><AdminIcon sx={{ color: '#1877f2' }} /></ListItemIcon>
                                 <ListItemText>Thăng lên quản trị viên</ListItemText>
                             </MenuItem>
                         )}
 
-                        {selectedMember.role !== GroupRole.MODERATOR && selectedMember.role !== GroupRole.ADMIN && (
-                            <MenuItem onClick={() => handleUpdateRole(GroupRole.MODERATOR)}>
+                        {selectedMember.role !== "MODERATOR" && selectedMember.role !== "ADMIN" && (
+                            <MenuItem onClick={() => handleUpdateRole("MODERATOR")}>
                                 <ListItemIcon><ShieldIcon sx={{ color: '#42b72a' }} /></ListItemIcon>
                                 <ListItemText>Thăng lên người kiểm duyệt</ListItemText>
                             </MenuItem>
                         )}
 
-                        {(selectedMember.role === GroupRole.MODERATOR || selectedMember.role === GroupRole.ADMIN) &&
-                            (isCreator || selectedMember.role !== GroupRole.ADMIN) && (
-                                <MenuItem onClick={() => handleUpdateRole(GroupRole.MEMBER)}>
+                        {(selectedMember.role === "MODERATOR" || selectedMember.role === "ADMIN") &&
+                            (isCreator || selectedMember.role !== "ADMIN") && (
+                                <MenuItem onClick={() => handleUpdateRole("MEMBER")}>
                                     <ListItemIcon><ShieldIcon sx={{ color: 'text.secondary' }} /></ListItemIcon>
                                     <ListItemText>Hạ xuống thành viên</ListItemText>
                                 </MenuItem>

@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     Box,
@@ -47,7 +47,7 @@ import {
 } from '@mui/icons-material';
 import Header from '@/components/home/Header';
 import { groupService } from '@/services/group.service';
-import { Group, GroupPrivacy, GroupCreator, GroupRole } from '@/types/group';
+import { Group, GroupCreator, GroupRole } from '@/types/group';
 import { useAuthStore } from '@/stores/useAuthStore';
 import CreatePostModal from '@/components/posts/CreatePostModal';
 import { useGetGroupPosts, useDeletePost } from '@/queries/usePostQueries';
@@ -208,6 +208,7 @@ export default function GroupDetailPage() {
 
         // Listen for group settings updates
         socket.on('groupSettingsUpdate', (data: { groupId: string; settings: any }) => {
+            console.log("Received groupSettingsUpdate: ", data);
             if (data.groupId === groupId) {
                 setGroup(prev => prev ? { ...prev, ...data.settings } : null);
             }
@@ -401,8 +402,8 @@ export default function GroupDetailPage() {
         );
     };
 
-    const isAdmin = group?.myRole === GroupRole.ADMIN;
-    const isModerator = group?.myRole === GroupRole.MODERATOR;
+    const isAdmin = group?.myRole === "ADMIN";
+    const isModerator = group?.myRole === "MODERATOR";
     const canEdit = isAdmin || isModerator;
 
     if (isLoading) {
@@ -470,13 +471,13 @@ export default function GroupDetailPage() {
                                     </PhotoMenuButton>
                                 </Box>
                             )}
-                            <Box sx={{ position: 'absolute', top: { xs: -10, md: 8 }, left: { xs: '50%', md: -16 }, transform: { xs: 'translateX(-50%)', md: 'none' }, bgcolor: 'primary.main', color: 'primary.contrastText', px: 1.5, py: 0.5, borderRadius: 1, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', zIndex: 1 }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Nhóm riêng tư' : 'Nhóm công khai'}</Box>
+                            <Box sx={{ position: 'absolute', top: { xs: -10, md: 8 }, left: { xs: '50%', md: -16 }, transform: { xs: 'translateX(-50%)', md: 'none' }, bgcolor: 'primary.main', color: 'primary.contrastText', px: 1.5, py: 0.5, borderRadius: 1, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', zIndex: 1 }}>{group.privacy === "PRIVATE" ? 'Nhóm riêng tư' : 'Nhóm công khai'}</Box>
                         </Box>
                         <Box sx={{ flex: 1, textAlign: { xs: 'center', md: 'left' }, minWidth: 0 }}>
                             <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: 24, md: 28 }, color: 'text.primary' }}>{group.name}</Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, justifyContent: { xs: 'center', md: 'flex-start' }, flexWrap: 'wrap' }}>
-                                {group.privacy === GroupPrivacy.PRIVATE ? <LockIcon sx={{ fontSize: 14, color: 'text.secondary' }} /> : <PublicIcon sx={{ fontSize: 14, color: 'text.secondary' }} />}
-                                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 15 }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Nhóm Riêng tư' : 'Nhóm Công khai'}</Typography>
+                                {group.privacy === "PRIVATE" ? <LockIcon sx={{ fontSize: 14, color: 'text.secondary' }} /> : <PublicIcon sx={{ fontSize: 14, color: 'text.secondary' }} />}
+                                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 15 }}>{group.privacy === "PRIVATE" ? 'Nhóm Riêng tư' : 'Nhóm Công khai'}</Typography>
                                 <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 15 }}>· {group.memberCount.toLocaleString()} thành viên</Typography>
                             </Box>
                             <Box sx={{ display: 'flex', justifyContent: { xs: 'center', md: 'flex-start' }, mt: 1.5 }}>
@@ -621,8 +622,8 @@ export default function GroupDetailPage() {
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
                                     <PublicIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                     <Box>
-                                        <Typography variant="body1" fontWeight={600} sx={{ color: 'text.primary' }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Riêng tư' : 'Công khai'}</Typography>
-                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{group.privacy === GroupPrivacy.PRIVATE ? 'Chỉ thành viên mới nhìn thấy mọi người trong nhóm và những gì họ đăng.' : 'Bất kỳ ai cũng có thể nhìn thấy mọi người trong nhóm và những gì họ đăng.'}</Typography>
+                                        <Typography variant="body1" fontWeight={600} sx={{ color: 'text.primary' }}>{group.privacy === "PRIVATE" ? 'Riêng tư' : 'Công khai'}</Typography>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{group.privacy === "PRIVATE" ? 'Chỉ thành viên mới nhìn thấy mọi người trong nhóm và những gì họ đăng.' : 'Bất kỳ ai cũng có thể nhìn thấy mọi người trong nhóm và những gì họ đăng.'}</Typography>
                                     </Box>
                                 </Box>
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
@@ -698,7 +699,7 @@ export default function GroupDetailPage() {
                             useGroupPostStore.getState().updateGroupPost(groupId, menuPost._id, { ...menuPost, allowComments: allow });
                             setMenuPost(prev => prev ? { ...prev, allowComments: allow } : null);
                             toast.success(allow ? 'Đã bật bình luận' : 'Đã tắt bình luận');
-                        } catch (error) {
+                        } catch {
                             toast.error('Không thể cập nhật cài đặt');
                         }
                     }}
@@ -709,7 +710,7 @@ export default function GroupDetailPage() {
                             useGroupPostStore.getState().updateGroupPost(groupId, menuPost._id, { ...menuPost, allowShares: allow });
                             setMenuPost(prev => prev ? { ...prev, allowShares: allow } : null);
                             toast.success(allow ? 'Đã bật chia sẻ' : 'Đã tắt chia sẻ');
-                        } catch (error) {
+                        } catch {
                             toast.error('Không thể cập nhật cài đặt');
                         }
                     }}
@@ -720,7 +721,7 @@ export default function GroupDetailPage() {
                             useGroupPostStore.getState().updateGroupPost(groupId, menuPost._id, { ...menuPost, allowReactions: allow });
                             setMenuPost(prev => prev ? { ...prev, allowReactions: allow } : null);
                             toast.success(allow ? 'Đã bật tương tác' : 'Đã tắt tương tác');
-                        } catch (error) {
+                        } catch {
                             toast.error('Không thể cập nhật cài đặt');
                         }
                     }}

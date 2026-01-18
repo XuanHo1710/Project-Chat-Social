@@ -53,45 +53,48 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
     const [pendingInviteIds, setPendingInviteIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
+        const loadData = async () => {
+            if (!user?.id) return;
+            setIsLoading(true);
+            try {
+                // Load friends and existing members in parallel
+                const [friendsResponse, membersResponse] = await Promise.all([
+                    relationshipService.getFriends(),
+                    groupService.getMembers(groupId, 1, 100)
+                ]);
+
+                setFriends(friendsResponse.data || []);
+
+                // Get IDs of existing members
+                const memberIds = new Set<string>(
+                    (membersResponse.members || []).map((m: any) => m._id || m.userId?._id)
+                );
+                setExistingMemberIds(memberIds);
+
+                // Get pending invites
+                try {
+                    const pendingResponse = await groupService.getPendingMembers(groupId, 1, 100);
+                    console.log('Pending members response:', pendingResponse);
+                    const pendingIds = new Set<string>(
+                        (pendingResponse.members || []).map((m: any) => m.userId?._id || m._id)
+                    );
+                    console.log('Pending invite IDs:', pendingIds);
+                    setPendingInviteIds(pendingIds);
+                    setInvitedIds(pendingIds);
+                } catch {
+                    // Ignore if user doesn't have permission to view pending
+                }
+            } catch (error) {
+                console.error('Failed to load data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
         if (open && user?.id) {
             loadData();
         }
     }, [open, user?.id, groupId]);
 
-    const loadData = async () => {
-        if (!user?.id) return;
-        setIsLoading(true);
-        try {
-            // Load friends and existing members in parallel
-            const [friendsResponse, membersResponse] = await Promise.all([
-                relationshipService.getFriends(),
-                groupService.getMembers(groupId, 1, 100)
-            ]);
-
-            setFriends(friendsResponse.data || []);
-
-            // Get IDs of existing members
-            const memberIds = new Set<string>(
-                (membersResponse.members || []).map((m: any) => m._id || m.userId?._id)
-            );
-            setExistingMemberIds(memberIds);
-
-            // Get pending invites
-            try {
-                const pendingResponse = await groupService.getPendingMembers(groupId, 1, 100);
-                const pendingIds = new Set<string>(
-                    (pendingResponse.members || []).map((m: any) => m.userId?._id || m._id)
-                );
-                setPendingInviteIds(pendingIds);
-            } catch {
-                // Ignore if user doesn't have permission to view pending
-            }
-        } catch (error) {
-            console.error('Failed to load data:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     const handleInvite = async (friendId: string) => {
         setInvitingId(friendId);
@@ -99,9 +102,8 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
             await groupService.inviteMember(groupId, friendId);
             setInvitedIds(prev => new Set([...prev, friendId]));
             toast.success('Đã gửi lời mời!');
-        } catch (error: any) {
-            const message = error?.response?.data?.message || 'Không thể gửi lời mời';
-            toast.error(message);
+        } catch {
+            toast.error('Không thể gửi lời mời');
         } finally {
             setInvitingId(null);
         }
@@ -183,6 +185,8 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                         <List>
                             {filteredFriends.map((friend) => {
                                 const status = getButtonStatus(friend._id);
+
+                                console.log('Rendering friend:', invitedIds);
 
                                 return (
                                     <ListItem

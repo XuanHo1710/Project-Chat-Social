@@ -13,6 +13,7 @@ interface SocketContextType {
   isConnected: boolean;
   socketRelationship: Socket | null;
   socketReaction: Socket | null;
+  socketNotification: Socket | null;
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -21,6 +22,7 @@ const SocketContext = createContext<SocketContextType>({
   isConnected: false,
   socketRelationship: null,
   socketReaction: null,
+  socketNotification: null,
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -29,6 +31,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [socketRelationship, setSocketRelationship] = useState<Socket | null>(null);
   const [socketReaction, setSocketReaction] = useState<Socket | null>(null);
+  const [socketNotification, setSocketNotification] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { user } = useAuthStore();
 
@@ -58,6 +61,13 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     // Reaction socket
     const socketReactionIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/reaction", {
+      query: { userId },
+      transports: ["websocket"],
+      reconnection: true,
+    });
+
+    // Notification socket
+    const socketNotificationIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/notifications", {
       query: { userId },
       transports: ["websocket"],
       reconnection: true,
@@ -95,21 +105,31 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       console.log("❤️ Reaction socket disconnected");
     });
 
+    socketNotificationIo.on("connect", () => {
+      console.log("🔔 Notification socket connected:", socketNotificationIo.id);
+    })
+
+    socketNotificationIo.on("disconnect", () => {
+      console.log("🔔 Notification socket disconnected");
+    });
+
     setSocket(socketIo);
     setSocketRelationship(socketRelationshipIo);
     setSocketReaction(socketReactionIo);
+    setSocketNotification(socketNotificationIo);
 
     return () => {
       onlineListenerSetup.current = false;
       socketIo.disconnect();
       socketRelationshipIo.disconnect();
       socketReactionIo.disconnect();
+      socketNotificationIo.disconnect();
     };
   }, [user?.id]);
 
 
   return (
-    <SocketContext.Provider value={{ socket, socketChat: socket, isConnected, socketRelationship, socketReaction }}>
+    <SocketContext.Provider value={{ socket, socketChat: socket, isConnected, socketRelationship, socketReaction, socketNotification }}>
       {children}
     </SocketContext.Provider>
   );
@@ -160,8 +180,8 @@ function setupOnlineStatusListeners(socket: Socket, userId: string) {
   });
 
   // GLOBAL: Listen for message read status updates
-  socket.on('message:read:updated', (data: { 
-    conversationId: string; 
+  socket.on('message:read:updated', (data: {
+    conversationId: string;
     readBy: { _id: string; firstName: string; lastName: string; avatar?: string } | null;
     readByUserId: string;
   }) => {

@@ -52,8 +52,15 @@ export class NotificationService {
       .populate('groupId', 'name avatar coverImage')
       .lean();
 
+    // Get unread count
+    const unreadCount = await this.notificationModel.countDocuments({
+      recipientId: new Types.ObjectId(dto.recipientId),
+      status: NotificationStatus.UNREAD,
+    });
+
     // Emit real-time notification
     this.notificationGateway.sendNotification(dto.recipientId, populatedNotification);
+    this.notificationGateway.sendUnreadCountUpdate(dto.recipientId, unreadCount);
 
     return populatedNotification;
   }
@@ -167,6 +174,7 @@ export class NotificationService {
       await this.groupService.acceptInvitation(userId, groupId);
       notification.actionStatus = 'ACCEPTED';
       notification.status = NotificationStatus.READ;
+      notification.message = 'Bạn đã chấp nhận lời mời tham gia nhóm.';
       await notification.save();
 
       return { message: 'Đã tham gia nhóm' };
@@ -175,6 +183,7 @@ export class NotificationService {
       await this.groupService.rejectInvitation(userId, groupId);
       notification.actionStatus = 'REJECTED';
       notification.status = NotificationStatus.READ;
+      notification.message = 'Bạn đã từ chối lời mời tham gia nhóm.';
       await notification.save();
 
       return { message: 'Đã từ chối lời mời' };

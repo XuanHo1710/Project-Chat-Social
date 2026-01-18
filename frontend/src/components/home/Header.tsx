@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppBar, Toolbar, Box, InputBase, IconButton, Avatar, Badge, ClickAwayListener, Tooltip, Typography, useTheme, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, useMediaQuery } from '@mui/material';
+import { AppBar, Toolbar, Box, IconButton, Avatar, Badge, ClickAwayListener, Tooltip, Typography, useTheme, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, useMediaQuery } from '@mui/material';
 import {
     Search as SearchIcon,
     Home as HomeIcon,
@@ -33,6 +33,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants/query-keys';
 import { ConversationResponseData } from '@/types/conversation';
 import { MessageResponse } from '@/types/chat';
+import { CLIENT_PATH } from '@/constants/paths';
 
 export default function Header() {
     const { user } = useAuthStore();
@@ -43,7 +44,7 @@ export default function Header() {
     const [showAvatarMenu, setShowAvatarMenu] = useState(false);
     const [chatUnreadCount, setChatUnreadCount] = useState(0);
     const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
-    const { socketChat } = useSocket();
+    const { socketChat, socketNotification } = useSocket();
     const queryClient = useQueryClient();
     const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -57,17 +58,20 @@ export default function Header() {
 
     // Calculate total unread count from conversations
     useEffect(() => {
-        if (listConversation?.data && user?.id) {
-            const totalUnread = listConversation.data.reduce((acc, conv) => {
-                return acc + (conv.unreadCount?.[user.id] || 0);
-            }, 0);
-            setChatUnreadCount(totalUnread);
+        const fetchUnreadCount = () => {
+            if (listConversation?.data && user?.id) {
+                const totalUnread = listConversation.data.reduce((acc, conv) => {
+                    return acc + (conv.unreadCount?.[user.id] || 0);
+                }, 0);
+                setChatUnreadCount(totalUnread);
+            }
         }
+        fetchUnreadCount();
     }, [listConversation, user?.id]);
 
     // Real-time updates for conversations and unread count
     useEffect(() => {
-        if (!socketChat || !user?.id) return;
+        if (!socketChat || !user?.id || !socketNotification) return;
 
         // Update unread count when new message arrives
         const handleGlobalMessageNew = (msg: MessageResponse) => {
@@ -120,7 +124,6 @@ export default function Header() {
 
         // Handle unread count update from server
         const handleUnreadCountUpdate = (data: { conversationId: string; unreadCount: Record<string, number> }) => {
-            const myUnread = data.unreadCount?.[user.id] || 0;
             // Recalculate total unread
             queryClient.setQueryData<{ data: ConversationResponseData[] }>(
                 [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
@@ -183,6 +186,14 @@ export default function Header() {
             }
         };
 
+        // Update notification unread count
+        const handleNotificationUnreadUpdate = (data: { count: number }) => {
+            setNotificationUnreadCount(data.count);
+        };
+
+
+
+        socketNotification.on("unreadCountUpdate", handleNotificationUnreadUpdate);
         socketChat.on("message:new", handleGlobalMessageNew);
         socketChat.on("conversation:unread:update", handleUnreadCountUpdate);
         socketChat.on("message:read", handleMessageRead);
@@ -209,8 +220,9 @@ export default function Header() {
             socketChat.off("conversation:nickname:updated", handleConversationUpdate);
             socketChat.off("conversation:settings:updated", handleConversationUpdate);
             socketChat.off("conversation:created", handleConversationUpdate);
+            socketNotification.off("unreadCountUpdate", handleNotificationUnreadUpdate);
         };
-    }, [socketChat, user?.id, queryClient, showChatPopup]);
+    }, [socketChat, user?.id, queryClient, showChatPopup, refetchConversations, socketNotification]);
 
     // Fetch conversations when popup opens
     useEffect(() => {
@@ -291,7 +303,7 @@ export default function Header() {
                                 f
                             </Box>
                         ) : (
-                            <Link href="/" style={{ textDecoration: 'none' }}>
+                            <Link href={CLIENT_PATH.HOME} style={{ textDecoration: 'none' }}>
                                 <Box
                                     sx={{
                                         width: 40,
@@ -315,7 +327,7 @@ export default function Header() {
                             </Link>
                         )}
 
-                        <Link href="/search" style={{ textDecoration: 'none' }}>
+                        <Link href={CLIENT_PATH.SEARCH} style={{ textDecoration: 'none' }}>
                             <Box
                                 sx={{
                                     display: 'flex',
@@ -357,18 +369,18 @@ export default function Header() {
                         }}
                     >
                         <Tooltip title="Trang chủ" arrow placement="bottom">
-                            <Link href="/" style={{ textDecoration: 'none' }}>
+                            <Link href={CLIENT_PATH.HOME} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
                                         px: 4,
                                         py: 1.5,
-                                        borderRadius: pathname === '/' ? 0 : 2,
-                                        borderBottom: pathname === '/' ? '3px solid' : 'none',
+                                        borderRadius: pathname === CLIENT_PATH.HOME ? 0 : 2,
+                                        borderBottom: pathname === CLIENT_PATH.HOME ? '3px solid' : 'none',
                                         borderBottomColor: 'primary.main',
-                                        color: pathname === '/' ? 'primary.main' : 'text.secondary',
+                                        color: pathname === CLIENT_PATH.HOME ? 'primary.main' : 'text.secondary',
                                     }}
                                 >
-                                    {pathname === '/' ? <HomeIcon sx={{ fontSize: 28 }} /> : <HomeOutlinedIcon sx={{ fontSize: 28 }} />}
+                                    {pathname === CLIENT_PATH.HOME ? <HomeIcon sx={{ fontSize: 28 }} /> : <HomeOutlinedIcon sx={{ fontSize: 28 }} />}
                                 </IconButton>
                             </Link>
                         </Tooltip>
@@ -378,61 +390,61 @@ export default function Header() {
                                     sx={{
                                         px: 4,
                                         py: 1.5,
-                                        borderRadius: pathname === '/friends' ? 0 : 2,
-                                        borderBottom: pathname === '/friends' ? '3px solid' : 'none',
+                                        borderRadius: pathname === CLIENT_PATH.FRIENDS ? 0 : 2,
+                                        borderBottom: pathname === CLIENT_PATH.FRIENDS ? '3px solid' : 'none',
                                         borderBottomColor: 'primary.main',
-                                        color: pathname === '/friends' ? 'primary.main' : 'text.secondary',
+                                        color: pathname === CLIENT_PATH.FRIENDS ? 'primary.main' : 'text.secondary',
                                     }}
                                 >
-                                    {pathname === '/friends' ? <PeopleIcon sx={{ fontSize: 28 }} /> : <PeopleOutlinedIcon sx={{ fontSize: 28 }} />}
+                                    {pathname === CLIENT_PATH.FRIENDS ? <PeopleIcon sx={{ fontSize: 28 }} /> : <PeopleOutlinedIcon sx={{ fontSize: 28 }} />}
                                 </IconButton>
                             </Link>
                         </Tooltip>
                         <Tooltip title="Thước phim" arrow placement="bottom">
-                            <Link href="/reels" style={{ textDecoration: 'none' }}>
+                            <Link href={CLIENT_PATH.REELS} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
                                         px: 4,
                                         py: 1.5,
-                                        borderRadius: pathname === '/reels' ? 0 : 2,
-                                        borderBottom: pathname === '/reels' ? '3px solid' : 'none',
+                                        borderRadius: pathname === CLIENT_PATH.REELS ? 0 : 2,
+                                        borderBottom: pathname === CLIENT_PATH.REELS ? '3px solid' : 'none',
                                         borderBottomColor: 'primary.main',
-                                        color: pathname === '/reels' ? 'primary.main' : 'text.secondary',
+                                        color: pathname === CLIENT_PATH.REELS ? 'primary.main' : 'text.secondary',
                                     }}
                                 >
-                                    {pathname === '/reels' ? <OndemandVideoIcon sx={{ fontSize: 28 }} /> : <OndemandVideoOutlinedIcon sx={{ fontSize: 28 }} />}
+                                    {pathname === CLIENT_PATH.REELS ? <OndemandVideoIcon sx={{ fontSize: 28 }} /> : <OndemandVideoOutlinedIcon sx={{ fontSize: 28 }} />}
                                 </IconButton>
                             </Link>
                         </Tooltip>
                         <Tooltip title="Nhóm" arrow placement="bottom">
-                            <Link href="/groups" style={{ textDecoration: 'none' }}>
+                            <Link href={CLIENT_PATH.GROUPS} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
                                         px: 4,
                                         py: 1.5,
-                                        borderRadius: pathname?.startsWith('/groups') ? 0 : 2,
-                                        borderBottom: pathname?.startsWith('/groups') ? '3px solid' : 'none',
+                                        borderRadius: pathname?.startsWith(CLIENT_PATH.GROUPS) ? 0 : 2,
+                                        borderBottom: pathname?.startsWith(CLIENT_PATH.GROUPS) ? '3px solid' : 'none',
                                         borderBottomColor: 'primary.main',
-                                        color: pathname?.startsWith('/groups') ? 'primary.main' : 'text.secondary',
+                                        color: pathname?.startsWith(CLIENT_PATH.GROUPS) ? 'primary.main' : 'text.secondary',
                                     }}
                                 >
-                                    {pathname?.startsWith('/groups') ? <GroupsIcon sx={{ fontSize: 28 }} /> : <GroupsOutlinedIcon sx={{ fontSize: 28 }} />}
+                                    {pathname?.startsWith(CLIENT_PATH.GROUPS) ? <GroupsIcon sx={{ fontSize: 28 }} /> : <GroupsOutlinedIcon sx={{ fontSize: 28 }} />}
                                 </IconButton>
                             </Link>
                         </Tooltip>
                         <Tooltip title="Trò chơi" arrow placement="bottom">
-                            <Link href="/games" style={{ textDecoration: 'none' }}>
+                            <Link href={CLIENT_PATH.GAMES} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
                                         px: 4,
                                         py: 1.5,
-                                        borderRadius: pathname === '/games' ? 0 : 2,
-                                        borderBottom: pathname === '/games' ? '3px solid' : 'none',
+                                        borderRadius: pathname === CLIENT_PATH.GAMES ? 0 : 2,
+                                        borderBottom: pathname === CLIENT_PATH.GAMES ? '3px solid' : 'none',
                                         borderBottomColor: 'primary.main',
-                                        color: pathname === '/games' ? 'primary.main' : 'text.secondary',
+                                        color: pathname === CLIENT_PATH.GAMES ? 'primary.main' : 'text.secondary',
                                     }}
                                 >
-                                    {pathname === '/games' ? <GamesIcon sx={{ fontSize: 28 }} /> : <GamesOutlinedIcon sx={{ fontSize: 28 }} />}
+                                    {pathname === CLIENT_PATH.GAMES ? <GamesIcon sx={{ fontSize: 28 }} /> : <GamesOutlinedIcon sx={{ fontSize: 28 }} />}
                                 </IconButton>
                             </Link>
                         </Tooltip>

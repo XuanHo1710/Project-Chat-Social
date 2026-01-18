@@ -169,7 +169,7 @@ export default function GroupSettingsDialog({
                             onChange={(e) => setPrivacy(e.target.value as GroupPrivacy)}
                         >
                             <FormControlLabel
-                                value={GroupPrivacy.PUBLIC}
+                                value={"PUBLIC"}
                                 control={<Radio />}
                                 label={
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
@@ -185,7 +185,7 @@ export default function GroupSettingsDialog({
                                 sx={{ alignItems: 'flex-start', mb: 1 }}
                             />
                             <FormControlLabel
-                                value={GroupPrivacy.PRIVATE}
+                                value={"PRIVATE"}
                                 control={<Radio />}
                                 label={
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
@@ -215,7 +215,7 @@ export default function GroupSettingsDialog({
                             onChange={(e) => setVisibility(e.target.value as GroupVisibility)}
                         >
                             <FormControlLabel
-                                value={GroupVisibility.VISIBLE}
+                                value={"VISIBLE"}
                                 control={<Radio />}
                                 label={
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
@@ -231,7 +231,7 @@ export default function GroupSettingsDialog({
                                 sx={{ alignItems: 'flex-start', mb: 1 }}
                             />
                             <FormControlLabel
-                                value={GroupVisibility.HIDDEN}
+                                value={"HIDDEN"}
                                 control={<Radio />}
                                 label={
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>

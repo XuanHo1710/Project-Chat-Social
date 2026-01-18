@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
     Box,
     Paper,
@@ -11,25 +11,23 @@ import {
     ListItemAvatar,
     Avatar,
     ListItemText,
-    Badge,
-    Button,
-    CircularProgress,
     Skeleton,
     useTheme,
     alpha,
+    Button,
 } from '@mui/material';
 import {
     MoreHoriz as MoreIcon,
     Groups as GroupsIcon,
 } from '@mui/icons-material';
 import { notificationService } from '@/services/notification.service';
-import { Notification, NotificationType, NotificationStatus } from '@/types/notification';
 
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { timeAgo } from '@/utils/formatDate';
+import { Notification, NotificationEnum } from '@/types/notification';
 
 interface NotificationPopupProps {
     onUnreadCountChange?: (count: number) => void;
@@ -44,8 +42,8 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     const [isLoading, setIsLoading] = useState(true);
     const [unreadCount, setUnreadCount] = useState(0);
     const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all');
-    const [respondingId, setRespondingId] = useState<string | null>(null);
-    const [socket, setSocket] = useState<Socket | null>(null);
+    const socketRef = useRef<Socket | null>(null);
+
 
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : 'action.hover';
     const selectedBg = isDark ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.primary.main, 0.1);
@@ -53,11 +51,17 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     // Connect to notification socket
     useEffect(() => {
         if (user?.id && accessToken) {
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+            if (socketRef.current) return; // đã connect rồi thì thôi
+
+            const backendUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
             const newSocket = io(`${backendUrl}/notifications`, {
                 query: { userId: user.id },
                 transports: ['websocket'],
+                reconnection: true,
             });
+
+            socketRef.current = newSocket;
+
 
             newSocket.on('connect', () => {
                 console.log('Connected to notification socket');
@@ -80,10 +84,11 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 onUnreadCountChange?.(count);
             });
 
-            setSocket(newSocket);
 
             return () => {
                 newSocket.disconnect();
+                socketRef.current = null;
+
             };
         }
     }, [user?.id, accessToken, onUnreadCountChange]);
@@ -107,30 +112,6 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
         loadNotifications();
     }, [loadNotifications]);
 
-    // Handle group invitation response
-    const handleRespondToInvitation = async (notificationId: string, action: 'ACCEPT' | 'REJECT') => {
-        setRespondingId(notificationId);
-        try {
-            await notificationService.respondToGroupInvitation(notificationId, action);
-            setNotifications(prev =>
-                prev.map(n =>
-                    n._id === notificationId
-                        ? { ...n, actionStatus: action === 'ACCEPT' ? 'ACCEPTED' : 'REJECTED', status: NotificationStatus.READ }
-                        : n
-                )
-            );
-            toast.success(action === 'ACCEPT' ? 'Đã tham gia nhóm' : 'Đã từ chối lời mời');
-
-            // Refresh to update unread count
-            const countResponse = await notificationService.getUnreadCount();
-            setUnreadCount(countResponse.unreadCount);
-            onUnreadCountChange?.(countResponse.unreadCount);
-        } catch {
-            toast.error('Không thể xử lý lời mời');
-        } finally {
-            setRespondingId(null);
-        }
-    };
 
     // Mark as read
     const handleMarkAsRead = async (notificationId: string) => {
@@ -138,7 +119,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
             await notificationService.markAsRead(notificationId);
             setNotifications(prev =>
                 prev.map(n =>
-                    n._id === notificationId ? { ...n, status: NotificationStatus.READ } : n
+                    n._id === notificationId ? { ...n, status: "READ" } : n
                 )
             );
             setUnreadCount(prev => Math.max(0, prev - 1));
@@ -152,7 +133,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     const handleMarkAllAsRead = async () => {
         try {
             await notificationService.markAllAsRead();
-            setNotifications(prev => prev.map(n => ({ ...n, status: NotificationStatus.READ })));
+            setNotifications(prev => prev.map(n => ({ ...n, status: "READ" })));
             setUnreadCount(0);
             onUnreadCountChange?.(0);
             toast.success('Đã đánh dấu tất cả là đã đọc');
@@ -164,12 +145,12 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     // Navigate to related content
     const handleNotificationClick = (notification: Notification) => {
         // Mark as read first
-        if (notification.status === NotificationStatus.UNREAD) {
+        if (notification.status === "UNREAD") {
             handleMarkAsRead(notification._id);
         }
 
         // Navigate based on notification type
-        if (notification.groupId && notification.type !== NotificationType.GROUP_INVITATION) {
+        if (notification.groupId) {
             router.push(`/groups/${notification.groupId._id}`);
         }
     };
@@ -184,11 +165,11 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     };
 
     // Get notification icon
-    const getNotificationIcon = (type: NotificationType) => {
+    const getNotificationIcon = (type: NotificationEnum) => {
         switch (type) {
-            case NotificationType.GROUP_INVITATION:
-            case NotificationType.GROUP_ROLE_CHANGED:
-            case NotificationType.GROUP_OWNERSHIP_TRANSFERRED:
+            case "GROUP_INVITATION":
+            case "GROUP_ROLE_CHANGED":
+            case "GROUP_OWNERSHIP_TRANSFERRED":
                 return <GroupsIcon sx={{ color: 'white', fontSize: 14 }} />;
             default:
                 return null;
@@ -197,7 +178,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
 
     // Filter notifications
     const filteredNotifications = activeTab === 'unread'
-        ? notifications.filter(n => n.status === NotificationStatus.UNREAD)
+        ? notifications.filter(n => n.status === "UNREAD")
         : notifications;
 
     // Group notifications by time
@@ -220,6 +201,27 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     };
 
     const { today, earlier } = groupNotificationsByTime();
+    console.log('Rendered NotificationPopup with notifications:', notifications);
+
+    // Handle accept/decline group invitation
+    const handleAcceptInvitedGroup = async (accept: boolean, notificationId: string) => {
+        try {
+            await notificationService.respondToGroupInvitation(notificationId, accept ? "ACCEPT" : "REJECT");
+            setNotifications(prev => prev.map(n => n._id === notificationId
+                ? {
+                    ...n,
+                    actionStatus: accept ? 'ACCEPTED' : 'REJECTED',
+                    status: "READ",
+                    message: accept ? 'Bạn đã chấp nhận lời mời tham gia nhóm.' : 'Bạn đã từ chối lời mời tham gia nhóm.'
+                }
+                : n
+            ));
+        } catch {
+            toast.error('Đã có lỗi xảy ra. Vui lòng thử lại sau.');
+        }
+
+
+    }
 
     // Render notification item
     const renderNotificationItem = (notification: Notification) => (
@@ -230,10 +232,11 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 py: 1.5,
                 px: 1.5,
                 mx: 1,
+                gap: 1.5,
                 borderRadius: '8px',
-                bgcolor: notification.status === NotificationStatus.UNREAD ? (isDark ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.primary.main, 0.08)) : 'transparent',
+                bgcolor: notification.status === "UNREAD" ? (isDark ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.primary.main, 0.08)) : 'transparent',
                 '&:hover': {
-                    bgcolor: notification.status === NotificationStatus.UNREAD ? (isDark ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.primary.main, 0.12)) : 'action.hover',
+                    bgcolor: notification.status === "UNREAD" ? (isDark ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.primary.main, 0.12)) : 'action.hover',
                 },
             }}
         >
@@ -275,7 +278,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                     <Typography
                         sx={{
                             fontSize: 15,
-                            fontWeight: notification.status === NotificationStatus.UNREAD ? 600 : 400,
+                            fontWeight: notification.status === "UNREAD" ? 600 : 400,
                             color: 'text.primary',
                             display: '-webkit-box',
                             WebkitLineClamp: 3,
@@ -289,31 +292,92 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 }
                 secondary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                        <Typography
-                            sx={{
-                                fontSize: 13,
-                                color: notification.status === NotificationStatus.UNREAD ? 'primary.main' : 'text.secondary',
-                                fontWeight: notification.status === NotificationStatus.UNREAD ? 600 : 400,
-                            }}
-                        >
-                            {formatTime(notification.createdAt)}
-                        </Typography>
-                        {notification.type === NotificationType.GROUP_INVITATION && notification.actionStatus === 'PENDING' && (
+                        {notification.type === "GROUP_INVITATION" && notification.actionStatus === 'PENDING' ? (
                             <>
-                                <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>·</Typography>
-                                <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>
-                                    {/* {notification.totalReacts || 0} cảm xúc */}
-                                </Typography>
-                                <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>·</Typography>
-                                <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>
-                                    {/* {notification.totalComments || 0} bình luận */}
+
+                                {/* Chấp nhận */}
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAcceptInvitedGroup(true, notification._id);
+                                    }}
+                                    sx={{
+                                        textTransform: 'none',
+                                        fontSize: 12,
+                                        borderRadius: 1,
+                                        px: 1,
+                                        color: 'primary.main',
+                                        borderColor: 'primary.main',
+                                        backgroundColor: 'transparent',
+                                        boxShadow: 'none',
+                                        '&:hover': {
+                                            backgroundColor: 'primary.main',
+                                            color: '#fff',
+                                            borderColor: 'primary.main',
+                                            boxShadow: 'none',
+                                        },
+                                    }}
+                                >
+                                    Chấp nhận
+                                </Button>
+
+
+                                {/* Từ chối */}
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAcceptInvitedGroup(false, notification._id);
+                                    }}
+                                    sx={{
+                                        textTransform: 'none',
+                                        fontSize: 12,
+                                        borderRadius: 1,
+                                        px: 1,
+                                        color: 'error.main',
+                                        borderColor: 'error.main',
+                                        backgroundColor: 'transparent',
+                                        boxShadow: 'none',
+                                        '&:hover': {
+                                            backgroundColor: 'error.main',
+                                            color: '#fff',
+                                            borderColor: 'error.main',
+                                            boxShadow: 'none',
+                                        },
+                                    }}
+                                >
+                                    Từ chối
+                                </Button>
+
+
+                                <Typography
+                                    sx={{
+                                        fontSize: 13,
+                                        color: notification.status === "UNREAD" ? 'primary.main' : 'text.secondary',
+                                        fontWeight: notification.status === "UNREAD" ? 600 : 400,
+                                    }}
+                                >
+                                    {formatTime(notification.createdAt)}
                                 </Typography>
                             </>
-                        )}
+                        ) :
+                            <Typography
+                                sx={{
+                                    fontSize: 13,
+                                    color: notification.status === "UNREAD" ? 'primary.main' : 'text.secondary',
+                                    fontWeight: notification.status === "UNREAD" ? 600 : 400,
+                                }}
+                            >
+                                {formatTime(notification.createdAt)}
+                            </Typography>
+                        }
                     </Box>
                 }
             />
-            {notification.status === NotificationStatus.UNREAD && (
+            {notification.status === "UNREAD" && (
                 <Box
                     sx={{
                         width: 12,

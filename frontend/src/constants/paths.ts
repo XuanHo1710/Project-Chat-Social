@@ -33,10 +33,10 @@ export const CLIENT_PATH = {
 
   // Main
   HOME: "/",
-  ABOUT: "/about",
-  CONTACT: "/contact",
-  NETWORK: "/network",
-  CUSTOMER_SERVICE: "/customer-service",
+  SEARCH: "/search",
+  REELS: "/reels",
+  GROUPS: "/groups",
+  GAMES: "/games",
   CLAIMS: "/claims",
   CAREERS: "/careers",
 

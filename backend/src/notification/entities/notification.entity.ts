@@ -1,7 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { HydratedDocument, Types } from 'mongoose';
 import { Account } from 'src/account/entities/account.entity';
+import { Comment } from 'src/comment/entities/comment.entity';
 import { Group } from 'src/group/entities/group.entity';
+import { Post } from 'src/post/entities/post.entity';
 
 export type NotificationDocument = HydratedDocument<Notification>;
 
@@ -57,18 +59,15 @@ export class Notification {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Group.name })
   groupId?: mongoose.Schema.Types.ObjectId;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Post.name })
   postId?: mongoose.Schema.Types.ObjectId;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Comment.name })
   commentId?: mongoose.Schema.Types.ObjectId;
 
   // For group invitation - to track the invitation status
   @Prop({ type: String, enum: ['PENDING', 'ACCEPTED', 'REJECTED'], default: 'PENDING' })
   actionStatus?: string;
-
-  @Prop({ type: Object })
-  metadata?: Record<string, any>;
 
   @Prop({ default: true })
   isActive: boolean;

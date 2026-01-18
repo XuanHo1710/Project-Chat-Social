@@ -41,6 +41,7 @@ export class NotificationService {
       commentId: dto.commentId ? new Types.ObjectId(dto.commentId) : undefined,
       metadata: dto.metadata,
       actionStatus: dto.type === NotificationType.GROUP_INVITATION ? 'PENDING' : undefined,
+      typeReaction: dto.typeReaction,
     });
 
     await notification.save();

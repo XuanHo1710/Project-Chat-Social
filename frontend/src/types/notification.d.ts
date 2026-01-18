@@ -49,6 +49,7 @@ export interface Notification {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  typeReaction?: string;
 }
 
 export interface NotificationResponse {

@@ -65,7 +65,9 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                 relationshipService.getSentFriendRequests()
             ]);
 
-            setReactions(reactionsData.data);
+            const reactionsDataAfterFilter = reactionsData.data.filter(reaction => reaction.userId !== null);
+
+            setReactions(reactionsDataAfterFilter);
             setCounts(reactionsData.counts);
 
             // Extract friend IDs

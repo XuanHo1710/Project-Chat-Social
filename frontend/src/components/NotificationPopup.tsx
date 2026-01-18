@@ -19,6 +19,7 @@ import {
 import {
     MoreHoriz as MoreIcon,
     Groups as GroupsIcon,
+    Comment as CommentIcon,
 } from '@mui/icons-material';
 import { notificationService } from '@/services/notification.service';
 
@@ -73,9 +74,6 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                     const newCount = prev + 1;
                     onUnreadCountChange?.(newCount);
                     return newCount;
-                });
-                toast.info(notification.title, {
-                    description: notification.message,
                 });
             });
 
@@ -153,6 +151,11 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
         if (notification.groupId) {
             router.push(`/groups/${notification.groupId._id}`);
         }
+
+        // Navigate to post if postId exists
+        if (notification.postId) {
+            router.push(`/?postId=${notification.postId}`);
+        }
     };
 
     // Format time
@@ -165,8 +168,17 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     };
 
     // Get notification icon
-    const getNotificationIcon = (type: NotificationEnum) => {
+    const getNotificationIcon = (type: NotificationEnum, reactionType?: string) => {
         switch (type) {
+            case "COMMENT_REPLIED":
+                return <CommentIcon sx={{ color: 'white', fontSize: 14 }} />;
+            case "POST_COMMENTED":
+                return <CommentIcon sx={{ color: 'white', fontSize: 14 }} />;
+            case "POST_REACTED":
+                return reactionType;
+            case "COMMENT_REACTED":
+                return reactionType;
+
             case "GROUP_INVITATION":
             case "GROUP_ROLE_CHANGED":
             case "GROUP_OWNERSHIP_TRANSFERRED":
@@ -201,8 +213,6 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     };
 
     const { today, earlier } = groupNotificationsByTime();
-    console.log('Rendered NotificationPopup with notifications:', notifications);
-
     // Handle accept/decline group invitation
     const handleAcceptInvitedGroup = async (accept: boolean, notificationId: string) => {
         try {
@@ -252,13 +262,17 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         }
                         sx={{ width: 60, height: 60 }}
                     />
-                    {getNotificationIcon(notification.type) && (
+                    {getNotificationIcon(notification.type, notification.typeReaction) && (
                         <Box
                             sx={{
                                 position: 'absolute',
                                 bottom: -2,
                                 right: -2,
-                                bgcolor: 'primary.main',
+                                bgcolor:
+                                    notification.type === "COMMENT_REPLIED" ? 'green' :
+                                        notification.type === "POST_REACTED" ? theme.palette.background.paper :
+                                            notification.type === "COMMENT_REACTED" ? theme.palette.background.paper :
+                                                notification.type === "POST_COMMENTED" ? 'green' : 'primary.main',
                                 borderRadius: '50%',
                                 width: 24,
                                 height: 24,
@@ -268,7 +282,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                                 border: `2px solid ${theme.palette.background.paper}`,
                             }}
                         >
-                            {getNotificationIcon(notification.type)}
+                            {getNotificationIcon(notification.type, notification.typeReaction)}
                         </Box>
                     )}
                 </Box>

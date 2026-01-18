@@ -16,6 +16,8 @@ import { HashtagService } from 'src/hashtag/hashtag.service';
 import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 import { Reaction, ReactionDocument, TypeFactor } from 'src/reaction/entities/reaction.entity';
 import { ReactionService } from 'src/reaction/reaction.service';
+import { NotificationService } from 'src/notification/notification.service';
+import { NotificationType } from 'src/notification/entities/notification.entity';
 
 interface CommentWithReactInfo extends Comment {
   reactInfo?: {
@@ -33,10 +35,11 @@ export class CommentService {
     private cloudinaryService: CloudinaryService,
     private hashtagService: HashtagService,
     @Inject(forwardRef(() => ReactionService))
-    private reactionService: ReactionService
-  ) { }
+    private reactionService: ReactionService,
+    private notificationService: NotificationService
+  ) {}
 
-  async create(createCommentDto: CreateCommentDto, userId: string) {
+  async create(createCommentDto: CreateCommentDto, user: any) {
     const { postId, parentId, ...rest } = createCommentDto;
 
     // Check if post exists
@@ -66,7 +69,7 @@ export class CommentService {
     const comment = new this.commentModel({
       ...rest,
       postId: new Types.ObjectId(postId),
-      userId: new Types.ObjectId(userId),
+      userId: new Types.ObjectId(user._id),
       parentId: parentId ? new Types.ObjectId(parentId) : null,
     });
 
@@ -78,9 +81,19 @@ export class CommentService {
         createCommentDto.content,
         comment._id.toString(),
         HashtagEntityType.COMMENT,
-        userId
+        user._id
       );
     }
+
+    if (user._id !== post.userId.toString())
+      this.notificationService.create({
+        recipientId: post.userId.toString(),
+        senderId: user._id,
+        type: NotificationType.COMMENT_REPLIED,
+        title: 'New Comment',
+        message: `${user?.fullname || 'Someone'} đã bình luận: "${comment.content}" về bài viết của bạn`,
+        postId: postId,
+      });
 
     // Increment post's comment count
     await this.postModel.findByIdAndUpdate(postId, {

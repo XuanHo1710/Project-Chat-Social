@@ -55,6 +55,10 @@ export class Notification {
   @Prop({ type: String, default: '' })
   message: string;
 
+  // Để hiện thị cảm xúc gì trong thông báo
+  @Prop({ type: String, default: '' })
+  typeReaction: string;
+
   // Reference data for different notification types
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Group.name })
   groupId?: mongoose.Schema.Types.ObjectId;

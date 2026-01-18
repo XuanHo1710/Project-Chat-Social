@@ -8,6 +8,7 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { HashtagModule } from 'src/hashtag/hashtag.module';
 import { Reaction, ReactionSchema } from 'src/reaction/entities/reaction.entity';
 import { ReactionModule } from 'src/reaction/reaction.module';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ReactionModule } from 'src/reaction/reaction.module';
     CloudinaryModule,
     HashtagModule,
     forwardRef(() => ReactionModule),
+    NotificationModule,
   ],
   controllers: [CommentController],
   providers: [CommentService],

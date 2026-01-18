@@ -33,6 +33,8 @@ export class CreateNotificationDto {
 
   @IsOptional()
   metadata?: Record<string, any>;
+
+  typeReaction?: string;
 }
 
 export class RespondGroupInvitationDto {

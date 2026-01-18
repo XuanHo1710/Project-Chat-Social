@@ -15,6 +15,8 @@ import {
 } from './dto/create-reaction.dto';
 import { Post, PostDocument } from 'src/post/entities/post.entity';
 import { Comment, CommentDocument } from 'src/comment/entities/comment.entity';
+import { NotificationService } from 'src/notification/notification.service';
+import { NotificationType } from 'src/notification/entities/notification.entity';
 
 @Injectable()
 export class ReactionService implements OnModuleInit {
@@ -23,7 +25,8 @@ export class ReactionService implements OnModuleInit {
   constructor(
     @InjectModel(Reaction.name) private reactionModel: Model<ReactionDocument>,
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
-    @InjectModel(Comment.name) private commentModel: Model<CommentDocument>
+    @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
+    private readonly notificationService: NotificationService
   ) {}
 
   async onModuleInit() {
@@ -75,7 +78,46 @@ export class ReactionService implements OnModuleInit {
    * - If user reacted with same type: remove reaction
    * - If user reacted with different type: update reaction
    */
-  async toggleReaction(createReactionDto: CreateReactionDto, userId: string) {
+
+  formatReactionTypeToVietnamese(type: ReactionType): string {
+    switch (type) {
+      case ReactionType.LIKE:
+        return 'Thích';
+      case ReactionType.LOVE:
+        return 'Yêu thích';
+      case ReactionType.HAHA:
+        return 'Haha';
+      case ReactionType.WOW:
+        return 'Wow';
+      case ReactionType.SAD:
+        return 'Buồn';
+      case ReactionType.ANGRY:
+        return 'Phẫn nộ';
+      default:
+        return 'Thích';
+    }
+  }
+
+  formatReactionTypeToView(type: ReactionType): string {
+    switch (type) {
+      case ReactionType.LIKE:
+        return '👍';
+      case ReactionType.LOVE:
+        return '❤️';
+      case ReactionType.HAHA:
+        return '😂';
+      case ReactionType.WOW:
+        return '😮';
+      case ReactionType.SAD:
+        return '😢';
+      case ReactionType.ANGRY:
+        return '😠';
+      default:
+        return '👍';
+    }
+  }
+
+  async toggleReaction(createReactionDto: CreateReactionDto, user: any) {
     const { factorId, typeFactor, type } = createReactionDto;
 
     // Validate the factor exists
@@ -85,7 +127,7 @@ export class ReactionService implements OnModuleInit {
     const existingReaction = await this.reactionModel.findOne({
       factorId: new Types.ObjectId(factorId),
       typeFactor,
-      userId: new Types.ObjectId(userId),
+      userId: new Types.ObjectId(user._id),
     });
 
     if (existingReaction) {
@@ -102,6 +144,7 @@ export class ReactionService implements OnModuleInit {
         // Different reaction type - update it
         await this.reactionModel.updateOne({ _id: existingReaction._id }, { type });
         const currentTotal = await this.getFactorReactCount(factorId, typeFactor);
+        await this.sendNotificationForReaction(factorId, typeFactor, type, user);
         return {
           action: 'updated',
           reaction: { ...existingReaction.toObject(), type },
@@ -114,11 +157,12 @@ export class ReactionService implements OnModuleInit {
         const reaction = new this.reactionModel({
           factorId: new Types.ObjectId(factorId),
           typeFactor,
-          userId: new Types.ObjectId(userId),
+          userId: new Types.ObjectId(user._id),
           type,
         });
         await reaction.save();
         const totalReacts = await this.updateFactorReactCount(factorId, typeFactor, 1);
+        await this.sendNotificationForReaction(factorId, typeFactor, type, user);
         return {
           action: 'added',
           reaction,
@@ -130,7 +174,7 @@ export class ReactionService implements OnModuleInit {
           const currentReaction = await this.reactionModel.findOne({
             factorId: new Types.ObjectId(factorId),
             typeFactor,
-            userId: new Types.ObjectId(userId),
+            userId: new Types.ObjectId(user._id),
           });
           const currentTotal = await this.getFactorReactCount(factorId, typeFactor);
 
@@ -156,29 +200,77 @@ export class ReactionService implements OnModuleInit {
   /**
    * Legacy method for post reactions (backward compatibility)
    */
-  async togglePostReaction(dto: CreatePostReactionDto, userId: string) {
+  async togglePostReaction(dto: CreatePostReactionDto, user: any) {
     return this.toggleReaction(
       {
         factorId: dto.postId,
         typeFactor: TypeFactor.POST,
         type: dto.type,
       },
-      userId
+      user
     );
   }
 
   /**
    * Legacy method for comment reactions (backward compatibility)
    */
-  async toggleCommentReaction(dto: CreateCommentReactionDto, userId: string) {
+  async toggleCommentReaction(dto: CreateCommentReactionDto, user: any) {
     return this.toggleReaction(
       {
         factorId: dto.commentId,
         typeFactor: TypeFactor.COMMENT,
         type: dto.type,
       },
-      userId
+      user
     );
+  }
+
+  private async sendNotificationForReaction(
+    factorId: string,
+    typeFactor: TypeFactor,
+    type: ReactionType,
+    user: any
+  ): Promise<void> {
+    // Implementation for sending notifications
+    const id = new Types.ObjectId(factorId);
+    console.log(user);
+
+    switch (typeFactor) {
+      case TypeFactor.POST:
+        const post = await this.postModel.findById(id);
+        if (!post) throw new NotFoundException('Post not found');
+        // Check if reactions are allowed
+        if (post.allowReactions === false) {
+          throw new BadRequestException('Tương tác đã bị tắt cho bài viết này');
+        }
+        this.notificationService.create({
+          recipientId: post.userId.toString(),
+          senderId: user._id,
+          type: NotificationType.POST_REACTED,
+          title: 'Reaction post',
+          message: `${user?.firstName + ' ' + user?.lastName || 'Someone'} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bài viết của bạn`,
+          postId: post._id.toString(),
+          typeReaction: this.formatReactionTypeToView(type),
+        });
+        break;
+      case TypeFactor.COMMENT:
+        const comment = await this.commentModel.findById(id);
+        if (!comment) throw new NotFoundException('Comment not found');
+        this.notificationService.create({
+          recipientId: comment.userId.toString(),
+          senderId: user._id,
+          type: NotificationType.COMMENT_REACTED,
+          title: 'Reaction comment',
+          message: `${user?.firstName + ' ' + user?.lastName || 'Someone'} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bình luận của bạn`,
+          commentId: comment._id.toString(),
+          postId: comment.postId.toString(),
+          typeReaction: this.formatReactionTypeToView(type),
+        });
+        break;
+      case TypeFactor.MESSAGE:
+        // TODO: Add message validation when Message model is available
+        break;
+    }
   }
 
   /**
@@ -301,7 +393,7 @@ export class ReactionService implements OnModuleInit {
 
     const [reactions, total, reactionCounts] = await Promise.all([
       this.reactionModel
-        .find({ factorId: factorObjId, typeFactor })
+        .find({ factorId: factorObjId, typeFactor, userId: { $exists: true, $ne: null } })
         .populate('userId', 'firstName lastName avatar')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -313,6 +405,8 @@ export class ReactionService implements OnModuleInit {
         { $group: { _id: '$type', count: { $sum: 1 } } },
       ]),
     ]);
+
+    console.log(reactions);
 
     const counts: Record<ReactionType, number> = {
       LIKE: 0,

@@ -1,6 +1,10 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ReactionService } from './reaction.service';
-import { CreateReactionDto, CreatePostReactionDto, CreateCommentReactionDto } from './dto/create-reaction.dto';
+import {
+  CreateReactionDto,
+  CreatePostReactionDto,
+  CreateCommentReactionDto,
+} from './dto/create-reaction.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserInfo } from 'decorators/customize';
 import { TypeFactor } from './entities/reaction.entity';
@@ -8,7 +12,7 @@ import { TypeFactor } from './entities/reaction.entity';
 @Controller('reaction')
 @UseGuards(JwtAuthGuard)
 export class ReactionController {
-  constructor(private readonly reactionService: ReactionService) { }
+  constructor(private readonly reactionService: ReactionService) {}
 
   // ==================== POST ENDPOINTS ====================
 
@@ -17,7 +21,7 @@ export class ReactionController {
    */
   @Post()
   toggleReaction(@Body() createReactionDto: CreateReactionDto, @UserInfo() user: any) {
-    return this.reactionService.toggleReaction(createReactionDto, user._id);
+    return this.reactionService.toggleReaction(createReactionDto, user);
   }
 
   /**
@@ -25,7 +29,8 @@ export class ReactionController {
    */
   @Post('post')
   togglePostReaction(@Body() dto: CreatePostReactionDto, @UserInfo() user: any) {
-    return this.reactionService.togglePostReaction(dto, user._id);
+    console.log('Toggling post reaction for user:', user);
+    return this.reactionService.togglePostReaction(dto, user);
   }
 
   /**
@@ -33,7 +38,7 @@ export class ReactionController {
    */
   @Post('comment')
   toggleCommentReaction(@Body() dto: CreateCommentReactionDto, @UserInfo() user: any) {
-    return this.reactionService.toggleCommentReaction(dto, user._id);
+    return this.reactionService.toggleCommentReaction(dto, user);
   }
 
   /**
@@ -150,4 +155,3 @@ export class ReactionController {
     return this.reactionService.migrateOldReactions();
   }
 }
-

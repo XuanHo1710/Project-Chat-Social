@@ -56,7 +56,6 @@ import {
     Settings as SettingsIcon,
     Warning as WarningIcon,
     Chat as ChatIcon,
-    PersonAddDisabled as PersonAddDisabledIcon,
     Description as DescriptionIcon,
     GroupAdd as GroupAddIcon,
     Visibility as VisibilityIcon,
@@ -146,10 +145,6 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     const [selectedMembers, setSelectedMembers] = useState<string[]>([]); // IDs of selected friends
     const [createGroupSearchQuery, setCreateGroupSearchQuery] = useState('');
 
-    // Avatar Dialog State
-    const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
-    const [avatarUrl, setAvatarUrl] = useState('');
-    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     // Avatar menu state
     const [avatarMenuAnchor, setAvatarMenuAnchor] = useState<null | HTMLElement>(null);
     const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -600,23 +595,14 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         if (!file || !socketChat) return;
 
         try {
-            setIsUploadingAvatar(true);
             const uploadedUrl = await UploadImage(file);
             socketChat.emit('conversation:avatar', { conversationId, avatar: uploadedUrl });
-            setAvatarDialogOpen(false);
         } catch (error) {
             console.error('Failed to upload avatar:', error);
             alert('Không thể tải lên ảnh. Vui lòng thử lại.');
-        } finally {
-            setIsUploadingAvatar(false);
         }
     };
 
-    const handleAvatarUrlSubmit = () => {
-        if (!avatarUrl.trim() || !socketChat) return;
-        socketChat.emit('conversation:avatar', { conversationId, avatar: avatarUrl.trim() });
-        setAvatarDialogOpen(false);
-    };
 
     // Block user handler
     const handleBlockUser = async () => {

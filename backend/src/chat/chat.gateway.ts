@@ -14,7 +14,7 @@ import { CreateMessageDto } from 'src/chat/dto/create-message.dto';
 import { ConversationService } from 'src/conversation/conversation.service';
 import { InjectModel } from '@nestjs/mongoose';
 import { Account, AccountDocument } from 'src/account/entities/account.entity';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { EmotionType, MessageType } from './entities/message.entity';
 import { RelationshipService } from 'src/relationship/relationship.service';
 import { HttpService } from '@nestjs/axios';
@@ -77,7 +77,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
     private readonly commentService: CommentService,
     private readonly reactionService: ReactionService
-  ) { }
+  ) {}
 
   private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
@@ -803,7 +803,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
           // Prepare message data with optional postIds
           const chatbotMessageData: any = {
-            conversationId: data.conversationId,
+            conversationId: new Types.ObjectId(data.conversationId),
             senderId: userId as any, // User who triggered the bot
             content: responseAPIAi.data.response,
             type: MessageType.CHATBOT,
@@ -1669,7 +1669,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const result = await this.chatService.markAsRead(data.conversationId, userId, data.messageId);
 
       // Reset unread count for this user
-      const conversationUpdated = await this.conversationService.resetUnreadCount(data.conversationId, userId);
+      const conversationUpdated = await this.conversationService.resetUnreadCount(
+        data.conversationId,
+        userId
+      );
 
       // Get user info for the reader
       const readerUser = await this.accountModel
@@ -1677,11 +1680,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .select('firstName lastName _id avatar');
       const readByUser = readerUser
         ? {
-          _id: readerUser._id.toString(),
-          firstName: readerUser.firstName,
-          lastName: readerUser.lastName,
-          avatar: readerUser.avatar,
-        }
+            _id: readerUser._id.toString(),
+            firstName: readerUser.firstName,
+            lastName: readerUser.lastName,
+            avatar: readerUser.avatar,
+          }
         : null;
 
       // CRITICAL: Only emit to OTHER users in the conversation, NOT to the user who updated their cursor

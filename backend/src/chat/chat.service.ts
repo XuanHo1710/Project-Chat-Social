@@ -24,7 +24,7 @@ export class ChatService {
     @InjectModel(ConversationReadStatus.name)
     private readonly readStatusModel: Model<ConversationReadStatusDocument>,
     private readonly cloudinaryService: CloudinaryService
-  ) { }
+  ) {}
 
   async sendMessage(createMessageDto: CreateMessageDto) {
     const message = await this.messageModel.create(createMessageDto);
@@ -76,10 +76,6 @@ export class ChatService {
     return message;
   }
 
-  findAll() {
-    return `This action returns all chat`;
-  }
-
   // Get recent messages for AI chat context
   async getRecentMessagesForContext(conversationId: string, limit: number = 15) {
     return await this.messageModel
@@ -111,7 +107,6 @@ export class ChatService {
 
     const query: any = {
       conversationId: conversationId,
-      isDeleted: { $ne: true },
     };
 
     // If user was kicked, only show messages up to kickedAt time
@@ -134,7 +129,12 @@ export class ChatService {
 
     const [messages, total] = await Promise.all([
       this.messageModel
-        .find(query)
+        .find({
+          $or: [
+            { conversationId: conversationId },
+            { conversationId: new Types.ObjectId(conversationId) },
+          ],
+        })
         .sort({ createdAt: -1 }) // Newest first for pagination
         .limit(limit)
         .populate('senderId', 'firstName lastName _id avatar')
@@ -185,15 +185,15 @@ export class ChatService {
         conversationId: status.conversationId.toString(),
         userId: status.userId
           ? {
-            ...status.userId,
-            _id: (status.userId as any)._id?.toString() || status.userId.toString(),
-          }
+              ...status.userId,
+              _id: (status.userId as any)._id?.toString() || status.userId.toString(),
+            }
           : null,
         lastReadMessageId: status.lastReadMessageId
           ? {
-            ...(status.lastReadMessageId as any),
-            _id: (status.lastReadMessageId as any)._id?.toString(),
-          }
+              ...(status.lastReadMessageId as any),
+              _id: (status.lastReadMessageId as any)._id?.toString(),
+            }
           : status.lastReadMessageId,
       }));
 
@@ -529,8 +529,6 @@ export class ChatService {
     const userObjectId = new Types.ObjectId(userId);
     const convObjectId = new Types.ObjectId(conversationId);
 
-
-
     let targetMessageId: Types.ObjectId;
     let foundMessage = false;
 
@@ -581,15 +579,15 @@ export class ChatService {
       conversationId: result.conversationId.toString(),
       userId: result.userId
         ? {
-          ...(result.userId as any),
-          _id: (result.userId as any)._id?.toString() || (result.userId as any).toString(),
-        }
+            ...(result.userId as any),
+            _id: (result.userId as any)._id?.toString() || (result.userId as any).toString(),
+          }
         : null,
       lastReadMessageId: result.lastReadMessageId
         ? {
-          ...(result.lastReadMessageId as any),
-          _id: (result.lastReadMessageId as any)._id?.toString(),
-        }
+            ...(result.lastReadMessageId as any),
+            _id: (result.lastReadMessageId as any)._id?.toString(),
+          }
         : null,
     };
 
@@ -639,15 +637,15 @@ export class ChatService {
         conversationId: status.conversationId.toString(),
         userId: status.userId
           ? {
-            ...(status.userId as any),
-            _id: (status.userId as any)._id?.toString() || (status.userId as any).toString(),
-          }
+              ...(status.userId as any),
+              _id: (status.userId as any)._id?.toString() || (status.userId as any).toString(),
+            }
           : null,
         lastReadMessageId: status.lastReadMessageId
           ? {
-            ...(status.lastReadMessageId as any),
-            _id: (status.lastReadMessageId as any)._id?.toString(),
-          }
+              ...(status.lastReadMessageId as any),
+              _id: (status.lastReadMessageId as any)._id?.toString(),
+            }
           : null,
       }));
 

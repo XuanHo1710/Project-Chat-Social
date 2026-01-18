@@ -68,7 +68,7 @@ import { useConversationDetail } from "@/queries/useConversationQueries";
 import { uploadChatMedia } from "@/services/cloudinary.service";
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
-import { ConversationParticipant, ConversationResponseData } from "@/types/conversation";
+import { ConversationParticipant, ConversationParticipantUser, ConversationResponseData } from "@/types/conversation";
 import { toast } from 'sonner';
 import { relationshipService } from "@/services/relationship.service";
 import { useCall } from "@/contexts/CallContext";
@@ -306,7 +306,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     // Uses stableUnreadCount (debounced) to prevent avatar jumping
     const seenAvatarsMap = useMemo(() => {
         if (!conversation?.participants || !allMessages.length || !userId) {
-            return new Map<number, { userId: string; user: any; seenIndex: number }[]>();
+            return new Map<number, { userId: string; user: ConversationParticipantUser; seenIndex: number }[]>();
         }
 
         const lastMessageIndex = allMessages.length - 1;
@@ -325,7 +325,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
         // For each participant, find which message should show their avatar
         // Logic: Avatar shows at the LAST OWN MESSAGE that they have seen
-        const resultMap = new Map<number, { userId: string; user: any; seenIndex: number }[]>();
+        const resultMap = new Map<number, { userId: string; user: ConversationParticipantUser; seenIndex: number }[]>();
 
         otherParticipantsSeenInfo.forEach(participant => {
             // Find all own messages
@@ -365,7 +365,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             const currentUserIdStr = extractId(userId as ObjectIdLike);
 
             // Normalize & Filter immediately
-            const normalizedStatuses = rawStatuses.map((status: any) => ({
+            const normalizedStatuses = rawStatuses.map((status: MessageReadStatus) => ({
                 ...status,
                 _id: extractId(status._id),
                 conversationId: extractId(status.conversationId),
@@ -648,6 +648,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         );
     }, [queryClient, selectedConversation._id]);
 
+    console.log("All message: ", allMessages)
+
     // Listen for socket events
     useEffect(() => {
         if (!socketChat) return;
@@ -884,7 +886,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                     createdAt: ''
                                 }
                             }
-                        } catch (e) {
+                        } catch {
                             console.warn("Invalid lastReadMessageId format", rawStatus.lastReadMessageId);
                         }
                     }
@@ -930,22 +932,22 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
                 // CRITICAL: Update React Query Cache to persist between tab switches
                 // This updates the 'chatData' for the NEXT mount
-                queryClient.setQueryData<any>( // Type as any for now or specific generic if available
+                queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                     [QUERY_KEYS.CHATS, selectedConversation._id],
-                    (oldData: any) => {
+                    (oldData: InfiniteData<MessagesResponse> | undefined) => {
                         if (!oldData || !oldData.pages) return oldData;
 
                         return {
                             ...oldData,
-                            pages: oldData.pages.map((page: any, index: number) => {
+                            pages: oldData.pages.map((page: MessagesResponse, index: number) => {
                                 // Only update readStatuses in the first page (usually where metadata lives)
                                 if (index === 0) {
-                                    const currentStatuses = page.readStatuses || [];
-                                    const existsIndex = currentStatuses.findIndex((s: any) =>
+                                    const currentStatuses: MessageReadStatus[] = page.readStatuses || [];
+                                    const existsIndex = currentStatuses.findIndex((s: MessageReadStatus) =>
                                         getId(s.userId?._id || s.userId) === incomingUserId
                                     );
 
-                                    let newStatuses = [...currentStatuses];
+                                    const newStatuses = [...currentStatuses];
                                     if (existsIndex !== -1) {
                                         newStatuses[existsIndex] = normalizedStatus;
                                     } else {

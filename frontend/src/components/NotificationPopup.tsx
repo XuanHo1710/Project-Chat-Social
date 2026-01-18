@@ -20,6 +20,7 @@ import {
     MoreHoriz as MoreIcon,
     Groups as GroupsIcon,
     Comment as CommentIcon,
+    ReplyOutlined as ReplyIcon,
 } from '@mui/icons-material';
 import { notificationService } from '@/services/notification.service';
 
@@ -178,6 +179,8 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 return reactionType;
             case "COMMENT_REACTED":
                 return reactionType;
+            case "POST_SHARED":
+                return <ReplyIcon sx={{ color: 'white', fontSize: 14 }} />;
 
             case "GROUP_INVITATION":
             case "GROUP_ROLE_CHANGED":
@@ -484,7 +487,8 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
             <Box
                 sx={{
                     flex: 1,
-                    overflow: 'auto',
+                    overflowY: 'auto',
+                    maxHeight: '60vh',
                     '&::-webkit-scrollbar': { width: 8 },
                     '&::-webkit-scrollbar-thumb': {
                         backgroundColor: 'rgba(0,0,0,0.2)',
@@ -549,26 +553,13 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         )}
 
                         {/* If no today notifications but has earlier */}
-                        {today.length === 0 && earlier.length > 0 && (
-                            <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <Typography sx={{ fontWeight: 600, fontSize: 17, color: 'text.primary' }}>
-                                    Tất cả thông báo
-                                </Typography>
-                                <Typography
-                                    onClick={() => router.push('/notifications')}
-                                    sx={{
-                                        color: 'primary.main',
-                                        fontSize: 15,
-                                        cursor: 'pointer',
-                                        '&:hover': { textDecoration: 'underline' }
-                                    }}
-                                >
-                                    Xem tất cả
-                                </Typography>
-                            </Box>
-                        )}
+
+
                     </List>
                 )}
+            </Box>
+            <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <Typography sx={{ width: "80%", textAlign: 'center', color: "#2d88ff" }}>Xem thông báo trước đó</Typography>
             </Box>
         </Paper>
     );

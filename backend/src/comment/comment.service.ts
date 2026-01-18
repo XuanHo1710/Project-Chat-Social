@@ -89,12 +89,23 @@ export class CommentService {
       this.notificationService.create({
         recipientId: post.userId.toString(),
         senderId: user._id,
-        type: NotificationType.COMMENT_REPLIED,
+        type: NotificationType.POST_COMMENTED,
         title: 'New Comment',
         message: `${user?.fullname || 'Someone'} đã bình luận: "${comment.content}" về bài viết của bạn`,
         postId: postId,
       });
-
+    if (parentId) {
+      const parentComment = await this.commentModel.findById(parentId);
+      if (parentComment && user._id !== parentComment.userId.toString())
+        this.notificationService.create({
+          recipientId: parentComment.userId.toString(),
+          senderId: user._id,
+          type: NotificationType.COMMENT_REPLIED,
+          title: 'New Comment',
+          message: `${user?.fullname || 'Someone'} đã trả lời bình luận của bạn`,
+          postId: postId,
+        });
+    }
     // Increment post's comment count
     await this.postModel.findByIdAndUpdate(postId, {
       $inc: { totalComments: 1 },

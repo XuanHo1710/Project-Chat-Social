@@ -3,7 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { Post, PostDocument, PostPrivacy, MediaItem, LivestreamStatus } from './entities/post.entity';
+import {
+  Post,
+  PostDocument,
+  PostPrivacy,
+  MediaItem,
+  LivestreamStatus,
+} from './entities/post.entity';
 import { HashtagService } from 'src/hashtag/hashtag.service';
 import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
@@ -14,6 +20,8 @@ import { AxiosResponse } from 'axios';
 import { AIResponse } from 'src/recommendation/types';
 import { firstValueFrom } from 'rxjs';
 import { ApiVideoService } from 'src/common/services/api-video.service';
+import { NotificationService } from 'src/notification/notification.service';
+import { NotificationType } from 'src/notification/entities/notification.entity';
 interface ReactInfo {
   isReact: boolean;
   type: string | null;
@@ -32,11 +40,12 @@ export class PostService {
     private reactionService: ReactionService,
     private cloudinaryService: CloudinaryService,
     private readonly httpService: HttpService,
-    private apiVideoService: ApiVideoService
-  ) { }
+    private apiVideoService: ApiVideoService,
+    private notificationService: NotificationService
+  ) {}
   private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
-  async create(createPostDto: CreatePostDto): Promise<Post> {
+  async create(createPostDto: CreatePostDto, user: any): Promise<Post> {
     // Validate: phải có content hoặc media hoặc sharedPostId
     if (
       !createPostDto.content &&
@@ -86,12 +95,42 @@ export class PostService {
       );
     }
 
+    if (createPostDto.sharedPostId) {
+      const postShared = await this.postModel.findById(createPostDto.sharedPostId);
+      if (postShared) {
+        console.log('Creating share notification for user:', user);
+        this.notificationService.create({
+          recipientId: postShared.userId.toString(),
+          senderId: createPostDto.userId,
+          type: NotificationType.POST_SHARED,
+          title: 'New Share',
+          message: `${user.fullname || 'Someone'} đã chia sẻ bài viết của bạn.`,
+          postId: savedPost._id.toString(),
+        });
+      }
+    }
+
+    await (
+      await (
+        await savedPost.populate('userId', 'firstName lastName avatar username')
+      ).populate('groupId', 'name avatar privacy')
+    ).populate({
+      path: 'sharedPostId',
+      populate: { path: 'userId', select: 'firstName lastName avatar username' },
+    });
+
     return savedPost;
   }
 
   // Adding the method properly after constructor update
-  async startLivestream(userId: string, description: string, privacy: PostPrivacy = PostPrivacy.PUBLIC): Promise<any> {
-    const liveStream = await this.apiVideoService.createLiveStream(description || `Livestream của ${userId}`);
+  async startLivestream(
+    userId: string,
+    description: string,
+    privacy: PostPrivacy = PostPrivacy.PUBLIC
+  ): Promise<any> {
+    const liveStream = await this.apiVideoService.createLiveStream(
+      description || `Livestream của ${userId}`
+    );
 
     // Create Post immediately
     const newPost = new this.postModel({
@@ -100,16 +139,18 @@ export class PostService {
       type: 'LIVESTREAM',
       livestreamStatus: 'LIVE',
       privacy: privacy,
-      media: [{
-        mediaType: 'VIDEO',
-        url: liveStream.assets?.hls || '', // Use HLS URL if available
-        publicId: liveStream.liveStreamId,
-      }],
+      media: [
+        {
+          mediaType: 'VIDEO',
+          url: liveStream.assets?.hls || '', // Use HLS URL if available
+          publicId: liveStream.liveStreamId,
+        },
+      ],
       isActive: true,
       // Default counters
       totalReacts: 0,
       totalComments: 0,
-      totalShares: 0
+      totalShares: 0,
     });
 
     const savedPost = await newPost.save();
@@ -117,9 +158,9 @@ export class PostService {
     return {
       post: savedPost,
       streamKey: liveStream.streamKey, // IMPORTANT: Send this back to client for broadcasting
-      RMTPUrl: "rtmp://broadcast.api.video/s", // Standard entry point
+      RMTPUrl: 'rtmp://broadcast.api.video/s', // Standard entry point
       liveStreamId: liveStream.liveStreamId,
-      hlsUrl: liveStream.assets?.hls
+      hlsUrl: liveStream.assets?.hls,
     };
   }
 

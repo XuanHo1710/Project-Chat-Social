@@ -10,6 +10,8 @@ import { Reaction, ReactionSchema } from 'src/reaction/entities/reaction.entity'
 import { HttpModule, HttpService } from '@nestjs/axios';
 import { ApiVideoService } from 'src/common/services/api-video.service';
 import { ConfigModule } from '@nestjs/config';
+import { Notification } from 'src/notification/entities/notification.entity';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -22,9 +24,10 @@ import { ConfigModule } from '@nestjs/config';
     ReactionModule,
     HttpModule,
     ConfigModule,
+    NotificationModule,
   ],
   controllers: [PostController],
   providers: [PostService, ApiVideoService],
   exports: [PostService],
 })
-export class PostModule { }
+export class PostModule {}

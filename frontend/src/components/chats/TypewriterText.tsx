@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography, useTheme } from '@mui/material';
 
 interface TypewriterTextProps {
@@ -77,11 +77,14 @@ export default function TypewriterText({
 
     // Update textRef when text changes
     useEffect(() => {
-        if (textRef.current !== text && completedRef.current) {
-            // Text changed after completion, show new text immediately
-            setDisplayedText(text);
+        const displayFunctionText = () => {
+            if (textRef.current !== text && completedRef.current) {
+                // Text changed after completion, show new text immediately
+                setDisplayedText(text);
+            }
+            textRef.current = text;
         }
-        textRef.current = text;
+        displayFunctionText()
     }, [text]);
 
     return (

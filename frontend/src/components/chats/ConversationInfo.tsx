@@ -746,6 +746,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         )}
                     </Box>
 
+
+
                     {/* Encryption Badge */}
                     <Box sx={{
                         display: 'flex',

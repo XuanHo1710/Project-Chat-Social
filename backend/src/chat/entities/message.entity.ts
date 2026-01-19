@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { Account } from 'src/account/entities/account.entity';
 
 export type MessageDocument = Message & Document;
 
@@ -101,8 +100,6 @@ export class Message {
 
   @Prop({ type: String, enum: MessageStatus, default: MessageStatus.SENT })
   status: MessageStatus;
-
-
 
   @Prop({ type: Date, default: Date.now })
   createdAt: Date;

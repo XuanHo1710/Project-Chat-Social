@@ -1,7 +1,7 @@
 'use client';
 import ReactPlayer from "react-player";
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState } from 'react';
 import {
     Box,
     Paper,

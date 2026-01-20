@@ -457,15 +457,16 @@ export default function ReelDetailPage() {
                         width: 420,
                         minWidth: 420,
                         maxWidth: 420,
-                        bgcolor: 'white',
+                        bgcolor: 'background.paper',
                         display: 'flex',
                         flexDirection: 'column',
                         height: 'calc(100vh - 56px)',
-                        borderLeft: '1px solid #e4e6eb',
+                        borderLeft: 1,
+                        borderColor: 'divider',
                         flexShrink: 0,
                     }}>
                         {/* Post Header */}
-                        <Box sx={{ p: 2, borderBottom: '1px solid #e4e6eb' }}>
+                        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
                             <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
                                 <Avatar
                                     src={post.userId?.avatar || ''}
@@ -477,7 +478,7 @@ export default function ReelDetailPage() {
                                         sx={{
                                             fontSize: '15px',
                                             fontWeight: 600,
-                                            color: '#050505',
+                                            color: 'text.primary',
                                             cursor: 'pointer',
                                             '&:hover': { textDecoration: 'underline' }
                                         }}
@@ -485,7 +486,7 @@ export default function ReelDetailPage() {
                                     >
                                         {getAuthorName(post)}
                                     </Typography>
-                                    <Typography sx={{ fontSize: '13px', color: '#65676b' }}>
+                                    <Typography sx={{ fontSize: '13px', color: 'text.secondary' }}>
                                         {formatPostTime(post.createdAt)}
                                     </Typography>
                                 </Box>
@@ -496,7 +497,7 @@ export default function ReelDetailPage() {
 
                             {/* Post Content */}
                             {post.content && (
-                                <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#050505' }}>
+                                <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
                                     <HashtagContent content={post.content} />
                                 </Typography>
                             )}
@@ -542,14 +543,14 @@ export default function ReelDetailPage() {
                                         </Box>
                                     ) : null}
                                     {displayTotalReacts > 0 && (
-                                        <Typography sx={{ fontSize: 14, color: '#65676b' }}>{displayTotalReacts}</Typography>
+                                        <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>{displayTotalReacts}</Typography>
                                     )}
                                 </Box>
                                 <Box sx={{ display: 'flex', gap: 2 }}>
-                                    <Typography sx={{ fontSize: 14, color: '#65676b' }}>
+                                    <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
                                         {post.totalComments} bình luận
                                     </Typography>
-                                    <Typography sx={{ fontSize: 14, color: '#65676b' }}>
+                                    <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
                                         {post.totalShares} chia sẻ
                                     </Typography>
                                 </Box>
@@ -575,11 +576,11 @@ export default function ReelDetailPage() {
                                         borderRadius: 2,
                                         flex: 1,
                                         justifyContent: 'center',
-                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                        '&:hover': { bgcolor: 'action.hover' }
                                     }}
                                 >
-                                    <CommentIcon sx={{ fontSize: '20px', color: '#65676b' }} />
-                                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#65676b' }}>Bình luận</Typography>
+                                    <CommentIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
+                                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: 'text.secondary' }}>Bình luận</Typography>
                                 </Box>
 
                                 <Box
@@ -594,20 +595,20 @@ export default function ReelDetailPage() {
                                         borderRadius: 2,
                                         flex: 1,
                                         justifyContent: 'center',
-                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                        '&:hover': { bgcolor: 'action.hover' }
                                     }}
                                 >
-                                    <ShareIcon sx={{ fontSize: '20px', color: '#65676b' }} />
-                                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#65676b' }}>Chia sẻ</Typography>
+                                    <ShareIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
+                                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: 'text.secondary' }}>Chia sẻ</Typography>
                                 </Box>
                             </Box>
                         </Box>
 
                         {/* Comments Section */}
                         <Box sx={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-                            <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e4e6eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Typography sx={{ fontWeight: 600, fontSize: 15 }}>Bình luận</Typography>
-                                <Typography sx={{ color: '#65676b', fontSize: 14, cursor: 'pointer' }}>
+                                <Typography sx={{ color: 'text.secondary', fontSize: 14, cursor: 'pointer' }}>
                                     Tất cả bình luận ▼
                                 </Typography>
                             </Box>

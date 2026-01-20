@@ -14,6 +14,8 @@ import {
     DialogActions,
     CircularProgress,
     Divider,
+    useTheme,
+    alpha,
 } from '@mui/material';
 import {
     Visibility as VisibilityIcon,
@@ -53,6 +55,7 @@ const formatDateTime = (dateStr: string) => {
 export default function SettingsPage() {
     const router = useRouter();
     const { socketChat } = useSocket();
+    const theme = useTheme();
     const [loading, setLoading] = useState(true);
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
@@ -169,28 +172,29 @@ export default function SettingsPage() {
 
     if (loading) {
         return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', bgcolor: '#f0f2f5' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', bgcolor: 'background.default' }}>
                 <CircularProgress />
             </Box>
         );
     }
 
     return (
-        <Box sx={{ minHeight: '100vh', bgcolor: '#f0f2f5' }}>
+        <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
             {/* Header */}
             <Box sx={{
-                bgcolor: 'white',
-                borderBottom: '1px solid #dddfe2',
+                bgcolor: 'background.paper',
+                borderBottom: 1,
+                borderColor: 'divider',
                 position: 'sticky',
                 top: 0,
                 zIndex: 100,
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
             }}>
                 <Box sx={{ maxWidth: 680, mx: 'auto', px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <IconButton onClick={() => router.back()} sx={{ color: '#050505' }}>
+                    <IconButton onClick={() => router.back()} sx={{ color: 'text.primary' }}>
                         <ArrowBackIcon />
                     </IconButton>
-                    <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#050505' }}>
+                    <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>
                         Cài đặt & quyền riêng tư
                     </Typography>
                 </Box>
@@ -200,15 +204,16 @@ export default function SettingsPage() {
             <Box sx={{ maxWidth: 680, mx: 'auto', py: 2, px: 2 }}>
                 {/* Activity Status Section */}
                 <Box sx={{
-                    bgcolor: 'white',
+                    bgcolor: 'background.paper',
                     borderRadius: '8px',
                     mb: 2,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
                     overflow: 'hidden',
-                    border: '1px solid #dddfe2',
+                    border: 1,
+                    borderColor: 'divider',
                 }}>
-                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e4e6eb' }}>
-                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: '#050505' }}>
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: 'text.primary' }}>
                             Trạng thái hoạt động
                         </Typography>
                     </Box>
@@ -218,25 +223,25 @@ export default function SettingsPage() {
                         alignItems: 'center',
                         gap: 2,
                         cursor: 'pointer',
-                        '&:hover': { bgcolor: '#f7f8fa' },
+                        '&:hover': { bgcolor: 'action.hover' },
                         transition: 'background 0.15s',
                     }}>
                         <Box sx={{
                             width: 44,
                             height: 44,
                             borderRadius: '50%',
-                            bgcolor: '#e7f3ff',
+                            bgcolor: alpha(theme.palette.primary.main, 0.1),
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                         }}>
-                            <VisibilityIcon sx={{ color: '#1877f2', fontSize: 22 }} />
+                            <VisibilityIcon sx={{ color: 'primary.main', fontSize: 22 }} />
                         </Box>
                         <Box sx={{ flex: 1 }}>
-                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                 Hiển thị trạng thái hoạt động
                             </Typography>
-                            <Typography sx={{ fontSize: 13, color: '#65676b', mt: 0.25 }}>
+                            <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.25 }}>
                                 Cho phép người khác thấy khi bạn đang online
                             </Typography>
                         </Box>
@@ -246,10 +251,10 @@ export default function SettingsPage() {
                             disabled={savingActivity}
                             sx={{
                                 '& .MuiSwitch-switchBase.Mui-checked': {
-                                    color: '#1877f2',
+                                    color: 'primary.main',
                                 },
                                 '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                    backgroundColor: '#1877f2',
+                                    backgroundColor: 'primary.main',
                                 },
                             }}
                         />
@@ -258,15 +263,16 @@ export default function SettingsPage() {
 
                 {/* Blocked Users Section */}
                 <Box sx={{
-                    bgcolor: 'white',
+                    bgcolor: 'background.paper',
                     borderRadius: '8px',
                     mb: 2,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
                     overflow: 'hidden',
-                    border: '1px solid #dddfe2',
+                    border: 1,
+                    borderColor: 'divider',
                 }}>
-                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e4e6eb' }}>
-                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: '#050505' }}>
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: 'text.primary' }}>
                             Chặn
                         </Typography>
                     </Box>
@@ -278,7 +284,7 @@ export default function SettingsPage() {
                             alignItems: 'center',
                             gap: 2,
                             cursor: 'pointer',
-                            '&:hover': { bgcolor: '#f7f8fa' },
+                            '&:hover': { bgcolor: 'action.hover' },
                             transition: 'background 0.15s',
                         }}
                     >
@@ -286,23 +292,23 @@ export default function SettingsPage() {
                             width: 44,
                             height: 44,
                             borderRadius: '50%',
-                            bgcolor: '#ffe8e8',
+                            bgcolor: alpha(theme.palette.error.main, 0.1),
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                         }}>
-                            <BlockIcon sx={{ color: '#be4b49', fontSize: 22 }} />
+                            <BlockIcon sx={{ color: 'error.main', fontSize: 22 }} />
                         </Box>
                         <Box sx={{ flex: 1 }}>
-                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                 Người dùng đã chặn
                             </Typography>
-                            <Typography sx={{ fontSize: 13, color: '#65676b', mt: 0.25 }}>
+                            <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.25 }}>
                                 {blockedUsers.length === 0 ? 'Bạn chưa chặn ai' : `${blockedUsers.length} người dùng`}
                             </Typography>
                         </Box>
                         <ChevronRightIcon sx={{
-                            color: '#65676b',
+                            color: 'text.secondary',
                             fontSize: 24,
                             transform: expandedBlocked ? 'rotate(90deg)' : 'rotate(0deg)',
                             transition: 'transform 0.2s',
@@ -310,7 +316,7 @@ export default function SettingsPage() {
                     </Box>
 
                     {expandedBlocked && blockedUsers.length > 0 && (
-                        <Box sx={{ borderTop: '1px solid #e4e6eb', bgcolor: '#f7f8fa' }}>
+                        <Box sx={{ borderTop: 1, borderColor: 'divider', bgcolor: 'background.default' }}>
                             {blockedUsers.map((user, index) => (
                                 <Box key={user._id}>
                                     <Box sx={{
@@ -319,7 +325,7 @@ export default function SettingsPage() {
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: 2,
-                                        '&:hover': { bgcolor: '#f0f2f5' },
+                                        '&:hover': { bgcolor: 'action.hover' },
                                     }}>
                                         <Avatar src={user.avatar} sx={{ width: 48, height: 48 }}>
                                             {user.firstName?.[0]}
@@ -328,7 +334,7 @@ export default function SettingsPage() {
                                             <Typography sx={{ fontWeight: 600, fontSize: 15 }}>
                                                 {user.firstName} {user.lastName}
                                             </Typography>
-                                            <Typography sx={{ fontSize: 13, color: '#65676b' }}>
+                                            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
                                                 Đã chặn {formatDate(user.blockedAt)}
                                             </Typography>
                                         </Box>
@@ -336,12 +342,12 @@ export default function SettingsPage() {
                                             size="small"
                                             onClick={() => handleUnblockUser(user._id)}
                                             sx={{
-                                                bgcolor: '#e4e6eb',
-                                                color: '#050505',
+                                                bgcolor: 'action.hover',
+                                                color: 'text.primary',
                                                 textTransform: 'none',
                                                 fontWeight: 600,
                                                 px: 2,
-                                                '&:hover': { bgcolor: '#d8dadf' },
+                                                '&:hover': { bgcolor: 'action.selected' },
                                             }}
                                         >
                                             Bỏ chặn
@@ -356,15 +362,16 @@ export default function SettingsPage() {
 
                 {/* Restricted Users Section */}
                 <Box sx={{
-                    bgcolor: 'white',
+                    bgcolor: 'background.paper',
                     borderRadius: '8px',
                     mb: 2,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
                     overflow: 'hidden',
-                    border: '1px solid #dddfe2',
+                    border: 1,
+                    borderColor: 'divider',
                 }}>
-                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e4e6eb' }}>
-                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: '#050505' }}>
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: 'text.primary' }}>
                             Hạn chế
                         </Typography>
                     </Box>
@@ -376,7 +383,7 @@ export default function SettingsPage() {
                             alignItems: 'center',
                             gap: 2,
                             cursor: 'pointer',
-                            '&:hover': { bgcolor: '#f7f8fa' },
+                            '&:hover': { bgcolor: 'action.hover' },
                             transition: 'background 0.15s',
                         }}
                     >
@@ -384,23 +391,23 @@ export default function SettingsPage() {
                             width: 44,
                             height: 44,
                             borderRadius: '50%',
-                            bgcolor: '#fff3cd',
+                            bgcolor: alpha(theme.palette.warning.main, 0.1),
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                         }}>
-                            <PersonOffIcon sx={{ color: '#856404', fontSize: 22 }} />
+                            <PersonOffIcon sx={{ color: 'warning.main', fontSize: 22 }} />
                         </Box>
                         <Box sx={{ flex: 1 }}>
-                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                            <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                 Tài khoản bị hạn chế
                             </Typography>
-                            <Typography sx={{ fontSize: 13, color: '#65676b', mt: 0.25 }}>
+                            <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.25 }}>
                                 {restrictedUsers.length === 0 ? 'Không có tài khoản nào bị hạn chế' : `${restrictedUsers.length} tài khoản`}
                             </Typography>
                         </Box>
                         <ChevronRightIcon sx={{
-                            color: '#65676b',
+                            color: 'text.secondary',
                             fontSize: 24,
                             transform: expandedRestricted ? 'rotate(90deg)' : 'rotate(0deg)',
                             transition: 'transform 0.2s',
@@ -408,7 +415,7 @@ export default function SettingsPage() {
                     </Box>
 
                     {expandedRestricted && restrictedUsers.length > 0 && (
-                        <Box sx={{ borderTop: '1px solid #e4e6eb', bgcolor: '#f7f8fa' }}>
+                        <Box sx={{ borderTop: 1, borderColor: 'divider', bgcolor: 'background.default' }}>
                             {restrictedUsers.map((user, index) => (
                                 <Box key={user._id}>
                                     <Box sx={{
@@ -417,7 +424,7 @@ export default function SettingsPage() {
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: 2,
-                                        '&:hover': { bgcolor: '#f0f2f5' },
+                                        '&:hover': { bgcolor: 'action.hover' },
                                     }}>
                                         <Avatar src={user.avatar} sx={{ width: 48, height: 48 }}>
                                             {user.firstName?.[0]}
@@ -426,7 +433,7 @@ export default function SettingsPage() {
                                             <Typography sx={{ fontWeight: 600, fontSize: 15 }}>
                                                 {user.firstName} {user.lastName}
                                             </Typography>
-                                            <Typography sx={{ fontSize: 13, color: '#65676b' }}>
+                                            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
                                                 Bị hạn chế ngày {formatDate(user.restrictedAt)}
                                             </Typography>
                                         </Box>
@@ -434,12 +441,12 @@ export default function SettingsPage() {
                                             size="small"
                                             onClick={() => handleUnrestrictUser(user._id)}
                                             sx={{
-                                                bgcolor: '#e4e6eb',
-                                                color: '#050505',
+                                                bgcolor: 'action.hover',
+                                                color: 'text.primary',
                                                 textTransform: 'none',
                                                 fontWeight: 600,
                                                 px: 2,
-                                                '&:hover': { bgcolor: '#d8dadf' },
+                                                '&:hover': { bgcolor: 'action.selected' },
                                             }}
                                         >
                                             Bỏ hạn chế
@@ -454,14 +461,15 @@ export default function SettingsPage() {
 
                 {/* Self Block Section */}
                 <Box sx={{
-                    bgcolor: 'white',
+                    bgcolor: 'background.paper',
                     borderRadius: '8px',
                     boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
                     overflow: 'hidden',
-                    border: '1px solid #dddfe2',
+                    border: 1,
+                    borderColor: 'divider',
                 }}>
-                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e4e6eb' }}>
-                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: '#050505' }}>
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography sx={{ fontSize: 17, fontWeight: 600, color: 'text.primary' }}>
                             Bảo mật tài khoản
                         </Typography>
                     </Box>
@@ -471,19 +479,19 @@ export default function SettingsPage() {
                                 width: 44,
                                 height: 44,
                                 borderRadius: '50%',
-                                bgcolor: '#fee2e2',
+                                bgcolor: alpha(theme.palette.error.main, 0.1),
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 flexShrink: 0,
                             }}>
-                                <LockIcon sx={{ color: '#dc2626', fontSize: 22 }} />
+                                <LockIcon sx={{ color: 'error.main', fontSize: 22 }} />
                             </Box>
                             <Box sx={{ flex: 1 }}>
-                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: '#050505' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
                                     Tạm khóa tài khoản
                                 </Typography>
-                                <Typography sx={{ fontSize: 13, color: '#65676b', mt: 0.5, lineHeight: 1.5 }}>
+                                <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.5, lineHeight: 1.5 }}>
                                     Tạm khóa tài khoản của bạn trong 30 ngày. Trong thời gian này, bạn sẽ không thể đăng nhập
                                     và người khác sẽ không thể xem trang cá nhân của bạn.
                                 </Typography>
@@ -491,12 +499,13 @@ export default function SettingsPage() {
                                 {settings?.isSelfBlocked ? (
                                     <Box sx={{
                                         p: 2,
-                                        bgcolor: '#fef2f2',
+                                        bgcolor: alpha(theme.palette.error.main, 0.05),
                                         borderRadius: '8px',
-                                        border: '1px solid #fecaca',
+                                        border: 1,
+                                        borderColor: alpha(theme.palette.error.main, 0.2),
                                         mt: 2,
                                     }}>
-                                        <Typography sx={{ color: '#dc2626', fontWeight: 500, fontSize: 14 }}>
+                                        <Typography sx={{ color: 'error.main', fontWeight: 500, fontSize: 14 }}>
                                             Tài khoản đã bị khóa đến{' '}
                                             {settings.selfBlockExpireAt
                                                 ? formatDateTime(settings.selfBlockExpireAt)
@@ -510,14 +519,14 @@ export default function SettingsPage() {
                                         onClick={() => setShowBlockConfirm(true)}
                                         sx={{
                                             mt: 2,
-                                            bgcolor: '#dc2626',
+                                            bgcolor: 'error.main',
                                             color: 'white',
                                             textTransform: 'none',
                                             fontWeight: 600,
                                             px: 3,
                                             py: 1,
                                             borderRadius: '6px',
-                                            '&:hover': { bgcolor: '#b91c1c' },
+                                            '&:hover': { bgcolor: 'error.dark' },
                                         }}
                                     >
                                         Tạm khóa 30 ngày
@@ -534,14 +543,14 @@ export default function SettingsPage() {
                 open={showBlockConfirm}
                 onClose={() => setShowBlockConfirm(false)}
                 PaperProps={{
-                    sx: { borderRadius: '12px', maxWidth: 420, width: '100%' }
+                    sx: { borderRadius: '12px', maxWidth: 420, width: '100%', bgcolor: 'background.paper' }
                 }}
             >
-                <DialogTitle sx={{ fontWeight: 600, fontSize: 18, pb: 1 }}>
+                <DialogTitle sx={{ fontWeight: 600, fontSize: 18, pb: 1, color: 'text.primary' }}>
                     Xác nhận tạm khóa tài khoản?
                 </DialogTitle>
                 <DialogContent>
-                    <Typography sx={{ color: '#65676b', fontSize: 14, lineHeight: 1.5 }}>
+                    <Typography sx={{ color: 'text.secondary', fontSize: 14, lineHeight: 1.5 }}>
                         Bạn có chắc chắn muốn tạm khóa tài khoản trong 30 ngày không?
                         Bạn sẽ không thể đăng nhập trong thời gian này.
                     </Typography>
@@ -550,13 +559,13 @@ export default function SettingsPage() {
                     <Button
                         onClick={() => setShowBlockConfirm(false)}
                         sx={{
-                            bgcolor: '#e4e6eb',
-                            color: '#050505',
+                            bgcolor: 'action.hover',
+                            color: 'text.primary',
                             textTransform: 'none',
                             fontWeight: 600,
                             px: 3,
                             borderRadius: '6px',
-                            '&:hover': { bgcolor: '#d8dadf' },
+                            '&:hover': { bgcolor: 'action.selected' },
                         }}
                     >
                         Hủy
@@ -566,12 +575,12 @@ export default function SettingsPage() {
                         onClick={handleSelfBlock}
                         disabled={blockingAccount}
                         sx={{
-                            bgcolor: '#dc2626',
+                            bgcolor: 'error.main',
                             textTransform: 'none',
                             fontWeight: 600,
                             px: 3,
                             borderRadius: '6px',
-                            '&:hover': { bgcolor: '#b91c1c' },
+                            '&:hover': { bgcolor: 'error.dark' },
                         }}
                     >
                         {blockingAccount ? <CircularProgress size={24} color="inherit" /> : 'Xác nhận khóa'}

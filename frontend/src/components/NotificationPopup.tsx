@@ -323,9 +323,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         src={
                             notification.groupId?.avatar ||
                             notification.senderId?.avatar ||
-                            `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                notification.senderId?.firstName || 'U'
-                            )}&background=1877f2&color=fff`
+                            ""
                         }
                         sx={{ width: 60, height: 60 }}
                     />

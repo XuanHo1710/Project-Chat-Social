@@ -13,10 +13,11 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     const isFriends = pathname?.startsWith('/friends');
     const isProfile = pathname?.startsWith('/profile');
     const isGroups = pathname?.startsWith('/groups');
+    const isSettins = pathname?.startsWith('/settings');
 
 
     // If it's a standalone page like Chat or Reels (full screen), just render children
-    if (isChat || isReels || isFriends || isProfile || isGroups) {
+    if (isChat || isReels || isFriends || isProfile || isGroups || isSettins) {
         return <>{children}</>;
     }
 

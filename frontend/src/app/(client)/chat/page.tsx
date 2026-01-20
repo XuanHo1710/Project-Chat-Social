@@ -121,6 +121,42 @@ export default function ChatPage() {
         socketChat.on("conversation:unread:updated", handleUnreadUpdate);
         socketChat.on("conversation:unread:reset", handleUnreadUpdate);
 
+        // Handle mute toggle update - update mutedBy in conversation cache
+        const handleMuteUpdated = (data: { conversationId: string; userId: string; isMuted: boolean }) => {
+            console.log('🔔 Mute status updated:', data);
+            queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
+                (oldData) => {
+                    if (!oldData?.data) return oldData;
+
+                    return {
+                        ...oldData,
+                        data: oldData.data.map(conv => {
+                            if (conv._id === data.conversationId) {
+                                const currentMutedBy = conv.mutedBy || [];
+                                let newMutedBy: string[];
+
+                                if (data.isMuted) {
+                                    // Add user to mutedBy if not already there
+                                    newMutedBy = currentMutedBy.includes(data.userId)
+                                        ? currentMutedBy
+                                        : [...currentMutedBy, data.userId];
+                                } else {
+                                    // Remove user from mutedBy
+                                    newMutedBy = currentMutedBy.filter(id => id !== data.userId);
+                                }
+
+                                return { ...conv, mutedBy: newMutedBy };
+                            }
+                            return conv;
+                        })
+                    };
+                }
+            );
+        };
+
+        socketChat.on("conversation:mute:updated", handleMuteUpdated);
+
         return () => {
             socketChat.off("message:new", handleGlobalMessageNew);
             socketChat.off("conversation:member:added", handleConversationUpdate);
@@ -134,6 +170,7 @@ export default function ChatPage() {
             socketChat.off("conversation:created", handleConversationUpdate);
             socketChat.off("conversation:unread:updated", handleUnreadUpdate);
             socketChat.off("conversation:unread:reset", handleUnreadUpdate);
+            socketChat.off("conversation:mute:updated", handleMuteUpdated);
         };
     }, [socketChat, queryClient, user?.id]);
 

@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Box, CircularProgress, Typography, IconButton, useMediaQuery, useTheme } from "@mui/material";
-import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId, useConversationDetail } from "@/queries/useConversationQueries";
 import AreaChatMessages from "@/components/chats/AreaChatMessage";
@@ -162,6 +161,38 @@ export default function ChatDetailPage() {
             }
         };
 
+
+        // Handle mute toggle update - update mutedBy in conversation cache
+        const handleMuteUpdated = (data: { conversationId: string; userId: string; isMuted: boolean }) => {
+            queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
+                (oldData) => {
+                    if (!oldData?.data) return oldData;
+
+                    return {
+                        ...oldData,
+                        data: oldData.data.map(conv => {
+                            if (conv._id === data.conversationId) {
+                                const currentMutedBy = conv.mutedBy || [];
+                                let newMutedBy: string[];
+
+                                if (data.isMuted) {
+                                    newMutedBy = currentMutedBy.includes(data.userId)
+                                        ? currentMutedBy
+                                        : [...currentMutedBy, data.userId];
+                                } else {
+                                    newMutedBy = currentMutedBy.filter(id => id !== data.userId);
+                                }
+
+                                return { ...conv, mutedBy: newMutedBy };
+                            }
+                            return conv;
+                        })
+                    };
+                }
+            );
+        };
+
         socketChat.on("conversation:member:added", handleMemberAdded);
         socketChat.on("conversation:member:removed", handleConversationUpdate);
         socketChat.on("conversation:member:left", handleConversationUpdate);
@@ -171,6 +202,7 @@ export default function ChatDetailPage() {
         socketChat.on("conversation:nickname:updated", handleConversationUpdate);
         socketChat.on("conversation:settings:updated", handleConversationUpdate);
         socketChat.on("conversation:created", handleConversationUpdate);
+        socketChat.on("conversation:mute:updated", handleMuteUpdated);
 
         return () => {
             socketChat.off("message:new", handleGlobalMessageNew);
@@ -183,6 +215,7 @@ export default function ChatDetailPage() {
             socketChat.off("conversation:nickname:updated", handleConversationUpdate);
             socketChat.off("conversation:settings:updated", handleConversationUpdate);
             socketChat.off("conversation:created", handleConversationUpdate);
+            socketChat.off("conversation:mute:updated", handleMuteUpdated);
         };
     }, [socketChat, queryClient, user?.id]);
 
@@ -194,7 +227,7 @@ export default function ChatDetailPage() {
     // Loading state
     if (isLoadingDetail) {
         return (
-            <Box sx={{ display: "flex", height: "100vh", width: "100vw", bgcolor: "#f0f2f5", position: "relative", overflow: "hidden" }}>
+            <Box sx={{ display: "flex", height: "100vh", width: "100vw", bgcolor: theme.palette.background.default, position: "relative", overflow: "hidden" }}>
                 <ChatSidebar
                     conversations={listConversation?.data || []}
                     isLoading={isLoadingConversations}
@@ -222,7 +255,7 @@ export default function ChatDetailPage() {
                     isMobileVisible={isMobile ? showMobileSidebar : true}
                     onMobileClose={() => setShowMobileSidebar(false)}
                 />
-                <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "white", flexDirection: "column", gap: 2, p: 2 }}>
+                <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: theme.palette.background.default, flexDirection: "column", gap: 2, p: 2 }}>
                     <Typography variant="h6" color="error" textAlign="center">
                         Cuộc trò chuyện không tồn tại hoặc bạn không có quyền truy cập
                     </Typography>

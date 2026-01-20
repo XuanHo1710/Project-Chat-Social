@@ -77,7 +77,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
     private readonly commentService: CommentService,
     private readonly reactionService: ReactionService
-  ) {}
+  ) { }
 
   private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
@@ -882,13 +882,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       _unreadCount: updatedUnreadCount?.unreadCount, // Prefixed with _ to indicate metadata
     };
 
+
+
+
     activeParticipants.forEach((participant) => {
       const participantId = participant.user._id.toString();
       const participantSockets = userSockets.get(participantId);
+      const messageWithMutedAndUnread = {
+        ...messageWithUnread,
+        isMuted: conversation.mutedBy.includes(participantId) ? true : false
+      }
 
       if (participantSockets && participantSockets.size > 0) {
         participantSockets.forEach((socketId) => {
-          this.server.to(socketId).emit('message:new', messageWithUnread);
+          this.server.to(socketId).emit('message:new', messageWithMutedAndUnread);
         });
       }
     });
@@ -1630,8 +1637,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userId
       );
 
-      // Notify the user (only the user who toggled mute)
-      client.emit('conversation:mute:updated', {
+      // Notify ALL sockets of this user (so all open tabs update)
+      this.server.to(`user:${userId}`).emit('conversation:mute:updated', {
         conversationId: data.conversationId,
         userId,
         isMuted: result.isMuted,
@@ -1680,11 +1687,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .select('firstName lastName _id avatar');
       const readByUser = readerUser
         ? {
-            _id: readerUser._id.toString(),
-            firstName: readerUser.firstName,
-            lastName: readerUser.lastName,
-            avatar: readerUser.avatar,
-          }
+          _id: readerUser._id.toString(),
+          firstName: readerUser.firstName,
+          lastName: readerUser.lastName,
+          avatar: readerUser.avatar,
+        }
         : null;
 
       // CRITICAL: Only emit to OTHER users in the conversation, NOT to the user who updated their cursor

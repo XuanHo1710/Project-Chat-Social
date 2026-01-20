@@ -24,6 +24,7 @@ import {
     MoreHoriz as MoreIcon,
     VideoCall as VideoIcon,
     Create as CreateIcon,
+    NotificationsOff as NotificationsOffIcon,
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import { formatTime } from '@/utils/formatDate';
@@ -91,8 +92,18 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
 
         socketChat.on('conversation:kicked', handleKicked);
 
+        // Listen for mute toggle updates to refresh conversation list
+        const handleMuteUpdated = (data: { conversationId: string; isMuted: boolean }) => {
+            console.log('🔔 Mute status updated:', data);
+            // Force re-render by updating conversation data
+            // Since conversations prop comes from parent, parent should handle refetch
+            // But we can trigger a visual update by listening to this event
+        };
+        socketChat.on('conversation:mute:updated', handleMuteUpdated);
+
         return () => {
             socketChat.off('conversation:kicked', handleKicked);
+            socketChat.off('conversation:mute:updated', handleMuteUpdated);
         };
     }, [socketChat]);
 
@@ -438,6 +449,17 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                                 <Typography noWrap fontWeight={600} fontSize={15} color="text.primary">
                                                     {displayName}
                                                 </Typography>
+                                                {/* Mute bell icon when user has muted this conversation */}
+                                                {conversation.mutedBy?.includes(user?.id || '') && (
+                                                    <NotificationsOffIcon
+                                                        sx={{
+                                                            fontSize: 16,
+                                                            color: 'text.secondary',
+                                                            opacity: 0.7,
+                                                            ml: 0.5
+                                                        }}
+                                                    />
+                                                )}
                                             </Box>
                                         }
                                         secondaryTypographyProps={{ component: 'div' }}
@@ -501,7 +523,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                                     badgeContent={unreadCount > 9 ? '9+' : unreadCount}
                                                     sx={{
                                                         '& .MuiBadge-badge': {
-                                                            backgroundColor: '#1877f2',
+                                                            backgroundColor: conversation.mutedBy?.includes(user?.id || '') ? '#76797dff' : '#1877f2',
                                                             color: 'white',
                                                             fontSize: 11,
                                                             fontWeight: 700,

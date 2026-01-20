@@ -85,7 +85,7 @@ export default function Header() {
         const fetchUnreadCount = () => {
             if (listConversation?.data && user?.id) {
                 const totalUnread = listConversation.data.reduce((acc, conv) => {
-                    return acc + (conv.unreadCount?.[user.id] || 0);
+                    return acc + (conv.mutedBy?.includes(user.id || '') ? 0 : conv.unreadCount?.[user.id] || 0);
                 }, 0);
                 setChatUnreadCount(totalUnread);
             }
@@ -99,10 +99,12 @@ export default function Header() {
 
         // Update unread count when new message arrives
         const handleGlobalMessageNew = (msg: MessageResponse) => {
+            console.log("handle:message:new", msg.isMuted)
             // Increment unread count if message is not from current user
             const senderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
             if (senderId !== user.id) {
-                setChatUnreadCount(prev => prev + 1);
+                console.log(msg)
+                setChatUnreadCount(prev => msg.isMuted ? prev : prev + 1);
             }
 
             // Update conversation data if popup is open
@@ -163,7 +165,7 @@ export default function Header() {
 
                     // Recalculate total
                     const totalUnread = updatedData.reduce((acc, conv) => {
-                        return acc + (conv.unreadCount?.[user.id] || 0);
+                        return acc + (conv.mutedBy?.includes(user.id || "") ? 0 : conv.unreadCount?.[user.id] || 0);
                     }, 0);
                     setChatUnreadCount(totalUnread);
 
@@ -192,7 +194,7 @@ export default function Header() {
 
                         // Recalculate total
                         const totalUnread = updatedData.reduce((acc, conv) => {
-                            return acc + (conv.unreadCount?.[user.id] || 0);
+                            return acc + (conv.mutedBy?.includes(user.id || "") ? 0 : conv.unreadCount?.[user.id] || 0);
                         }, 0);
                         setChatUnreadCount(totalUnread);
 
@@ -215,6 +217,40 @@ export default function Header() {
             setNotificationUnreadCount(data.count);
         };
 
+        // Handle mute toggle update - update mutedBy in conversation cache
+        const handleMuteUpdated = (data: { conversationId: string; userId: string; isMuted: boolean }) => {
+            console.log('🔔 Mute status updated:', data);
+            queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
+                (oldData) => {
+                    if (!oldData?.data) return oldData;
+
+                    return {
+                        ...oldData,
+                        data: oldData.data.map(conv => {
+                            if (conv._id === data.conversationId) {
+                                const currentMutedBy = conv.mutedBy || [];
+                                let newMutedBy: string[];
+
+                                if (data.isMuted) {
+                                    // Add user to mutedBy if not already there
+                                    newMutedBy = currentMutedBy.includes(data.userId)
+                                        ? currentMutedBy
+                                        : [...currentMutedBy, data.userId];
+                                } else {
+                                    // Remove user from mutedBy
+                                    newMutedBy = currentMutedBy.filter(id => id !== data.userId);
+                                }
+
+                                return { ...conv, mutedBy: newMutedBy };
+                            }
+                            return conv;
+                        })
+                    };
+                }
+            );
+        };
+
 
 
         socketNotification.on("unreadCountUpdate", handleNotificationUnreadUpdate);
@@ -230,6 +266,7 @@ export default function Header() {
         socketChat.on("conversation:nickname:updated", handleConversationUpdate);
         socketChat.on("conversation:settings:updated", handleConversationUpdate);
         socketChat.on("conversation:created", handleConversationUpdate);
+        socketChat.on("conversation:mute:updated", handleMuteUpdated);
 
         return () => {
             socketChat.off("message:new", handleGlobalMessageNew);
@@ -244,6 +281,7 @@ export default function Header() {
             socketChat.off("conversation:nickname:updated", handleConversationUpdate);
             socketChat.off("conversation:settings:updated", handleConversationUpdate);
             socketChat.off("conversation:created", handleConversationUpdate);
+            socketChat.off("conversation:mute:updated", handleMuteUpdated);
             socketNotification.off("unreadCountUpdate", handleNotificationUnreadUpdate);
         };
     }, [socketChat, user?.id, queryClient, showChatPopup, refetchConversations, socketNotification]);

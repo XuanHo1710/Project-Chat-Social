@@ -26,6 +26,8 @@ export interface MessageResponse {
 
   conversationId: string;
 
+  isMuted?: boolean;
+
   senderId: {
     firstName: string;
     lastName: string;

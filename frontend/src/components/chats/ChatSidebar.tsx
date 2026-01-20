@@ -555,11 +555,11 @@ export default function ChatSidebar({
                                                     badgeContent={unreadCount > 9 ? '9+' : unreadCount}
                                                     sx={{
                                                         '& .MuiBadge-badge': {
-                                                            backgroundColor: '#1877f2',
+                                                            backgroundColor: conversation.mutedBy?.includes(user?.id || '') ? '#76797dff' : '#1877f2',
                                                             color: 'white',
-                                                            fontSize: 11,
+                                                            fontSize: 12,
                                                             fontWeight: 700,
-                                                            minWidth: 20,
+                                                            width: 20,
                                                             height: 20,
                                                             borderRadius: '10px',
                                                         },

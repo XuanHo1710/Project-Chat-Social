@@ -25,7 +25,10 @@ export class ConversationService {
     const result = await this.conversationModel.aggregate([
       {
         $match: {
-          'participants.user': new Types.ObjectId(userId),
+          $and: [
+            { 'participants.user': new Types.ObjectId(userId) },
+            { mutedBy: { $ne: new Types.ObjectId(userId) } }
+          ]
         },
       },
       {

@@ -14,14 +14,13 @@ import { HashtagService } from 'src/hashtag/hashtag.service';
 import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { ReactionService } from 'src/reaction/reaction.service';
-import { TypeFactor } from 'src/reaction/entities/reaction.entity';
 import { HttpService } from '@nestjs/axios';
 import { AxiosResponse } from 'axios';
-import { AIResponse } from 'src/recommendation/types';
 import { firstValueFrom } from 'rxjs';
 import { ApiVideoService } from 'src/common/services/api-video.service';
 import { NotificationService } from 'src/notification/notification.service';
 import { NotificationType } from 'src/notification/entities/notification.entity';
+import { ConfigService } from '@nestjs/config';
 interface ReactInfo {
   isReact: boolean;
   type: string | null;
@@ -33,6 +32,8 @@ export interface PostWithReactInfo extends Post {
 
 @Injectable()
 export class PostService {
+  private readonly aiServerUrl: string;
+
   constructor(
     @InjectModel(Post.name)
     private postModel: Model<PostDocument>,
@@ -41,9 +42,58 @@ export class PostService {
     private cloudinaryService: CloudinaryService,
     private readonly httpService: HttpService,
     private apiVideoService: ApiVideoService,
-    private notificationService: NotificationService
-  ) { }
-  private readonly aiServerUrl = 'http://localhost:8000/api/v1';
+    private notificationService: NotificationService,
+    private configService: ConfigService
+  ) {
+    this.aiServerUrl = this.configService.get<string>('AI_SERVER_URL') || "";
+  }
+
+  /**
+   * Helper method to embed/upsert a post to AI server ChromaDB
+   * Called after create/update to keep embeddings in sync
+   */
+  private async embedPostToAI(post: {
+    _id: any;
+    content?: string;
+    userId: any;
+    privacy?: string;
+    groupId?: any;
+    createdAt?: Date;
+  }): Promise<void> {
+    // Skip if no content or content too short
+    if (!post.content || post.content.trim().length < 5) return;
+
+    try {
+      await firstValueFrom(
+        this.httpService.post(`${this.aiServerUrl}/embed/post`, {
+          post_id: post._id.toString(),
+          content: post.content,
+          user_id: typeof post.userId === 'object' ? post.userId._id?.toString() || post.userId.toString() : post.userId.toString(),
+          privacy: post.privacy || 'PUBLIC',
+          group_id: post.groupId ? post.groupId.toString() : null,
+          created_at: post.createdAt ? post.createdAt.toISOString() : new Date().toISOString(),
+        }, { timeout: 10000 })
+      );
+      console.log(`✅ Embedded post ${post._id} to AI server`);
+    } catch (error) {
+      // Log but don't throw - embedding is not critical for post creation
+      console.warn(`⚠️ Failed to embed post ${post._id}:`, error.message);
+    }
+  }
+
+  /**
+   * Helper method to delete a post embedding from AI server ChromaDB
+   */
+  private async deletePostEmbedding(postId: string): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.httpService.delete(`${this.aiServerUrl}/embed/post/${postId}`, { timeout: 10000 })
+      );
+      console.log(`🗑️ Deleted post embedding ${postId} from AI server`);
+    } catch (error) {
+      console.warn(`⚠️ Failed to delete post embedding ${postId}:`, error.message);
+    }
+  }
 
   async create(createPostDto: CreatePostDto, user: any): Promise<Post> {
     // Validate: phải có content hoặc media hoặc sharedPostId
@@ -118,6 +168,9 @@ export class PostService {
       path: 'sharedPostId',
       populate: { path: 'userId', select: 'firstName lastName avatar username' },
     });
+
+    // Embed post to AI server (async, don't block response)
+    this.embedPostToAI(savedPost).catch(() => { });
 
     return savedPost;
   }
@@ -781,6 +834,11 @@ export class PostService {
       );
     }
 
+    // Re-embed post to AI server if content changed
+    if (updatePostDto.content !== undefined && updatedPost) {
+      this.embedPostToAI(updatedPost).catch(() => { });
+    }
+
     return updatedPost!;
   }
 
@@ -823,6 +881,8 @@ export class PostService {
       isDeleted: true,
       deletedAt: new Date(),
     });
+
+    this.deletePostEmbedding(id).catch(() => { });
 
     return { message: 'Post deleted successfully' };
   }

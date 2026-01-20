@@ -43,7 +43,7 @@ MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 MONGO_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("MONGODB_DATABASE")
 
-# Interaction weights (Share > Comment > Love > Like > ...)
+# Weights cho các interaction types
 INTERACTION_WEIGHTS = {
     "SHARE": 2.5,      # Chia sẻ = quan tâm nhất
     "COMMENT": 1.5,    # Bình luận = quan tâm cao
@@ -54,6 +54,11 @@ INTERACTION_WEIGHTS = {
     "SAD": 0.3,
     "ANGRY": -0.5
 }
+
+# Recency boost config
+RECENT_DAYS = 20  # Posts within this many days get boosted
+RECENT_BOOST_MAX = 1.5  # Max boost for very recent posts (today)
+VIEWED_PENALTY = 0.3  # Reduce score by this factor for already viewed posts
 
 
 class RecommendationService:
@@ -256,6 +261,91 @@ class RecommendationService:
         
         return filtered
     
+    def _get_user_interacted_post_ids(self, user_id: str) -> set:
+        """
+        Get set of post IDs that user has already interacted with.
+        Used to reduce score for already-seen posts.
+        """
+        try:
+            db = self.mongo_client[DB_NAME]
+            user_oid = ObjectId(user_id)
+            interacted_ids = set()
+            
+            # Get reactions
+            reactions = db.reactions.find(
+                {"userId": user_oid, "typeFactor": "POST"},
+                {"factorId": 1}
+            )
+            for r in reactions:
+                if r.get('factorId'):
+                    interacted_ids.add(str(r['factorId']))
+            
+            # Get comments
+            comments = db.comments.find(
+                {"userId": user_oid},
+                {"postId": 1}
+            )
+            for c in comments:
+                if c.get('postId'):
+                    interacted_ids.add(str(c['postId']))
+            
+            # Get shares
+            shares = db.posts.find(
+                {"userId": user_oid, "sharedPostId": {"$exists": True, "$ne": None}},
+                {"sharedPostId": 1}
+            )
+            for s in shares:
+                if s.get('sharedPostId'):
+                    interacted_ids.add(str(s['sharedPostId']))
+            
+            return interacted_ids
+        except Exception as e:
+            logger.warning(f"Failed to get interacted posts: {e}")
+            return set()
+    
+    def _calculate_recency_boost(self, created_at_str: str) -> float:
+        """
+        Calculate recency boost based on post creation date.
+        Posts within RECENT_DAYS get boosted, newer = higher boost.
+        Returns multiplier between 1.0 and RECENT_BOOST_MAX
+        """
+        if not created_at_str:
+            return 1.0
+        
+        try:
+            from datetime import datetime, timedelta
+            
+            # Parse created_at (ISO format or timestamp)
+            if isinstance(created_at_str, str):
+                # Try ISO format first
+                try:
+                    created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                except:
+                    # Try timestamp
+                    try:
+                        created_at = datetime.fromtimestamp(float(created_at_str))
+                    except:
+                        return 1.0
+            else:
+                return 1.0
+            
+            now = datetime.now(created_at.tzinfo) if created_at.tzinfo else datetime.now()
+            days_old = (now - created_at).days
+            
+            if days_old < 0:
+                days_old = 0
+            
+            if days_old >= RECENT_DAYS:
+                return 1.0  # No boost for old posts
+            
+            # Linear interpolation: 0 days -> RECENT_BOOST_MAX, RECENT_DAYS days -> 1.0
+            boost = 1.0 + (RECENT_BOOST_MAX - 1.0) * (1 - days_old / RECENT_DAYS)
+            return boost
+            
+        except Exception as e:
+            logger.warning(f"Recency boost calculation error: {e}")
+            return 1.0
+    
     # ========================================
     # 1. SEARCH - Tìm posts theo query
     # ========================================
@@ -315,9 +405,6 @@ class RecommendationService:
             logger.error(f"Search error: {e}")
             return [], 0
     
-    # ========================================
-    # 2. RECOMMEND - Gợi ý posts cho user
-    # ========================================
     def recommend(
         self, 
         user_id: str, 
@@ -332,8 +419,11 @@ class RecommendationService:
         1. Lấy user vector từ interactions (reactions, comments, shares)
         2. Query ChromaDB với user vector
         3. Rank theo cosine similarity (góc nhỏ = giống nhau = score cao)
-        4. Boost posts từ bạn bè
-        5. Filter privacy + paginate
+        4. Boost posts từ bạn bè (+20%)
+        5. Boost posts gần đây (trong 20 ngày)
+        6. Giảm score posts đã xem/tương tác
+        7. Weighted random selection
+        8. Filter privacy + paginate
         """
         if not self.is_ready():
             return [], 0
@@ -343,6 +433,10 @@ class RecommendationService:
             
             # Lấy user vector
             user_vector, interaction_count = self.get_user_vector(user_id)
+            
+            # Get posts user has already interacted with
+            interacted_post_ids = self._get_user_interacted_post_ids(user_id)
+            logger.info(f"👤 User {user_id}: {len(interacted_post_ids)} previously interacted posts")
             
             # Nếu không có interactions, tạo random vector unique cho user
             if user_vector is None:
@@ -368,7 +462,7 @@ class RecommendationService:
                     return [], 0
             
             # Query ChromaDB với user vector
-            n_results = min(300, self.collection.count())
+            n_results = min(500, self.collection.count())  # Query more for better selection
             results = self.collection.query(
                 query_embeddings=[user_vector.tolist()],
                 n_results=n_results,
@@ -384,28 +478,36 @@ class RecommendationService:
                     
                     meta = results['metadatas'][0][i]
                     owner = meta.get('user_id', '')
+                    created_at = meta.get('created_at', '')
                     
                     # Score base = cosine similarity
                     score = similarity
                     
-                    # Boost 20% cho posts từ bạn bè
+                    # 1. Boost 20% cho posts từ bạn bè
                     if owner in friend_set:
                         score *= 1.2
                     
-                    # Giảm 50% cho posts của chính mình
+                    # 2. Giảm 50% cho posts của chính mình
                     if owner == user_id:
                         score *= 0.5
+                    
+                    # 3. Boost bài post gần đây (trong 20 ngày)
+                    recency_boost = self._calculate_recency_boost(created_at)
+                    score *= recency_boost
+                    
+                    # 4. Giảm score cho posts đã xem/tương tác
+                    if post_id in interacted_post_ids:
+                        score *= (1.0 - VIEWED_PENALTY)
                     
                     posts.append({
                         "post_id": post_id,
                         "score": round(score, 4),
                         "user_id": owner,
                         "group_id": meta.get('group_id', ''),
-                        "privacy": meta.get('privacy', 'PUBLIC')
+                        "privacy": meta.get('privacy', 'PUBLIC'),
+                        "is_viewed": post_id in interacted_post_ids,
+                        "recency_boost": round(recency_boost, 2)
                     })
-            
-            # Sort by score (cao → thấp)
-            posts.sort(key=lambda x: x['score'], reverse=True)
             
             # Privacy filter
             posts = self._filter_privacy(posts, user_id, friend_ids or [])
@@ -413,30 +515,58 @@ class RecommendationService:
             total = len(posts)
             
             # ========================================
-            # RANDOM CHỈ NHỮNG POSTS CÓ SCORE >= 0.5
-            # Posts score < 0.5 giữ nguyên thứ tự (thấp, ít relevant)
+            # WEIGHTED RANDOM SELECTION
+            # Posts với score cao hơn có xác suất được chọn cao hơn
+            # Nhưng vẫn có cơ hội cho posts score thấp hơn
             # ========================================
             if len(posts) > 5:
-                # Tách posts thành 2 nhóm: high score (>= 0.5) và low score (< 0.5)
-                high_score_posts = [p for p in posts if p['score'] >= 0.5]
-                low_score_posts = [p for p in posts if p['score'] < 0.5]
+                # Separate into tiers for better diversity
+                high_score = [p for p in posts if p['score'] >= 0.6]
+                medium_score = [p for p in posts if 0.4 <= p['score'] < 0.6]
+                low_score = [p for p in posts if p['score'] < 0.4]
                 
-                # Random shuffle các posts có score >= 0.5
-                if high_score_posts:
-                    random.shuffle(high_score_posts)
+                # Weighted random shuffle each tier
+                def weighted_shuffle(post_list):
+                    if not post_list:
+                        return []
+                    # Convert scores to probabilities
+                    scores = np.array([p['score'] for p in post_list])
+                    scores = np.maximum(scores, 0.01)  # Avoid zero
+                    probs = scores / scores.sum()
+                    
+                    # Sample without replacement based on probabilities
+                    try:
+                        indices = np.random.choice(
+                            len(post_list), 
+                            size=len(post_list), 
+                            replace=False, 
+                            p=probs
+                        )
+                        return [post_list[i] for i in indices]
+                    except:
+                        # Fallback to simple shuffle
+                        random.shuffle(post_list)
+                        return post_list
                 
-                # Kết quả: high score posts (đã random) + low score posts (giữ nguyên thứ tự score giảm dần)
-                posts = high_score_posts + low_score_posts
+                high_score = weighted_shuffle(high_score)
+                medium_score = weighted_shuffle(medium_score)
+                # Low score just shuffle normally
+                random.shuffle(low_score)
+                
+                # Combine: high first, then medium, then low
+                posts = high_score + medium_score + low_score
             
             # Paginate
             offset = (page - 1) * limit
             paginated = posts[offset:offset + limit]
             
-            logger.info(f"📰 Recommend {user_id}: {interaction_count} interactions, {total} posts (shuffled), page {page}")
+            logger.info(f"📰 Recommend {user_id}: {interaction_count} interactions, {total} posts, page {page}")
             return paginated, total
             
         except Exception as e:
             logger.error(f"Recommend error: {e}")
+            import traceback
+            traceback.print_exc()
             return [], 0
     
     # Alias

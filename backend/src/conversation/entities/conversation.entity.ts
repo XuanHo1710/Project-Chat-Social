@@ -1,7 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { HydratedDocument } from 'mongoose';
 import { Account } from 'src/account/entities/account.entity';
-import { Message } from 'src/chat/entities/message.entity';
 export type ConversationDocument = HydratedDocument<Conversation>;
 
 @Schema({ timestamps: true })

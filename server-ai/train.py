@@ -254,10 +254,10 @@ def train():
     client = MongoClient(MONGO_URI)
     db = client[DB_NAME]
     
-    # Lấy posts với thêm trường privacy
+    # Lấy posts với thêm trường privacy và createdAt
     cursor = db.posts.find(
         {"isDeleted": {"$ne": True}},
-        {"_id": 1, "userId": 1, "groupId": 1, "content": 1, "privacy": 1, "sharedPostId": 1}
+        {"_id": 1, "userId": 1, "groupId": 1, "content": 1, "privacy": 1, "sharedPostId": 1, "createdAt": 1}
     )
     
     data = list(cursor)
@@ -321,6 +321,8 @@ def train():
     df['groupId'] = df['groupId'].apply(lambda x: str(x) if pd.notna(x) and x else "no_group") if 'groupId' in df.columns else "no_group"
     df['content'] = df['content'].fillna("").apply(clean_text)
     df['privacy'] = df['privacy'].apply(normalize_privacy) if 'privacy' in df.columns else "PUBLIC"
+    # Chuẩn hóa createdAt
+    df['createdAt'] = df['createdAt'].apply(lambda x: x.isoformat() if pd.notna(x) and hasattr(x, 'isoformat') else "") if 'createdAt' in df.columns else ""
     
     # Lọc content quá ngắn
     df = df[df['content'].str.len() > 0].reset_index(drop=True)
@@ -474,6 +476,7 @@ def train():
         "user_id": str(df.loc[i, 'userId']),
         "group_id": str(df.loc[i, 'groupId']),
         "privacy": str(df.loc[i, 'privacy']),
+        "created_at": str(df.loc[i, 'createdAt']) if 'createdAt' in df.columns else "",
         "score": float(hybrid_scores[i])
     } for i in range(len(df))]
     

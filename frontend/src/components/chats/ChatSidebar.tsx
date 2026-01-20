@@ -25,6 +25,7 @@ import {
     Person as PersonIcon,
     Settings as SettingsIcon,
     Edit as EditIcon,
+    NotificationsOff as NotificationsOffIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { authService } from '@/services/auth.service';
@@ -480,6 +481,17 @@ export default function ChatSidebar({
                                                 <Typography noWrap fontWeight={600} fontSize={15} color="text.primary">
                                                     {displayName}
                                                 </Typography>
+                                                {/* Mute bell icon when user has muted this conversation */}
+                                                {conversation.mutedBy?.includes(user?.id || '') && (
+                                                    <NotificationsOffIcon
+                                                        sx={{
+                                                            fontSize: 16,
+                                                            color: 'text.secondary',
+                                                            opacity: 0.7,
+                                                            ml: 0.5
+                                                        }}
+                                                    />
+                                                )}
                                             </Box>
                                         }
                                         secondaryTypographyProps={{ component: 'div' }}

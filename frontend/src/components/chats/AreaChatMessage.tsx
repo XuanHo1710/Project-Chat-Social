@@ -152,7 +152,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     const [isUnblocking, setIsUnblocking] = useState(false);
 
     // User can chat if: not deleted, not kicked, not blocked, and (not onlyAdminCanChat OR is admin)
-    const canChat = !isGroupDeleted && !wasKicked && canChatBasedOnSettings && !isLeft && !blockedByMe;
+    const canChat = !isGroupDeleted && !wasKicked && canChatBasedOnSettings && !isLeft && !blockedByMe && !conversation?.chatBlocked;
 
     // Handle unblock user
     const handleUnblockUser = async () => {
@@ -189,6 +189,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
     // Message for restricted chat
     const getChatRestrictionMessage = () => {
+        if (conversation?.chatBlocked) return 'Bạn đã bị chặn bởi người dùng này';
         if (isGroupDeleted) return 'Nhóm đã bị giải tán';
         if (wasKicked) return 'Bạn đã bị mời ra khỏi nhóm';
         if (!canChatBasedOnSettings) return 'Chỉ quản trị viên mới có thể gửi tin nhắn trong nhóm này';
@@ -648,8 +649,6 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         );
     }, [queryClient, selectedConversation._id]);
 
-    console.log("All message: ", allMessages)
-
     // Listen for socket events
     useEffect(() => {
         if (!socketChat) return;
@@ -1062,6 +1061,59 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             }
         };
     }, [socketChat, selectedConversation._id, userId, setUsersTyping, usersTyping, conversation]);
+
+    // Listen for block/unblock events to update chatBlocked status in real-time
+    useEffect(() => {
+        if (!socketRelationship || !selectedConversation._id) return;
+
+        const handleBlockedBy = (data: { blockedByUserId: string }) => {
+            // If blocked by the other user in this DIRECT conversation, refresh to update chatBlocked
+            if (selectedConversation.type !== 'GROUP' && data.blockedByUserId === selectedConversation.otherId) {
+                console.log("🚫 Blocked by conversation partner, refreshing...");
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+            }
+        };
+
+        const handleUnblockedBy = (data: { unblockedByUserId: string }) => {
+            // If unblocked by the other user in this DIRECT conversation, refresh
+            if (selectedConversation.type !== 'GROUP' && data.unblockedByUserId === selectedConversation.otherId) {
+                console.log("✅ Unblocked by conversation partner, refreshing...");
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+            }
+        };
+
+        const handleBlocked = (data: { blockedUserId: string; blockedByUserId: string }) => {
+            // If current user blocked the other user, refresh
+            if (selectedConversation.type !== 'GROUP' && data.blockedUserId === selectedConversation.otherId) {
+                console.log("🚫 Blocked conversation partner, refreshing...");
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+            }
+        };
+
+        const handleUnblocked = (data: { unblockedUserId: string }) => {
+            // If current user unblocked the other user, refresh
+            if (selectedConversation.type !== 'GROUP' && data.unblockedUserId === selectedConversation.otherId) {
+                console.log("✅ Unblocked conversation partner, refreshing...");
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+            }
+        };
+
+        socketRelationship.on('user:blockedBy', handleBlockedBy);
+        socketRelationship.on('user:unblockedBy', handleUnblockedBy);
+        socketRelationship.on('user:blocked', handleBlocked);
+        socketRelationship.on('user:unblocked', handleUnblocked);
+
+        return () => {
+            socketRelationship.off('user:blockedBy', handleBlockedBy);
+            socketRelationship.off('user:unblockedBy', handleUnblockedBy);
+            socketRelationship.off('user:blocked', handleBlocked);
+            socketRelationship.off('user:unblocked', handleUnblocked);
+        };
+    }, [socketRelationship, selectedConversation._id, selectedConversation.otherId, selectedConversation.type, queryClient]);
 
 
     const [showMentions, setShowMentions] = useState(false);
@@ -1746,12 +1798,12 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                     <Box
                         sx={{
                             p: 3,
-                            bgcolor: isGroupDeleted || wasKicked ? '#fff3cd' : '#e3f2fd',
-                            borderTop: isGroupDeleted || wasKicked ? '1px solid #ffc107' : '1px solid #2196f3',
+                            bgcolor: isGroupDeleted || wasKicked ? '#fff3cd' : '#d3d0d0ff',
+                            borderTop: isGroupDeleted || wasKicked ? '1px solid #ffc107' : '1px solid #d3d0d0ff',
                             textAlign: 'center'
                         }}
                     >
-                        <Typography color={isGroupDeleted || wasKicked ? '#856404' : '#1565c0'} fontWeight={500}>
+                        <Typography color={isGroupDeleted || wasKicked ? '#856404' : '#152435ff'} fontWeight={500}>
                             {isGroupDeleted}{getChatRestrictionMessage()}
                         </Typography>
                     </Box>
@@ -1764,13 +1816,13 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             p: 2,
                             bgcolor: (theme) => alpha(theme.palette.error.main, 0.05),
                             borderTop: (theme) => `1px solid ${alpha(theme.palette.error.main, 0.2)}`,
-                            display: 'flex',
-                            alignItems: 'center',
+                            display: 'block',
+                            textAlign: 'center',
                             justifyContent: 'center',
-                            gap: 2
+                            gap: 5
                         }}
                     >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: "center", gap: 1, marginBottom: 1 }}>
                             <BlockIcon sx={{ color: 'error.main', fontSize: 20 }} />
                             <Typography color="error.main" fontWeight={500} fontSize={14}>
                                 Bạn đã chặn người dùng này

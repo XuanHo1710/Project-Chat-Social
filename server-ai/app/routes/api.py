@@ -288,6 +288,99 @@ async def similar_posts(
     }
 
 
+class EmbedPostRequest(BaseModel):
+    post_id: str
+    content: str
+    user_id: str
+    privacy: Optional[str] = "PUBLIC"
+    group_id: Optional[str] = None
+    created_at: Optional[str] = None  # ISO format datetime string
+
+
+@router.post("/embed/post")
+async def embed_single_post(request: EmbedPostRequest):
+    """
+    📌 Embed/Upsert a single post into ChromaDB
+    
+    Called by NestJS backend when a post is created or updated.
+    """
+    service = get_recommendation_service()
+    
+    if not service.is_ready():
+        raise HTTPException(status_code=503, detail="AI Server chưa sẵn sàng! Chạy: python train.py")
+    
+    # Skip if content is too short
+    if not request.content or len(request.content.strip()) < 5:
+        return {
+            "success": False,
+            "message": "Content too short (min 5 characters)",
+            "post_id": request.post_id
+        }
+    
+    try:
+        # Generate embedding
+        embedding = service.model.encode(request.content, convert_to_numpy=True)
+        
+        # Get current time if created_at not provided
+        from datetime import datetime
+        created_at = request.created_at or datetime.now().isoformat()
+        
+        # Prepare metadata
+        metadata = {
+            "user_id": request.user_id,
+            "privacy": request.privacy or "PUBLIC",
+            "group_id": request.group_id or "no_group",
+            "created_at": created_at
+        }
+        
+        # Upsert into ChromaDB
+        service.collection.upsert(
+            ids=[request.post_id],
+            documents=[request.content],
+            embeddings=[embedding.tolist()],
+            metadatas=[metadata]
+        )
+        
+        logger.info(f"✅ Embedded post {request.post_id}")
+        
+        return {
+            "success": True,
+            "message": "Post embedded successfully",
+            "post_id": request.post_id,
+            "total_posts": service.collection.count()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to embed post {request.post_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to embed post: {str(e)}")
+
+
+@router.delete("/embed/post/{post_id}")
+async def delete_post_embedding(post_id: str):
+    """
+    🗑️ Delete a post embedding from ChromaDB
+    
+    Called by NestJS backend when a post is deleted.
+    """
+    service = get_recommendation_service()
+    
+    if not service.is_ready():
+        raise HTTPException(status_code=503, detail="AI Server chưa sẵn sàng!")
+    
+    try:
+        service.collection.delete(ids=[post_id])
+        logger.info(f"🗑️ Deleted post embedding {post_id}")
+        
+        return {
+            "success": True,
+            "message": "Post embedding deleted",
+            "post_id": post_id
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to delete post embedding {post_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete: {str(e)}")
+
+
 @router.get("/status")
 async def get_status():
     """

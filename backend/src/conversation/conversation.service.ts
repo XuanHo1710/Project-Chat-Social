@@ -132,8 +132,11 @@ export class ConversationService {
 
     // Check if current user has blocked the other user (only for DIRECT)
     let blockedByMe = false;
-    if (currentUserId && conv.type === 'DIRECT') {
+    let chatBlocked = false;
+    const participants = conv.participants as any[];
+    if (currentUserId && conv && conv.type === 'DIRECT' && participants.length === 2) {
       const blockedUsers = await this.relationshipService.getBlockedUsers(currentUserId);
+      chatBlocked = await this.relationshipService.isUserBlocked(participants[0].user._id.toString(), participants[1].user._id.toString());
       const blockedUserIds = blockedUsers.map((u: any) => u._id.toString());
       const otherParticipant = conv.participants.find(
         (p: any) => p.user._id.toString() !== currentUserId
@@ -165,6 +168,7 @@ export class ConversationService {
     return {
       ...conv,
       blockedByMe,
+      chatBlocked: chatBlocked,
       participants: transformedParticipants,
       mutedBy: (conv.mutedBy || []).map((id: any) => id.toString()),
       unreadCount: unreadCountObj,

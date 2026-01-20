@@ -59,6 +59,7 @@ export class PostService {
     privacy?: string;
     groupId?: any;
     createdAt?: Date;
+    media?: any[];
   }): Promise<void> {
     // Skip if no content or content too short
     if (!post.content || post.content.trim().length < 5) return;
@@ -72,6 +73,9 @@ export class PostService {
           privacy: post.privacy || 'PUBLIC',
           group_id: post.groupId ? post.groupId.toString() : null,
           created_at: post.createdAt ? post.createdAt.toISOString() : new Date().toISOString(),
+          media_type: post.media && post.media.some(m => m.mediaType === 'VIDEO')
+            ? 'VIDEO'
+            : (post.media && post.media.length > 0 ? 'IMAGE' : 'TEXT')
         }, { timeout: 10000 })
       );
       console.log(`✅ Embedded post ${post._id} to AI server`);
@@ -595,22 +599,115 @@ export class PostService {
   /**
    * Get video reels - posts that contain VIDEO media type
    */
+  /**
+   * Get video reels - posts that contain VIDEO media type
+   * Enhanced with AI recommendations
+   */
   async findVideoReels(
     currentUserId: string,
     page = 1,
     limit = 10,
     friendIds: string[] = []
   ): Promise<{ data: PostWithReactInfo[]; total: number; page: number; totalPages: number }> {
-    const skip = (page - 1) * limit;
-
     const currentUserObjId = new Types.ObjectId(currentUserId);
     const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
 
-    // Filter for posts with VIDEO media and proper privacy
+    // Try AI Server for personalization
+    try {
+      const responseAPIAi: AxiosResponse<{
+        posts: { post_id: string; score: number }[];
+        total: number;
+      }> = await firstValueFrom(
+        this.httpService.get(`${this.aiServerUrl}/newsfeed/${currentUserId}`, {
+          params: {
+            friend_ids: friendIds.join(','),
+            limit, // Use requested limit directly as AI now filters by type
+            page,
+            media_type: 'VIDEO' // Request specific type
+          },
+          timeout: 30000,
+        })
+      );
+
+      const postRelevantIds = responseAPIAi.data.posts.map((post) => post.post_id);
+      const scoreMap = new Map(responseAPIAi.data.posts.map((p) => [p.post_id, p.score]));
+
+      if (postRelevantIds.length > 0) {
+        const dataPosts = await this.postModel
+          .find({
+            _id: { $in: postRelevantIds },
+            isDeleted: false,
+            isActive: true,
+            'media.mediaType': 'VIDEO' // Only VIDEO posts
+          })
+          .populate('userId', 'firstName lastName avatar username')
+          .populate('groupId', 'name avatar privacy')
+          .populate({
+            path: 'sharedPostId',
+            populate: { path: 'userId', select: 'firstName lastName avatar username' },
+          })
+          .lean()
+          .exec();
+
+        const postMap = new Map(dataPosts.map((post) => [post._id.toString(), post]));
+
+        // Sort by AI score
+        const sortedPosts = postRelevantIds
+          .map((postId) => {
+            const post = postMap.get(postId);
+            if (!post) return null;
+            return { ...post, aiScore: scoreMap.get(postId) || 0 };
+          })
+          .filter((post) => post !== null);
+
+        // Filter private group posts
+        const filteredData = sortedPosts.filter((post) => {
+          if (!post.groupId) return true;
+          const group = post.groupId as any;
+          if (group.privacy === 'PUBLIC') return true;
+          return post.userId && (post.userId as any)._id?.toString() === currentUserId;
+        });
+
+        // Add reactions info
+        const postIds = filteredData.map((p) => p._id);
+        const postIdStrings = postIds.map((id) => id.toString());
+
+        const [userReactions, reactionsSummary] = await Promise.all([
+          this.reactionService.userReactions(postIds, currentUserId),
+          this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+        ]);
+
+        const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
+
+        (filteredData as PostWithReactInfo[]).forEach((post) => {
+          const postIdStr = post._id.toString();
+          const r = reactionMap.get(postIdStr) as any;
+          const summary = reactionsSummary[postIdStr];
+          post.reactInfo = { isReact: !!r, type: r ? r.type : null };
+          (post as any).topReactions = summary?.topReactions || [];
+        });
+
+        // If we found videos, return them.
+        if (filteredData.length > 0) {
+          return {
+            data: filteredData as PostWithReactInfo[],
+            total: responseAPIAi.data.total,
+            page,
+            totalPages: Math.ceil(responseAPIAi.data.total / limit),
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('AI Server unavailable for Reels, falling back to chronological:', error.message);
+    }
+
+    // Fallback: Chronological Video Feed
+    const skip = (page - 1) * limit;
+
     const filter = {
       isDeleted: false,
       isActive: true,
-      'media.mediaType': 'VIDEO', // Only posts with VIDEO media
+      'media.mediaType': 'VIDEO',
       $or: [
         { privacy: PostPrivacy.PUBLIC },
         { privacy: PostPrivacy.FRIEND, userId: { $in: friendObjIds } },
@@ -630,7 +727,7 @@ export class PostService {
         })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit + 10) // Extra for filtering
+        .limit(limit)
         .lean()
         .exec(),
       this.postModel.countDocuments(filter),
@@ -643,8 +740,7 @@ export class PostService {
         const group = post.groupId as any;
         if (group.privacy === 'PUBLIC') return true;
         return post.userId && (post.userId as any)._id?.toString() === currentUserId;
-      })
-      .slice(0, limit);
+      });
 
     const postIds = filteredData.map((p) => p._id);
     const postIdStrings = postIds.map((id) => id.toString());
@@ -670,7 +766,7 @@ export class PostService {
     });
 
     return {
-      data: filteredData,
+      data: filteredData as PostWithReactInfo[],
       total,
       page,
       totalPages: Math.ceil(total / limit),

@@ -26,7 +26,8 @@ async def search_posts(
     current_user_id: str = Query(default="", description="Current user ID for privacy filter"),
     friend_ids: str = Query(default="", description="Comma-separated friend IDs"),
     limit: int = Query(default=20, ge=1, le=100),
-    page: int = Query(default=1, ge=1)
+    page: int = Query(default=1, ge=1),
+    media_type: Optional[str] = Query(default=None, description="Filter by media type (VIDEO, IMAGE, TEXT)")
 ):
     """
     🔍 Tìm kiếm posts theo query
@@ -45,7 +46,8 @@ async def search_posts(
         current_user_id=current_user_id,
         friend_ids=friend_list,
         limit=limit,
-        page=page
+        page=page,
+        media_type=media_type
     )
     
     return {
@@ -63,7 +65,8 @@ async def recommend_for_user(
     user_id: str,
     friend_ids: str = Query(default="", description="Comma-separated friend IDs"),
     limit: int = Query(default=20, ge=1, le=100),
-    page: int = Query(default=1, ge=1)
+    page: int = Query(default=1, ge=1),
+    media_type: Optional[str] = Query(default=None, description="Filter by media type (VIDEO, IMAGE, TEXT)")
 ):
     """
     🎯 Gợi ý posts cho user
@@ -84,7 +87,8 @@ async def recommend_for_user(
         user_id=user_id,
         friend_ids=friend_list,
         limit=limit,
-        page=page
+        page=page,
+        media_type=media_type
     )
     
     return {
@@ -102,7 +106,8 @@ async def get_newsfeed(
     user_id: str,
     friend_ids: str = Query(default="", description="Comma-separated friend IDs"),
     limit: int = Query(default=20, ge=1, le=100),
-    page: int = Query(default=1, ge=1)
+    page: int = Query(default=1, ge=1),
+    media_type: Optional[str] = Query(default=None, description="Filter by media type (VIDEO, IMAGE, TEXT)")
 ):
     """
     📰 Lấy newsfeed cho user
@@ -120,7 +125,8 @@ async def get_newsfeed(
         user_id=user_id,
         friend_ids=friend_list,
         limit=limit,
-        page=page
+        page=page,
+        media_type=media_type
     )
     
     return {
@@ -131,6 +137,15 @@ async def get_newsfeed(
         "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 0,
         "posts": posts
     }
+    
+# ... (skip ChatBot part which is mostly unchanged but large block) ...
+# I will supply the necessary ChatBot parts in the replacement block if needed, 
+# or use multiple chunks. To avoid large output, I will replace blocks safely.
+
+# The above block replaced lines 23-133 efficiently.
+# Now I need to handle EmbedPostRequest and embed_single_post which are further down.
+# I will use a second chunk for that.
+
 
 from pydantic import BaseModel
 from typing import List, Optional
@@ -295,6 +310,7 @@ class EmbedPostRequest(BaseModel):
     privacy: Optional[str] = "PUBLIC"
     group_id: Optional[str] = None
     created_at: Optional[str] = None  # ISO format datetime string
+    media_type: Optional[str] = "TEXT" 
 
 
 @router.post("/embed/post")
@@ -330,6 +346,7 @@ async def embed_single_post(request: EmbedPostRequest):
             "user_id": request.user_id,
             "privacy": request.privacy or "PUBLIC",
             "group_id": request.group_id or "no_group",
+            "media_type": request.media_type or "TEXT",
             "created_at": created_at
         }
         
@@ -341,7 +358,7 @@ async def embed_single_post(request: EmbedPostRequest):
             metadatas=[metadata]
         )
         
-        logger.info(f"✅ Embedded post {request.post_id}")
+        logger.info(f"✅ Embedded post {request.post_id} (Type: {request.media_type})")
         
         return {
             "success": True,

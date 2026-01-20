@@ -355,7 +355,8 @@ class RecommendationService:
         current_user_id: str = "",
         friend_ids: List[str] = None,
         limit: int = 20, 
-        page: int = 1
+        page: int = 1,
+        media_type: Optional[str] = None
     ) -> Tuple[List[Dict], int]:
         """
         Tìm posts theo query sử dụng cosine similarity.
@@ -367,11 +368,17 @@ class RecommendationService:
             # Encode query
             query_emb = self.model.encode(query, convert_to_numpy=True)
             
+            # Prepare filter
+            where_filter = {}
+            if media_type:
+                where_filter["media_type"] = media_type
+            
             # ChromaDB query (đã dùng cosine distance internally)
             n_results = min(200, self.collection.count())
             results = self.collection.query(
                 query_embeddings=[query_emb.tolist()],
                 n_results=n_results,
+                where=where_filter if where_filter else None,
                 include=["metadatas", "distances"]
             )
             
@@ -388,7 +395,8 @@ class RecommendationService:
                         "score": round(similarity, 4),
                         "user_id": meta.get('user_id', ''),
                         "group_id": meta.get('group_id', ''),
-                        "privacy": meta.get('privacy', 'PUBLIC')
+                        "privacy": meta.get('privacy', 'PUBLIC'),
+                        "media_type": meta.get('media_type', 'TEXT')
                     })
             
             # Privacy filter
@@ -410,20 +418,11 @@ class RecommendationService:
         user_id: str, 
         friend_ids: List[str] = None,
         limit: int = 20, 
-        page: int = 1
+        page: int = 1,
+        media_type: Optional[str] = None
     ) -> Tuple[List[Dict], int]:
         """
         Gợi ý posts cho user dựa trên cosine similarity với user vector.
-        
-        Logic:
-        1. Lấy user vector từ interactions (reactions, comments, shares)
-        2. Query ChromaDB với user vector
-        3. Rank theo cosine similarity (góc nhỏ = giống nhau = score cao)
-        4. Boost posts từ bạn bè (+20%)
-        5. Boost posts gần đây (trong 20 ngày)
-        6. Giảm score posts đã xem/tương tác
-        7. Weighted random selection
-        8. Filter privacy + paginate
         """
         if not self.is_ready():
             return [], 0
@@ -445,7 +444,6 @@ class RecommendationService:
                 sample = self.collection.get(include=["embeddings"], limit=50)
                 sample_embeddings = sample.get('embeddings', [])
                 if sample_embeddings is not None and len(sample_embeddings) > 0:
-                    # Dùng user_id hash để chọn random nhưng consistent
                     user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
                     np.random.seed(user_hash % (2**32))
                     
@@ -461,11 +459,17 @@ class RecommendationService:
                 else:
                     return [], 0
             
+            # Prepare filter
+            where_filter = {}
+            if media_type:
+                where_filter["media_type"] = media_type
+
             # Query ChromaDB với user vector
             n_results = min(500, self.collection.count())  # Query more for better selection
             results = self.collection.query(
                 query_embeddings=[user_vector.tolist()],
                 n_results=n_results,
+                where=where_filter if where_filter else None,
                 include=["metadatas", "distances"]
             )
             
@@ -505,6 +509,7 @@ class RecommendationService:
                         "user_id": owner,
                         "group_id": meta.get('group_id', ''),
                         "privacy": meta.get('privacy', 'PUBLIC'),
+                        "media_type": meta.get('media_type', 'TEXT'),
                         "is_viewed": post_id in interacted_post_ids,
                         "recency_boost": round(recency_boost, 2)
                     })
@@ -560,7 +565,7 @@ class RecommendationService:
             offset = (page - 1) * limit
             paginated = posts[offset:offset + limit]
             
-            logger.info(f"📰 Recommend {user_id}: {interaction_count} interactions, {total} posts, page {page}")
+            logger.info(f"📰 Recommend {user_id}: {interaction_count} interactions, {total} posts, page {page}, type={media_type}")
             return paginated, total
             
         except Exception as e:
@@ -575,10 +580,11 @@ class RecommendationService:
         user_id: str,
         friend_ids: List[str] = None,
         limit: int = 20,
-        page: int = 1
+        page: int = 1,
+        media_type: Optional[str] = None
     ) -> Tuple[List[Dict], int]:
         """Alias cho recommend()"""
-        return self.recommend(user_id, friend_ids, limit, page)
+        return self.recommend(user_id, friend_ids, limit, page, media_type)
     
     # ========================================
     # 3. SIMILAR - Tìm posts tương tự

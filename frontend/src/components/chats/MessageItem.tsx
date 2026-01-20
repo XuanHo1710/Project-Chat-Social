@@ -140,17 +140,6 @@ export default function MessageItem({
         // Text status only for the Last Own Message
         if (!isLastOwnMessage) return null;
 
-        const status = message.status || 'SENT';
-
-        // DELIVERED status - "Đã gửi"
-        if (status === 'DELIVERED') {
-            return (
-                <Typography fontSize={11} color="text.secondary">
-                    Đã gửi
-                </Typography>
-            );
-        }
-
         // SENT status - "Đã gửi" (chưa được nhận)
         return (
             <Typography fontSize={11} color="text.secondary">

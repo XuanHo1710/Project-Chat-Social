@@ -196,7 +196,6 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             setIsMuting(false);
             if (response.success) {
                 setIsMuted(response.isMuted ?? false);
-                toast.success(response.isMuted ? 'Đã tắt thông báo' : 'Đã bật thông báo');
                 // Update conversation cache
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
             } else {
@@ -627,7 +626,6 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             } else {
                 // Fallback to REST API
                 await relationshipService.blockUser(otherUser._id);
-                toast.success(`Đã chặn ${otherUser.firstName} ${otherUser.lastName}`);
                 setBlockDialogOpen(false);
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });

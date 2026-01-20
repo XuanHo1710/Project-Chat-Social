@@ -1628,6 +1628,27 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 // ========== SEEN AVATARS (Pre-calculated for performance) ==========
                                 // Simply lookup from pre-calculated map - O(1) instead of O(n)
                                 const finalSeenUsers = seenAvatarsMap.get(actualIndex) || [];
+
+
+
+                                // Xác định lastMessage mà mình gửi
+                                const isLastOwnMessage = (() => {
+                                    if (!isOwn) return false;
+
+                                    for (let i = actualIndex + 1; i < allMessages.length; i++) {
+                                        const nextMsg = allMessages[i];
+                                        if (
+                                            nextMsg &&
+                                            nextMsg.senderId?._id === userId?.toString()
+                                        ) {
+                                            return false; // còn message của mình phía sau
+                                        }
+                                    }
+
+                                    return true;
+                                })();
+
+
                                 return (
                                     conversationDetail?.data &&
                                     <MessageItem
@@ -1641,6 +1662,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                         onReply={handleReply}
                                         themeColor={themeColor}
                                         otherAvatarsNotRead={finalSeenUsers || []}
+                                        isLastOwnMessage={isLastOwnMessage}
                                     />
                                 );
                             }}

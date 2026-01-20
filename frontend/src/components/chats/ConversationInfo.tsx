@@ -61,6 +61,7 @@ import {
     Visibility as VisibilityIcon,
     Block as BlockIcon,
     PersonOff as PersonOffIcon,
+    IntegrationInstructions as IntegrationInstructionsIcon
 } from '@mui/icons-material';
 import { useConversationDetail } from '@/queries/useConversationQueries';
 import { useSocket } from '@/contexts/SocketContext';
@@ -673,6 +674,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             );
         if (fileName.match(/\.(ppt|pptx)$/i))
             return <DescriptionIcon sx={{ color: '#d24726', fontSize: 40 }} />;
+        if (fileName.match(/\.rar$/i))
+            return <IntegrationInstructionsIcon sx={{ color: '#d24726', fontSize: 40 }} />;
         return <InsertDriveFileIcon sx={{ color: '#65676b', fontSize: 40 }} />;
     };
 
@@ -1662,7 +1665,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                                         cursor: 'pointer',
                                                         textDecoration: 'none',
                                                         color: 'inherit',
-                                                        '&:hover': { bgcolor: '#f0f2f5' }
+                                                        '&:hover': { bgcolor: 'action.hover' }
                                                     }}
                                                 >
                                                     <ListItemAvatar>
@@ -1672,7 +1675,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                                         primary={
                                                             <Typography
                                                                 fontSize={14}
-                                                                color="#050505"
+                                                                color="text.primary"
                                                                 sx={{
                                                                     overflow: 'hidden',
                                                                     textOverflow: 'ellipsis',
@@ -1684,7 +1687,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                                             </Typography>
                                                         }
                                                         secondary={
-                                                            <Typography fontSize={12} color="#65676b">
+                                                            <Typography fontSize={12} color="text.secondary">
                                                                 {file.fileSize > 0
                                                                     ? file.fileSize > 1024 * 1024
                                                                         ? `${(file.fileSize / (1024 * 1024)).toFixed(1)} MB`
@@ -1716,24 +1719,24 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 onClose={() => !isCreatingGroup && setCreateGroupDialogOpen(false)}
                 fullWidth
                 maxWidth="sm"
-                PaperProps={{ sx: { bgcolor: 'white', borderRadius: 3, maxHeight: '80vh' } }}
+                PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 3, maxHeight: '80vh' } }}
             >
-                <DialogTitle sx={{ color: '#050505', pb: 1 }}>
+                <DialogTitle sx={{ color: 'text.primary', pb: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Box sx={{
                             width: 44,
                             height: 44,
                             borderRadius: '50%',
-                            bgcolor: '#e7f3ff',
+                            bgcolor: alpha(theme.palette.primary.main, 0.1),
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center'
                         }}>
-                            <GroupAddIcon sx={{ color: '#0866ff', fontSize: 24 }} />
+                            <GroupAddIcon sx={{ color: 'primary.main', fontSize: 24 }} />
                         </Box>
                         <Box>
                             <Typography fontWeight={700} fontSize={18}>Tạo nhóm chat</Typography>
-                            <Typography fontSize={13} color="#65676b">
+                            <Typography fontSize={13} color="text.secondary">
                                 Chọn ít nhất 2 bạn bè để tạo nhóm (tối thiểu 3 người)
                             </Typography>
                         </Box>
@@ -1741,7 +1744,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 </DialogTitle>
                 <DialogContent sx={{ pt: 1 }}>
                     <Box sx={{ mt: 1 }}>
-                        <Typography fontSize={14} fontWeight={500} color="#050505" sx={{ mb: 1 }}>
+                        <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 1 }}>
                             Tên nhóm
                         </Typography>
                         <TextField
@@ -1763,7 +1766,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     {/* Selected members chips */}
                     {selectedMembers.length > 0 && (
                         <Box sx={{ mt: 2 }}>
-                            <Typography fontSize={14} fontWeight={500} color="#050505" sx={{ mb: 1 }}>
+                            <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 1 }}>
                                 Đã chọn ({selectedMembers.length + 1} người, bao gồm bạn)
                             </Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -1777,7 +1780,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                             label={`${friend.firstName} ${friend.lastName}`}
                                             onDelete={() => toggleMemberSelection(memberId)}
                                             size="small"
-                                            sx={{ bgcolor: '#e7f3ff', color: '#0866ff' }}
+                                            sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }}
                                         />
                                     );
                                 })}
@@ -1787,7 +1790,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
                     {/* Friends list with checkboxes */}
                     <Box sx={{ mt: 2 }}>
-                        <Typography fontSize={14} fontWeight={500} color="#050505" sx={{ mb: 1 }}>
+                        <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 1 }}>
                             Chọn bạn bè
                         </Typography>
                         <TextField
@@ -1799,7 +1802,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             size="small"
                             sx={{ mb: 1, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                         />
-                        <List sx={{ maxHeight: 250, overflowY: 'auto', bgcolor: '#f8f9fa', borderRadius: 2 }}>
+                        <List sx={{ maxHeight: 250, overflowY: 'auto', bgcolor: 'background.default', borderRadius: 2 }}>
                             {isFriendsLoading ? (
                                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                                     <CircularProgress size={24} />
@@ -1818,8 +1821,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                             sx={{
                                                 py: 0.5,
                                                 cursor: 'pointer',
-                                                '&:hover': { bgcolor: '#e4e6eb' },
-                                                bgcolor: isSelected ? '#e7f3ff' : 'transparent'
+                                                '&:hover': { bgcolor: 'action.hover' },
+                                                bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'transparent'
                                             }}
                                             onClick={() => toggleMemberSelection(friend._id)}
                                         >
@@ -1827,8 +1830,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                                 checked={isSelected}
                                                 sx={{
                                                     mr: 1,
-                                                    color: '#65676b',
-                                                    '&.Mui-checked': { color: '#0866ff' }
+                                                    color: 'text.secondary',
+                                                    '&.Mui-checked': { color: 'primary.main' }
                                                 }}
                                             />
                                             <ListItemAvatar>
@@ -1837,7 +1840,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                             <ListItemText
                                                 primary={`${friend.firstName} ${friend.lastName}`}
                                                 secondary={friend.username}
-                                                primaryTypographyProps={{ fontWeight: 500, color: '#050505' }}
+                                                primaryTypographyProps={{ fontWeight: 500, color: 'text.primary' }}
                                                 secondaryTypographyProps={{ fontSize: 12 }}
                                             />
                                         </ListItem>
@@ -1851,13 +1854,13 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <Box sx={{
                         mt: 2,
                         p: 1.5,
-                        bgcolor: selectedMembers.length < 2 ? '#fff3cd' : '#d4edda',
+                        bgcolor: selectedMembers.length < 2 ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.success.main, 0.1),
                         borderRadius: 2,
                         display: 'flex',
                         gap: 1
                     }}>
-                        <PersonAddIcon sx={{ color: selectedMembers.length < 2 ? '#856404' : '#155724', fontSize: 20, mt: 0.2 }} />
-                        <Typography fontSize={13} color={selectedMembers.length < 2 ? '#856404' : '#155724'}>
+                        <PersonAddIcon sx={{ color: selectedMembers.length < 2 ? 'warning.main' : 'success.main', fontSize: 20, mt: 0.2 }} />
+                        <Typography fontSize={13} color={selectedMembers.length < 2 ? 'warning.main' : 'success.main'}>
                             {selectedMembers.length < 2
                                 ? `Cần chọn thêm ${2 - selectedMembers.length} người nữa để tạo nhóm`
                                 : `Đã đủ điều kiện tạo nhóm với ${selectedMembers.length + 1} thành viên`
@@ -1873,7 +1876,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             setCreateGroupSearchQuery('');
                         }}
                         disabled={isCreatingGroup}
-                        sx={{ borderRadius: 2, textTransform: 'none', color: '#65676b' }}
+                        sx={{ borderRadius: 2, textTransform: 'none', color: 'text.secondary' }}
                     >
                         Hủy
                     </Button>
@@ -1885,9 +1888,9 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         sx={{
                             borderRadius: 2,
                             textTransform: 'none',
-                            bgcolor: '#0866ff',
-                            '&:hover': { bgcolor: '#0756d4' },
-                            '&.Mui-disabled': { bgcolor: '#e4e6eb', color: '#bcc0c4' }
+                            bgcolor: 'primary.main',
+                            '&:hover': { bgcolor: 'primary.dark' },
+                            '&.Mui-disabled': { bgcolor: 'action.disabledBackground', color: 'action.disabled' }
                         }}
                     >
                         {isCreatingGroup ? 'Đang tạo...' : 'Tạo nhóm'}
@@ -1910,11 +1913,11 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 }}
             >
                 <MenuItem onClick={handleViewAvatar} sx={{ gap: 1.5, py: 1 }}>
-                    <VisibilityIcon fontSize="small" sx={{ color: '#65676b' }} />
+                    <VisibilityIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                     <Typography fontSize={14}>Xem ảnh đại diện</Typography>
                 </MenuItem>
                 <MenuItem onClick={handleUploadAvatar} sx={{ gap: 1.5, py: 1 }}>
-                    <PhotoCameraIcon fontSize="small" sx={{ color: '#65676b' }} />
+                    <PhotoCameraIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                     <Typography fontSize={14}>Tải ảnh lên</Typography>
                 </MenuItem>
             </Menu>

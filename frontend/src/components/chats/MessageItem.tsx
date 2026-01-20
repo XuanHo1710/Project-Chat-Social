@@ -26,6 +26,7 @@ import {
     PictureAsPdf as PictureAsPdfIcon,
     Description as DescriptionIcon,
     Download as DownloadIcon,
+    IntegrationInstructions as IntegrationInstructionsIcon
 } from '@mui/icons-material';
 import { MessageResponse, EmotionType, AttachmentData } from '@/types/chat';
 import { formatTime } from '@/utils/formatDate';
@@ -226,6 +227,8 @@ export default function MessageItem({
             );
         if (fileName.match(/\.(ppt|pptx)$/i))
             return <DescriptionIcon sx={{ color: '#d24726', fontSize: 40 }} />;
+        if (fileName.match(/\.rar$/i))
+            return <IntegrationInstructionsIcon sx={{ color: '#d24726', fontSize: 40 }} />;
         return <InsertDriveFileIcon sx={{ color: 'text.secondary', fontSize: 40 }} />;
     };
 

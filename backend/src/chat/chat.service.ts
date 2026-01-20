@@ -106,7 +106,10 @@ export class ChatService {
     const participant = conversation.participants.find((p) => p.user.toString() === userId);
 
     const query: any = {
-      conversationId: conversationId,
+      $or: [
+        { conversationId: conversationId },
+        { conversationId: new Types.ObjectId(conversationId) },
+      ],
     };
 
     // If user was kicked, only show messages up to kickedAt time
@@ -127,15 +130,14 @@ export class ChatService {
       }
     }
 
+    // Calculate skip for offset-based pagination (only if not using cursor)
+    const skip = !before && page > 1 ? (page - 1) * limit : 0;
+
     const [messages, total] = await Promise.all([
       this.messageModel
-        .find({
-          $or: [
-            { conversationId: conversationId },
-            { conversationId: new Types.ObjectId(conversationId) },
-          ],
-        })
+        .find(query)
         .sort({ createdAt: -1 }) // Newest first for pagination
+        .skip(skip) // Apply skip
         .limit(limit)
         .populate('senderId', 'firstName lastName _id avatar')
         // .populate('readBy', 'firstName lastName _id avatar')

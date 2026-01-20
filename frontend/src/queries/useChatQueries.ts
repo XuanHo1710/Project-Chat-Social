@@ -14,7 +14,7 @@ export function useChatByConversationId(conversationId: string) {
     queryFn: ({ pageParam }) =>
       chatService.getMessagesByConversationId(
         conversationId,
-        15,
+        20,
         pageParam as string | undefined
       ),
     initialPageParam: undefined as string | undefined,

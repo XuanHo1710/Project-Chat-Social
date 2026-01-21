@@ -38,6 +38,7 @@ import SimplePeer, { Instance } from 'simple-peer';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadLivestreamVideo } from '@/services/api-video.service';
+import { getCommentsByPost } from '@/services/comment.service';
 
 interface LiveStreamModalProps {
     open: boolean;
@@ -250,8 +251,12 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
         if (!socket || !isLive || !postId) return;
 
         const handleViewersUpdate = (data: { postId: string; count: number }) => {
-            console.log('[Broadcaster] Viewers update:', data.count);
-            if (String(data.postId) === String(postId)) setViewers(data.count);
+            console.log('[Broadcaster] Received livestream:viewers event:', data);
+            console.log('[Broadcaster] Current postId:', postId, 'Event postId:', data.postId);
+            if (String(data.postId) === String(postId)) {
+                console.log('[Broadcaster] Setting viewers to:', data.count);
+                setViewers(data.count);
+            }
         };
 
         const handleSignal = (data: { fromUserId: string; signal: any; postId: string }) => {
@@ -329,6 +334,31 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
             socket.off('livestream:reaction:new', handleNewReaction);
         };
     }, [socket, isLive, postId, stream, user?.id]);
+
+    // Fetch initial comments when starting to stream or reconnecting
+    useEffect(() => {
+        if (!postId) return;
+
+        const fetchComments = async () => {
+            try {
+                const result = await getCommentsByPost(postId, 1, 100);
+                if (result && result.data) {
+                    const mappedComments = result.data.map((c: any) => ({
+                        id: c._id,
+                        userId: c.userId?._id || c.userId, // userId might be population obj or ID
+                        userName: c.userId?.firstName ? `${c.userId.firstName} ${c.userId.lastName}` : (c.userId?.name || 'User'),
+                        userAvatar: c.userId?.avatar,
+                        content: c.content,
+                        createdAt: c.createdAt
+                    })).reverse();
+                    setComments(mappedComments);
+                }
+            } catch (err) {
+                console.error("Failed to load comments", err);
+            }
+        };
+        fetchComments();
+    }, [postId]);
 
     useEffect(() => {
         commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });

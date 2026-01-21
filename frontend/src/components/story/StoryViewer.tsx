@@ -566,7 +566,7 @@ export default function StoryViewer({
                         }}
                     >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Avatar src={currentGroup.user.avatar} sx={{ width: 40, height: 40 }} />
+                            <Avatar src={currentGroup.user.avatar || ""} sx={{ width: 40, height: 40 }} />
                             <Box>
                                 <Typography color="white" fontWeight={500} fontSize={14}>
                                     {currentGroup.user.firstName} {currentGroup.user.lastName}

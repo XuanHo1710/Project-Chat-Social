@@ -91,9 +91,9 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
         setConnectionStatus('connecting');
 
         console.log('[Viewer] Joining livestream room:', post._id);
+        // Viewer should NOT send broadcasterId - only broadcaster sends it
         socket.emit('livestream:join', {
-            postId: post._id,
-            broadcasterId: typeof post.userId === 'string' ? post.userId : post.userId._id
+            postId: post._id
         });
 
         const peer = new SimplePeer({
@@ -163,7 +163,11 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
             }
         };
         const handleViewersUpdate = (data: { postId: string; count: number }) => {
-            if (data.postId === post._id) setViewers(data.count);
+            console.log('[Viewer] Received livestream:viewers event:', data);
+            if (data.postId === post._id) {
+                console.log('[Viewer] Setting viewers to:', data.count);
+                setViewers(data.count);
+            }
         };
 
         socket.on('livestream:signal', handleSignal);
@@ -173,7 +177,8 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
         socket.on('livestream:viewers', handleViewersUpdate);
 
         socket.emit('livestream:viewer-count', { postId: post._id }, (response: { viewerCount: number }) => {
-            if (response?.viewerCount) setViewers(response.viewerCount);
+            console.log('[Viewer] Initial viewer count response:', response);
+            if (response?.viewerCount !== undefined) setViewers(response.viewerCount);
         });
 
         return () => {
@@ -183,8 +188,7 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
             socket.off('livestream:reaction:new', handleNewReaction);
             socket.off('livestream:viewers', handleViewersUpdate);
             socket.emit('livestream:leave', {
-                postId: post._id,
-                broadcasterId: typeof post.userId === 'string' ? post.userId : post.userId._id
+                postId: post._id
             });
             peer.destroy();
             peerRef.current = null;
@@ -198,21 +202,25 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
         const fetchComments = async () => {
             try {
                 // Fetch comments for this post
-                // getCommentsByPost returns CommentsResponse object which has { data: Comment[] }
-                const result = await getCommentsByPost(post._id);
+                console.log('[Viewer] Fetching comments for post:', post._id);
+                const result = await getCommentsByPost(post._id, 1, 100);
+                console.log('[Viewer] Fetched comments result:', result);
 
                 // Map and reverse to show oldest first (chronological order for chat)
                 if (result && result.data) {
                     const mappedComments = result.data.map((c: any) => ({
                         id: c._id,
-                        userId: c.userId._id || c.userId, // userId might be population obj or ID
-                        userName: c.userId.firstName ? `${c.userId.firstName} ${c.userId.lastName}` : (c.userId.name || 'User'),
-                        userAvatar: c.userId.avatar,
+                        userId: c.userId?._id || c.userId, // userId might be population obj or ID
+                        userName: c.userId?.firstName ? `${c.userId.firstName} ${c.userId.lastName}` : (c.userId?.name || 'User'),
+                        userAvatar: c.userId?.avatar,
                         content: c.content,
                         createdAt: c.createdAt
                     })).reverse();
 
+                    console.log('[Viewer] Mapped comments:', mappedComments);
                     setComments(mappedComments);
+                } else {
+                    console.log('[Viewer] No comments found or invalid format');
                 }
             } catch (err) {
                 console.error("Failed to load comments", err);

@@ -422,40 +422,106 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   // ============ LIVESTREAM SIGNALING ============
+  // Map to store broadcaster ID for each livestream
+  private livestreamBroadcasters = new Map<string, string>(); // postId -> broadcasterId
+  // Map to store viewer IDs for each livestream (manual tracking since adapter.rooms doesn't work reliably)
+  private livestreamViewers = new Map<string, Set<string>>(); // postId -> Set of viewer userIds
+
   @SubscribeMessage('livestream:join')
   async handleLivestreamJoin(
-    @MessageBody() data: { postId: string; broadcasterId: string },
+    @MessageBody() data: { postId: string; broadcasterId?: string },
     @ConnectedSocket() client: Socket
   ) {
     const userId = client.data.userId;
-    client.join(`livestream:${data.postId}`);
-
-    // Broadcast viewer count to everyone in the room
     const roomName = `livestream:${data.postId}`;
-    const viewerCount = this.server.sockets.adapter.rooms.get(roomName)?.size || 0;
+    client.join(roomName);
 
+    // Check if this is the broadcaster joining (broadcasterId matches current user)
+    const isBroadcaster = data.broadcasterId && data.broadcasterId === userId;
+
+    if (isBroadcaster) {
+      // Store broadcaster ID for this livestream
+      this.livestreamBroadcasters.set(data.postId, userId);
+      // Initialize viewers set for this livestream
+      if (!this.livestreamViewers.has(data.postId)) {
+        this.livestreamViewers.set(data.postId, new Set());
+      }
+      this.logger.log(`[Livestream] Broadcaster ${userId} joined room ${data.postId}`);
+    } else {
+      // Add viewer to the set
+      if (!this.livestreamViewers.has(data.postId)) {
+        this.livestreamViewers.set(data.postId, new Set());
+      }
+      this.livestreamViewers.get(data.postId)!.add(userId);
+      this.logger.log(`[Livestream] Viewer ${userId} joined room ${data.postId}`);
+    }
+
+    // Get viewer count from our manual tracking
+    const viewerCount = this.livestreamViewers.get(data.postId)?.size || 0;
+
+    this.logger.log(`[Livestream] Room ${data.postId}: viewerCount=${viewerCount}`);
+
+    // Emit to entire room (including broadcaster)
     this.server.to(roomName).emit('livestream:viewers', {
       postId: data.postId,
       count: viewerCount,
     });
+
+    // Also emit directly to broadcaster's sockets to ensure they receive update
+    const broadcasterId = this.livestreamBroadcasters.get(data.postId);
+    if (broadcasterId) {
+      const broadcasterSockets = userSockets.get(broadcasterId);
+      if (broadcasterSockets) {
+        broadcasterSockets.forEach((socketId) => {
+          this.server.to(socketId).emit('livestream:viewers', {
+            postId: data.postId,
+            count: viewerCount,
+          });
+        });
+      }
+    }
   }
 
   @SubscribeMessage('livestream:leave')
   async handleLivestreamLeave(
-    @MessageBody() data: { postId: string; broadcasterId: string },
+    @MessageBody() data: { postId: string; broadcasterId?: string },
     @ConnectedSocket() client: Socket
   ) {
     const userId = client.data.userId;
-    client.leave(`livestream:${data.postId}`);
-
-    // Broadcast viewer count update
     const roomName = `livestream:${data.postId}`;
-    const viewerCount = this.server.sockets.adapter.rooms.get(roomName)?.size || 0;
+    client.leave(roomName);
 
+    this.logger.log(`[Livestream] User ${userId} left room ${data.postId}`);
+
+    // Remove viewer from Set
+    if (this.livestreamViewers.has(data.postId)) {
+      this.livestreamViewers.get(data.postId)!.delete(userId);
+    }
+
+    // Get viewer count from our manual tracking
+    const viewerCount = this.livestreamViewers.get(data.postId)?.size || 0;
+
+    this.logger.log(`[Livestream] Room ${data.postId} after leave: viewerCount=${viewerCount}`);
+
+    // Emit to entire room
     this.server.to(roomName).emit('livestream:viewers', {
       postId: data.postId,
       count: viewerCount,
     });
+
+    // Also emit directly to broadcaster to ensure they receive update
+    const broadcasterId = this.livestreamBroadcasters.get(data.postId);
+    if (broadcasterId) {
+      const broadcasterSockets = userSockets.get(broadcasterId);
+      if (broadcasterSockets) {
+        broadcasterSockets.forEach((socketId) => {
+          this.server.to(socketId).emit('livestream:viewers', {
+            postId: data.postId,
+            count: viewerCount,
+          });
+        });
+      }
+    }
   }
 
   @SubscribeMessage('livestream:signal')
@@ -482,10 +548,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { postId: string },
     @ConnectedSocket() client: Socket
   ) {
+    this.logger.log(`[Livestream] Ending livestream ${data.postId}`);
+
     // Notify all viewers in the room
     this.server.to(`livestream:${data.postId}`).emit('livestream:ended', { postId: data.postId });
     // Clear room
     this.server.in(`livestream:${data.postId}`).socketsLeave(`livestream:${data.postId}`);
+    // Cleanup broadcaster mapping
+    this.livestreamBroadcasters.delete(data.postId);
+    this.livestreamViewers.delete(data.postId);
   }
 
   // ============ LIVESTREAM COMMENTS & REACTIONS ============
@@ -500,22 +571,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
+      // Fetch full user info for comment service and response
+      const user = await this.accountModel.findById(userId).select('firstName lastName avatar _id username');
+      if (!user) {
+        return { success: false, error: 'User not found' };
+      }
+
       // 1. Save to database
       const savedComment = await this.commentService.create(
         {
           content: data.content,
           postId: data.postId,
         },
-        userId
+        user // Pass full user object
       );
 
       // 2. Prepare payload for socket
-      const userProfile = await this.getSenderProfile(userId);
       const comment = {
         id: savedComment._id.toString(), // Use DB ID
-        userId,
-        userName: userProfile.name,
-        userAvatar: userProfile.avatar,
+        userId: userId,
+        userName: user.firstName ? `${user.firstName} ${user.lastName}` : user.username,
+        userAvatar: user.avatar,
         content: data.content,
         createdAt: savedComment.createdAt.toISOString(),
       };
@@ -555,6 +631,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
       const reactionType = emojiMap[data.emoji] || 'LIKE';
 
+      // Fetch user info for reaction service (notification logic needs firstName/lastName)
+      const user = await this.accountModel.findById(userId).select('firstName lastName avatar _id');
+      if (!user) {
+        return { success: false, error: 'User not found' };
+      }
+
       // 1. Save reaction to DB (toggle)
       const result = await this.reactionService.toggleReaction(
         {
@@ -562,7 +644,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           factorId: data.postId,
           typeFactor: TypeFactor.POST,
         },
-        userId
+        user
       );
 
       // Only emit if added or moved (not removed) - though for livestream we might want to show flying hearts even if toggled off
@@ -603,10 +685,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket
   ) {
     try {
-      const room = this.server.sockets.adapter.rooms.get(`livestream:${data.postId}`);
-      const viewerCount = room ? room.size : 0;
+      const roomName = `livestream:${data.postId}`;
+
+      // Get viewer count from our manual tracking
+      const viewerCount = this.livestreamViewers.get(data.postId)?.size || 0;
+
       return { success: true, viewerCount };
     } catch (err) {
+      this.logger.error('[Livestream] Error in viewer-count:', err);
       return { success: false, viewerCount: 0 };
     }
   }

@@ -209,7 +209,7 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                     <>
                         <Box
                             component="img"
-                            src={currentUser.avatar}
+                            src={currentUser.avatar || ""}
                             sx={{
                                 width: '100%',
                                 height: '75%',
@@ -301,7 +301,7 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                                 borderRadius: '50%',
                             }}
                         >
-                            <Avatar src={group.user.avatar} sx={{ width: 40, height: 40 }} />
+                            <Avatar src={group.user.avatar || ""} sx={{ width: 40, height: 40 }} />
                         </Box>
                         {/* Name */}
                         <Typography

@@ -401,7 +401,7 @@ export class ReactionService implements OnModuleInit {
 
     const [reactions, total, reactionCounts] = await Promise.all([
       this.reactionModel
-        .find({ factorId: factorObjId, typeFactor, userId: { $exists: true, $ne: null } })
+        .find({ factorId: factorObjId, typeFactor })
         .populate('userId', 'firstName lastName avatar')
         .sort({ createdAt: -1 })
         .skip(skip)

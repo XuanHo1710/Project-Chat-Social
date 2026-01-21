@@ -45,15 +45,11 @@ export const useGetNewsFeedInfinite = (limit: number = 10) => {
     queryKey: [QUERY_KEYS.NEWS_FEED, "infinite", limit],
     queryFn: ({ pageParam = 1 }) =>
       postService.getNewsFeed({ page: pageParam, limit }),
-    getNextPageParam: (lastPage, allPages) => {
-      // Check if there are more posts to load
-      // PostPageResponse returns { data: PostType[], total, page, totalPages }
-      const totalPosts = lastPage?.data?.length || 0;
-      if (totalPosts < limit) {
-        // No more posts
+    getNextPageParam: (lastPage) => {
+      if (lastPage.page >= lastPage.totalPages) {
         return undefined;
       }
-      return allPages.length + 1;
+      return lastPage.page + 1;
     },
     initialPageParam: 1,
   });
@@ -67,15 +63,11 @@ export const useSearchFeedInfinite = (limit: number = 10, keyword: string) => {
     queryKey: [QUERY_KEYS.SEARCH_FEED, "infinite", limit, keyword],
     queryFn: ({ pageParam = 1 }) =>
       postService.searchFeed({ page: pageParam, limit, keyword }),
-    getNextPageParam: (lastPage, allPages) => {
-      // Check if there are more posts to load
-      // PostPageResponse returns { data: PostType[], total, page, totalPages }
-      const totalPosts = lastPage?.data?.length || 0;
-      if (totalPosts < limit) {
-        // No more posts
+    getNextPageParam: (lastPage) => {
+      if (lastPage.page >= lastPage.totalPages) {
         return undefined;
       }
-      return allPages.length + 1;
+      return lastPage.page + 1;
     },
     initialPageParam: 1,
     enabled: !!keyword,
@@ -112,12 +104,11 @@ export const useGetUserPostsInfinite = (
         limit,
         friendIds,
       }),
-    getNextPageParam: (lastPage, allPages) => {
-      const totalPosts = lastPage?.data?.length || 0;
-      if (totalPosts < limit) {
+    getNextPageParam: (lastPage) => {
+      if (lastPage.page >= lastPage.totalPages) {
         return undefined;
       }
-      return allPages.length + 1;
+      return lastPage.page + 1;
     },
     initialPageParam: 1,
     enabled: !!userId,

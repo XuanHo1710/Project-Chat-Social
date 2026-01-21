@@ -4,6 +4,8 @@ import { Public, UserInfo } from 'decorators/customize';
 import { Request, Response } from 'express';
 import { LocalAuthGuard } from 'src/auth/passport/local-auth.guard';
 import { Account } from 'src/account/entities/account.entity';
+import { GoogleAuthGuard } from 'src/auth/passport/google-auth.guard';
+import { AccountGoogleDto } from 'src/account/dto/account-google-dto';
 
 @Controller('auth')
 export class AuthController {
@@ -14,6 +16,60 @@ export class AuthController {
   @Post('/login')
   async login(@Req() req: Request, @Res({ passthrough: true }) response: Response) {
     return this.authService.login(req.user as Account, response); // Default la user. Do thang lon Passport lam nhu vay djt con me :)))
+  }
+
+  @Public()
+  @UseGuards(GoogleAuthGuard)
+  @Get('/login/google')
+  async loginWithGoogle() {
+    // Guard se tu dong xu ly redirect sang Google va xu ly callback
+  }
+
+  @Get('/google/callback')
+  @Public()
+  @UseGuards(GoogleAuthGuard)
+  async googleAuthRedirect(@Req() request: Request, @Res() response: Response) {
+    const user = request.user;
+    if (!user) {
+      return response.send(`
+      <script>
+        window.opener.postMessage(
+          { type: 'GOOGLE_LOGIN_FAILED' },
+          '${process.env.CLIENT_URL}'
+        );
+        window.close();
+      </script>
+    `);
+    }
+
+    try {
+      const checkAccountGoogle = await this.authService.googleLogin(user as AccountGoogleDto);
+      const result = await this.authService.login(checkAccountGoogle, response);
+      console.log(result);
+
+      return response.send(`
+      <script>
+        window.opener.postMessage(
+          {
+            type: 'GOOGLE_LOGIN_SUCCESS',
+            payload: ${JSON.stringify(result)}
+          },
+          '${process.env.CLIENT_URL}'
+        );
+        window.close();
+      </script>
+    `);
+    } catch (error) {
+      return response.send(`
+      <script>
+        window.opener.postMessage(
+          { type: 'GOOGLE_LOGIN_FAILED' },
+          '${process.env.CLIENT_URL}'
+        );
+        window.close();
+      </script>
+    `);
+    }
   }
 
   @Public()

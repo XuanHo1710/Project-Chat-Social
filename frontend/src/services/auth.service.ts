@@ -4,11 +4,11 @@ import { APIResponse } from "@/types/common";
 
 class AuthService {
   async login(
-    loginData: LoginRequest
+    loginData: LoginRequest,
   ): Promise<APIResponse<LoginResponseData>> {
     const response = await axios.post<APIResponse<LoginResponseData>>(
       "/auth/login",
-      loginData
+      loginData,
     );
     return response.data;
   }
@@ -21,7 +21,7 @@ class AuthService {
   }): Promise<APIResponse<LoginResponseData>> {
     const response = await axios.post<APIResponse<LoginResponseData>>(
       "/auth/signup",
-      signupData
+      signupData,
     );
     return response.data;
   }

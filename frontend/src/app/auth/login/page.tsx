@@ -73,7 +73,6 @@ const SocialParticles = () => {
     }));
     setParticles(newParticles);
   }, []);
-
   return (
     <Box sx={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
       {particles.map((p) => (
@@ -96,7 +95,7 @@ const SocialParticles = () => {
           animate={{
             x: p.xPath,
             y: p.yPath,
-            opacity: [0, Math.random() * 0.8 + 0.2, 0],
+            opacity: [0, Math.random().toFixed * 0.8 + 0.2, 0],
             scale: [0, Math.random() * 1.5 + 0.5, 0]
           }}
           transition={{
@@ -182,6 +181,53 @@ export default function LoginPage() {
     }
   };
 
+  const handleLoginWithGoogle = () => {
+    // Call API login with google
+    window.open(
+      `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/auth/login/google`,
+      'google-login',
+      'width=500,height=600,left=200,top=100'
+    );
+  }
+
+
+  // Handle Login with google callback
+  useEffect(() => {
+    const BACKEND_ORIGIN = new URL(
+      process.env.NEXT_PUBLIC_BACKEND_API_URL!
+    ).origin;
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== BACKEND_ORIGIN) return;
+
+      const { type, payload } = event.data;
+
+      if (type === 'GOOGLE_LOGIN_SUCCESS') {
+        const userData = {
+          id: payload.payload._id,
+          username: payload.payload.username,
+          fullName: payload.payload.fullname,
+          role: payload.payload.role,
+          gender: payload.payload.gender,
+          email: payload.payload.email,
+          avatar: payload.payload.avatar,
+        };
+
+        setAccessToken(payload.access_token);
+        setUser(userData);
+
+        toast.success(`Xin chào ${payload.payload.fullname}! Đăng nhập thành công!`);
+        router.push(CLIENT_PATH.HOME);
+      }
+
+      if (type === 'GOOGLE_LOGIN_FAILED') {
+        toast.error('Đăng nhập bằng google thất bại');
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [router, setAccessToken, setUser]);
+
+
   return (
     <Box
       sx={{
@@ -261,7 +307,6 @@ export default function LoginPage() {
             component={motion.div}
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
-            // @ts-ignore
             transition={{ type: "spring", stiffness: 60, delay: 0.2 }}
             elevation={3}
             sx={{
@@ -354,9 +399,11 @@ export default function LoginPage() {
 
                 <Button
                   component={motion.button}
+                  onClick={() => handleLoginWithGoogle()}
                   whileHover={{ scale: 1.02, backgroundColor: "rgba(0,0,0,0.04)" }}
                   variant="outlined"
                   startIcon={<GoogleIcon />}
+                  type="button"
                   fullWidth
                   sx={{ py: 1.2, textTransform: 'none', borderRadius: 1.5 }}
                 >

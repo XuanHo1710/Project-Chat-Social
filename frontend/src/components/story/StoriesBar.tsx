@@ -43,6 +43,7 @@ const DEFAULT_CAPTION_STYLE: CaptionStyle = {
 };
 
 export default function StoriesBar({ currentUser }: { currentUser: UserLoginType }) {
+    console.log("Rendering StoriesBar with currentUser:", currentUser);
     const { data: storyGroups, isLoading } = useStoriesFeed();
     const createStoryMutation = useCreateStory();
     const theme = useTheme();
@@ -209,7 +210,7 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                     <>
                         <Box
                             component="img"
-                            src={currentUser.avatar || ""}
+                            src={currentUser?.avatar || "https://i.pinimg.com/736x/3c/67/75/3c67757cef723535a7484a6c7bfbfc43.jpg"}
                             sx={{
                                 width: '100%',
                                 height: '75%',

@@ -24,6 +24,12 @@ export class AccountService {
     return { success: true };
   }
 
+  async findByEmail(email: string) {
+    return await this.accountModel
+      .findOne({ email: email })
+      .select('-accessToken -resetPasswordToken -resetPasswordExpires');
+  }
+
   async create(createAccountDto: CreateAccountDto) {
     const usernameExist = await this.accountModel.findOne({ username: createAccountDto.username });
     if (usernameExist) {

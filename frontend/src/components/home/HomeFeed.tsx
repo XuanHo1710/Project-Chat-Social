@@ -40,16 +40,12 @@ export default function HomeFeed() {
     // Get highlighted post ID from URL query
     const highlightedPostIdFromUrl = searchParams.get('postId');
 
-    // Debug log
-    console.log('🎯 Highlight postId from URL:', highlightedPostIdFromUrl);
-
     // Store highlighted post ID in ref to persist even after URL change
     const persistedHighlightedPostId = useRef<string | null>(null);
 
     // Update persisted ID when URL has postId
     useEffect(() => {
         if (highlightedPostIdFromUrl) {
-            console.log('💾 Persisting highlight postId:', highlightedPostIdFromUrl);
             persistedHighlightedPostId.current = highlightedPostIdFromUrl;
         }
     }, [highlightedPostIdFromUrl]);

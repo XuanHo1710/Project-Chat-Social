@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Response } from 'express';
 import { AccountService } from 'src/account/account.service';
+import { AccountGoogleDto } from 'src/account/dto/account-google-dto';
 import { Account } from 'src/account/entities/account.entity';
 // import ms from 'ms';
 
@@ -16,6 +17,27 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService
   ) {}
+
+  async googleLogin(accountGoogle: AccountGoogleDto) {
+    if (!accountGoogle) throw new BadRequestException('Account google không tồn tại');
+    // Check account exist
+    const existingAccount = await this.accountService.findByEmail(accountGoogle.email);
+    if (existingAccount) {
+      return existingAccount;
+    }
+    // Create new account
+    const newAccount = await this.accountService.create({
+      username: accountGoogle.googleId,
+      password: accountGoogle.googleId, // Use Google ID as password for simplicity
+      firstName: accountGoogle.firstName,
+      lastName: accountGoogle.lastName,
+      email: accountGoogle.email,
+      avatar: accountGoogle.picture,
+      googleId: accountGoogle.googleId,
+      authProvider: 'GOOGLE',
+    });
+    return newAccount;
+  }
 
   async verifyAccount(username: string, passPlainText: string): Promise<any | null> {
     const account = await this.accountService.findByUsername(username);
@@ -49,22 +71,12 @@ export class AuthService {
     });
 
     account.accessToken = access_token;
-
-    // await this.accountService.update(account._id.toString(), account);
-
     // Set refresh_token as cookies
     // HttpOnly only server can use this cookies. Javascript can't use this cookies
     response.cookie('refresh_token', refresh_token, {
       httpOnly: true,
       maxAge: ms(this.configService.get<string>('JWT_REFRESH_EXPIRE') as string),
     });
-
-    // response.cookie("access_token", access_token,
-    //     {
-    //         httpOnly: true,
-    //         maxAge: ms(this.configService.get<string>('JWT_ACCESS_EXPIRE') as string),
-    //     }
-    // );
 
     return {
       access_token,

@@ -28,6 +28,8 @@ export interface MessageResponse {
 
   isMuted?: boolean;
 
+  isRestricted: boolean;
+
   senderId: {
     firstName: string;
     lastName: string;

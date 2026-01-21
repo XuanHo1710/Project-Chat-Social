@@ -35,7 +35,7 @@ export default function ChatDetailPage() {
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
     const user = useAuthStore((state) => state.user);
-    const { socketChat } = useSocket();
+    const { socketChat, socketRelationship } = useSocket();
     const queryClient = useQueryClient();
 
     // Fetch all conversations for sidebar
@@ -218,6 +218,36 @@ export default function ChatDetailPage() {
             socketChat.off("conversation:mute:updated", handleMuteUpdated);
         };
     }, [socketChat, queryClient, user?.id]);
+
+    // Handle real-time restriction/unrestriction
+    useEffect(() => {
+        if (!socketRelationship || !user?.id) return;
+
+        const handleConversationHidden = (data: { conversationId: string }) => {
+            queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
+                (oldData) => {
+                    if (!oldData?.data) return oldData;
+                    return {
+                        ...oldData,
+                        data: oldData.data.filter(conv => conv._id !== data.conversationId)
+                    };
+                }
+            );
+        };
+
+        const handleUnrestricted = () => {
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, user.id] });
+        };
+
+        socketRelationship.on("conversation:hidden", handleConversationHidden);
+        socketRelationship.on("user:unrestricted", handleUnrestricted);
+
+        return () => {
+            socketRelationship.off("conversation:hidden", handleConversationHidden);
+            socketRelationship.off("user:unrestricted", handleUnrestricted);
+        };
+    }, [socketRelationship, queryClient, user?.id]);
 
     // Handle select conversation from sidebar
     const handleSelectConversation = (conv: SelectedConversation) => {

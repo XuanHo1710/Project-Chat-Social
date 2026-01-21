@@ -82,7 +82,6 @@ import { toast } from 'sonner';
 import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 import { timeAgo } from '@/utils/formatDate';
 
-
 // Theme colors for chat background - now with gradients
 const THEME_COLORS = [
     { color: '#0084ff', gradient: 'linear-gradient(180deg, #0084ff 0%, #0066cc 100%)' },
@@ -639,23 +638,48 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         }
     };
 
-    // Restrict user handler
+    // Restrict user handler - using socket for real-time updates
+
     const handleRestrictUser = async () => {
         if (!otherUser || isRestricting) return;
 
         setIsRestricting(true);
         try {
-            await relationshipService.restrictUser(otherUser._id);
-            toast.success(`Đã hạn chế ${otherUser.firstName} ${otherUser.lastName}`);
-            // Invalidate queries to refresh data
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
-            onClose();
-            router.push(CLIENT_PATH.CHAT);
+            if (socketRelationship) {
+                socketRelationship.emit('user:restrict', {
+                    targetUserId: otherUser._id,
+                    conversationId: conversationId
+                }, (response: { success: boolean; error?: string }) => {
+                    if (response.success) {
+                        toast.success(`Đã hạn chế ${otherUser.firstName} ${otherUser.lastName}`);
+
+                        // IMPORTANT: Hide conversation in global store BEFORE navigating
+                        // Navigate first, then invalidate queries
+                        router.push(CLIENT_PATH.CHAT);
+
+                        // Invalidate queries to refresh data
+                        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
+                        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+                        onClose();
+                    } else {
+                        toast.error(response.error || 'Không thể hạn chế người dùng');
+                    }
+                    setIsRestricting(false);
+                });
+            } else {
+                // Fallback to REST API
+                await relationshipService.restrictUser(otherUser._id);
+                toast.success(`Đã hạn chế ${otherUser.firstName} ${otherUser.lastName}`);
+
+                router.push(CLIENT_PATH.CHAT);
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
+                onClose();
+                setIsRestricting(false);
+            }
         } catch (error) {
             console.error('Failed to restrict user:', error);
             toast.error('Không thể hạn chế người dùng');
-        } finally {
             setIsRestricting(false);
         }
     };
@@ -709,7 +733,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 </IconButton>
             </Box>
 
-            <Box sx={{ flex: 1, overflowY: 'auto' }}>
+            <Box sx={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'none' }}>
                 {/* Profile Section */}
                 {/* Hidden file input for avatar upload */}
                 <input
@@ -1091,7 +1115,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     >
                                         <BlockIcon sx={{ mr: 2, color: 'error.main' }} />
                                         <ListItemText
-                                            primary={<Typography fontSize={14} color="text.primary">Chặn {otherUser.firstName}</Typography>}
+                                            primary={<Typography fontSize={14} color="text.primary">Chặn {otherUser.firstName} {otherUser.lastName}</Typography>}
                                             secondary={<Typography fontSize={12} color="text.secondary">Các bạn sẽ không thể nhắn tin cho nhau</Typography>}
                                         />
                                     </ListItemButton>
@@ -1101,7 +1125,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     >
                                         <PersonOffIcon sx={{ mr: 2, color: 'warning.main' }} />
                                         <ListItemText
-                                            primary={<Typography fontSize={14} color="text.primary">Hạn chế {otherUser.firstName}</Typography>}
+                                            primary={<Typography fontSize={14} color="text.primary">Hạn chế {otherUser.firstName} {otherUser.lastName}</Typography>}
                                             secondary={<Typography fontSize={12} color="text.secondary">Ẩn cuộc trò chuyện nhưng vẫn là bạn bè</Typography>}
                                         />
                                     </ListItemButton>

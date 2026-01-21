@@ -32,6 +32,7 @@ export interface ConversationResponseData {
   isBlocked: boolean;
   blockedByMe?: boolean; // Current user has blocked the other user (DIRECT only)
   chatBlocked?: boolean; // For hidden input chat on direct
+  isRestricted: boolean; // Current user has restricted the other user (DIRECT only)
   isDeleted?: boolean; // Nhóm đã bị giải tán
   deletedAt?: Date; // Thời điểm giải tán
   creator: string; // ID của người tạo nhóm

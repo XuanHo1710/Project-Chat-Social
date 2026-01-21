@@ -227,6 +227,7 @@ export class ConversationService {
     return filteredConversations.map((conv) => {
       // Check if current user has blocked the other user (only for DIRECT)
       let blockedByMe = false;
+      conv['isRestricted'] = false;
       if (conv.type === 'DIRECT') {
         const otherParticipant = conv.participants.find(
           (p: any) => p.user._id.toString() !== userId
@@ -234,6 +235,7 @@ export class ConversationService {
         if (otherParticipant) {
           const otherUserId = otherParticipant.user._id.toString();
           blockedByMe = blockedUserIds.includes(otherUserId);
+          conv['isRestricted'] = restrictedUsers.length > 0;
         }
       }
 

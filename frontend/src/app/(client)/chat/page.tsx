@@ -26,7 +26,7 @@ interface SelectedConversation {
 export default function ChatPage() {
     const user = useAuthStore((state) => state.user);
     const [selectedConversation, setSelectConversation] = useState<SelectedConversation | null>(null);
-    const { socketChat } = useSocket();
+    const { socketChat, socketRelationship } = useSocket();
     const queryClient = useQueryClient();
     const router = useRouter();
     const theme = useTheme();
@@ -173,6 +173,36 @@ export default function ChatPage() {
             socketChat.off("conversation:mute:updated", handleMuteUpdated);
         };
     }, [socketChat, queryClient, user?.id]);
+
+    // Handle real-time restriction/unrestriction
+    useEffect(() => {
+        if (!socketRelationship || !user?.id) return;
+
+        const handleConversationHidden = (data: { conversationId: string }) => {
+            queryClient.setQueryData<{ data: ConversationResponseData[] }>(
+                [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
+                (oldData) => {
+                    if (!oldData?.data) return oldData;
+                    return {
+                        ...oldData,
+                        data: oldData.data.filter(conv => conv._id !== data.conversationId)
+                    };
+                }
+            );
+        };
+
+        const handleUnrestricted = () => {
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, user.id] });
+        };
+
+        socketRelationship.on("conversation:hidden", handleConversationHidden);
+        socketRelationship.on("user:unrestricted", handleUnrestricted);
+
+        return () => {
+            socketRelationship.off("conversation:hidden", handleConversationHidden);
+            socketRelationship.off("user:unrestricted", handleUnrestricted);
+        };
+    }, [socketRelationship, queryClient, user?.id]);
 
     return (
         <Box

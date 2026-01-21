@@ -27,7 +27,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
   server: Server;
   private logger = new Logger('RelationshipGateway');
 
-  constructor(private readonly relationshipService: RelationshipService) {}
+  constructor(private readonly relationshipService: RelationshipService) { }
 
   async handleConnection(client: Socket) {
     try {
@@ -50,7 +50,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
         userSockets.set(userId, new Set());
       }
       userSockets.get(userId)!.add(client.id);
-    } catch {}
+    } catch { }
   }
 
   async handleDisconnect(client: Socket) {
@@ -290,6 +290,76 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
     } catch (err) {
       this.logger.error('Failed to unblock user', err);
       return { success: false, error: err.message || 'Failed to unblock user' };
+    }
+  }
+
+  // Restrict a user (hide conversation but still friends)
+  @SubscribeMessage('user:restrict')
+  async handleRestrictUser(
+    @MessageBody() data: { targetUserId: string; conversationId?: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      await this.relationshipService.restrictUser(userId, data.targetUserId);
+
+      // Notify the user who restricted (to hide conversation immediately)
+      this.server.to(userId).emit('user:restricted', {
+        restrictedUserId: data.targetUserId,
+        conversationId: data.conversationId,
+      });
+
+      // Emit conversation:hidden event to hide the conversation from restricter's list
+      if (data.conversationId) {
+        this.server.to(userId).emit('conversation:hidden', {
+          conversationId: data.conversationId,
+          hiddenUserId: data.targetUserId,
+          reason: 'restricted',
+        });
+      }
+
+      return { success: true };
+    } catch (err) {
+      this.logger.error('Failed to restrict user', err);
+      return { success: false, error: err.message || 'Failed to restrict user' };
+    }
+  }
+
+  // Unrestrict a user
+  @SubscribeMessage('user:unrestrict')
+  async handleUnrestrictUser(
+    @MessageBody() data: { targetUserId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const userId = client.data.userId;
+
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      await this.relationshipService.unrestrictUser(userId, data.targetUserId);
+
+      // Notify the user who unrestricted (to show conversation again)
+      this.server.to(userId).emit('user:unrestricted', {
+        unrestrictedUserId: data.targetUserId,
+      });
+
+      // Emit conversation:shown event to show the conversation again
+      this.server.to(userId).emit('conversation:shown', {
+        hiddenUserId: data.targetUserId,
+        reason: 'unrestricted',
+      });
+
+      return { success: true };
+    } catch (err) {
+      this.logger.error('Failed to unrestrict user', err);
+      return { success: false, error: err.message || 'Failed to unrestrict user' };
     }
   }
 }

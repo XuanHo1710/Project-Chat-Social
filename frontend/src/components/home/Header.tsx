@@ -99,12 +99,10 @@ export default function Header() {
 
         // Update unread count when new message arrives
         const handleGlobalMessageNew = (msg: MessageResponse) => {
-            console.log("handle:message:new", msg.isMuted)
             // Increment unread count if message is not from current user
             const senderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
             if (senderId !== user.id) {
-                console.log(msg)
-                setChatUnreadCount(prev => msg.isMuted ? prev : prev + 1);
+                setChatUnreadCount(prev => msg.isMuted || msg.isRestricted ? prev : prev + 1);
             }
 
             // Update conversation data if popup is open
@@ -165,7 +163,7 @@ export default function Header() {
 
                     // Recalculate total
                     const totalUnread = updatedData.reduce((acc, conv) => {
-                        return acc + (conv.mutedBy?.includes(user.id || "") ? 0 : conv.unreadCount?.[user.id] || 0);
+                        return acc + (conv.mutedBy?.includes(user.id || "") || conv.isRestricted ? 0 : conv.unreadCount?.[user.id] || 0);
                     }, 0);
                     setChatUnreadCount(totalUnread);
 
@@ -194,7 +192,7 @@ export default function Header() {
 
                         // Recalculate total
                         const totalUnread = updatedData.reduce((acc, conv) => {
-                            return acc + (conv.mutedBy?.includes(user.id || "") ? 0 : conv.unreadCount?.[user.id] || 0);
+                            return acc + (conv.mutedBy?.includes(user.id || "") || conv.isRestricted ? 0 : conv.unreadCount?.[user.id] || 0);
                         }, 0);
                         setChatUnreadCount(totalUnread);
 

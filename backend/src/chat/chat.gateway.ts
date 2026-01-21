@@ -883,9 +883,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     };
 
 
+    // Kiểm tra xem user có bị restrict không
+    // Chỉ dành cho conversation 1:1 DIRECT
+    let isRestricted = false;
+    if (conversation.type === "DIRECT") {
+      const otherUserId = activeParticipants.find((p) => p.user._id.toString() !== userId)?.user._id.toString();
+      const restrictedUsers = await this.relationshipService.getRestrictedUsers(otherUserId);
+      isRestricted = restrictedUsers.length > 0;
+    }
+
+    messageWithUnread.isRestricted = isRestricted;
 
 
-    activeParticipants.forEach((participant) => {
+
+
+    activeParticipants.forEach(async (participant) => {
       const participantId = participant.user._id.toString();
       const participantSockets = userSockets.get(participantId);
       const messageWithMutedAndUnread = {

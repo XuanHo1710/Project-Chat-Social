@@ -200,7 +200,6 @@ function SearchContent() {
             (entries) => {
                 const first = entries[0];
                 if (first.isIntersecting && hasNextPage && !isFetchingNextPage) {
-                    console.log('📥 Loading more posts...');
                     fetchNextPage();
                 }
             },

@@ -45,8 +45,6 @@ export class AuthController {
     try {
       const checkAccountGoogle = await this.authService.googleLogin(user as AccountGoogleDto);
       const result = await this.authService.login(checkAccountGoogle, response);
-      console.log(result);
-
       return response.send(`
       <script>
         window.opener.postMessage(

@@ -5,12 +5,10 @@ import { AccountModule } from './account/account.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
-// import { JwtStrategy } from 'src/auth/jwt.strategy';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { JwtStrategy } from 'src/auth/jwt.strategy';
 import { AuthModule } from 'src/auth/auth.module';
-import { JwtModule } from '@nestjs/jwt';
 import { LocalStrategy } from 'src/auth/passport/local.strategy';
 import { GoogleStrategy } from 'src/auth/passport/google.strategy';
 import { RelationshipModule } from './relationship/relationship.module';
@@ -25,7 +23,10 @@ import { StoryModule } from './story/story.module';
 import { GroupModule } from './group/group.module';
 import { NotificationModule } from './notification/notification.module';
 import { FirebaseService } from 'src/firebase/firebase.service';
+import { EmailModule } from './email/email.module';
+import { OtpModule } from './otp/otp.module';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -53,6 +54,8 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     StoryModule,
     GroupModule,
     NotificationModule,
+    EmailModule,
+    OtpModule,
   ],
   controllers: [AppController],
   providers: [
@@ -67,4 +70,4 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     FirebaseService,
   ],
 })
-export class AppModule {}
+export class AppModule { }

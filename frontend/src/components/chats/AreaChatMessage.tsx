@@ -1070,7 +1070,6 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         const handleBlockedBy = (data: { blockedByUserId: string }) => {
             // If blocked by the other user in this DIRECT conversation, refresh to update chatBlocked
             if (selectedConversation.type !== 'GROUP' && data.blockedByUserId === selectedConversation.otherId) {
-                console.log("🚫 Blocked by conversation partner, refreshing...");
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
             }
@@ -1079,7 +1078,6 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         const handleUnblockedBy = (data: { unblockedByUserId: string }) => {
             // If unblocked by the other user in this DIRECT conversation, refresh
             if (selectedConversation.type !== 'GROUP' && data.unblockedByUserId === selectedConversation.otherId) {
-                console.log("✅ Unblocked by conversation partner, refreshing...");
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
             }
@@ -1088,7 +1086,6 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         const handleBlocked = (data: { blockedUserId: string; blockedByUserId: string }) => {
             // If current user blocked the other user, refresh
             if (selectedConversation.type !== 'GROUP' && data.blockedUserId === selectedConversation.otherId) {
-                console.log("🚫 Blocked conversation partner, refreshing...");
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
             }
@@ -1097,7 +1094,6 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         const handleUnblocked = (data: { unblockedUserId: string }) => {
             // If current user unblocked the other user, refresh
             if (selectedConversation.type !== 'GROUP' && data.unblockedUserId === selectedConversation.otherId) {
-                console.log("✅ Unblocked conversation partner, refreshing...");
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
             }

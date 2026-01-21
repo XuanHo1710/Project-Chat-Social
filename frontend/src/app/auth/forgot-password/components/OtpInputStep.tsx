@@ -9,9 +9,10 @@ interface OtpInputStepProps {
     onSubmit: (otp: string) => void;
     onResend: () => void;
     loading: boolean;
+    apiError?: string;
 }
 
-export const OtpInputStep = ({ email, onSubmit, onResend, loading }: OtpInputStepProps) => {
+export const OtpInputStep = ({ email, onSubmit, onResend, loading, apiError }: OtpInputStepProps) => {
     const [otp, setOtp] = useState(["", "", "", "", "", ""]);
     const [error, setError] = useState("");
     const otpRefs = useRef<(HTMLInputElement | null)[]>([]);

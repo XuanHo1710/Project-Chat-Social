@@ -26,8 +26,6 @@ export const getFirebaseToken = async () => {
       });
       if (currentToken) {
         return currentToken;
-      } else {
-        console.log("No registration token available.");
       }
     }
   } catch (err) {
@@ -37,7 +35,7 @@ export const getFirebaseToken = async () => {
 };
 
 export const onMessageListener = (
-  callback: (payload: NotificationPayloadType) => void
+  callback: (payload: NotificationPayloadType) => void,
 ) => {
   const messaging = getMessaging(app);
   return onMessage(messaging, (payload) => {

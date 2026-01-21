@@ -208,7 +208,6 @@ export default function GroupDetailPage() {
 
         // Listen for group settings updates
         socket.on('groupSettingsUpdate', (data: { groupId: string; settings: any }) => {
-            console.log("Received groupSettingsUpdate: ", data);
             if (data.groupId === groupId) {
                 setGroup(prev => prev ? { ...prev, ...data.settings } : null);
             }

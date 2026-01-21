@@ -14,7 +14,7 @@ export class AccountService {
   constructor(
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
     @InjectModel(Relationship.name) private relationshipModel: Model<Relationship>
-  ) {}
+  ) { }
 
   async saveFcmToken(userId: string, token: string) {
     await this.accountModel.updateOne(
@@ -281,5 +281,28 @@ export class AccountService {
     return {
       message: 'Tài khoản đã được mở khóa',
     };
+  }
+
+  /**
+   * Update user password
+   */
+  async updatePassword(email: string, newPassword: string): Promise<boolean> {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const result = await this.accountModel.updateOne(
+      { email: email.toLowerCase().trim() },
+      { $set: { password: hashedPassword } }
+    );
+
+    return result.modifiedCount > 0;
+  }
+
+  /**
+   * Find account by email (full details for password reset)
+   */
+  async findByEmailForPasswordReset(email: string) {
+    return await this.accountModel
+      .findOne({ email: email.toLowerCase().trim() })
+      .select('_id email firstName lastName');
   }
 }

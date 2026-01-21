@@ -88,7 +88,6 @@ function SlideTransition(props: SlideProps) {
 // Request browser notification permission
 const requestNotificationPermission = async (): Promise<boolean> => {
     if (!("Notification" in window)) {
-        console.log("Browser does not support notifications");
         return false;
     }
 
@@ -190,7 +189,6 @@ export default function FirebaseNotification() {
                 const token = await getFirebaseToken();
                 if (token) {
                     await accountService.updateFMCToken(token);
-                    console.log("FCM Token synced with backend");
                 }
             } catch (error) {
                 console.error("Failed to sync FCM token", error);
@@ -201,7 +199,6 @@ export default function FirebaseNotification() {
 
         // 2. Listen for Foreground Messages - Chỉ hiển thị khi tab đang focus
         const unsubscribe = onMessageListener((payload: NotificationPayloadType) => {
-            console.log("Foreground Message received:", payload);
             const title = payload?.notification?.title || "Tin nhắn mới";
             const body = payload?.notification?.body || "";
             const conversationId = payload?.data?.conversationId || "";
@@ -210,7 +207,6 @@ export default function FirebaseNotification() {
 
             // Deduplication check using messageId
             if (messageId && lastNotifiedMessageId.current === messageId) {
-                console.log("Duplicate notification blocked:", messageId);
                 return;
             }
 
@@ -218,7 +214,6 @@ export default function FirebaseNotification() {
             const currentPath = window.location.pathname;
             const isInSameChat = conversationId && currentPath === `/chat/${conversationId}`;
             if (isInSameChat) {
-                console.log("User is in same chat, skipping notification");
                 return;
             }
 

@@ -29,7 +29,6 @@ export class ReactionController {
    */
   @Post('post')
   togglePostReaction(@Body() dto: CreatePostReactionDto, @UserInfo() user: any) {
-    console.log('Toggling post reaction for user:', user);
     return this.reactionService.togglePostReaction(dto, user);
   }
 

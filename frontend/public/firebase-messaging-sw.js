@@ -24,15 +24,12 @@ const cleanupOldMessages = (messageId) => {
 };
 
 messaging.onBackgroundMessage(function (payload) {
-    console.log('[SW] Received background message:', payload);
-
     const conversationId = payload.data?.conversationId || '';
     const messageId = payload.data?.messageId || '';
     const avatar = payload.data?.avatar || '/logo.png';
 
     // Deduplication - skip if we already showed this notification
     if (messageId && notifiedMessages.has(messageId)) {
-        console.log('[SW] Duplicate notification blocked:', messageId);
         return;
     }
 

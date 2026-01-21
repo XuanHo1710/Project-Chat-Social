@@ -39,6 +39,27 @@ class AuthService {
     const response = await axios.get("/auth/profile");
     return response.data;
   }
+
+  // Password Reset APIs
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string; expiresAt?: string }> {
+    const response = await axios.post("/auth/password/forgot", { email });
+    return response.data;
+  }
+
+  async verifyOtp(email: string, otp: string): Promise<{ success: boolean; message: string }> {
+    const response = await axios.post("/auth/password/verify-otp", { email, otp });
+    return response.data;
+  }
+
+  async resetPassword(email: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const response = await axios.post("/auth/password/reset", { email, newPassword });
+    return response.data;
+  }
+
+  async resendOtp(email: string): Promise<{ success: boolean; message: string; expiresAt?: string }> {
+    const response = await axios.post("/auth/password/resend-otp", { email });
+    return response.data;
+  }
 }
 
 export const authService = new AuthService();

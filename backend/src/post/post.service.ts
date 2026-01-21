@@ -45,7 +45,7 @@ export class PostService {
     private notificationService: NotificationService,
     private configService: ConfigService
   ) {
-    this.aiServerUrl = this.configService.get<string>('AI_SERVER_URL') || "";
+    this.aiServerUrl = this.configService.get<string>('AI_SERVER_URL') || '';
   }
 
   /**
@@ -66,19 +66,28 @@ export class PostService {
 
     try {
       await firstValueFrom(
-        this.httpService.post(`${this.aiServerUrl}/embed/post`, {
-          post_id: post._id.toString(),
-          content: post.content,
-          user_id: typeof post.userId === 'object' ? post.userId._id?.toString() || post.userId.toString() : post.userId.toString(),
-          privacy: post.privacy || 'PUBLIC',
-          group_id: post.groupId ? post.groupId.toString() : null,
-          created_at: post.createdAt ? post.createdAt.toISOString() : new Date().toISOString(),
-          media_type: post.media && post.media.some(m => m.mediaType === 'VIDEO')
-            ? 'VIDEO'
-            : (post.media && post.media.length > 0 ? 'IMAGE' : 'TEXT')
-        }, { timeout: 10000 })
+        this.httpService.post(
+          `${this.aiServerUrl}/embed/post`,
+          {
+            post_id: post._id.toString(),
+            content: post.content,
+            user_id:
+              typeof post.userId === 'object'
+                ? post.userId._id?.toString() || post.userId.toString()
+                : post.userId.toString(),
+            privacy: post.privacy || 'PUBLIC',
+            group_id: post.groupId ? post.groupId.toString() : null,
+            created_at: post.createdAt ? post.createdAt.toISOString() : new Date().toISOString(),
+            media_type:
+              post.media && post.media.some((m) => m.mediaType === 'VIDEO')
+                ? 'VIDEO'
+                : post.media && post.media.length > 0
+                  ? 'IMAGE'
+                  : 'TEXT',
+          },
+          { timeout: 10000 }
+        )
       );
-      console.log(`✅ Embedded post ${post._id} to AI server`);
     } catch (error) {
       // Log but don't throw - embedding is not critical for post creation
       console.warn(`⚠️ Failed to embed post ${post._id}:`, error.message);
@@ -93,7 +102,6 @@ export class PostService {
       await firstValueFrom(
         this.httpService.delete(`${this.aiServerUrl}/embed/post/${postId}`, { timeout: 10000 })
       );
-      console.log(`🗑️ Deleted post embedding ${postId} from AI server`);
     } catch (error) {
       console.warn(`⚠️ Failed to delete post embedding ${postId}:`, error.message);
     }
@@ -174,7 +182,7 @@ export class PostService {
     });
 
     // Embed post to AI server (async, don't block response)
-    this.embedPostToAI(savedPost).catch(() => { });
+    this.embedPostToAI(savedPost).catch(() => {});
 
     return savedPost;
   }
@@ -623,7 +631,7 @@ export class PostService {
             friend_ids: friendIds.join(','),
             limit, // Use requested limit directly as AI now filters by type
             page,
-            media_type: 'VIDEO' // Request specific type
+            media_type: 'VIDEO', // Request specific type
           },
           timeout: 30000,
         })
@@ -638,7 +646,7 @@ export class PostService {
             _id: { $in: postRelevantIds },
             isDeleted: false,
             isActive: true,
-            'media.mediaType': 'VIDEO' // Only VIDEO posts
+            'media.mediaType': 'VIDEO', // Only VIDEO posts
           })
           .populate('userId', 'firstName lastName avatar username')
           .populate('groupId', 'name avatar privacy')
@@ -698,7 +706,10 @@ export class PostService {
         }
       }
     } catch (error) {
-      console.warn('AI Server unavailable for Reels, falling back to chronological:', error.message);
+      console.warn(
+        'AI Server unavailable for Reels, falling back to chronological:',
+        error.message
+      );
     }
 
     // Fallback: Chronological Video Feed
@@ -734,13 +745,12 @@ export class PostService {
     ]);
 
     // Filter out private group posts where user is not the author
-    const filteredData = data
-      .filter((post) => {
-        if (!post.groupId) return true;
-        const group = post.groupId as any;
-        if (group.privacy === 'PUBLIC') return true;
-        return post.userId && (post.userId as any)._id?.toString() === currentUserId;
-      });
+    const filteredData = data.filter((post) => {
+      if (!post.groupId) return true;
+      const group = post.groupId as any;
+      if (group.privacy === 'PUBLIC') return true;
+      return post.userId && (post.userId as any)._id?.toString() === currentUserId;
+    });
 
     const postIds = filteredData.map((p) => p._id);
     const postIdStrings = postIds.map((id) => id.toString());
@@ -932,7 +942,7 @@ export class PostService {
 
     // Re-embed post to AI server if content changed
     if (updatePostDto.content !== undefined && updatedPost) {
-      this.embedPostToAI(updatedPost).catch(() => { });
+      this.embedPostToAI(updatedPost).catch(() => {});
     }
 
     return updatedPost!;
@@ -978,7 +988,7 @@ export class PostService {
       deletedAt: new Date(),
     });
 
-    this.deletePostEmbedding(id).catch(() => { });
+    this.deletePostEmbedding(id).catch(() => {});
 
     return { message: 'Post deleted successfully' };
   }

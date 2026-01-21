@@ -27,7 +27,7 @@ export class ReactionService implements OnModuleInit {
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
     private readonly notificationService: NotificationService
-  ) { }
+  ) {}
 
   async onModuleInit() {
     // Auto-run migration on startup
@@ -241,10 +241,6 @@ export class ReactionService implements OnModuleInit {
         if (post.allowReactions === false) {
           throw new BadRequestException('Tương tác đã bị tắt cho bài viết này');
         }
-
-        console.log(post.userId)
-        console.log(user._id)
-
         if (post.userId.toString() !== user._id.toString()) {
           this.notificationService.create({
             recipientId: post.userId.toString(),
@@ -413,8 +409,6 @@ export class ReactionService implements OnModuleInit {
         { $group: { _id: '$type', count: { $sum: 1 } } },
       ]),
     ]);
-
-    console.log(reactions);
 
     const counts: Record<ReactionType, number> = {
       LIKE: 0,

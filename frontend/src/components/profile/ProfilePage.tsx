@@ -134,7 +134,6 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         5, // limit
         isFriend ? [user?.id || ''] : []
     );
-    console.log(postsData)
     // Flatten pages
     const posts = React.useMemo(() => {
         return postsData?.pages.flatMap(page => page.data || []) || [];

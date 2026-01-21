@@ -43,7 +43,6 @@ const DEFAULT_CAPTION_STYLE: CaptionStyle = {
 };
 
 export default function StoriesBar({ currentUser }: { currentUser: UserLoginType }) {
-    console.log("Rendering StoriesBar with currentUser:", currentUser);
     const { data: storyGroups, isLoading } = useStoriesFeed();
     const createStoryMutation = useCreateStory();
     const theme = useTheme();

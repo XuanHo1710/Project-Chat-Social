@@ -123,19 +123,15 @@ export default function HomeFeed() {
         const existsInStorePosts = storePosts.some((p: PostType) => p._id === highlightedPostIdFromUrl);
 
         if (!existsInApiPosts && !existsInStorePosts) {
-            console.log('🔍 Post not in newsfeed, fetching:', highlightedPostIdFromUrl);
             fetchedPostIdRef.current = highlightedPostIdFromUrl;
 
             postService.getPostById(highlightedPostIdFromUrl)
                 .then((post) => {
-                    console.log('✅ Fetched highlighted post:', post._id);
                     setFetchedHighlightedPost(post);
                 })
                 .catch((err) => {
                     console.log('❌ Failed to fetch highlighted post:', err);
                 });
-        } else {
-            console.log('✅ Post found in newsfeed');
         }
     }, [highlightedPostIdFromUrl, isLoadingPosts, allApiPosts, storePosts]);
 
@@ -180,15 +176,12 @@ export default function HomeFeed() {
         // If not found, use fetched post (if available)
         if (!highlightedPost && fetchedHighlightedPost && fetchedHighlightedPost._id === postIdToHighlight) {
             highlightedPost = fetchedHighlightedPost;
-            console.log('📦 Using fetched highlighted post');
         }
 
         if (!highlightedPost) {
-            console.log('⚠️ Highlighted post not found anywhere:', postIdToHighlight);
             return allPosts;
         }
 
-        console.log('✅ Moving highlighted post to top:', postIdToHighlight);
         const otherPosts = allPosts.filter((p: PostType) => p._id !== postIdToHighlight);
         return [highlightedPost, ...otherPosts];
     }, [allApiPosts, storePosts, highlightedPostIdFromUrl, fetchedHighlightedPost]);
@@ -201,24 +194,19 @@ export default function HomeFeed() {
         // Only proceed if we have a postId from URL
         if (!highlightedPostIdFromUrl) return;
         if (isLoadingPosts) {
-            console.log('⏳ Still loading posts, waiting...');
             return;
         }
 
         // Check if already handled
         if (highlightHandledRef.current === highlightedPostIdFromUrl) {
-            console.log('🔄 Already handled this postId');
             return;
         }
 
         // Check if the highlighted post actually exists in our posts
         const postExists = posts.find(p => p._id === highlightedPostIdFromUrl);
         if (!postExists) {
-            console.log('❌ Post not found in current list:', highlightedPostIdFromUrl, 'Available posts:', posts.length);
             return;
         }
-
-        console.log('✅ Post found! Scrolling and highlighting...');
 
         // Mark as handled to prevent re-running
         highlightHandledRef.current = highlightedPostIdFromUrl;
@@ -232,7 +220,6 @@ export default function HomeFeed() {
         const scrollTimer = setTimeout(() => {
             if (highlightedPostRef.current) {
                 highlightedPostRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                console.log('📍 Scrolled to post');
             } else {
                 console.log('⚠️ Ref not attached to element');
             }
@@ -241,13 +228,11 @@ export default function HomeFeed() {
         // Turn off highlight animation after 4 seconds
         const highlightTimer = setTimeout(() => {
             setShowHighlightAnimation(null);
-            console.log('🔇 Turned off highlight animation');
         }, 4000);
 
         // Clear the postId from URL after animation done (5 seconds)
         const clearTimer = setTimeout(() => {
             window.history.replaceState(null, '', '/');
-            console.log('🧹 Cleared URL');
         }, 5000);
 
         return () => {
@@ -266,7 +251,6 @@ export default function HomeFeed() {
             (entries) => {
                 const first = entries[0];
                 if (first.isIntersecting && hasNextPage && !isFetchingNextPage) {
-                    console.log('📥 Loading more posts...');
                     fetchNextPage();
                 }
             },

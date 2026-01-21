@@ -192,7 +192,6 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
 
             recorder.start(1000); // Record in 1s chunks
             mediaRecorderRef.current = recorder;
-            console.log('Recording started');
         } catch (err) {
             console.error('Failed to start recording:', err);
         }

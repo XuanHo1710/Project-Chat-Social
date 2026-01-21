@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Box, Container, Paper, Typography, Link as MuiLink, useTheme } from "@mui/material";
+import { Box, Container, Paper, Typography, useTheme } from "@mui/material";
 import { LockReset, Email, VpnKey, ArrowBack } from "@mui/icons-material";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { CLIENT_PATH } from "@/constants/paths";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { authService } from "@/services/auth.service";
 
 import { SocialParticles } from "./components/SocialParticles";
 import { EmailInputStep } from "./components/EmailInputStep";
@@ -23,6 +24,7 @@ export default function ForgotPasswordPage() {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState("");
+    const [apiError, setApiError] = useState("");
 
     // Mouse Parallax Logic
     const x = useMotionValue(0);
@@ -47,43 +49,82 @@ export default function ForgotPasswordPage() {
     const rotateXHeader = useTransform(mouseY, [-20, 20], [5, -5]);
 
     // Handlers
-    const handleEmailSubmit = (submittedEmail: string) => {
+    const handleEmailSubmit = async (submittedEmail: string) => {
         setEmail(submittedEmail);
         setLoading(true);
-        // Mock API call
-        setTimeout(() => {
+        setApiError("");
+
+        try {
+            const response = await authService.forgotPassword(submittedEmail);
+            if (response.success) {
+                setStep(2);
+            } else {
+                setApiError(response.message || "Có lỗi xảy ra");
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || "Có lỗi xảy ra. Vui lòng thử lại.";
+            setApiError(errorMessage);
+        } finally {
             setLoading(false);
-            setStep(2);
-            // toast.success("Mã xác minh đã được gửi đến email của bạn"); // User requested fewer toasts
-        }, 1000);
+        }
     };
 
-    const handleOtpSubmit = (otp: string) => {
+    const handleOtpSubmit = async (otp: string) => {
         setLoading(true);
-        // Mock API verify
-        setTimeout(() => {
+        setApiError("");
+
+        try {
+            const response = await authService.verifyOtp(email, otp);
+            if (response.success) {
+                setStep(3);
+            } else {
+                setApiError(response.message || "Mã OTP không chính xác");
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || "Mã OTP không chính xác";
+            setApiError(errorMessage);
+        } finally {
             setLoading(false);
-            setStep(3);
-        }, 1000);
+        }
     };
 
-    const handleResendOtp = () => {
+    const handleResendOtp = async () => {
         setLoading(true);
-        // Mock Resend
-        setTimeout(() => {
+        setApiError("");
+
+        try {
+            const response = await authService.resendOtp(email);
+            if (response.success) {
+                toast.success("Đã gửi lại mã xác minh");
+            } else {
+                toast.error(response.message || "Không thể gửi lại mã");
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || "Không thể gửi lại mã";
+            toast.error(errorMessage);
+        } finally {
             setLoading(false);
-            toast.success("Đã gửi lại mã xác minh");
-        }, 1000);
+        }
     };
 
-    const handleResetSubmit = (password: string) => {
+    const handleResetSubmit = async (password: string) => {
         setLoading(true);
-        // Mock API Update
-        setTimeout(() => {
+        setApiError("");
+
+        try {
+            const response = await authService.resetPassword(email, password);
+            if (response.success) {
+                toast.success("Đổi mật khẩu thành công!");
+                router.push(CLIENT_PATH.LOGIN);
+            } else {
+                setApiError(response.message || "Không thể đổi mật khẩu");
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || "Không thể đổi mật khẩu";
+            setApiError(errorMessage);
+        } finally {
             setLoading(false);
-            toast.success("Quy trình hoàn tất! Vui lòng đăng nhập lại.");
-            router.push(CLIENT_PATH.LOGIN);
-        }, 1500);
+        }
     };
 
     return (
@@ -202,9 +243,16 @@ export default function ForgotPasswordPage() {
                             </Typography>
                         </Box>
 
+                        {/* API Error Display */}
+                        {apiError && (
+                            <Box sx={{ mb: 2, p: 2, bgcolor: 'error.light', borderRadius: 2, textAlign: 'center' }}>
+                                <Typography color="error.dark" variant="body2">{apiError}</Typography>
+                            </Box>
+                        )}
+
                         {/* Components based on Step */}
                         {step === 1 && <EmailInputStep onSubmit={handleEmailSubmit} loading={loading} />}
-                        {step === 2 && <OtpInputStep email={email} onSubmit={handleOtpSubmit} onResend={handleResendOtp} loading={loading} />}
+                        {step === 2 && <OtpInputStep email={email} onSubmit={handleOtpSubmit} onResend={handleResendOtp} loading={loading} apiError={apiError} />}
                         {step === 3 && <ResetPasswordStep onSubmit={handleResetSubmit} loading={loading} />}
 
                         {/* Back to Login */}

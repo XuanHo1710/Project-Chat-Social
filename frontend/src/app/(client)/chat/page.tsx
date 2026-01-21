@@ -123,7 +123,6 @@ export default function ChatPage() {
 
         // Handle mute toggle update - update mutedBy in conversation cache
         const handleMuteUpdated = (data: { conversationId: string; userId: string; isMuted: boolean }) => {
-            console.log('🔔 Mute status updated:', data);
             queryClient.setQueryData<{ data: ConversationResponseData[] }>(
                 [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
                 (oldData) => {

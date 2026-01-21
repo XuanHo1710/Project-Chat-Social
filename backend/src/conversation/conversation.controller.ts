@@ -24,6 +24,11 @@ export class ConversationController {
     return this.conversationService.findConversationByUserId(user._id.toString());
   }
 
+  @Post('chatbot')
+  createChatbotConversation(@UserInfo() user: Account) {
+    return this.conversationService.findOrCreateChatbotConversation(user._id.toString());
+  }
+
   @Get('detail/:id')
   findOne(@Param('id') id: string, @UserInfo() user: Account) {
     return this.conversationService.findById(id, user._id.toString());

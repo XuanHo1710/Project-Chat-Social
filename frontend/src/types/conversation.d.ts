@@ -1,6 +1,6 @@
 import { MessageType } from "@/types/chat";
 
-export type ConversationTypeEnum = "DIRECT" | "GROUP";
+export type ConversationTypeEnum = "DIRECT" | "GROUP" | "CHATBOT";
 
 export interface ConversationParticipantUser {
   _id: string;

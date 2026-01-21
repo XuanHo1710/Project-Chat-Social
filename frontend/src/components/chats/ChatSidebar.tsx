@@ -45,7 +45,7 @@ interface SelectedConversation {
     status: 'online' | 'offline';
     otherId: string;
     lastActive?: string;
-    type?: 'DIRECT' | 'GROUP';
+    type?: 'DIRECT' | 'GROUP' | 'CHATBOT';
 }
 
 interface ChatSidebarProps {
@@ -163,6 +163,10 @@ export default function ChatSidebar({
             // Hiển thị nhóm (kể cả đã bị kick hoặc rời)
             const groupName = conversation.nickname?.toLowerCase() || 'nhóm chat';
             return groupName.includes(searchQuery.toLowerCase());
+        } else if (conversation.type === 'CHATBOT') {
+            // Search logic for Chatbot
+            const name = "BOT AI";
+            return name.toLowerCase().includes(searchQuery.toLowerCase());
         }
         return false;
     });
@@ -396,6 +400,7 @@ export default function ChatSidebar({
                     {!isLoading &&
                         filteredConversations.map((conversation) => {
                             const isGroup = conversation.type === 'GROUP';
+                            const isChatbot = conversation.type === 'CHATBOT';
                             const isSelected = conversation._id === selectedConversationId;
 
                             // For DIRECT: get other user info
@@ -405,7 +410,14 @@ export default function ChatSidebar({
                             let status: { isOnline: boolean; lastActive: string | undefined } = { isOnline: false, lastActive: undefined };
                             let otherId = '';
 
-                            if (isGroup) {
+                            if (isChatbot) {
+                                const botParticipant = conversation.participants.find(p => p.user?._id !== user?.id);
+                                displayName = "BOT AI";
+                                displayAvatar = botParticipant?.user?.avatar || "https://cdn-icons-png.flaticon.com/512/4712/4712027.png";
+                                // Bot always online
+                                status = { isOnline: true, lastActive: undefined };
+                                otherId = botParticipant?.user?._id || '';
+                            } else if (isGroup) {
                                 displayName = conversation.nickname || 'Nhóm chat';
                                 displayAvatar = conversation.avatar || ``;
                                 // Groups don't have online status
@@ -461,8 +473,8 @@ export default function ChatSidebar({
                                             variant="dot"
                                             sx={{
                                                 '& .MuiBadge-badge': {
-                                                    backgroundColor: !isGroup && status.isOnline ? '#31a24c' : 'transparent',
-                                                    border: !isGroup && status.isOnline ? `2px solid ${theme.palette.background.paper}` : 'none',
+                                                    backgroundColor: (!isGroup && status.isOnline) || isChatbot ? '#31a24c' : 'transparent',
+                                                    border: (!isGroup && status.isOnline) || isChatbot ? `2px solid ${theme.palette.background.paper}` : 'none',
                                                     width: 15,
                                                     borderRadius: '50%',
                                                     height: 15,

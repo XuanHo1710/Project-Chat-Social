@@ -10,6 +10,7 @@ import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { Model, Types } from 'mongoose';
 import { Conversation, ConversationDocument } from 'src/conversation/entities/conversation.entity';
+import { Account, AccountDocument } from 'src/account/entities/account.entity';
 import { InjectModel } from '@nestjs/mongoose';
 import { RelationshipService } from 'src/relationship/relationship.service';
 
@@ -18,7 +19,8 @@ export class ConversationService {
   constructor(
     @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
     @Inject(forwardRef(() => RelationshipService))
-    private readonly relationshipService: RelationshipService
+    private readonly relationshipService: RelationshipService,
+    @InjectModel(Account.name) private readonly accountModel: Model<AccountDocument>
   ) { }
 
   async unreadCountAllConversationByUserId(userId: string) {
@@ -278,6 +280,74 @@ export class ConversationService {
       };
     });
   }
+
+  // ============ CHATBOT FEATURES ============
+  async findOrCreateChatbotConversation(userId: string): Promise<any> {
+    const BOT_USERNAME = 'ai_assistant';
+
+    // 1. Find or Create Bot Account
+    let botUser = await this.accountModel.findOne({ username: BOT_USERNAME });
+
+    if (!botUser) {
+      botUser = new this.accountModel({
+        username: BOT_USERNAME,
+        firstName: 'Cố vấn',
+        lastName: 'AI',
+        email: 'ai@system.local',
+        password: '$2b$10$SomethingRandomHashForBotSecurity',
+        role: 'USER',
+        status: 'ACTIVE',
+        avatar: 'https://cdn-icons-png.flaticon.com/512/4712/4712027.png', // Default AI avatar
+        isActive: true
+      });
+      await botUser.save();
+    }
+
+    // 2. Find existing CHATBOT conversation
+    // Logic: type = CHATBOT and participants contains current user
+    // Note: A user can only have one AI conversation
+    const existing = await this.conversationModel.findOne({
+      type: 'CHATBOT',
+      'participants.user': new Types.ObjectId(userId)
+    });
+
+    if (existing) {
+      return this.findById(existing._id.toString(), userId);
+    }
+
+    // 3. Create new conversation
+    const participants = [
+      {
+        user: new Types.ObjectId(userId),
+        joinedAt: new Date(),
+        isAdmin: true,
+        nickname: ''
+      },
+      {
+        user: botUser._id,
+        joinedAt: new Date(),
+        isAdmin: false,
+        nickname: 'Cố vấn AI'
+      }
+    ];
+
+    const newConv = new this.conversationModel({
+      type: 'CHATBOT',
+      participants,
+      settings: {
+        allowMembersToAdd: false,
+        onlyAdminCanChat: false
+      },
+      unreadCount: {
+        [userId]: 0,
+        [botUser._id.toString()]: 0
+      }
+    });
+
+    const saved = await newConv.save();
+    return this.findById(saved._id.toString(), userId);
+  }
+
 
   async updateLastMessage(id: string, lastMessage: string) {
     return await this.conversationModel

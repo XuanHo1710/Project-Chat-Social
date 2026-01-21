@@ -21,7 +21,7 @@ interface SelectedConversation {
     status: "online" | "offline";
     otherId: string;
     lastActive?: string;
-    type?: "DIRECT" | "GROUP";
+    type?: "DIRECT" | "GROUP" | "CHATBOT";
 }
 
 export default function ChatDetailPage() {
@@ -73,6 +73,16 @@ export default function ChatDetailPage() {
                 otherId: chatUser?._id || '',
                 lastActive: chatUser?.lastActive,
                 type: "DIRECT",
+            };
+        } else if (conv.type === "CHATBOT") {
+            const botParticipant = conv.participants.find(p => p.user._id !== userId);
+            return {
+                _id: conv._id,
+                fullName: "BOT AI",
+                avatar: botParticipant?.user.avatar || `https://cdn-icons-png.flaticon.com/512/4712/4712027.png`,
+                status: 'online',
+                otherId: botParticipant?.user._id || '',
+                type: "CHATBOT",
             };
         } else {
             // GROUP conversation

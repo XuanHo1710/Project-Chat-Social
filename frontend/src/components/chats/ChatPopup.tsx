@@ -145,6 +145,8 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
         } else if (conversation.type === 'GROUP') {
             const groupName = conversation.nickname?.toLowerCase() || 'nhóm chat';
             return groupName.includes(searchQuery.toLowerCase());
+        } else if (conversation.type === 'CHATBOT') {
+            return "BOT AI".toLowerCase().includes(searchQuery.toLowerCase());
         }
         return false;
     });
@@ -380,6 +382,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                     {!isLoading &&
                         filteredConversations.map((conversation) => {
                             const isGroup = conversation.type === 'GROUP';
+                            const isChatbot = conversation.type === 'CHATBOT';
 
                             // For DIRECT: get other user info
                             // For GROUP: use group info
@@ -387,7 +390,13 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                             let displayAvatar = '';
                             let status: { isOnline: boolean; lastActive: string | undefined } = { isOnline: false, lastActive: undefined };
 
-                            if (isGroup) {
+                            if (isChatbot) {
+                                const botParticipant = conversation.participants.find(p => p.user?._id !== user?.id);
+                                displayName = "BOT AI";
+                                displayAvatar = botParticipant?.user?.avatar || "https://cdn-icons-png.flaticon.com/512/4712/4712027.png";
+                                // Bot always online
+                                status = { isOnline: true, lastActive: undefined };
+                            } else if (isGroup) {
                                 displayName = conversation.nickname || 'Nhóm chat';
                                 displayAvatar = conversation.avatar || '';
                                 // Groups don't have online status
@@ -429,8 +438,8 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                             variant="dot"
                                             sx={{
                                                 '& .MuiBadge-badge': {
-                                                    backgroundColor: !isGroup && status.isOnline ? '#31a24c' : 'transparent',
-                                                    border: !isGroup && status.isOnline ? `2px solid ${theme.palette.background.paper}` : 'none',
+                                                    backgroundColor: (!isGroup && status.isOnline) || isChatbot ? '#31a24c' : 'transparent',
+                                                    border: (!isGroup && status.isOnline) || isChatbot ? `2px solid ${theme.palette.background.paper}` : 'none',
                                                     width: 15,
                                                     borderRadius: '50%',
                                                     height: 15,

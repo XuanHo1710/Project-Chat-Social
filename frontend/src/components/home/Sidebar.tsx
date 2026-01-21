@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
 import { groupService } from '@/services/group.service';
+import { conversationService } from '@/services/conversation.service';
 import { GroupWithMembership } from '@/types/group';
 
 export default function Sidebar() {
@@ -65,8 +66,17 @@ export default function Sidebar() {
         { icon: <GamepadIcon sx={{ fontSize: 28 }} />, label: 'Gamestore', path: '/game', color: '#f44336' },
     ];
 
-    const handleItemClick = (path: string) => {
-        router.push(path);
+    const handleItemClick = async (path: string) => {
+        if (path === '/ai-chat') {
+            try {
+                const conversation = await conversationService.createChatbotConversation();
+                router.push(`/chat/${conversation._id}`);
+            } catch (error) {
+                console.error("Failed to create chatbot conversation", error);
+            }
+        } else {
+            router.push(path);
+        }
     };
 
     const handleGroupClick = (groupId: string) => {

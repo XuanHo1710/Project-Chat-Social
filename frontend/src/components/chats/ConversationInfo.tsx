@@ -385,6 +385,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     if (isLoading || !conversation) return null;
 
     const isGroup = conversation.type === 'GROUP';
+    const isChatbot = conversation.type === 'CHATBOT';
     const isAdmin = conversation.participants.find(p => p.user._id === userId)?.isAdmin;
     const isCreator = conversation.creator === userId;
     const otherUser = conversation.participants.find(p => p.user._id !== userId)?.user;
@@ -703,9 +704,11 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         return <InsertDriveFileIcon sx={{ color: '#65676b', fontSize: 40 }} />;
     };
 
-    const displayName = isGroup
-        ? conversation.nickname
-        : `${otherUser?.firstName || ''} ${otherUser?.lastName || ''}`;
+    const displayName = isChatbot
+        ? "BOT AI"
+        : (isGroup
+            ? conversation.nickname
+            : `${otherUser?.firstName || ''} ${otherUser?.lastName || ''}`);
 
     return (
         <Box
@@ -747,7 +750,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3, px: 2 }}>
                     <Box sx={{ position: 'relative', mb: 1 }}>
                         <Avatar
-                            src={isGroup ? conversation.avatar : otherUser?.avatar}
+                            src={isChatbot ? (otherUser?.avatar || "https://cdn-icons-png.flaticon.com/512/4712/4712027.png") : (isGroup ? conversation.avatar : otherUser?.avatar)}
                             sx={{ width: 80, height: 80 }}
                         />
                         {isGroup && (

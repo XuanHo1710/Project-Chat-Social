@@ -822,10 +822,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       await this.handleEmitMessageToClient(savedMessage, data, conversation, userId);
 
-      if (data.content && data.content.includes('@[chatbot:')) {
-        const chatbotName = data.content.match(/@\[\w+:([^\]]+)\]/)?.[1];
-        const chatMessage = data.content.replace(/@\[\w+:([^\]]+)\]/, '').trim(); // Remove mention tag from content
-        this.logger.log(`Chatbot "${chatbotName}" mentioned with message: ${chatMessage}`);
+
+      // Determine if AI should reply
+      const isChatbotConversation = conversation.type === 'CHATBOT';
+      const isChatbotMentioned = data.content && data.content.includes('@[chatbot:');
+
+      if (isChatbotConversation || isChatbotMentioned) {
+        let chatMessage = data.content || '';
+        let chatbotName = 'AI Assistant';
+
+        if (isChatbotMentioned && data.content) {
+          chatbotName = data.content.match(/@\[\w+:([^\]]+)\]/)?.[1] || 'Bot';
+          chatMessage = data.content.replace(/@\[\w+:([^\]]+)\]/, '').trim(); // Remove mention tag from content
+        }
+
+        this.logger.log(`Chatbot triggered. Type: ${isChatbotConversation ? 'Conversation' : 'Mention'}. Message: ${chatMessage}`);
 
         // Emit typing indicator for chatbot
         this.server.to(`room:${data.conversationId}`).emit('chatbot:typing', {
@@ -887,10 +898,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             isTyping: false,
           });
 
+          // Determine senderId for the bot message
+          let botSenderId = userId; // Default fallback (old behavior for group mentions)
+          if (isChatbotConversation) {
+            const botUser = await this.accountModel.findOne({ username: 'ai_assistant' });
+            if (botUser) botSenderId = botUser._id.toString();
+          }
+
           // Prepare message data with optional postIds
           const chatbotMessageData: any = {
             conversationId: new Types.ObjectId(data.conversationId),
-            senderId: userId as any, // User who triggered the bot
+            senderId: botSenderId as any, // Bot User ID for Chatbot conv, or User ID for mention
             content: responseAPIAi.data.response,
             type: MessageType.CHATBOT,
           };
@@ -903,7 +921,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             );
           }
 
-          // Save chatbot message with userId as sender (type CHATBOT identifies it)
+          // Save chatbot message
           const savedMessageChatBot = await this.chatService.sendMessage(chatbotMessageData);
 
           if (!savedMessageChatBot) {
@@ -920,9 +938,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           });
 
           // Send error message as chatbot
+          // Same senderId logic
+          let botSenderId = userId;
+          if (isChatbotConversation) {
+            const botUser = await this.accountModel.findOne({ username: 'ai_assistant' });
+            if (botUser) botSenderId = botUser._id.toString();
+          }
+
           const errorMessage = await this.chatService.sendMessage({
             conversationId: data.conversationId,
-            senderId: userId as any,
+            senderId: botSenderId as any,
             content: '⚠️ Xin lỗi, tôi đang gặp sự cố kỹ thuật. Vui lòng thử lại sau!',
             type: MessageType.CHATBOT,
           });

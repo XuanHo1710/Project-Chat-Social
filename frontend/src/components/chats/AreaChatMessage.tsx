@@ -80,7 +80,7 @@ interface SelectedConversation {
     status: "online" | "offline";
     otherId: string;
     lastActive?: string;
-    type?: "DIRECT" | "GROUP";
+    type?: "DIRECT" | "GROUP" | "CHATBOT";
 }
 
 interface AreaChatMessagesProps {
@@ -247,6 +247,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
     // Check if this is a group conversation
     const isGroup = selectedConversation.type === 'GROUP';
+    const isChatbot = selectedConversation.type === 'CHATBOT';
 
     // Real-time status from store (only for DIRECT)
     const otherUserStatus = useMemo(() => {
@@ -273,7 +274,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             const activeMembers = conversationDetail?.data?.participants.filter(p => !p.kickedAt && !p.leftAt).length || 0;
             return `${activeMembers} thành viên`;
         }
-        if (otherUserStatus.isOnline) {
+        if (otherUserStatus.isOnline || isChatbot) {
             return 'Đang hoạt động';
         }
         return formatLastActiveDetailed(otherUserStatus.lastActive);
@@ -1486,9 +1487,9 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             variant="dot"
                             sx={{
                                 "& .MuiBadge-badge": {
-                                    backgroundColor: otherUserStatus.isOnline ? theme.palette.success.main : "none",
+                                    backgroundColor: otherUserStatus.isOnline || isChatbot ? theme.palette.success.main : "none",
                                     border: `2px solid ${theme.palette.background.paper}`,
-                                    display: otherUserStatus.isOnline ? "block" : "none",
+                                    display: otherUserStatus.isOnline || isChatbot ? "block" : "none",
                                     width: { xs: 12, md: 15 },
                                     borderRadius: '50%',
                                     height: { xs: 12, md: 15 },
@@ -1504,7 +1505,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             <Typography
                                 variant="body2"
                                 fontSize={{ xs: 11, md: 12 }}
-                                color={otherUserStatus.isOnline ? 'success.main' : 'text.secondary'}
+                                color={otherUserStatus.isOnline || isChatbot ? 'success.main' : 'text.secondary'}
                                 noWrap
                             >
                                 {statusText}

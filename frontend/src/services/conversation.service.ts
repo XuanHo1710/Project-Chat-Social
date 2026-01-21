@@ -34,6 +34,10 @@ class ConversationService {
     );
     return response.data;
   }
+  async createChatbotConversation(): Promise<ConversationResponseData> {
+    const response = await axios.post<APIResponse<ConversationResponseData>>("/conversation/chatbot");
+    return response.data.data;
+  }
 }
 
 export const conversationService = new ConversationService();

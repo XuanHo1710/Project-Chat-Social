@@ -7,8 +7,8 @@ export type ConversationDocument = HydratedDocument<Conversation>;
 export class Conversation {
   _id: mongoose.Schema.Types.ObjectId;
 
-  @Prop({ enum: ['GROUP', 'DIRECT'], required: true })
-  type: string; // 'GROUP' | 'DIRECT'
+  @Prop({ enum: ['GROUP', 'DIRECT', 'CHATBOT'], required: true })
+  type: string; // 'GROUP' | 'DIRECT' | 'CHATBOT'
 
   @Prop({ default: false })
   isBlocked: boolean;

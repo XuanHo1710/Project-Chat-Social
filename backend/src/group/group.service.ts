@@ -29,7 +29,7 @@ export class GroupService {
     @Inject(forwardRef(() => NotificationService))
     private notificationService: NotificationService,
     private groupGateway: GroupGateway
-  ) {}
+  ) { }
 
   // ==================== GROUP CRUD ====================
 
@@ -387,6 +387,9 @@ export class GroupService {
     if (result.deletedCount === 0) {
       throw new NotFoundException('Không tìm thấy yêu cầu tham gia');
     }
+
+    // Chỉnh thông báo nếu có
+    await this.notificationService.respondGroupInvitationRequest(userId, groupId, 'REJECTED');
 
     return { message: 'Đã hủy yêu cầu tham gia' };
   }

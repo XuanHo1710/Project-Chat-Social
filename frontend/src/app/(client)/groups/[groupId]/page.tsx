@@ -497,7 +497,7 @@ export default function GroupDetailPage() {
                                     )}
                                 </>
                             ) : group.isPending ? (
-                                <Button variant="contained" onClick={handleCancelRequest} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>Hủy yêu cầu</Button>
+                                <Button variant="contained" onClick={handleCancelRequest} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>Hủy yêu cầu tham gia</Button>
                             ) : (
                                 <Button variant="contained" onClick={handleJoinGroup} disabled={isJoining} sx={{ bgcolor: 'primary.main', textTransform: 'none', fontWeight: 600, px: 3, borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' } }}>{isJoining ? <CircularProgress size={20} color="inherit" /> : '+ Tham gia nhóm'}</Button>
                             )}

@@ -207,6 +207,22 @@ export class NotificationService {
     }
   }
 
+  async respondGroupInvitationRequest(userId: string, groupdId: string, action: 'ACCEPTED' | 'REJECTED') {
+    const notification = await this.notificationModel.findOne({
+      recipientId: new Types.ObjectId(userId),
+      groupId: new Types.ObjectId(groupdId),
+      type: NotificationType.GROUP_INVITATION,
+      actionStatus: 'PENDING',
+      isActive: true,
+    });
+    if (!notification) return;
+    notification.actionStatus = action;
+    notification.message = action === 'ACCEPTED' ? 'Bạn đã chấp nhận lời mời tham gia nhóm.' : 'Bạn đã từ chối lời mời tham gia nhóm.';
+    notification.status = NotificationStatus.READ;
+    await notification.save();
+    return { message: 'Đã phản hồi yêu cầu tham gia nhóm' };
+  }
+
   // Get unread count
   async getUnreadCount(userId: string) {
     const count = await this.notificationModel.countDocuments({

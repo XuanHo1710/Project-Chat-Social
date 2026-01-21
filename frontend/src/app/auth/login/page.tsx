@@ -321,7 +321,7 @@ export default function LoginPage() {
                     }
                     label={<Typography variant="body2">Ghi nhớ đăng nhập</Typography>}
                   />
-                  <Link href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 no-underline hover:underline">
+                  <Link href={CLIENT_PATH.FORGOT_PASSWORD} className="text-sm font-medium text-blue-600 hover:text-blue-700 no-underline hover:underline">
                     Quên mật khẩu?
                   </Link>
                 </Stack>

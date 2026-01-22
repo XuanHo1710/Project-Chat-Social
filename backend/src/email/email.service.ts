@@ -24,7 +24,8 @@ export class EmailService {
 
   constructor(private configService: ConfigService) {
     this.apiKey = this.configService.get<string>('BREVO_API_KEY') || '';
-    this.senderEmail = this.configService.get<string>('BREVO_SENDER_EMAIL') || 'noreply@socialchat.com';
+    this.senderEmail =
+      this.configService.get<string>('BREVO_SENDER_EMAIL') || 'noreply@socialchat.com';
     this.senderName = this.configService.get<string>('BREVO_SENDER_NAME') || 'Social Chat';
 
     if (!this.apiKey) {
@@ -56,7 +57,7 @@ export class EmailService {
       const response = await fetch(this.brevoApiUrl, {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'Content-Type': 'application/json',
           'api-key': this.apiKey,
         },
@@ -66,10 +67,8 @@ export class EmailService {
       const data: BrevoResponse = await response.json();
 
       if (response.ok) {
-        this.logger.log(`Email sent successfully to ${options.to}. MessageId: ${data.messageId}`);
         return true;
       } else {
-        this.logger.error(`Failed to send email: ${data.code} - ${data.message}`);
         return false;
       }
     } catch (error) {
@@ -91,7 +90,6 @@ export class EmailService {
 
     // If no API key, skip email but return true for dev testing
     if (!this.apiKey) {
-      this.logger.warn(`[DEV MODE] Email skipped - No BREVO_API_KEY configured. OTP: ${otp}`);
       return true; // Allow flow to continue in dev
     }
 
@@ -105,7 +103,6 @@ export class EmailService {
 
     // If email fails, still log OTP for dev testing
     if (!success) {
-      this.logger.warn(`[FALLBACK] Email failed to send. OTP for ${email}: ${otp}`);
       // Return true in non-production to allow testing
       return nodeEnv !== 'production';
     }
@@ -279,6 +276,9 @@ export class EmailService {
    * Strip HTML tags for plain text version
    */
   private stripHtml(html: string): string {
-    return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    return html
+      .replace(/<[^>]*>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }

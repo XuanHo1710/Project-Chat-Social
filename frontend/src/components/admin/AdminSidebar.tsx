@@ -28,6 +28,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRouter } from 'next/navigation';
+import { useSettingsStore, THEME_COLORS } from '@/stores/useSettingsStore';
 
 const drawerWidth = 260; // Tăng độ rộng chút cho thoáng
 
@@ -42,8 +43,11 @@ const menuItems = [
 export default function AdminSidebar() {
     const theme = useTheme();
     const pathname = usePathname();
+
     const router = useRouter();
     const { logout, user } = useAuthStore();
+    const { themeColor } = useSettingsStore();
+    const activeColor = THEME_COLORS[themeColor];
 
     const handleLogout = () => {
         logout();
@@ -128,11 +132,11 @@ export default function AdminSidebar() {
                                         px: 2.5,
                                         transition: 'all 0.2s ease-in-out',
                                         '&.Mui-selected': {
-                                            backgroundColor: theme.palette.primary.main,
+                                            backgroundColor: activeColor,
                                             color: '#fff',
-                                            boxShadow: `0 8px 20px -4px ${theme.palette.primary.main}80`, // Colored shadow
+                                            boxShadow: `0 8px 20px -4px ${activeColor}80`, // Colored shadow
                                             '&:hover': {
-                                                backgroundColor: theme.palette.primary.dark,
+                                                filter: 'brightness(0.9)',
                                             },
                                             '& .MuiListItemIcon-root': {
                                                 color: '#fff',

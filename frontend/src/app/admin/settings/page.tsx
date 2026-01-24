@@ -41,6 +41,8 @@ import {
     Palette as PaletteIcon
 } from '@mui/icons-material';
 import { useThemeStore } from '@/stores/useThemeStore';
+import { useSettingsStore, THEME_COLORS } from '@/stores/useSettingsStore';
+import { useTranslation } from 'react-i18next';
 
 // Admin color schemes
 const adminColorSchemes = [
@@ -57,12 +59,16 @@ export default function SettingsPage() {
     const { mode, setMode } = useThemeStore();
     const isDark = theme.palette.mode === 'dark';
 
-    // Settings states
-    const [language, setLanguage] = useState('vi');
-    const [adminColorScheme, setAdminColorScheme] = useState('blue');
-    const [fontSize, setFontSize] = useState(14);
-    const [compactMode, setCompactMode] = useState(false);
-    const [showAnimations, setShowAnimations] = useState(true);
+    const {
+        themeColor, setThemeColor,
+        fontSize, setFontSize,
+        compactMode, toggleCompactMode,
+        enableMotion: showAnimations, toggleMotion: setShowAnimations, // Map store props to existing variable names if needed, or rename usage
+        language, setLanguage
+    } = useSettingsStore();
+    const { t, i18n } = useTranslation();
+
+    // Local states for settings NOT in store yet
     const [emailNotifications, setEmailNotifications] = useState(true);
     const [pushNotifications, setPushNotifications] = useState(true);
     const [soundNotifications, setSoundNotifications] = useState(false);
@@ -71,24 +77,23 @@ export default function SettingsPage() {
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [refreshInterval, setRefreshInterval] = useState(30);
 
+    const handleLanguageChange = (lang: string) => {
+        setLanguage(lang as any);
+        i18n.changeLanguage(lang);
+    };
+
     const handleSaveSettings = () => {
-        // Save settings logic here
+        // Store automatically persists, so just show success
         console.log('Settings saved');
     };
 
     const handleRestoreDefaults = () => {
         setLanguage('vi');
-        setAdminColorScheme('blue');
+        i18n.changeLanguage('vi');
+        setThemeColor('blue');
         setFontSize(14);
-        setCompactMode(false);
-        setShowAnimations(true);
-        setEmailNotifications(true);
-        setPushNotifications(true);
-        setSoundNotifications(false);
-        setTwoFactorAuth(false);
-        setSessionTimeout(30);
-        setAutoRefresh(true);
-        setRefreshInterval(30);
+        if (compactMode) toggleCompactMode();
+        if (!showAnimations) setShowAnimations();
     };
 
     const cardStyle = {
@@ -205,17 +210,17 @@ export default function SettingsPage() {
                         {adminColorSchemes.map((scheme) => (
                             <Tooltip key={scheme.id} title={scheme.name}>
                                 <Box
-                                    onClick={() => setAdminColorScheme(scheme.id)}
+                                    onClick={() => setThemeColor(scheme.id as any)}
                                     sx={{
                                         width: 48,
                                         height: 48,
                                         borderRadius: 2,
                                         background: `linear-gradient(135deg, ${scheme.primary} 50%, ${scheme.secondary} 50%)`,
                                         cursor: 'pointer',
-                                        border: adminColorScheme === scheme.id
+                                        border: themeColor === scheme.id
                                             ? '3px solid white'
                                             : '2px solid transparent',
-                                        boxShadow: adminColorScheme === scheme.id
+                                        boxShadow: themeColor === scheme.id
                                             ? `0 0 0 2px ${scheme.primary}`
                                             : 'none',
                                         transition: 'all 0.2s',
@@ -258,7 +263,7 @@ export default function SettingsPage() {
                 {/* Other appearance options */}
                 <Stack spacing={2}>
                     <FormControlLabel
-                        control={<Switch checked={compactMode} onChange={(e) => setCompactMode(e.target.checked)} />}
+                        control={<Switch checked={compactMode} onChange={toggleCompactMode} />}
                         label={
                             <Box>
                                 <Typography variant="body2" fontWeight="500">Chế độ gọn</Typography>
@@ -269,7 +274,7 @@ export default function SettingsPage() {
                         }
                     />
                     <FormControlLabel
-                        control={<Switch checked={showAnimations} onChange={(e) => setShowAnimations(e.target.checked)} />}
+                        control={<Switch checked={showAnimations} onChange={setShowAnimations} />}
                         label={
                             <Box>
                                 <Typography variant="body2" fontWeight="500">Hiệu ứng động</Typography>
@@ -294,7 +299,7 @@ export default function SettingsPage() {
                     <Select
                         value={language}
                         label="Ngôn ngữ hiển thị"
-                        onChange={(e) => setLanguage(e.target.value)}
+                        onChange={(e) => handleLanguageChange(e.target.value)}
                     >
                         <MenuItem value="vi">🇻🇳 Tiếng Việt</MenuItem>
                         <MenuItem value="en">🇺🇸 English</MenuItem>

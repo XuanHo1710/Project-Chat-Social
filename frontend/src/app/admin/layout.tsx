@@ -4,6 +4,7 @@ import { Box, Toolbar, CssBaseline } from '@mui/material';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import AdminHeader from '@/components/admin/AdminHeader';
 import { useAuthStore } from '@/stores/useAuthStore';
+import '@/lib/i18n';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 

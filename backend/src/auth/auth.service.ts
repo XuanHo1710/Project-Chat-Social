@@ -40,7 +40,10 @@ export class AuthService {
   }
 
   async verifyAccount(username: string, passPlainText: string): Promise<any | null> {
-    const account = await this.accountService.findByUsername(username);
+    let account = await this.accountService.findByUsername(username);
+    if (!account) {
+      account = await this.accountService.findByEmail(username);
+    }
     const isCorrect = bcrypt.compareSync(passPlainText, account?.password || '');
     if (account && isCorrect) {
       return account;

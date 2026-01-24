@@ -6,6 +6,7 @@ import {
     Param,
     Delete,
     Put,
+    Post,
     Body
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -57,6 +58,12 @@ export class AdminController {
     }
 
     // ========== USER MANAGEMENT (Admin only) ==========
+
+    @Post('users')
+    @Admin()
+    async createAccount(@Body() body: any) {
+        return this.adminService.createAccount(body);
+    }
 
     @Get('users')
     @Admin()

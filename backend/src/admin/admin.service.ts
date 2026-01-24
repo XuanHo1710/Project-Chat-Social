@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import * as bcrypt from 'bcrypt';
 import { Model } from 'mongoose';
 import { Account, AccountDocument } from '../account/entities/account.entity';
 import { Post, PostDocument } from '../post/entities/post.entity';
@@ -293,6 +294,48 @@ export class AdminService {
             .select('-password -accessToken');
     }
 
+    async createAccount(data: any): Promise<any> {
+        const { fullName, email, password, role, username } = data;
+
+        if (!username) throw new BadRequestException('Vui lòng cung cấp username');
+
+        // Check if email or username exists
+        const existingUser = await this.accountModel.findOne({ $or: [{ email }, { username }] });
+        if (existingUser) {
+            if (existingUser.email === email) throw new BadRequestException('Email đã tồn tại');
+            if (existingUser.username === username) throw new BadRequestException('Username đã tồn tại');
+        }
+
+        // Split name (simple logic)
+        const nameParts = fullName.trim().split(' ');
+        const lastName = nameParts.length > 1 ? nameParts.pop() || '' : '';
+        const firstName = nameParts.join(' ') || fullName;
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+
+
+        const newAccount = new this.accountModel({
+            firstName,
+            lastName,
+            email,
+            username,
+            password: hashedPassword,
+            role,
+            status: 'ACTIVE',
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=random`,
+            authProvider: 'LOCAL'
+        });
+
+        await newAccount.save();
+
+        // Return without sensitive data
+        const { password: p, ...result } = newAccount.toObject();
+        return result;
+    }
+
     // ========== POST MANAGEMENT ==========
 
     async getPosts(query: PaginationQuery): Promise<any> {
@@ -305,7 +348,7 @@ export class AdminService {
         if (status && status !== 'ALL') {
             if (status === 'ACTIVE') filter.isHidden = { $ne: true };
             else if (status === 'HIDDEN') filter.isHidden = true;
-            else if (status === 'REPORTED') filter.reportCount = { $gt: 0 };
+            // else if (status === 'REPORTED') filter.reportCount = { $gt: 0 }; // Tạm ẩn vì chưa có field reportCount
         }
 
         if (privacy && privacy !== 'ALL') {
@@ -321,9 +364,9 @@ export class AdminService {
         // Build sort
         const sortMapping: Record<string, string> = {
             time: 'createdAt',
-            reactions: 'reactionCount',
-            comments: 'commentCount',
-            shares: 'shareCount',
+            reactions: 'totalReacts',
+            comments: 'totalComments',
+            shares: 'totalShares',
             createdAt: 'createdAt'
         };
         const sortField = sortMapping[sortBy] || 'createdAt';
@@ -332,7 +375,7 @@ export class AdminService {
         const [posts, total] = await Promise.all([
             this.postModel
                 .find(filter)
-                .populate('author', 'firstName lastName avatar username')
+                .populate('userId', 'firstName lastName avatar username')
                 .sort(sort)
                 .skip(skip)
                 .limit(limit)
@@ -340,13 +383,8 @@ export class AdminService {
             this.postModel.countDocuments(filter)
         ]);
 
-        // Get reaction and comment counts for each post
-        const postsWithStats = await Promise.all(posts.map(async (post) => {
-            const [reactionCount, commentCount] = await Promise.all([
-                this.reactionModel.countDocuments({ postId: post._id }),
-                this.commentModel.countDocuments({ postId: post._id, isDeleted: { $ne: true } })
-            ]);
-
+        // Map posts with stats directly from Post entity fields
+        const postsWithStats = posts.map((post) => {
             return {
                 id: post._id,
                 author: post.userId
@@ -355,14 +393,14 @@ export class AdminService {
                 authorAvatar: (post.userId as any)?.avatar,
                 content: post.content,
                 privacy: post.privacy,
-                reactions: reactionCount,
-                comments: commentCount,
-                shares: (post as any).shareCount || 0,
+                reactions: (post as any).totalReacts || 0,
+                comments: (post as any).totalComments || 0,
+                shares: (post as any).totalShares || 0,
                 status: (post as any).isHidden ? 'HIDDEN' : ((post as any).reportCount > 0 ? 'REPORTED' : 'ACTIVE'),
                 time: this.getTimeAgo(post.createdAt),
                 createdAt: post.createdAt
             };
-        }));
+        });
 
         return {
             data: postsWithStats,
@@ -378,9 +416,10 @@ export class AdminService {
     async getPostById(id: string): Promise<any> {
         return this.postModel
             .findById(id)
-            .populate('author', 'firstName lastName avatar username')
+            .populate('userId', 'firstName lastName avatar username')
             .lean();
     }
+
 
     async deletePost(id: string) {
         return this.postModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });

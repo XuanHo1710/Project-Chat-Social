@@ -183,6 +183,14 @@ class AdminService {
         return response.data.data;
     }
 
+    async createAccount(data: any): Promise<AdminUser> {
+        const response = await axios.post<APIResponse<AdminUser>>(
+            `/${PREFIX}/users`,
+            data
+        );
+        return response.data.data;
+    }
+
     // ========== POST MANAGEMENT ==========
 
     async getPosts(params: PostQueryParams = {}): Promise<PaginationResponse<AdminPost>> {

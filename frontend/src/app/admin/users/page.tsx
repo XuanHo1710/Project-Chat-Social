@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
     Box,
     Paper,
@@ -58,12 +59,15 @@ import {
     Person as PersonIcon,
     Work as WorkIcon,
     Email as EmailIcon,
-    Lock as LockIcon
+    Lock as LockIcon,
+    ArrowDownward as ArrowDownwardIcon,
+    ArrowUpward as ArrowUpwardIcon
 } from '@mui/icons-material';
 import { adminService, AdminUser } from '@/services/admin.service';
 
 interface AddAccountFormData {
     fullName: string;
+    username: string;
     email: string;
     password: string;
     confirmPassword: string;
@@ -79,24 +83,26 @@ export default function UsersManagementPage() {
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
     const [showFilters, setShowFilters] = useState(false);
     const [addAccountOpen, setAddAccountOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(''); // For API query
+    const [inputValue, setInputValue] = useState(''); // For input field
 
     // Filter states
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [roleFilter, setRoleFilter] = useState('ALL');
-    const [sortBy, setSortBy] = useState('lastLogin');
+    const [sortBy, setSortBy] = useState('createdAt');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const limit = 10;
 
     // API Query
     const { data: usersData, isLoading, refetch } = useQuery({
-        queryKey: ['admin', 'users', { page, limit, status: statusFilter, role: roleFilter, sortBy, search: searchTerm }],
+        queryKey: ['admin', 'users', { page, limit, status: statusFilter, role: roleFilter, sortBy, sortOrder, search: searchTerm }],
         queryFn: () => adminService.getUsers({
             page,
             limit,
             status: statusFilter !== 'ALL' ? statusFilter : undefined,
             role: roleFilter !== 'ALL' ? roleFilter : undefined,
             sortBy,
-            sortOrder: 'desc',
+            sortOrder,
             search: searchTerm || undefined
         }),
     });
@@ -107,6 +113,7 @@ export default function UsersManagementPage() {
     // Add account form
     const [formData, setFormData] = useState<AddAccountFormData>({
         fullName: '',
+        username: '',
         email: '',
         password: '',
         confirmPassword: '',
@@ -133,6 +140,7 @@ export default function UsersManagementPage() {
     const handleOpenAddAccount = () => {
         setFormData({
             fullName: '',
+            username: '',
             email: '',
             password: '',
             confirmPassword: '',
@@ -149,6 +157,8 @@ export default function UsersManagementPage() {
     const validateForm = () => {
         const errors: Partial<AddAccountFormData> = {};
         if (!formData.fullName.trim()) errors.fullName = 'Vui lòng nhập họ tên';
+        if (!formData.username.trim()) errors.username = 'Vui lòng nhập tên đăng nhập';
+        else if (formData.username.includes(' ')) errors.username = 'Tên đăng nhập không được chứa khoảng trắng';
         if (!formData.email.trim()) errors.email = 'Vui lòng nhập email';
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = 'Email không hợp lệ';
         if (!formData.password) errors.password = 'Vui lòng nhập mật khẩu';
@@ -158,11 +168,22 @@ export default function UsersManagementPage() {
         return Object.keys(errors).length === 0;
     };
 
+    const createAccountMutation = useMutation({
+        mutationFn: (data: AddAccountFormData) => adminService.createAccount(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+            handleCloseAddAccount();
+            toast.success('Tạo tài khoản thành công');
+        },
+        onError: (error: any) => {
+            console.error(error);
+            toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi tạo tài khoản');
+        }
+    });
+
     const handleAddAccount = () => {
         if (validateForm()) {
-            console.log('Adding account:', formData);
-            // API call here
-            handleCloseAddAccount();
+            createAccountMutation.mutate(formData as any);
         }
     };
 
@@ -251,6 +272,10 @@ export default function UsersManagementPage() {
                 <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
                     <Paper
                         component="form"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            setSearchTerm(inputValue); // Trigger search on Enter
+                        }}
                         sx={{
                             p: '2px 4px',
                             display: 'flex',
@@ -261,12 +286,14 @@ export default function UsersManagementPage() {
                             borderRadius: 100
                         }}
                     >
-                        <IconButton sx={{ p: '10px' }} aria-label="search">
+                        <IconButton type="submit" sx={{ p: '10px' }} aria-label="search">
                             <SearchIcon />
                         </IconButton>
                         <InputBase
                             sx={{ ml: 1, flex: 1 }}
                             placeholder="Tìm kiếm theo tên, email..."
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
                         />
                     </Paper>
                     <Button
@@ -334,6 +361,18 @@ export default function UsersManagementPage() {
                                 <MenuItem value="createdAt">Ngày tạo</MenuItem>
                             </Select>
                         </FormControl>
+
+                        <Tooltip title={sortOrder === 'desc' ? "Giảm dần" : "Tăng dần"}>
+                            <IconButton
+                                onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                                sx={{
+                                    border: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}`,
+                                    borderRadius: 1
+                                }}
+                            >
+                                {sortOrder === 'desc' ? <ArrowDownwardIcon fontSize="small" /> : <ArrowUpwardIcon fontSize="small" />}
+                            </IconButton>
+                        </Tooltip>
 
                         {hasActiveFilters && (
                             <Button
@@ -528,6 +567,20 @@ export default function UsersManagementPage() {
                             InputProps={{
                                 startAdornment: <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
                             }}
+                            placeholder="VD: Nguyễn Văn A"
+                        />
+
+                        <TextField
+                            fullWidth
+                            label="Tên đăng nhập (Username)"
+                            value={formData.username}
+                            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                            error={!!formErrors.username}
+                            helperText={formErrors.username}
+                            InputProps={{
+                                startAdornment: <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                            }}
+                            placeholder="VD: nguyenvan_a"
                         />
 
                         <TextField
@@ -541,6 +594,7 @@ export default function UsersManagementPage() {
                             InputProps={{
                                 startAdornment: <EmailIcon sx={{ mr: 1, color: 'text.secondary' }} />
                             }}
+                            placeholder="VD: example@email.com"
                         />
 
                         <TextField
@@ -554,6 +608,7 @@ export default function UsersManagementPage() {
                             InputProps={{
                                 startAdornment: <LockIcon sx={{ mr: 1, color: 'text.secondary' }} />
                             }}
+                            placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
                         />
 
                         <TextField
@@ -567,6 +622,7 @@ export default function UsersManagementPage() {
                             InputProps={{
                                 startAdornment: <LockIcon sx={{ mr: 1, color: 'text.secondary' }} />
                             }}
+                            placeholder="Nhập lại mật khẩu"
                         />
 
                         {/* Role permissions info */}
@@ -602,9 +658,9 @@ export default function UsersManagementPage() {
                     <Button
                         variant="contained"
                         onClick={handleAddAccount}
-                        disabled={!formData.fullName || !formData.email || !formData.password}
+                        disabled={createAccountMutation.isPending || !formData.fullName || !formData.email || !formData.password}
                     >
-                        Tạo tài khoản
+                        {createAccountMutation.isPending ? <CircularProgress size={24} color="inherit" /> : 'Tạo tài khoản'}
                     </Button>
                 </DialogActions>
             </Dialog>

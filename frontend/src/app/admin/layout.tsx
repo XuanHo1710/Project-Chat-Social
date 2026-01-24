@@ -18,7 +18,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             // Logic check quyền admin (hiện tại check user tồn tại và role)
             if (!user) {
                 router.push('/auth/login');
-            } else if (user.role !== 'ADMIN') {
+            } else if (user.role !== 'ADMIN' && user.role !== 'EMPLOYEE') {
                 router.push('/');
             } else {
                 setIsAuthorized(true);

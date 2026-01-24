@@ -47,7 +47,9 @@ import {
     Close as CloseIcon,
     ThumbUp as ThumbUpIcon,
     Comment as CommentIcon,
-    Share as ShareIcon
+    Share as ShareIcon,
+    ArrowDownward as ArrowDownwardIcon,
+    ArrowUpward as ArrowUpwardIcon
 } from '@mui/icons-material';
 import { adminService, AdminPost } from '@/services/admin.service';
 
@@ -59,24 +61,26 @@ export default function PostsManagementPage() {
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [selectedPost, setSelectedPost] = useState<AdminPost | null>(null);
     const [showFilters, setShowFilters] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(''); // For API query
+    const [inputValue, setInputValue] = useState(''); // For input field
 
     // Filter states
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [privacyFilter, setPrivacyFilter] = useState('ALL');
     const [sortBy, setSortBy] = useState('time');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const limit = 10;
 
     // API Query
     const { data: postsData, isLoading } = useQuery({
-        queryKey: ['admin', 'posts', { page, limit, status: statusFilter, privacy: privacyFilter, sortBy, search: searchTerm }],
+        queryKey: ['admin', 'posts', { page, limit, status: statusFilter, privacy: privacyFilter, sortBy, sortOrder, search: searchTerm }],
         queryFn: () => adminService.getPosts({
             page,
             limit,
             status: statusFilter !== 'ALL' ? statusFilter : undefined,
             privacy: privacyFilter !== 'ALL' ? privacyFilter : undefined,
             sortBy,
-            sortOrder: 'desc',
+            sortOrder,
             search: searchTerm || undefined
         }),
     });
@@ -179,6 +183,10 @@ export default function PostsManagementPage() {
                 <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
                     <Paper
                         component="form"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            setSearchTerm(inputValue); // Trigger search on Enter
+                        }}
                         sx={{
                             p: '2px 4px',
                             display: 'flex',
@@ -189,12 +197,14 @@ export default function PostsManagementPage() {
                             borderRadius: 100
                         }}
                     >
-                        <IconButton sx={{ p: '10px' }} aria-label="search">
+                        <IconButton type="submit" sx={{ p: '10px' }} aria-label="search">
                             <SearchIcon />
                         </IconButton>
                         <InputBase
                             sx={{ ml: 1, flex: 1 }}
                             placeholder="Tìm kiếm bài viết..."
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
                         />
                     </Paper>
                     <Button
@@ -263,6 +273,18 @@ export default function PostsManagementPage() {
                                 <MenuItem value="shares">Lượt chia sẻ</MenuItem>
                             </Select>
                         </FormControl>
+
+                        <Tooltip title={sortOrder === 'desc' ? "Giảm dần" : "Tăng dần"}>
+                            <IconButton
+                                onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                                sx={{
+                                    border: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}`,
+                                    borderRadius: 1
+                                }}
+                            >
+                                {sortOrder === 'desc' ? <ArrowDownwardIcon fontSize="small" /> : <ArrowUpwardIcon fontSize="small" />}
+                            </IconButton>
+                        </Tooltip>
 
                         {hasActiveFilters && (
                             <Button

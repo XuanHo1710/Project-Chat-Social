@@ -19,6 +19,7 @@ import { useReactionStore } from '@/stores/useReactionStore';
 import { useEffect, useState, forwardRef, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
+import { useTranslation } from 'react-i18next';
 
 // Highlight animation
 const highlightPulse = keyframes`
@@ -59,6 +60,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const [reactionListOpen, setReactionListOpen] = useState(false);
+    const { t } = useTranslation();
 
     // Use selector to get specific post reaction state - ensures re-render on change
     const totalReacts = useReactionStore(state => state.postReactions[post._id]?.totalReacts);
@@ -189,7 +191,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                         }}
                                         onClick={post.isAnonymous ? undefined : handleProfileClick}
                                     >
-                                        {post.isAnonymous ? 'Thành viên ẩn danh' : getAuthorName(post)}
+                                        {post.isAnonymous ? t('post.anonymous_member') : getAuthorName(post)}
                                     </Typography>
                                     <Typography sx={{ fontSize: '13px', color: 'text.secondary' }}>·</Typography>
                                     <Typography sx={{ fontSize: '13px', color: 'text.secondary' }}>{formatPostTime(post.createdAt)}</Typography>
@@ -209,11 +211,11 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                     }}
                                     onClick={post.isAnonymous ? undefined : handleProfileClick}
                                 >
-                                    {post.isAnonymous ? 'Thành viên ẩn danh' : getAuthorName(post)}
+                                    {post.isAnonymous ? t('post.anonymous_member') : getAuthorName(post)}
                                     {/* Show shared indicator */}
                                     {post.sharedPostId && (
                                         <Typography component="span" sx={{ fontWeight: 400, color: 'text.secondary', fontSize: '14px' }}>
-                                            {' đã chia sẻ một bài viết'}
+                                            {' '}{t('post.shared_a_post')}
                                         </Typography>
                                     )}
                                 </Typography>
@@ -321,8 +323,8 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                         )}
                     </Box>
                     <Box sx={{ display: 'flex', gap: 2 }}>
-                        <Typography sx={{ fontSize: 15, color: 'text.secondary', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }} onClick={() => handleOpenComments(post)}>{post.totalComments} bình luận</Typography>
-                        <Typography sx={{ fontSize: 15, color: 'text.secondary' }}>{post.totalShares} lượt chia sẻ</Typography>
+                        <Typography sx={{ fontSize: 15, color: 'text.secondary', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }} onClick={() => handleOpenComments(post)}>{post.totalComments} {t('post.comments_count')}</Typography>
+                        <Typography sx={{ fontSize: 15, color: 'text.secondary' }}>{post.totalShares} {t('post.shares')}</Typography>
                     </Box>
                 </Box>
 
@@ -349,7 +351,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                             cursor: 'not-allowed'
                         }}>
                             <ThumbUpIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Thích</Typography>
+                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.like')}</Typography>
                         </Box>
                     )}
 
@@ -370,7 +372,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                         }}
                     >
                         <CommentIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
-                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Bình luận</Typography>
+                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.comment')}</Typography>
                     </Box>
 
                     <Box
@@ -390,7 +392,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                         }}
                     >
                         <ShareIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
-                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Chia sẻ</Typography>
+                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.share')}</Typography>
                     </Box>
                 </Box>
             </CardContent>

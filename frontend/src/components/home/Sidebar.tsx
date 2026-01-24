@@ -19,11 +19,13 @@ import { CLIENT_PATH } from '@/constants/paths';
 import { groupService } from '@/services/group.service';
 import { conversationService } from '@/services/conversation.service';
 import { GroupWithMembership } from '@/types/group';
+import { useTranslation } from 'react-i18next';
 
 export default function Sidebar() {
     const { user } = useAuthStore();
     const router = useRouter();
     const theme = useTheme();
+    const { t } = useTranslation();
     const isDark = theme.palette.mode === 'dark';
     const [expanded, setExpanded] = useState(false);
     const [userGroups, setUserGroups] = useState<GroupWithMembership[]>([]);
@@ -54,16 +56,16 @@ export default function Sidebar() {
             avatarSrc: user?.avatar,
             path: user?.username ? CLIENT_PATH.PROFILE_BY_USERNAME(user.username) : '/'
         },
-        { icon: <PeopleIcon sx={{ fontSize: 28 }} />, label: 'Bạn bè', path: '/friends', color: '#1877f2' },
-        { icon: <GroupsIcon sx={{ fontSize: 28 }} />, label: 'Nhóm', path: '/groups', color: '#1e9f1cff' },
-        { icon: <VideoIcon sx={{ fontSize: 28 }} />, label: 'Watch', path: '/reels', color: '#1877f2' },
-        { icon: <BookmarkIcon sx={{ fontSize: 28 }} />, label: 'Đã lưu', path: '/saved', color: '#a333c8' },
+        { icon: <PeopleIcon sx={{ fontSize: 28 }} />, label: t('nav.friends'), path: '/friends', color: '#1877f2' },
+        { icon: <GroupsIcon sx={{ fontSize: 28 }} />, label: t('nav.groups'), path: '/groups', color: '#1e9f1cff' },
+        { icon: <VideoIcon sx={{ fontSize: 28 }} />, label: t('nav.watch'), path: '/reels', color: '#1877f2' },
+        { icon: <BookmarkIcon sx={{ fontSize: 28 }} />, label: t('nav.saved'), path: '/saved', color: '#a333c8' },
     ];
 
     const expandedItems = [
-        { icon: <AIIcon sx={{ fontSize: 28 }} />, label: 'Chat với AI', path: '/ai-chat', color: '#00a67e' },
-        { icon: <MessageIcon sx={{ fontSize: 28 }} />, label: 'Messenger', path: '/chat', color: '#0084ff' },
-        { icon: <GamepadIcon sx={{ fontSize: 28 }} />, label: 'Gamestore', path: '/game', color: '#f44336' },
+        { icon: <AIIcon sx={{ fontSize: 28 }} />, label: t('nav.aiChat'), path: '/ai-chat', color: '#00a67e' },
+        { icon: <MessageIcon sx={{ fontSize: 28 }} />, label: t('nav.messenger'), path: '/chat', color: '#0084ff' },
+        { icon: <GamepadIcon sx={{ fontSize: 28 }} />, label: t('nav.gamestore'), path: '/games', color: '#f44336' },
     ];
 
     const handleItemClick = async (path: string) => {
@@ -184,7 +186,7 @@ export default function Sidebar() {
                         </Box>
                     </ListItemIcon>
                     <ListItemText
-                        primary={expanded ? "Thu gọn" : "Xem thêm"}
+                        primary={expanded ? t('common.showLess') : t('common.showMore')}
                         primaryTypographyProps={{
                             fontSize: '15px',
                             fontWeight: 500,
@@ -246,7 +248,7 @@ export default function Sidebar() {
                             color: 'text.secondary',
                         }}
                     >
-                        Lối tắt của bạn
+                        {t('sidebar.yourShortcuts')}
                     </Typography>
                 </Box>
 
@@ -303,14 +305,14 @@ export default function Sidebar() {
                                             textOverflow: 'ellipsis',
                                         }
                                     }}
-                                    secondary={"Số thành viên:" + group.memberCount}
+                                    secondary={t('groups.memberCount', { count: group.memberCount })}
                                 />
                             </ListItemButton>
                         ))
                     ) : (
                         <Box sx={{ px: 2, py: 1.5 }}>
                             <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
-                                Chưa tham gia nhóm nào
+                                {t('sidebar.noGroupsJoined')}
                             </Typography>
                         </Box>
                     )}
@@ -343,7 +345,7 @@ export default function Sidebar() {
                                 </Box>
                             </ListItemIcon>
                             <ListItemText
-                                primary="Xem tất cả nhóm"
+                                primary={t('sidebar.viewAllGroups')}
                                 primaryTypographyProps={{
                                     fontSize: '15px',
                                     fontWeight: 500,
@@ -358,7 +360,7 @@ export default function Sidebar() {
             {/* Footer */}
             <Box sx={{ px: 2, py: 2, mt: 2 }}>
                 <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.5 }}>
-                    Quyền riêng tư · Điều khoản · Quảng cáo · Lựa chọn quảng cáo · Cookie · Xem thêm · Meta © 2024
+                    {t('footer.privacy')} · {t('footer.terms')} · {t('footer.advertising')} · {t('footer.adChoices')} · {t('footer.cookies')} · {t('footer.more')} · Meta © 2024
                 </Typography>
             </Box>
         </Box>

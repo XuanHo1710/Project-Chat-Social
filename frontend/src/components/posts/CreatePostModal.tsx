@@ -33,8 +33,9 @@ import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import Image from "next/image";
 import { useMediaUpload } from "@/contexts/MediaUploadContext";
+import { useTranslation } from "react-i18next";
 
-// Privacy options
+// Privacy options will be generated dynamically with translations
 const privacyOptions = [
     {
         id: "PUBLIC" as PostPrivacy,
@@ -123,11 +124,33 @@ export default function CreatePostModal({
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isAnonymous, setIsAnonymous] = useState(false);
 
-    // Post mutation
     const createPostMutation = useCreatePost();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const { t } = useTranslation();
+
+    // Privacy options with translations
+    const privacyOptions = [
+        {
+            id: "PUBLIC" as PostPrivacy,
+            icon: PublicIcon,
+            label: t('post.public'),
+            description: t('post.public_desc'),
+        },
+        {
+            id: "FRIEND" as PostPrivacy,
+            icon: PeopleIcon,
+            label: t('post.friends_only'),
+            description: t('post.friends_only_desc'),
+        },
+        {
+            id: "PRIVATE" as PostPrivacy,
+            icon: LockIcon,
+            label: t('post.private'),
+            description: t('post.private_desc'),
+        },
+    ];
 
     // Reset states when modal closes
     useEffect(() => {
@@ -223,7 +246,7 @@ export default function CreatePostModal({
 
     // Get privacy label
     const getPrivacyLabel = () =>
-        privacyOptions.find((p) => p.id === selectedPrivacy)?.label || "Công khai";
+        privacyOptions.find((p) => p.id === selectedPrivacy)?.label || t('post.public');
 
     const PrivacyIcon =
         privacyOptions.find((p) => p.id === selectedPrivacy)?.icon || PublicIcon;
@@ -274,7 +297,7 @@ export default function CreatePostModal({
                         </IconButton>
                     )}
                     <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>
-                        {modalView === "create" ? (groupName ? `Đăng trong ${groupName}` : "Tạo bài viết") : "Đối tượng của bài viết"}
+                        {modalView === "create" ? (groupName ? t('post.post_in_group', { group: groupName }) : t('post.create_post')) : t('post.post_audience')}
                     </Typography>
                     <IconButton onClick={onClose} sx={{ position: "absolute", right: 8, color: 'text.secondary' }}>
                         <CloseIcon />
@@ -308,7 +331,7 @@ export default function CreatePostModal({
                                     </Avatar>
                                     <Box sx={{ flex: 1 }}>
                                         <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
-                                            {isAnonymous ? 'Ẩn danh' : (user?.fullName || user?.username)}
+                                            {isAnonymous ? t('post.anonymous') : (user?.fullName || user?.username)}
                                         </Typography>
                                         {!groupId ? (
                                             <Button
@@ -348,7 +371,7 @@ export default function CreatePostModal({
                                                     "&:hover": { bgcolor: isAnonymous ? "#166fe5" : "#d8dadf" },
                                                 }}
                                             >
-                                                {isAnonymous ? '✓ Ẩn danh' : 'Đăng ẩn danh?'}
+                                                {isAnonymous ? `✓ ${t('post.anonymous')}` : t('post.post_anonymously')}
                                             </Button>
                                         )}
                                     </Box>
@@ -378,7 +401,7 @@ export default function CreatePostModal({
                                     <InputBase
                                         multiline
                                         fullWidth
-                                        placeholder={`${user?.fullName || user?.username || "Bạn"} ơi, bạn đang nghĩ gì thế?`}
+                                        placeholder={`${user?.fullName || user?.username || t('common.you')}, ${t('post.whats_on_your_mind')}?`}
                                         value={postContent}
                                         onChange={(e) => setPostContent(e.target.value)}
                                         sx={{
@@ -443,7 +466,7 @@ export default function CreatePostModal({
                                                             textAlign: "center",
                                                         }}
                                                     >
-                                                        Đang tải lên... {uploadProgress}%
+                                                        {t('common.uploading')} {uploadProgress}%
                                                     </Typography>
                                                 </Box>
                                             )}
@@ -572,7 +595,7 @@ export default function CreatePostModal({
                                                 }}
                                                 startIcon={<PhotoIcon />}
                                             >
-                                                Thêm ảnh/video
+                                                {t('post.add_photo_video')}
                                             </Button>
                                         </Box>
                                     </Box>
@@ -645,7 +668,7 @@ export default function CreatePostModal({
                                     }}
                                 >
                                     <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
-                                        Thêm vào bài viết của bạn
+                                        {t('post.add_to_post')}
                                     </Typography>
                                     <Box sx={{ display: "flex", gap: 0.5, position: 'relative' }}>
                                         <IconButton
@@ -685,7 +708,7 @@ export default function CreatePostModal({
                                     {createPostMutation.isPending || isUploading ? (
                                         <CircularProgress size={24} sx={{ color: "white" }} />
                                     ) : (
-                                        "Đăng"
+                                        t('post.post_button')
                                     )}
                                 </Button>
                             </Box>
@@ -694,7 +717,7 @@ export default function CreatePostModal({
                         {/* Privacy View Slide */}
                         <Box sx={{ width: '50%', height: '100%', overflowY: "auto", p: 2 }}>
                             <Typography sx={{ mb: 2, color: "text.secondary", fontSize: 14 }}>
-                                Ai có thể xem bài viết của bạn?
+                                {t('post.who_can_see')}
                             </Typography>
                             {privacyOptions.map((option) => (
                                 <Box

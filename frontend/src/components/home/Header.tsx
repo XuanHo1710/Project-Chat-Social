@@ -37,6 +37,7 @@ import { CLIENT_PATH } from '@/constants/paths';
 import { notificationService } from '@/services/notification.service';
 import { chatService } from '@/services/chat.service';
 import { conversationService } from '@/services/conversation.service';
+import { useTranslation } from 'react-i18next';
 
 export default function Header() {
     const { user } = useAuthStore();
@@ -53,6 +54,7 @@ export default function Header() {
 
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const { t } = useTranslation();
 
     // Lazy load - only fetch conversations when popup is opened
     const { data: listConversation, isLoading: isLoadingConversations, refetch: refetchConversations } = useConversationByUserId(
@@ -307,12 +309,12 @@ export default function Header() {
         <Box sx={{ width: 280, pt: 2 }} role="presentation" onClick={handleDrawerToggle}>
             <List>
                 {[
-                    { label: 'Trang chủ', icon: <HomeIcon />, path: '/' },
-                    { label: 'Bạn bè', icon: <PeopleIcon />, path: '/friends' },
-                    { label: 'Watch', icon: <OndemandVideoIcon />, path: '/reels' },
-                    { label: 'Nhóm', icon: <GroupsIcon />, path: '/groups' },
-                    { label: 'Gamestore', icon: <GamesIcon />, path: '/game' },
-                    { label: 'Đã lưu', icon: <BookmarkIcon />, path: '/saved' },
+                    { label: t('nav.home'), icon: <HomeIcon />, path: '/' },
+                    { label: t('nav.friends'), icon: <PeopleIcon />, path: '/friends' },
+                    { label: t('nav.watch'), icon: <OndemandVideoIcon />, path: '/reels' },
+                    { label: t('nav.groups'), icon: <GroupsIcon />, path: '/groups' },
+                    { label: t('nav.gaming'), icon: <GamesIcon />, path: '/game' },
+                    { label: t('nav.saved'), icon: <BookmarkIcon />, path: '/saved' },
                 ].map((text) => (
                     <ListItem key={text.label} disablePadding>
                         <ListItemButton onClick={() => router.push(text.path)}>
@@ -413,7 +415,7 @@ export default function Header() {
                                         whiteSpace: 'nowrap'
                                     }}
                                 >
-                                    Tìm kiếm trên Facebook
+                                    {t('nav.search_social')}
                                 </Typography>
                             </Box>
                         </Link>
@@ -428,7 +430,7 @@ export default function Header() {
                             justifyContent: 'center'
                         }}
                     >
-                        <Tooltip title="Trang chủ" arrow placement="bottom">
+                        <Tooltip title={t('nav.home')} arrow placement="bottom">
                             <Link href={CLIENT_PATH.HOME} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
@@ -444,7 +446,7 @@ export default function Header() {
                                 </IconButton>
                             </Link>
                         </Tooltip>
-                        <Tooltip title="Bạn bè" arrow placement="bottom">
+                        <Tooltip title={t('nav.friends')} arrow placement="bottom">
                             <Link href="/friends" style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
@@ -460,7 +462,7 @@ export default function Header() {
                                 </IconButton>
                             </Link>
                         </Tooltip>
-                        <Tooltip title="Thước phim" arrow placement="bottom">
+                        <Tooltip title={t('nav.watch')} arrow placement="bottom">
                             <Link href={CLIENT_PATH.REELS} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
@@ -476,7 +478,7 @@ export default function Header() {
                                 </IconButton>
                             </Link>
                         </Tooltip>
-                        <Tooltip title="Nhóm" arrow placement="bottom">
+                        <Tooltip title={t('nav.groups')} arrow placement="bottom">
                             <Link href={CLIENT_PATH.GROUPS} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
@@ -492,7 +494,7 @@ export default function Header() {
                                 </IconButton>
                             </Link>
                         </Tooltip>
-                        <Tooltip title="Trò chơi" arrow placement="bottom">
+                        <Tooltip title={t('nav.gaming')} arrow placement="bottom">
                             <Link href={CLIENT_PATH.GAMES} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{

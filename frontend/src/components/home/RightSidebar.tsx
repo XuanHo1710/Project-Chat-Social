@@ -7,6 +7,7 @@ import { useDisplayListFriends } from '@/queries/useRelationshipQueries';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useOnlineStatusStore, formatLastActive } from '@/stores/useOnlineStatusStore';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 export default function RightSidebar() {
     const { user } = useAuthStore();
@@ -21,6 +22,7 @@ export default function RightSidebar() {
     const setUserOffline = useOnlineStatusStore(state => state.setUserOffline);
 
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const { t } = useTranslation();
 
     // Initialize status from friend data (only when friends load)
     useEffect(() => {
@@ -90,7 +92,7 @@ export default function RightSidebar() {
             {/* Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                 <Typography sx={{ fontSize: '17px', fontWeight: 600, color: 'text.secondary' }}>
-                    Người liên hệ
+                    {t('common.contacts')}
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                     <Box

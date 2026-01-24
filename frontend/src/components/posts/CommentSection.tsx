@@ -28,6 +28,7 @@ import Picker from "@emoji-mart/react";
 import { UploadMediaFiles } from "@/utils/uploadImage";
 import CommentItem from "@/components/posts/CommentItem";
 import MentionInput from "@/components/posts/MentionInput";
+import { useTranslation } from "react-i18next";
 
 
 
@@ -54,6 +55,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
     const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { t } = useTranslation();
 
     const { data: commentsData, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useGetComments(postId);
     const createComment = useCreateComment();
@@ -199,7 +201,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                             {isFetchingNextPage ? (
                                 <CircularProgress size={14} sx={{ color: "text.secondary" }} />
                             ) : null}
-                            {isFetchingNextPage ? "Đang tải..." : "Xem thêm bình luận"}
+                            {isFetchingNextPage ? t('common.loading') : t('post.view_more_comments')}
                         </Typography>
                     )}
                 </>
@@ -212,7 +214,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                         <Box sx={{ mb: 0.5 }}>
                             <LinearProgress variant="determinate" value={uploadProgress} sx={{ borderRadius: 1 }} />
                             <Typography sx={{ fontSize: 11, color: 'text.secondary', textAlign: 'center' }}>
-                                Đang tải lên... {uploadProgress}%
+                                {t('common.uploading')} {uploadProgress}%
                             </Typography>
                         </Box>
                     )}
@@ -271,7 +273,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                         value={commentText}
                         onChange={(val) => setCommentText(val)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Viết bình luận..."
+                        placeholder={t('post.write_comment')}
                         multiline
                         maxRows={4}
                     />

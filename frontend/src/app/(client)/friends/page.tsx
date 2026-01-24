@@ -24,15 +24,7 @@ import { useSocket } from '@/contexts/SocketContext';
 import { FriendType } from '@/types/account';
 import { APIResponse } from '@/types/common';
 import Link from 'next/link';
-
-const menuItems = [
-    { id: 0, label: 'Trang chủ', icon: <HomeIcon /> },
-    { id: 1, label: 'Lời mời kết bạn', icon: <PersonAddIcon /> },
-    { id: 2, label: 'Gợi ý', icon: <LightbulbIcon /> },
-    { id: 3, label: 'Tất cả bạn bè', icon: <PeopleIcon /> },
-    { id: 4, label: 'Sinh nhật', icon: <CakeIcon /> },
-    { id: 5, label: 'Danh sách tùy chỉnh', icon: <SettingsIcon /> },
-];
+import { useTranslation } from 'react-i18next';
 
 export default function FriendsPage() {
     const [tabValue, setTabValue] = useState(0);
@@ -41,6 +33,16 @@ export default function FriendsPage() {
     const isDark = theme.palette.mode === 'dark';
     const queryClient = useQueryClient();
     const { socketRelationship } = useSocket();
+    const { t } = useTranslation();
+
+    const menuItems = [
+        { id: 0, label: t('friends.home'), icon: <HomeIcon /> },
+        { id: 1, label: t('friends.friend_requests'), icon: <PersonAddIcon /> },
+        { id: 2, label: t('friends.suggestions'), icon: <LightbulbIcon /> },
+        { id: 3, label: t('friends.all_friends'), icon: <PeopleIcon /> },
+        { id: 4, label: t('friends.birthdays'), icon: <CakeIcon /> },
+        { id: 5, label: t('friends.custom_lists'), icon: <SettingsIcon /> },
+    ];
 
     const { data: allAccounts, isLoading: isLoadingAccounts } = useAccountsByPage(user?.id || "", { page: 1, size: 12 });
     const { data: sentRequests, isLoading: isLoadingSentRequests } = useSentRequestFriends(user?.id || "");
@@ -110,7 +112,7 @@ export default function FriendsPage() {
                 >
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, py: 1.5 }}>
                         <Typography variant="h5" fontWeight={700} sx={{ color: 'text.primary' }}>
-                            Bạn bè
+                            {t('nav.friends')}
                         </Typography>
                         <IconButton sx={{ bgcolor: hoverBg }}>
                             <SettingsIcon />
@@ -168,7 +170,7 @@ export default function FriendsPage() {
                         <Box sx={{ mb: 4 }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                                 <Typography variant="h6" fontWeight={600} color="text.primary">
-                                    Lời mời kết bạn
+                                    {t('friends.friend_requests')}
                                 </Typography>
                                 <Link href="/friends?tab=received" style={{ textDecoration: 'none' }}>
                                     <Typography
@@ -196,7 +198,7 @@ export default function FriendsPage() {
                                 </Box>
                             ) : (
                                 <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-                                    Không có lời mời kết bạn nào
+                                    {t('friends.no_friend_requests')}
                                 </Typography>
                             )}
                         </Box>
@@ -208,7 +210,7 @@ export default function FriendsPage() {
                             <Divider sx={{ my: 3 }} />
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                                 <Typography variant="h6" fontWeight={600} color="text.primary">
-                                    Những người bạn có thể biết
+                                    {t('friends.people_you_may_know')}
                                 </Typography>
                                 <Link href="/friends?tab=suggestions" style={{ textDecoration: 'none' }}>
                                     <Typography
@@ -236,7 +238,7 @@ export default function FriendsPage() {
                                 </Box>
                             ) : (
                                 <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-                                    Không có gợi ý nào
+                                    {t('friends.no_suggestions')}
                                 </Typography>
                             )}
                         </Box>
@@ -246,7 +248,7 @@ export default function FriendsPage() {
                     {tabValue === 2 && (
                         <Box>
                             <Typography variant="h6" fontWeight={600} color="text.primary" sx={{ mb: 2 }}>
-                                Những người bạn có thể biết
+                                {t('friends.people_you_may_know')}
                             </Typography>
 
                             {!isLoadingAccounts && allAccounts?.items && allAccounts.items.length > 0 ? (
@@ -271,7 +273,7 @@ export default function FriendsPage() {
                     {tabValue === 3 && (
                         <Box>
                             <Typography variant="h6" fontWeight={600} color="text.primary" sx={{ mb: 2 }}>
-                                Tất cả bạn bè ({listFriends?.data?.length || 0})
+                                {t('friends.all_friends')} ({listFriends?.data?.length || 0})
                             </Typography>
 
                             {!isLoadingListFriends && listFriends?.data && listFriends.data.length > 0 ? (
@@ -286,7 +288,7 @@ export default function FriendsPage() {
                                 </Box>
                             ) : (
                                 <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-                                    Bạn chưa có bạn bè nào
+                                    {t('friends.no_friends')}
                                 </Typography>
                             )}
                         </Box>
@@ -296,10 +298,10 @@ export default function FriendsPage() {
                     {tabValue === 4 && (
                         <Box>
                             <Typography variant="h6" fontWeight={600} color="text.primary" sx={{ mb: 2 }}>
-                                Sinh nhật
+                                {t('friends.birthdays')}
                             </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-                                Không có sinh nhật nào hôm nay
+                                {t('friends.no_birthdays_today')}
                             </Typography>
                         </Box>
                     )}
@@ -308,7 +310,7 @@ export default function FriendsPage() {
                     {tabValue === 5 && (
                         <Box>
                             <Typography variant="h6" fontWeight={600} color="text.primary" sx={{ mb: 2 }}>
-                                Lời mời đã gửi
+                                {t('friends.sent_requests')}
                             </Typography>
 
                             {!isLoadingSentRequests && sentRequests?.data && sentRequests.data.length > 0 ? (
@@ -323,7 +325,7 @@ export default function FriendsPage() {
                                 </Box>
                             ) : (
                                 <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-                                    Bạn chưa gửi lời mời kết bạn nào
+                                    {t('friends.no_sent_requests')}
                                 </Typography>
                             )}
                         </Box>

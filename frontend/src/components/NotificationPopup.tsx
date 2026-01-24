@@ -32,6 +32,7 @@ import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { timeAgo } from '@/utils/formatDate';
 import { Notification, NotificationEnum } from '@/types/notification';
+import { useTranslation } from 'react-i18next';
 
 interface NotificationPopupProps {
     onUnreadCountChange?: (count: number) => void;
@@ -63,6 +64,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
 
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : 'action.hover';
     const selectedBg = isDark ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.primary.main, 0.1);
+    const { t } = useTranslation();
 
     // Connect to notification socket
     useEffect(() => {
@@ -196,7 +198,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
             setNotifications(prev => prev.map(n => ({ ...n, status: "READ" })));
             setUnreadCount(0);
             onUnreadCountChange?.(0);
-            toast.success('Đã đánh dấu tất cả là đã đọc');
+            toast.success(t('notifications.marked_all_read'));
         } catch (error) {
             console.error('Failed to mark all as read:', error);
         }
@@ -289,12 +291,12 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                     ...n,
                     actionStatus: accept ? 'ACCEPTED' : 'REJECTED',
                     status: "READ",
-                    message: accept ? 'Bạn đã chấp nhận lời mời tham gia nhóm.' : 'Bạn đã từ chối lời mời tham gia nhóm.'
+                    message: accept ? t('notifications.accepted_invitation') : t('notifications.declined_invitation')
                 }
                 : n
             ));
         } catch {
-            toast.error('Đã có lỗi xảy ra. Vui lòng thử lại sau.');
+            toast.error(t('common.error_occurred'));
         }
 
 
@@ -399,7 +401,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                                         },
                                     }}
                                 >
-                                    Chấp nhận
+                                    {t('friends.accept')}
                                 </Button>
 
 
@@ -428,7 +430,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                                         },
                                     }}
                                 >
-                                    Từ chối
+                                    {t('friends.decline')}
                                 </Button>
 
 
@@ -491,7 +493,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
             <Box sx={{ px: 2, pt: 2.5, pb: 1.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                     <Typography sx={{ fontSize: 24, fontWeight: 700, color: 'text.primary' }}>
-                        Thông báo
+                        {t('notifications.notifications')}
                     </Typography>
                     {!isLoading &&
                         <IconButton
@@ -529,7 +531,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             '&:hover': { bgcolor: activeTab === 'all' ? selectedBg : hoverBg },
                         }}
                     >
-                        Tất cả
+                        {t('notifications.all')}
                     </Box>
                     <Box
                         onClick={() => setActiveTab('unread')}
@@ -546,7 +548,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             '&:hover': { bgcolor: activeTab === 'unread' ? selectedBg : hoverBg },
                         }}
                     >
-                        Chưa đọc
+                        {t('notifications.unread')}
                     </Box>
                     <Box
                         onClick={() => setActiveTab('invitations')}
@@ -563,7 +565,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             '&:hover': { bgcolor: activeTab === 'invitations' ? selectedBg : hoverBg },
                         }}
                     >
-                        Lời mời
+                        {t('notifications.invitations')}
                     </Box>
                 </Box>
             </Box>
@@ -599,10 +601,10 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                     <Box sx={{ p: 4, textAlign: 'center' }}>
                         <Typography sx={{ color: 'text.secondary', fontSize: 15 }}>
                             {activeTab === 'unread'
-                                ? 'Không có thông báo chưa đọc'
+                                ? t('notifications.no_unread')
                                 : activeTab === 'invitations'
-                                    ? 'Không có lời mời nào'
-                                    : 'Chưa có thông báo nào'}
+                                    ? t('notifications.no_invitations')
+                                    : t('notifications.no_notifications')}
                         </Typography>
                     </Box>
                 ) : (
@@ -612,7 +614,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             <>
                                 <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <Typography sx={{ fontWeight: 600, fontSize: 17, color: 'text.primary' }}>
-                                        Mới
+                                        {t('notifications.new')}
                                     </Typography>
                                 </Box>
                                 {today.map(notification => renderNotificationItem(notification))}
@@ -624,7 +626,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             <>
                                 <Box sx={{ px: 2, py: 1, mt: 1 }}>
                                     <Typography sx={{ fontWeight: 600, fontSize: 17, color: 'text.primary' }}>
-                                        Trước đó
+                                        {t('notifications.earlier')}
                                     </Typography>
                                 </Box>
                                 {earlier.map(notification => renderNotificationItem(notification))}
@@ -666,7 +668,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
 
                             }}
                         >
-                            Xem thông báo trước đó
+                            {t('notifications.view_previous')}
                         </Typography>
                     )}
                 </Box>

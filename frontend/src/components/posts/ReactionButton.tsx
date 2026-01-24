@@ -8,16 +8,7 @@ import { ReactionType } from "@/types/reaction";
 import { useSocket } from "@/contexts/SocketContext";
 import { useReactionStore, ReactionType as StoreReactionType } from "@/stores/useReactionStore";
 import { PostType } from "@/types/post";
-
-// Reaction data with emoji, label, and color
-const REACTIONS = [
-    { type: "LIKE" as ReactionType, emoji: "👍", label: "Thích", color: "#1877f2" },
-    { type: "LOVE" as ReactionType, emoji: "❤️", label: "Yêu thích", color: "#f33e58" },
-    { type: "HAHA" as ReactionType, emoji: "😆", label: "Haha", color: "#f7b125" },
-    { type: "WOW" as ReactionType, emoji: "😮", label: "Wow", color: "#f7b125" },
-    { type: "SAD" as ReactionType, emoji: "😢", label: "Buồn", color: "#f7b125" },
-    { type: "ANGRY" as ReactionType, emoji: "😡", label: "Phẫn nộ", color: "#e9710f" },
-];
+import { useTranslation } from "react-i18next";
 
 interface ReactionButtonProps {
     post: PostType;
@@ -31,6 +22,17 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+    const { t } = useTranslation();
+
+    // Reaction data with emoji, label, and color
+    const REACTIONS = [
+        { type: "LIKE" as ReactionType, emoji: "👍", label: t('post.like'), color: "#1877f2" },
+        { type: "LOVE" as ReactionType, emoji: "❤️", label: t('post.love'), color: "#f33e58" },
+        { type: "HAHA" as ReactionType, emoji: "😆", label: t('post.haha'), color: "#f7b125" },
+        { type: "WOW" as ReactionType, emoji: "😮", label: t('post.wow'), color: "#f7b125" },
+        { type: "SAD" as ReactionType, emoji: "😢", label: t('post.sad'), color: "#f7b125" },
+        { type: "ANGRY" as ReactionType, emoji: "😡", label: t('post.angry'), color: "#e9710f" },
+    ];
 
     // Use selectors to get specific post reaction state - ensures re-render on change
     const userReaction = useReactionStore(state => state.postReactions[post._id]?.userReaction);
@@ -344,7 +346,7 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                             color: currentReactionData?.color || (isDark ? 'text.secondary' : '#65676b'),
                         }}
                     >
-                        {currentReactionData?.label || "Thích"}
+                        {currentReactionData?.label || t('post.like')}
                     </Typography>
                 </Box>
             </Box>

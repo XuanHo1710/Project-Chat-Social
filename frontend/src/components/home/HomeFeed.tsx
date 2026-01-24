@@ -28,6 +28,7 @@ import CommentContentModal from '@/components/posts/CommentContentModal';
 import ShareContentModal from '@/components/posts/ShareContentModal';
 import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
 import StoriesBar from '@/components/story/StoriesBar';
+import { useTranslation } from 'react-i18next';
 
 
 export default function HomeFeed() {
@@ -36,6 +37,7 @@ export default function HomeFeed() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const highlightedPostRef = useRef<HTMLDivElement>(null);
+    const { t } = useTranslation();
 
     // Get highlighted post ID from URL query
     const highlightedPostIdFromUrl = searchParams.get('postId');
@@ -417,7 +419,7 @@ export default function HomeFeed() {
                             }}
                         />
                         <Chip
-                            label="📺 Phát lại"
+                            label={`📺 ${t('post.replay')}`}
                             size="small"
                             sx={{
                                 position: 'absolute',
@@ -482,7 +484,7 @@ export default function HomeFeed() {
                                 }}>
                                     <Chip
                                         icon={<Box sx={{ width: 8, height: 8, bgcolor: 'white', borderRadius: '50%', ml: 0.5 }} />}
-                                        label="TRỰC TIẾP"
+                                        label={t('post.live_video').toUpperCase()}
                                         sx={{
                                             bgcolor: '#e41e3f',
                                             color: 'white',
@@ -495,7 +497,7 @@ export default function HomeFeed() {
                                     />
                                 </Box>
                                 <Typography variant="h5" sx={{ color: 'white', fontWeight: 700, mb: 1, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-                                    {post.userId?.firstName + " " + post.userId?.lastName} đang phát trực tiếp
+                                    {post.userId?.firstName + " " + post.userId?.lastName} {t('post.is_streaming')}
                                 </Typography>
                                 <Box sx={{
                                     mt: 1,
@@ -510,7 +512,7 @@ export default function HomeFeed() {
                                     '&:hover': { bgcolor: 'rgba(255,255,255,0.3)', transform: 'scale(1.05)' }
                                 }}>
                                     <Typography sx={{ color: 'white', fontWeight: 600, fontSize: 13 }}>
-                                        Bấm để tham gia ngay ▶
+                                        {t('post.click_to_join')} ▶
                                     </Typography>
                                 </Box>
                             </Box>
@@ -518,10 +520,10 @@ export default function HomeFeed() {
                             <>
                                 <Typography sx={{ fontSize: 48, mb: 1 }}>📺</Typography>
                                 <Typography variant="body1" sx={{ color: textSecondary, fontWeight: 500 }}>
-                                    Video trực tiếp đã kết thúc
+                                    {t('post.livestream_ended')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ color: textSecondary, mt: 0.5 }}>
-                                    Video không được lưu
+                                    {t('post.video_not_saved')}
                                 </Typography>
                             </>
                         )}
@@ -638,22 +640,22 @@ export default function HomeFeed() {
                     <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                         <Avatar sx={{ width: 40, height: 40 }} src={user?.avatar} />
                         <Box onClick={() => setOpenCreatePost(true)} sx={{ flex: 1, bgcolor: inputBg, borderRadius: '50px', display: 'flex', alignItems: 'center', px: 2, py: 1.5, cursor: 'pointer', '&:hover': { bgcolor: hoverBg } }}>
-                            <Typography sx={{ color: 'text.secondary', fontSize: 17 }}>{user?.fullName || user?.username || 'Bạn'} ơi, bạn đang nghĩ gì thế?</Typography>
+                            <Typography sx={{ color: 'text.secondary', fontSize: 17 }}>{user?.fullName || user?.username || t('common.you')}, {t('post.whats_on_your_mind')}?</Typography>
                         </Box>
                     </Box>
                     <Divider sx={{ mb: 1 }} />
                     <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
                         <Box onClick={() => setOpenLiveStudio(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
                             <VideoIcon sx={{ color: '#f3425f' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Video trực tiếp</Typography>
+                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.live_video')}</Typography>
                         </Box>
                         <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
                             <PhotoIcon sx={{ color: '#45bd62' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Ảnh/video</Typography>
+                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.photo_video')}</Typography>
                         </Box>
                         <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
                             <MoodIcon sx={{ color: '#f7b928' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>Cảm xúc</Typography>
+                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.feeling_activity')}</Typography>
                         </Box>
                     </Box>
                 </CardContent>
@@ -677,7 +679,7 @@ export default function HomeFeed() {
             {!isLoadingPosts && posts.length === 0 && (
                 <Card sx={{ mb: 2, borderRadius: 2, p: 4, textAlign: 'center' }}>
                     <Typography sx={{ color: 'text.secondary', fontSize: 16 }}>
-                        Chưa có bài viết nào. Hãy đăng bài viết đầu tiên của bạn!
+                        {t('post.no_posts_yet')}
                     </Typography>
                 </Card>
             )}
@@ -717,12 +719,12 @@ export default function HomeFeed() {
                 {isFetchingNextPage && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <CircularProgress size={24} sx={{ color: 'primary.main' }} />
-                        <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>Đang tải thêm bài viết...</Typography>
+                        <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>{t('post.loading_more')}</Typography>
                     </Box>
                 )}
                 {!hasNextPage && posts.length > 0 && !isFetchingNextPage && (
                     <Typography sx={{ color: 'text.secondary', fontSize: 14, textAlign: 'center' }}>
-                        🎉 Đã hết bài viết. Bạn đã xem tất cả!
+                        🎉 {t('post.no_more_posts')}
                     </Typography>
                 )}
             </Box>

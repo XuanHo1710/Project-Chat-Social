@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthProvider";
 import { SocketProvider } from "@/contexts/SocketContext";
 import { MediaUploadProvider } from "@/contexts/MediaUploadContext";
 import { ThemeProvider } from "@/contexts/ThemeProvider";
+import { I18nProvider } from "@/contexts/I18nProvider";
 import FirebaseNotification from "@/components/FirebaseNotification";
 
 import "@/lib/polyfills"; // Import polyfills first
@@ -73,23 +74,25 @@ export default function RootLayout({
       >
         <QueryProvider>
           <ThemeProvider>
-            <AuthProvider>
-              <FirebaseNotification />
-              <SocketProvider>
-                <CallProvider>
-                  <CallOverlay />
-                  <MediaUploadProvider>
-                    {children}
-                    <Toaster
-                      position="top-right"
-                      richColors
-                      closeButton
-                      duration={4000}
-                    />
-                  </MediaUploadProvider>
-                </CallProvider>
-              </SocketProvider>
-            </AuthProvider>
+            <I18nProvider>
+              <AuthProvider>
+                <FirebaseNotification />
+                <SocketProvider>
+                  <CallProvider>
+                    <CallOverlay />
+                    <MediaUploadProvider>
+                      {children}
+                      <Toaster
+                        position="top-right"
+                        richColors
+                        closeButton
+                        duration={4000}
+                      />
+                    </MediaUploadProvider>
+                  </CallProvider>
+                </SocketProvider>
+              </AuthProvider>
+            </I18nProvider>
           </ThemeProvider>
         </QueryProvider>
       </body>

@@ -42,6 +42,7 @@ import CommentReactionListDialog from "./CommentReactionListDialog";
 import ImageViewer from "./ImageViewer";
 import { commentMediaToMediaItems, renderContentWithMentions } from "@/utils/hashtagParser";
 import MentionInput from "@/components/posts/MentionInput";
+import { useTranslation } from "react-i18next";
 
 // Edit Comment Input Component - Facebook style
 function EditCommentInput({
@@ -67,6 +68,7 @@ function EditCommentInput({
     const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const borderColor = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
     const iconColor = isDark ? 'text.secondary' : '#65676b';
+    const { t } = useTranslation();
 
     React.useEffect(() => {
         inputRef.current?.focus();
@@ -110,11 +112,11 @@ function EditCommentInput({
                 data: { content: text.trim(), ...(mediaData && { media: mediaData }) },
             });
             setIsUploading(false);
-            toast.success("Đã cập nhật bình luận");
+            toast.success(t('post.comment_updated'));
             onSuccess();
         } catch (error) {
             console.error("Failed to update comment:", error);
-            toast.error("Không thể cập nhật bình luận");
+            toast.error(t('post.comment_update_failed'));
             setIsUploading(false);
         }
     };
@@ -145,7 +147,7 @@ function EditCommentInput({
                     {isUploading && (
                         <Box sx={{ mb: 0.5 }}>
                             <LinearProgress variant="determinate" value={uploadProgress} sx={{ borderRadius: 1 }} />
-                            <Typography sx={{ fontSize: 11, color: '#65676b', textAlign: 'center' }}>Đang tải lên... {uploadProgress}%</Typography>
+                            <Typography sx={{ fontSize: 11, color: '#65676b', textAlign: 'center' }}>{t('common.uploading')} {uploadProgress}%</Typography>
                         </Box>
                     )}
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -183,7 +185,7 @@ function EditCommentInput({
                         value={text}
                         onChange={(val) => setText(val)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Chỉnh sửa bình luận..."
+                        placeholder={t('post.edit_comment_placeholder')}
                         multiline
                         maxRows={6}
                     />
@@ -253,7 +255,7 @@ function EditCommentInput({
 
             {/* Hint */}
             <Typography sx={{ fontSize: 12, color: iconColor, mt: 0.5 }}>
-                Nhấn Esc để{" "}
+                {t('post.press_esc_to')}{" "}
                 <Typography
                     component="span"
                     onClick={onCancel}
@@ -263,7 +265,7 @@ function EditCommentInput({
                         "&:hover": { textDecoration: "underline" },
                     }}
                 >
-                    hủy
+                    {t('common.cancel').toLowerCase()}
                 </Typography>
                 .
             </Typography>
@@ -342,6 +344,7 @@ function InlineReplyInput({
     const isDark = theme.palette.mode === 'dark';
     const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const iconColor = isDark ? 'text.secondary' : '#65676b';
+    const { t } = useTranslation();
 
     React.useEffect(() => {
         inputRef.current?.focus();
@@ -505,7 +508,7 @@ function InlineReplyInput({
                         value={text}
                         onChange={(val) => setText(val)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Viết phản hồi..."
+                        placeholder={t('post.write_reply')}
                         multiline
                         maxRows={3}
                     />
@@ -627,6 +630,7 @@ export default function CommentItem({
     const isDark = theme.palette.mode === 'dark';
     const commentBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const textSecondary = isDark ? 'text.secondary' : '#65676b';
+    const { t } = useTranslation();
     const { data: repliesData, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useGetReplies(
         comment._id,
         showReplies && !isReply
@@ -649,7 +653,7 @@ export default function CommentItem({
     const handleDelete = async () => {
         setMenuAnchor(null);
         await deleteComment.mutateAsync(comment._id);
-        toast.success("Bình luận đã được xóa thành công");
+        toast.success(t('post.comment_deleted'));
     };
 
     const handleEdit = () => {
@@ -711,7 +715,7 @@ export default function CommentItem({
                                 </Typography>
                                 {comment.isEdited && (
                                     <Typography sx={{ fontSize: 11, color: textSecondary, fontStyle: "italic" }}>
-                                        · Đã chỉnh sửa
+                                        · {t('post.edited')}
                                     </Typography>
                                 )}
                             </Box>
@@ -852,7 +856,7 @@ export default function CommentItem({
                                 "&:hover": { textDecoration: "underline" },
                             }}
                         >
-                            Phản hồi
+                            {t('post.reply')}
                         </Typography>
                         <Typography sx={{ fontSize: 12, color: textSecondary, lineHeight: 1 }}>
                             {timeAgo(comment.createdAt)}
@@ -873,11 +877,11 @@ export default function CommentItem({
                                 >
                                     <MenuItem onClick={handleEdit}>
                                         <EditIcon sx={{ fontSize: 16, mr: 1 }} />
-                                        Chỉnh sửa
+                                        {t('common.edit')}
                                     </MenuItem>
                                     <MenuItem onClick={handleDelete} sx={{ color: "error.main" }}>
                                         <CloseIcon sx={{ fontSize: 16, mr: 1 }} />
-                                        Xóa
+                                        {t('common.delete')}
                                     </MenuItem>
                                 </Menu>
                             </>
@@ -917,7 +921,7 @@ export default function CommentItem({
                         }}
                     >
                         <ReplyIcon sx={{ fontSize: 14, transform: "scaleX(-1)" }} />
-                        Xem {comment.totalReplies} phản hồi
+                        {t('post.view_replies', { count: comment.totalReplies })}
                     </Typography>
                 )}
 
@@ -955,7 +959,7 @@ export default function CommentItem({
                                 ) : (
                                     <ReplyIcon sx={{ fontSize: 14, transform: "scaleX(-1)" }} />
                                 )}
-                                {isFetchingNextPage ? "Đang tải..." : "Xem thêm phản hồi"}
+                                {isFetchingNextPage ? t('common.loading') : t('post.view_more_replies')}
                             </Typography>
                         )}
                     </Box>

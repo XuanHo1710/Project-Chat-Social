@@ -37,6 +37,7 @@ import { CLIENT_PATH } from '@/constants/paths';
 import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 import { useSocket } from '@/contexts/SocketContext';
 import { renderContentWithMentionsPlain } from '@/utils/hashtagParser';
+import { useTranslation } from 'react-i18next';
 
 interface SelectedConversation {
     _id: string;
@@ -78,6 +79,7 @@ export default function ChatSidebar({
     const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const selectedBg = isDark ? 'rgba(66, 133, 244, 0.3)' : '#e7f3ff';
     const scrollbarColor = isDark ? 'rgba(255,255,255,0.3)' : '#c4c4c4';
+    const { t } = useTranslation();
 
     // Online status store - just read, don't subscribe to socket here
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
@@ -112,7 +114,7 @@ export default function ChatSidebar({
         if (!socketChat) return;
 
         const handleKicked = (data: { conversationId: string; kickedByName: string }) => {
-            toast.error(`Bạn đã bị ${data.kickedByName} xóa khỏi nhóm`);
+            toast.error(t('chat.kicked_from_group', { name: data.kickedByName }));
             // If currently viewing the kicked conversation, navigate away
             if (selectedConversationId === data.conversationId) {
                 router.push(CLIENT_PATH.CHAT);
@@ -139,10 +141,10 @@ export default function ChatSidebar({
         const response = await authService.logout();
         if (response.statusCode === 201) {
             logout();
-            toast.success('Đã đăng xuất thành công!');
+            toast.success(t('auth.logout_success'));
             router.push(CLIENT_PATH.LOGIN);
         } else {
-            toast.error('Đăng xuất thất bại. Vui lòng thử lại.');
+            toast.error(t('auth.logout_failed'));
         }
     };
 
@@ -238,7 +240,7 @@ export default function ChatSidebar({
                             </Box>
                         </IconButton>
                         <Typography variant="h5" fontWeight={700} color="text.primary">
-                            Đoạn chat
+                            {t('chat.chats')}
                         </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -300,7 +302,7 @@ export default function ChatSidebar({
                             {user?.fullName}
                         </Typography>
                         <Typography variant="body2" color="text.secondary" fontSize={13}>
-                            Đang hoạt động
+                            {t('common.active')}
                         </Typography>
                     </Box>
                     <MoreVertIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
@@ -325,7 +327,7 @@ export default function ChatSidebar({
                         }}
                     >
                         <PersonIcon sx={{ mr: 2, color: 'text.secondary' }} fontSize="small" />
-                        Hồ sơ
+                        {t('profile.profile')}
                     </MenuItem>
                     <MenuItem
                         onClick={handleMenuClose}
@@ -334,7 +336,7 @@ export default function ChatSidebar({
                         }}
                     >
                         <SettingsIcon sx={{ mr: 2, color: 'text.secondary' }} fontSize="small" />
-                        Cài đặt
+                        {t('common.settings')}
                     </MenuItem>
                     <Divider sx={{ my: 0.5 }} />
                     <MenuItem
@@ -344,14 +346,14 @@ export default function ChatSidebar({
                         }}
                     >
                         <LogoutIcon sx={{ mr: 2, color: 'text.secondary' }} fontSize="small" />
-                        Đăng xuất
+                        {t('auth.logout')}
                     </MenuItem>
                 </Menu>
 
                 {/* Search Field */}
                 <TextField
                     fullWidth
-                    placeholder="Tìm kiếm trên Messenger"
+                    placeholder={t('chat.search_messenger')}
                     size="small"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -418,7 +420,7 @@ export default function ChatSidebar({
                                 status = { isOnline: true, lastActive: undefined };
                                 otherId = botParticipant?.user?._id || '';
                             } else if (isGroup) {
-                                displayName = conversation.nickname || 'Nhóm chat';
+                                displayName = conversation.nickname || t('chat.group_chat');
                                 displayAvatar = conversation.avatar || ``;
                                 // Groups don't have online status
                             } else {
@@ -519,12 +521,12 @@ export default function ChatSidebar({
                                                 >
                                                     {(() => {
                                                         const lastMsg = conversation.lastMessage;
-                                                        if (!lastMsg) return 'Bắt đầu cuộc trò chuyện mới';
+                                                        if (!lastMsg) return t('chat.start_new_conversation');
 
                                                         // Get sender name for group chats
                                                         const getSenderPrefix = () => {
                                                             if (!isGroup) return '';
-                                                            if (lastMsg.senderId === user?.id) return 'Bạn: ';
+                                                            if (lastMsg.senderId === user?.id) return t('common.you') + ': ';
                                                             const sender = conversation.participants.find(p => p.user._id === lastMsg.senderId)?.user;
                                                             return sender ? `${sender.firstName || ''}: ` : '';
                                                         };
@@ -533,22 +535,22 @@ export default function ChatSidebar({
 
                                                         switch (lastMsg.type) {
                                                             case 'IMAGE':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một ảnh' : prefix + 'đã gửi một ảnh';
+                                                                return lastMsg.senderId === user?.id ? t('chat.you_sent_image') : prefix + t('chat.sent_image');
                                                             case 'VIDEO':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một video' : prefix + 'đã gửi một video';
+                                                                return lastMsg.senderId === user?.id ? t('chat.you_sent_video') : prefix + t('chat.sent_video');
                                                             case 'FILE':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một tệp' : prefix + 'đã gửi một tệp';
+                                                                return lastMsg.senderId === user?.id ? t('chat.you_sent_file') : prefix + t('chat.sent_file');
                                                             case 'POST':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã chia sẻ bài viết' : prefix + 'đã chia sẻ bài viết';
+                                                                return lastMsg.senderId === user?.id ? t('chat.you_shared_post') : prefix + t('chat.shared_post');
                                                             case 'SYSTEM':
-                                                                return lastMsg.content || 'Thông báo';
+                                                                return lastMsg.content || t('chat.notification');
                                                             case "CHATBOT":
-                                                                return "AI Assistant: " + (lastMsg.content || 'Tin nhắn từ Chatbot');
+                                                                return "AI Assistant: " + (lastMsg.content || t('chat.message_from_chatbot'));
                                                             default:
                                                                 if (lastMsg.attachments && lastMsg.attachments.length > 0 && !lastMsg.content) {
-                                                                    return lastMsg.senderId === user?.id ? 'Bạn đã gửi ảnh' : prefix + 'đã gửi ảnh';
+                                                                    return lastMsg.senderId === user?.id ? t('chat.you_sent_image') : prefix + t('chat.sent_image');
                                                                 }
-                                                                return prefix + (renderContentWithMentionsPlain(lastMsg.content) || 'Bắt đầu cuộc trò chuyện mới');
+                                                                return prefix + (renderContentWithMentionsPlain(lastMsg.content) || t('chat.start_new_conversation'));
                                                         }
                                                     })()}
                                                 </Typography>

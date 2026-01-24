@@ -29,15 +29,17 @@ import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRouter } from 'next/navigation';
 import { useSettingsStore, THEME_COLORS } from '@/stores/useSettingsStore';
+import { useTranslation } from 'react-i18next';
 
 const drawerWidth = 260; // Tăng độ rộng chút cho thoáng
 
-const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin' },
-    { text: 'Quản lý tài khoản', icon: <PeopleIcon />, path: '/admin/users' },
-    { text: 'Quản lý bài viết', icon: <ArticleIcon />, path: '/admin/posts' },
-    { text: 'Quản lý giao diện', icon: <PaletteIcon />, path: '/admin/themes' },
-    { text: 'Cài đặt', icon: <SettingsIcon />, path: '/admin/settings' },
+// Menu items will use translation keys
+const getMenuItems = (t: any) => [
+    { text: t('admin.dashboard'), icon: <DashboardIcon />, path: '/admin' },
+    { text: t('admin.user_management'), icon: <PeopleIcon />, path: '/admin/users' },
+    { text: t('admin.post_management'), icon: <ArticleIcon />, path: '/admin/posts' },
+    { text: t('admin.theme_management'), icon: <PaletteIcon />, path: '/admin/themes' },
+    { text: t('admin.settings'), icon: <SettingsIcon />, path: '/admin/settings' },
 ];
 
 export default function AdminSidebar() {
@@ -47,7 +49,9 @@ export default function AdminSidebar() {
     const router = useRouter();
     const { logout, user } = useAuthStore();
     const { themeColor } = useSettingsStore();
+    const { t } = useTranslation();
     const activeColor = THEME_COLORS[themeColor];
+    const menuItems = getMenuItems(t);
 
     const handleLogout = () => {
         logout();
@@ -172,7 +176,7 @@ export default function AdminSidebar() {
                         <ListItem disablePadding sx={{ mb: 1 }}>
                             <ListItemButton component={Link} href="/" sx={{ borderRadius: 3, py: 1.5, px: 2.5 }}>
                                 <ListItemIcon sx={{ minWidth: 40, color: 'text.secondary' }}><HomeIcon /></ListItemIcon>
-                                <ListItemText primary="Về trang chủ" primaryTypographyProps={{ fontWeight: 500 }} />
+                                <ListItemText primary={t('admin.back_to_home')} primaryTypographyProps={{ fontWeight: 500 }} />
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
@@ -189,7 +193,7 @@ export default function AdminSidebar() {
                                 }}
                             >
                                 <ListItemIcon sx={{ minWidth: 40, color: theme.palette.error.main }}><LogoutIcon /></ListItemIcon>
-                                <ListItemText primary="Đăng xuất" primaryTypographyProps={{ fontWeight: 600 }} />
+                                <ListItemText primary={t('common.logout')} primaryTypographyProps={{ fontWeight: 600 }} />
                             </ListItemButton>
                         </ListItem>
                     </List>

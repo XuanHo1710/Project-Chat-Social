@@ -4,6 +4,7 @@ import { Brightness4, Brightness7, NotificationsOutlined, SettingsOutlined } fro
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import SettingsPanel from './SettingsPanel';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
 
 // Cần khớp với drawerWidth bên Sidebar
@@ -69,7 +70,7 @@ export default function AdminHeader() {
                             </IconButton>
                         </Tooltip>
 
-                        <Tooltip title="Thông báo">
+                        <Tooltip title={t('notifications.notifications')}>
                             <IconButton
                                 sx={{
                                     bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
@@ -79,6 +80,8 @@ export default function AdminHeader() {
                                 <NotificationsOutlined fontSize="small" />
                             </IconButton>
                         </Tooltip>
+
+                        <LanguageSwitcher />
 
                         <Box sx={{ ml: 1, display: 'flex', alignItems: 'center', gap: 1.5, pl: 2, borderLeft: '1px solid', borderColor: 'divider' }}>
                             <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>

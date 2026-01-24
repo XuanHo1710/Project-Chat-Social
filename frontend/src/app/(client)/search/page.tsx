@@ -47,6 +47,7 @@ import ImageViewer from '@/components/posts/ImageViewer';
 import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
 import CommentContentModal from '@/components/posts/CommentContentModal';
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 
 
 // Main component wrapped in Suspense
@@ -68,6 +69,7 @@ function SearchContent() {
     const textSecondary = isDark ? 'rgba(255,255,255,0.7)' : '#65676b';
     const chipBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
     const chipText = isDark ? 'white' : '#050505';
+    const { t } = useTranslation();
 
     // Search input state with debounce for performance
     const [inputValue, setInputValue] = useState('');
@@ -495,7 +497,7 @@ function SearchContent() {
                     }}
                 >
                     <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>
-                        Kết quả tìm kiếm
+                        {t('search.search_results')}
                     </Typography>
 
                     {/* Navigation Menu - Like Home Sidebar */}
@@ -526,7 +528,7 @@ function SearchContent() {
                             <ListItemIcon sx={{ minWidth: 44 }}>
                                 <PeopleIcon sx={{ fontSize: 28, color: 'primary.main' }} />
                             </ListItemIcon>
-                            <ListItemText primary="Bạn bè" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                            <ListItemText primary={t('sidebar.friends')} primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
                         </ListItemButton>
 
                         {/* Groups */}
@@ -538,7 +540,7 @@ function SearchContent() {
                             <ListItemIcon sx={{ minWidth: 44 }}>
                                 <GroupsIcon sx={{ fontSize: 28, color: 'primary.main' }} />
                             </ListItemIcon>
-                            <ListItemText primary="Nhóm" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                            <ListItemText primary={t('sidebar.groups')} primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
                         </ListItemButton>
 
                         {/* Watch/Reels */}
@@ -562,7 +564,7 @@ function SearchContent() {
                             <ListItemIcon sx={{ minWidth: 44 }}>
                                 <BookmarkIcon sx={{ fontSize: 28, color: '#a333c8' }} />
                             </ListItemIcon>
-                            <ListItemText primary="Đã lưu" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                            <ListItemText primary={t('sidebar.saved')} primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
                         </ListItemButton>
                     </List>
 
@@ -577,7 +579,7 @@ function SearchContent() {
                             <FilterIcon sx={{ fontSize: 24, color: textSecondary }} />
                         </ListItemIcon>
                         <ListItemText
-                            primary="Bộ lọc tìm kiếm"
+                            primary={t('search.search_filters')}
                             primaryTypographyProps={{ fontWeight: 600, fontSize: 15 }}
                         />
                         {showFilters ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -587,7 +589,7 @@ function SearchContent() {
                         <Box sx={{ pl: 1, pr: 1 }}>
                             {/* Filter Type */}
                             <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 600 }}>
-                                Loại kết quả
+                                {t('search.result_type')}
                             </Typography>
                             <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                                 <Box
@@ -602,7 +604,7 @@ function SearchContent() {
                                         '&:hover': { bgcolor: activeFilter === 'all' ? 'primary.dark' : (isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf') }
                                     }}
                                 >
-                                    Tất cả
+                                    {t('common.all')}
                                 </Box>
                                 <Box
                                     onClick={() => setActiveFilter('posts')}
@@ -616,14 +618,14 @@ function SearchContent() {
                                         '&:hover': { bgcolor: activeFilter === 'posts' ? 'primary.dark' : (isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf') }
                                     }}
                                 >
-                                    Bài viết
+                                    {t('search.posts')}
                                 </Box>
                             </Box>
 
                             {/* Sorting Filter */}
                             <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 600 }}>
                                 <SortIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
-                                Sắp xếp
+                                {t('search.sort_by')}
                             </Typography>
                             <FormControl fullWidth size="small" sx={{ mb: 2 }}>
                                 <Select
@@ -631,16 +633,16 @@ function SearchContent() {
                                     onChange={(e) => setSortBy(e.target.value)}
                                     sx={{ borderRadius: 2, fontSize: 14 }}
                                 >
-                                    <MenuItem value="relevance">Liên quan nhất</MenuItem>
-                                    <MenuItem value="newest">Mới nhất</MenuItem>
-                                    <MenuItem value="oldest">Cũ nhất</MenuItem>
+                                    <MenuItem value="relevance">{t('search.most_relevant')}</MenuItem>
+                                    <MenuItem value="newest">{t('search.newest')}</MenuItem>
+                                    <MenuItem value="oldest">{t('search.oldest')}</MenuItem>
                                 </Select>
                             </FormControl>
 
                             {/* Year Range Filter */}
                             <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 600 }}>
                                 <CalendarIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
-                                Ngày đăng ({yearRange[0]} - {yearRange[1]})
+                                {t('search.post_date')} ({yearRange[0]} - {yearRange[1]})
                             </Typography>
                             <Box sx={{ px: 1, pb: 2 }}>
                                 <Slider
@@ -696,7 +698,7 @@ function SearchContent() {
                         <InputBase
                             value={inputValue}
                             onChange={handleInputChange}
-                            placeholder="Tìm kiếm trên Facebook"
+                            placeholder={t('search.search_placeholder')}
                             sx={{ flex: 1, fontSize: 16 }}
                             autoFocus
                         />
@@ -722,10 +724,10 @@ function SearchContent() {
                         <Box sx={{ textAlign: 'center', py: 5 }}>
                             <SearchIcon sx={{ fontSize: 64, color: '#bcc0c4', mb: 2 }} />
                             <Typography variant="h6" color="text.secondary">
-                                {urlQuery ? `Không tìm thấy kết quả cho "${urlQuery}"` : 'Nhập từ khóa để tìm kiếm'}
+                                {urlQuery ? t('search.no_results_for', { query: urlQuery }) : t('search.enter_keyword')}
                             </Typography>
                             <Typography color="text.secondary">
-                                {urlQuery ? 'Thử tìm kiếm với từ khóa khác' : 'Tìm kiếm bài viết, người dùng, nhóm...'}
+                                {urlQuery ? t('search.try_different') : t('search.search_posts_users')}
                             </Typography>
                         </Box>
                     ) : (
@@ -760,12 +762,12 @@ function SearchContent() {
                                 {isFetchingNextPage && (
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                         <CircularProgress size={24} sx={{ color: 'primary.main' }} />
-                                        <Typography sx={{ color: textSecondary, fontSize: 14 }}>Đang tải thêm bài viết...</Typography>
+                                        <Typography sx={{ color: textSecondary, fontSize: 14 }}>{t('common.loading_more')}</Typography>
                                     </Box>
                                 )}
                                 {!hasNextPage && posts.length > 0 && !isFetchingNextPage && (
                                     <Typography sx={{ color: textSecondary, fontSize: 14, textAlign: 'center' }}>
-                                        🎉 Đã hết bài viết. Bạn đã xem tất cả!
+                                        🎉 {t('common.no_more_posts')}
                                     </Typography>
                                 )}
                             </Box>

@@ -34,6 +34,7 @@ import { ConversationResponseData } from '@/types/conversation';
 import { useGetAllConversations } from '@/queries/useConversationQueries';
 import { useSocket } from '@/contexts/SocketContext';
 import { getAuthorName } from '@/utils/formatPost';
+import { useTranslation } from 'react-i18next';
 
 const slideUp = keyframes`
   from {
@@ -81,6 +82,7 @@ export default function SharePostModal({
     const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const hoverBg = isDark ? 'rgba(255,255,255,0.15)' : '#f0f2f5';
     const selectedBg = isDark ? 'rgba(66, 133, 244, 0.3)' : '#e7f3ff';
+    const { t } = useTranslation();
 
     const { socket } = useSocket();
     const { data: conversationsData, isLoading } = useGetAllConversations();
@@ -102,7 +104,7 @@ export default function SharePostModal({
     }, [conversationsData, searchQuery, currentUserId]);
 
     const getConversationName = (conv: ConversationResponseData) => {
-        if (conv.type === 'GROUP') return conv.nickname || 'Nhóm chat';
+        if (conv.type === 'GROUP') return conv.nickname || t('chat.group_chat');
         const otherParticipant = conv.participants.find(
             (p) => p.user._id !== currentUserId
         );
@@ -139,7 +141,7 @@ export default function SharePostModal({
                 socket.emit('message', {
                     conversationId,
                     senderId: currentUserId,
-                    content: shareMessage || `Đã chia sẻ một bài viết`,
+                    content: shareMessage || t('post.shared_a_post'),
                     type: 'POST',
                     postId: post._id,
                 });
@@ -184,7 +186,7 @@ export default function SharePostModal({
         >
             <DialogTitle sx={{ pb: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="h6" fontWeight={700}>
-                    Chia sẻ bài viết
+                    {t('post.share_to_message')}
                 </Typography>
                 <IconButton onClick={handleClose} size="small">
                     <CloseIcon />
@@ -244,7 +246,7 @@ export default function SharePostModal({
                         fullWidth
                         multiline
                         rows={2}
-                        placeholder="Viết tin nhắn kèm theo..."
+                        placeholder={t('chat.write_message')}
                         value={shareMessage}
                         onChange={(e) => setShareMessage(e.target.value)}
                         sx={{
@@ -264,7 +266,7 @@ export default function SharePostModal({
                     <TextField
                         fullWidth
                         size="small"
-                        placeholder="Tìm kiếm cuộc trò chuyện..."
+                        placeholder={t('chat.search_conversations')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         InputProps={{
@@ -318,7 +320,7 @@ export default function SharePostModal({
                         </Box>
                     ) : conversations.length === 0 ? (
                         <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
-                            <Typography>Không tìm thấy cuộc trò chuyện</Typography>
+                            <Typography>{t('chat.no_conversations_found')}</Typography>
                         </Box>
                     ) : (
                         conversations.map((conv: ConversationResponseData, index: number) => {
@@ -347,7 +349,7 @@ export default function SharePostModal({
                                     </ListItemAvatar>
                                     <ListItemText
                                         primary={getConversationName(conv)}
-                                        secondary={conv.type === 'GROUP' ? `${conv.participants.length} thành viên` : undefined}
+                                        secondary={conv.type === 'GROUP' ? t('chat.group_members', { count: conv.participants.length }) : undefined}
                                         primaryTypographyProps={{
                                             fontWeight: isSelected ? 600 : 400,
                                             color: isSent ? 'text.secondary' : 'text.primary',
@@ -363,7 +365,7 @@ export default function SharePostModal({
                                             }}
                                         >
                                             <CheckIcon fontSize="small" />
-                                            <Typography variant="caption">Đã gửi</Typography>
+                                            <Typography variant="caption">{t('common.sent')}</Typography>
                                         </Box>
                                     ) : (
                                         <Checkbox
@@ -403,10 +405,10 @@ export default function SharePostModal({
                         }}
                     >
                         {isSending
-                            ? 'Đang gửi...'
+                            ? t('common.sending')
                             : sentTo.length > 0
-                                ? 'Đã gửi thành công!'
-                                : `Gửi ${selectedConversations.length > 0 ? `(${selectedConversations.length})` : ''}`}
+                                ? t('common.sent_successfully')
+                                : `${t('common.send')} ${selectedConversations.length > 0 ? `(${selectedConversations.length})` : ''}`}
                     </Button>
                 </Box>
             </DialogContent>

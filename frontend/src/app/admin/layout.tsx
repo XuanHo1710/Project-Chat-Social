@@ -44,13 +44,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 component="main"
                 sx={{
                     flexGrow: 1,
-                    p: 4,  // Tăng padding
-                    width: { sm: `calc(100% - 260px)` }, // Updated drawer width (260px)
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0b0f19' : '#f4f6f8', // Premium background colors
-                    minHeight: '100vh'
+                    p: { xs: 2, sm: 3, md: 4 },
+                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#18191a' : '#f0f2f5',
+                    minHeight: '100vh',
+                    overflow: 'auto'
                 }}
             >
-                <Toolbar sx={{ minHeight: 70 }} /> {/* Spacer matching new header height */}
+                <Toolbar sx={{ minHeight: 70 }} />
                 {children}
             </Box>
         </Box>

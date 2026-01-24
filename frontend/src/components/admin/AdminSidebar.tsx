@@ -21,7 +21,8 @@ import {
     Settings as SettingsIcon,
     Home as HomeIcon,
     Logout as LogoutIcon,
-    AdminPanelSettings as AdminIcon
+    AdminPanelSettings as AdminIcon,
+    Palette as PaletteIcon
 } from '@mui/icons-material';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -34,6 +35,8 @@ const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin' },
     { text: 'Quản lý tài khoản', icon: <PeopleIcon />, path: '/admin/users' },
     { text: 'Quản lý bài viết', icon: <ArticleIcon />, path: '/admin/posts' },
+    { text: 'Quản lý giao diện', icon: <PaletteIcon />, path: '/admin/themes' },
+    { text: 'Cài đặt', icon: <SettingsIcon />, path: '/admin/settings' },
 ];
 
 export default function AdminSidebar() {
@@ -56,9 +59,9 @@ export default function AdminSidebar() {
                 [`& .MuiDrawer-paper`]: {
                     width: drawerWidth,
                     boxSizing: 'border-box',
-                    backgroundColor: theme.palette.mode === 'dark' ? '#111827' : '#FFFFFF',
-                    borderRight: 'none',
-                    boxShadow: '4px 0 24px rgba(0,0,0,0.02)', // Soft shadow thay vì border cứng
+                    backgroundColor: theme.palette.mode === 'dark' ? '#242526' : '#ffffff',
+                    borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#3a3b3c' : '#e4e6eb'}`,
+                    boxShadow: theme.palette.mode === 'dark' ? 'none' : '4px 0 24px rgba(0,0,0,0.02)',
                 },
             }}
         >

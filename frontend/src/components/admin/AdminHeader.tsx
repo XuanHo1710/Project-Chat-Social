@@ -20,14 +20,14 @@ export default function AdminHeader() {
         <AppBar
             position="fixed"
             sx={{
-                width: `calc(100% - ${drawerWidth}px)`,
-                ml: `${drawerWidth}px`,
-                backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(18, 18, 18, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+                width: { xs: '100%', sm: `calc(100% - ${drawerWidth}px)` },
+                ml: { xs: 0, sm: `${drawerWidth}px` },
+                backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#242526' : '#ffffff',
                 backdropFilter: 'blur(12px)',
                 color: (theme) => theme.palette.text.primary,
-                boxShadow: 'none',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 borderBottom: '1px solid',
-                borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+                borderColor: (theme) => theme.palette.mode === 'dark' ? '#3a3b3c' : '#e4e6eb',
                 transition: 'width 0.2s ease-in-out'
             }}
         >

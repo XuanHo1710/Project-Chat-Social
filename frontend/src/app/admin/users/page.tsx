@@ -21,7 +21,23 @@ import {
     Menu,
     MenuItem,
     ListItemIcon,
-    Tooltip
+    Tooltip,
+    Select,
+    FormControl,
+    InputLabel,
+    useTheme,
+    alpha,
+    Collapse,
+    Divider,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
+    FormHelperText,
+    RadioGroup,
+    Radio,
+    FormControlLabel
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -30,24 +46,61 @@ import {
     Edit as EditIcon,
     Block as BlockIcon,
     Delete as DeleteIcon,
-    VerifiedUser as VerifiedUserIcon
+    VerifiedUser as VerifiedUserIcon,
+    Sort as SortIcon,
+    KeyboardArrowDown as KeyboardArrowDownIcon,
+    KeyboardArrowUp as KeyboardArrowUpIcon,
+    Close as CloseIcon,
+    PersonAdd as PersonAddIcon,
+    AdminPanelSettings as AdminPanelSettingsIcon,
+    Person as PersonIcon,
+    Work as WorkIcon,
+    Email as EmailIcon,
+    Lock as LockIcon
 } from '@mui/icons-material';
 
-// Mock users data
+// Mock users data with EMPLOYEE role
 const mockUsers = [
     { id: 1, name: 'Nguyễn Văn A', email: 'vana@example.com', role: 'ADMIN', status: 'ACTIVE', lastLogin: '2 giờ trước', avatar: '' },
     { id: 2, name: 'Trần Thị B', email: 'thib@example.com', role: 'USER', status: 'ACTIVE', lastLogin: '5 phút trước', avatar: '' },
-    { id: 3, name: 'Lê Văn C', email: 'vanc@example.com', role: 'USER', status: 'BLOCKED', lastLogin: '3 ngày trước', avatar: '' },
-    { id: 4, name: 'Phạm Thị D', email: 'thid@example.com', role: 'USER', status: 'ACTIVE', lastLogin: '1 ngày trước', avatar: '' },
-    { id: 5, name: 'Hoàng Văn E', email: 'vane@example.com', role: 'USER', status: 'PENDING', lastLogin: 'Chưa đăng nhập', avatar: '' },
-    { id: 6, name: 'Đỗ Thị F', email: 'thif@example.com', role: 'USER', status: 'ACTIVE', lastLogin: '10 phút trước', avatar: '' },
+    { id: 3, name: 'Lê Văn C', email: 'vanc@example.com', role: 'EMPLOYEE', status: 'ACTIVE', lastLogin: '30 phút trước', avatar: '' },
+    { id: 4, name: 'Phạm Thị D', email: 'thid@example.com', role: 'USER', status: 'BLOCKED', lastLogin: '3 ngày trước', avatar: '' },
+    { id: 5, name: 'Hoàng Văn E', email: 'vane@example.com', role: 'EMPLOYEE', status: 'ACTIVE', lastLogin: '1 giờ trước', avatar: '' },
+    { id: 6, name: 'Đỗ Thị F', email: 'thif@example.com', role: 'USER', status: 'PENDING', lastLogin: 'Chưa đăng nhập', avatar: '' },
     { id: 7, name: 'Ngô Văn G', email: 'vang@example.com', role: 'USER', status: 'ACTIVE', lastLogin: '1 tháng trước', avatar: '' },
 ];
 
+interface AddAccountFormData {
+    fullName: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+    role: 'ADMIN' | 'EMPLOYEE';
+}
+
 export default function UsersManagementPage() {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [page, setPage] = useState(1);
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [selectedUser, setSelectedUser] = useState<any>(null);
+    const [showFilters, setShowFilters] = useState(false);
+    const [addAccountOpen, setAddAccountOpen] = useState(false);
+
+    // Filter states
+    const [statusFilter, setStatusFilter] = useState('ALL');
+    const [roleFilter, setRoleFilter] = useState('ALL');
+    const [sortBy, setSortBy] = useState('lastLogin');
+
+    // Add account form
+    const [formData, setFormData] = useState<AddAccountFormData>({
+        fullName: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        role: 'EMPLOYEE'
+    });
+    const [formErrors, setFormErrors] = useState<Partial<AddAccountFormData>>({});
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, user: any) => {
         setAnchorEl(event.currentTarget);
@@ -59,6 +112,48 @@ export default function UsersManagementPage() {
         setSelectedUser(null);
     };
 
+    const clearFilters = () => {
+        setStatusFilter('ALL');
+        setRoleFilter('ALL');
+        setSortBy('lastLogin');
+    };
+
+    const handleOpenAddAccount = () => {
+        setFormData({
+            fullName: '',
+            email: '',
+            password: '',
+            confirmPassword: '',
+            role: 'EMPLOYEE'
+        });
+        setFormErrors({});
+        setAddAccountOpen(true);
+    };
+
+    const handleCloseAddAccount = () => {
+        setAddAccountOpen(false);
+    };
+
+    const validateForm = () => {
+        const errors: Partial<AddAccountFormData> = {};
+        if (!formData.fullName.trim()) errors.fullName = 'Vui lòng nhập họ tên';
+        if (!formData.email.trim()) errors.email = 'Vui lòng nhập email';
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = 'Email không hợp lệ';
+        if (!formData.password) errors.password = 'Vui lòng nhập mật khẩu';
+        else if (formData.password.length < 6) errors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
+        if (formData.password !== formData.confirmPassword) errors.confirmPassword = 'Mật khẩu không khớp';
+        setFormErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
+    const handleAddAccount = () => {
+        if (validateForm()) {
+            console.log('Adding account:', formData);
+            // API call here
+            handleCloseAddAccount();
+        }
+    };
+
     const getStatusChip = (status: string) => {
         switch (status) {
             case 'ACTIVE': return <Chip label="Hoạt động" color="success" size="small" variant="outlined" />;
@@ -68,18 +163,91 @@ export default function UsersManagementPage() {
         }
     };
 
+    const getRoleChip = (role: string) => {
+        switch (role) {
+            case 'ADMIN':
+                return (
+                    <Chip
+                        icon={<AdminPanelSettingsIcon sx={{ fontSize: 16 }} />}
+                        label="ADMIN"
+                        size="small"
+                        sx={{
+                            fontWeight: 700,
+                            bgcolor: alpha('#fa383e', 0.15),
+                            color: '#fa383e',
+                            border: `1px solid ${alpha('#fa383e', 0.3)}`,
+                            '& .MuiChip-icon': { color: '#fa383e' }
+                        }}
+                    />
+                );
+            case 'EMPLOYEE':
+                return (
+                    <Chip
+                        icon={<WorkIcon sx={{ fontSize: 16 }} />}
+                        label="EMPLOYEE"
+                        size="small"
+                        sx={{
+                            fontWeight: 700,
+                            bgcolor: alpha('#1877f2', 0.15),
+                            color: '#1877f2',
+                            border: `1px solid ${alpha('#1877f2', 0.3)}`,
+                            '& .MuiChip-icon': { color: '#1877f2' }
+                        }}
+                    />
+                );
+            default:
+                return (
+                    <Chip
+                        icon={<PersonIcon sx={{ fontSize: 16 }} />}
+                        label="USER"
+                        size="small"
+                        sx={{
+                            fontWeight: 500,
+                            bgcolor: isDark ? '#3a3b3c' : '#e4e6eb',
+                            color: 'text.secondary'
+                        }}
+                    />
+                );
+        }
+    };
+
+    const hasActiveFilters = statusFilter !== 'ALL' || roleFilter !== 'ALL';
+
     return (
         <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={4}>
                 <Typography variant="h5" fontWeight="bold">Quản lý Tài khoản</Typography>
-                <Button variant="contained" startIcon={<VerifiedUserIcon />}>Thêm Admin mới</Button>
+                <Button
+                    variant="contained"
+                    startIcon={<PersonAddIcon />}
+                    onClick={handleOpenAddAccount}
+                >
+                    Thêm tài khoản
+                </Button>
             </Stack>
 
-            <Paper sx={{ width: '100%', mb: 2, borderRadius: 2, overflow: 'hidden' }}>
+            <Paper sx={{
+                width: '100%',
+                mb: 2,
+                borderRadius: 3,
+                overflow: 'hidden',
+                bgcolor: isDark ? '#242526' : '#ffffff',
+                border: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}`,
+                boxShadow: isDark ? 'none' : '0 2px 12px rgba(0,0,0,0.06)'
+            }}>
+                {/* Search & Filter Bar */}
                 <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
                     <Paper
                         component="form"
-                        sx={{ p: '2px 4px', display: 'flex', alignItems: 'center', width: 400, bgcolor: (theme) => theme.palette.action.hover, boxShadow: 'none' }}
+                        sx={{
+                            p: '2px 4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            width: 400,
+                            bgcolor: isDark ? '#3a3b3c' : '#f0f2f5',
+                            boxShadow: 'none',
+                            borderRadius: 100
+                        }}
                     >
                         <IconButton sx={{ p: '10px' }} aria-label="search">
                             <SearchIcon />
@@ -89,11 +257,90 @@ export default function UsersManagementPage() {
                             placeholder="Tìm kiếm theo tên, email..."
                         />
                     </Paper>
-                    <Button startIcon={<FilterListIcon />}>Bộ lọc</Button>
+                    <Button
+                        startIcon={<FilterListIcon />}
+                        endIcon={showFilters ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                        onClick={() => setShowFilters(!showFilters)}
+                        variant={hasActiveFilters ? 'contained' : 'outlined'}
+                        color={hasActiveFilters ? 'primary' : 'inherit'}
+                    >
+                        Bộ lọc {hasActiveFilters && `(${[statusFilter !== 'ALL', roleFilter !== 'ALL'].filter(Boolean).length})`}
+                    </Button>
                 </Box>
+
+                {/* Filter Panel */}
+                <Collapse in={showFilters}>
+                    <Box sx={{
+                        px: 2,
+                        pb: 2,
+                        display: 'flex',
+                        gap: 2,
+                        flexWrap: 'wrap',
+                        alignItems: 'center'
+                    }}>
+                        <FormControl size="small" sx={{ minWidth: 150 }}>
+                            <InputLabel>Trạng thái</InputLabel>
+                            <Select
+                                value={statusFilter}
+                                label="Trạng thái"
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                            >
+                                <MenuItem value="ALL">Tất cả</MenuItem>
+                                <MenuItem value="ACTIVE">Hoạt động</MenuItem>
+                                <MenuItem value="BLOCKED">Đã khóa</MenuItem>
+                                <MenuItem value="PENDING">Chờ duyệt</MenuItem>
+                            </Select>
+                        </FormControl>
+
+                        <FormControl size="small" sx={{ minWidth: 150 }}>
+                            <InputLabel>Vai trò</InputLabel>
+                            <Select
+                                value={roleFilter}
+                                label="Vai trò"
+                                onChange={(e) => setRoleFilter(e.target.value)}
+                            >
+                                <MenuItem value="ALL">Tất cả</MenuItem>
+                                <MenuItem value="ADMIN">Admin</MenuItem>
+                                <MenuItem value="EMPLOYEE">Employee</MenuItem>
+                                <MenuItem value="USER">User</MenuItem>
+                            </Select>
+                        </FormControl>
+
+                        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+
+                        <FormControl size="small" sx={{ minWidth: 180 }}>
+                            <InputLabel>Sắp xếp theo</InputLabel>
+                            <Select
+                                value={sortBy}
+                                label="Sắp xếp theo"
+                                onChange={(e) => setSortBy(e.target.value)}
+                                startAdornment={<SortIcon sx={{ mr: 1, color: 'text.secondary' }} />}
+                            >
+                                <MenuItem value="lastLogin">Đăng nhập cuối</MenuItem>
+                                <MenuItem value="email">Email</MenuItem>
+                                <MenuItem value="name">Tên người dùng</MenuItem>
+                                <MenuItem value="createdAt">Ngày tạo</MenuItem>
+                            </Select>
+                        </FormControl>
+
+                        {hasActiveFilters && (
+                            <Button
+                                size="small"
+                                startIcon={<CloseIcon />}
+                                onClick={clearFilters}
+                                sx={{ ml: 'auto' }}
+                            >
+                                Xóa bộ lọc
+                            </Button>
+                        )}
+                    </Box>
+                </Collapse>
+
                 <TableContainer>
                     <Table sx={{ minWidth: 750 }} aria-labelledby="tableTitle">
-                        <TableHead sx={{ bgcolor: (theme) => theme.palette.background.default }}>
+                        <TableHead sx={{
+                            bgcolor: isDark ? '#18191a' : '#f0f2f5'
+                        }}>
                             <TableRow>
                                 <TableCell>Người dùng</TableCell>
                                 <TableCell>Email</TableCell>
@@ -104,7 +351,7 @@ export default function UsersManagementPage() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {mockUsers.map((user) => (
+                            {mockUsers.map((user, index) => (
                                 <TableRow
                                     hover
                                     key={user.id}
@@ -112,21 +359,27 @@ export default function UsersManagementPage() {
                                 >
                                     <TableCell component="th" scope="row">
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                            <Avatar src={user.avatar} alt={user.name}>{user.name.charAt(0)}</Avatar>
+                                            <Avatar
+                                                src={user.avatar}
+                                                alt={user.name}
+                                                sx={{
+                                                    bgcolor: `hsl(${index * 50}, 60%, 50%)`,
+                                                    fontWeight: 600
+                                                }}
+                                            >
+                                                {user.name.charAt(0)}
+                                            </Avatar>
                                             <Typography variant="subtitle2" fontWeight="600">{user.name}</Typography>
                                         </Box>
                                     </TableCell>
                                     <TableCell>{user.email}</TableCell>
-                                    <TableCell>
-                                        <Chip
-                                            label={user.role}
-                                            size="small"
-                                            color={user.role === 'ADMIN' ? 'primary' : 'default'}
-                                            sx={{ fontWeight: 500 }}
-                                        />
-                                    </TableCell>
+                                    <TableCell>{getRoleChip(user.role)}</TableCell>
                                     <TableCell>{getStatusChip(user.status)}</TableCell>
-                                    <TableCell>{user.lastLogin}</TableCell>
+                                    <TableCell>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {user.lastLogin}
+                                        </Typography>
+                                    </TableCell>
                                     <TableCell align="right">
                                         <Tooltip title="Tùy chọn">
                                             <IconButton onClick={(e) => handleMenuOpen(e, user)}>
@@ -144,6 +397,7 @@ export default function UsersManagementPage() {
                 </Box>
             </Paper>
 
+            {/* Action Menu */}
             <Menu
                 anchorEl={anchorEl}
                 open={Boolean(anchorEl)}
@@ -158,6 +412,165 @@ export default function UsersManagementPage() {
                     Khóa tài khoản
                 </MenuItem>
             </Menu>
+
+            {/* Add Account Dialog */}
+            <Dialog open={addAccountOpen} onClose={handleCloseAddAccount} maxWidth="sm" fullWidth>
+                <DialogTitle>
+                    <Stack direction="row" alignItems="center" gap={1}>
+                        <PersonAddIcon color="primary" />
+                        Thêm tài khoản Admin / Employee
+                    </Stack>
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Stack spacing={3} sx={{ py: 1 }}>
+                        {/* Role Selection */}
+                        <Box>
+                            <Typography variant="subtitle2" fontWeight="600" gutterBottom>
+                                Chọn vai trò
+                            </Typography>
+                            <RadioGroup
+                                row
+                                value={formData.role}
+                                onChange={(e) => setFormData({ ...formData, role: e.target.value as 'ADMIN' | 'EMPLOYEE' })}
+                            >
+                                <FormControlLabel
+                                    value="EMPLOYEE"
+                                    control={<Radio />}
+                                    label={
+                                        <Stack direction="row" alignItems="center" gap={1}>
+                                            <WorkIcon sx={{ color: '#1877f2' }} />
+                                            <Box>
+                                                <Typography variant="body2" fontWeight="600">Employee</Typography>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    Quản lý bài viết & Giao diện
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
+                                    }
+                                    sx={{
+                                        flex: 1,
+                                        m: 0,
+                                        p: 2,
+                                        border: `2px solid ${formData.role === 'EMPLOYEE' ? '#1877f2' : (isDark ? '#3a3b3c' : '#e4e6eb')}`,
+                                        borderRadius: 2,
+                                        mr: 2
+                                    }}
+                                />
+                                <FormControlLabel
+                                    value="ADMIN"
+                                    control={<Radio />}
+                                    label={
+                                        <Stack direction="row" alignItems="center" gap={1}>
+                                            <AdminPanelSettingsIcon sx={{ color: '#fa383e' }} />
+                                            <Box>
+                                                <Typography variant="body2" fontWeight="600">Admin</Typography>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    Toàn quyền hệ thống
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
+                                    }
+                                    sx={{
+                                        flex: 1,
+                                        m: 0,
+                                        p: 2,
+                                        border: `2px solid ${formData.role === 'ADMIN' ? '#fa383e' : (isDark ? '#3a3b3c' : '#e4e6eb')}`,
+                                        borderRadius: 2
+                                    }}
+                                />
+                            </RadioGroup>
+                        </Box>
+
+                        <TextField
+                            fullWidth
+                            label="Họ và tên"
+                            value={formData.fullName}
+                            onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                            error={!!formErrors.fullName}
+                            helperText={formErrors.fullName}
+                            InputProps={{
+                                startAdornment: <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                            }}
+                        />
+
+                        <TextField
+                            fullWidth
+                            label="Email"
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            error={!!formErrors.email}
+                            helperText={formErrors.email}
+                            InputProps={{
+                                startAdornment: <EmailIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                            }}
+                        />
+
+                        <TextField
+                            fullWidth
+                            label="Mật khẩu"
+                            type="password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            error={!!formErrors.password}
+                            helperText={formErrors.password}
+                            InputProps={{
+                                startAdornment: <LockIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                            }}
+                        />
+
+                        <TextField
+                            fullWidth
+                            label="Xác nhận mật khẩu"
+                            type="password"
+                            value={formData.confirmPassword}
+                            onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                            error={!!formErrors.confirmPassword}
+                            helperText={formErrors.confirmPassword}
+                            InputProps={{
+                                startAdornment: <LockIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                            }}
+                        />
+
+                        {/* Role permissions info */}
+                        <Paper sx={{
+                            p: 2,
+                            bgcolor: isDark ? '#18191a' : '#f0f2f5',
+                            borderRadius: 2
+                        }}>
+                            <Typography variant="subtitle2" fontWeight="600" gutterBottom>
+                                Quyền hạn của {formData.role === 'ADMIN' ? 'Admin' : 'Employee'}:
+                            </Typography>
+                            {formData.role === 'EMPLOYEE' ? (
+                                <Stack spacing={0.5}>
+                                    <Typography variant="body2" color="text.secondary">✓ Quản lý bài viết</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ Quản lý giao diện (Theme)</Typography>
+                                    <Typography variant="body2" color="error.main">✗ Quản lý tài khoản</Typography>
+                                    <Typography variant="body2" color="error.main">✗ Cài đặt hệ thống</Typography>
+                                </Stack>
+                            ) : (
+                                <Stack spacing={0.5}>
+                                    <Typography variant="body2" color="success.main">✓ Toàn quyền quản trị</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ Quản lý bài viết</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ Quản lý giao diện</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ Quản lý tài khoản</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ Cài đặt hệ thống</Typography>
+                                </Stack>
+                            )}
+                        </Paper>
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2 }}>
+                    <Button onClick={handleCloseAddAccount}>Hủy</Button>
+                    <Button
+                        variant="contained"
+                        onClick={handleAddAccount}
+                        disabled={!formData.fullName || !formData.email || !formData.password}
+                    >
+                        Tạo tài khoản
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

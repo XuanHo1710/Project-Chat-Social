@@ -112,7 +112,7 @@ const SocialParticles = () => {
 
 export default function LoginPage() {
   const [username, setUsername] = useState("xuanho");
-  const [password, setPassword] = useState("123");
+  const [password, setPassword] = useState("123123");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);

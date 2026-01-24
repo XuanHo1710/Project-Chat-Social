@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Box,
     Paper,
@@ -37,7 +38,8 @@ import {
     FormHelperText,
     RadioGroup,
     Radio,
-    FormControlLabel
+    FormControlLabel,
+    CircularProgress
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -58,17 +60,7 @@ import {
     Email as EmailIcon,
     Lock as LockIcon
 } from '@mui/icons-material';
-
-// Mock users data with EMPLOYEE role
-const mockUsers = [
-    { id: 1, name: 'Nguyễn Văn A', email: 'vana@example.com', role: 'ADMIN', status: 'ACTIVE', lastLogin: '2 giờ trước', avatar: '' },
-    { id: 2, name: 'Trần Thị B', email: 'thib@example.com', role: 'USER', status: 'ACTIVE', lastLogin: '5 phút trước', avatar: '' },
-    { id: 3, name: 'Lê Văn C', email: 'vanc@example.com', role: 'EMPLOYEE', status: 'ACTIVE', lastLogin: '30 phút trước', avatar: '' },
-    { id: 4, name: 'Phạm Thị D', email: 'thid@example.com', role: 'USER', status: 'BLOCKED', lastLogin: '3 ngày trước', avatar: '' },
-    { id: 5, name: 'Hoàng Văn E', email: 'vane@example.com', role: 'EMPLOYEE', status: 'ACTIVE', lastLogin: '1 giờ trước', avatar: '' },
-    { id: 6, name: 'Đỗ Thị F', email: 'thif@example.com', role: 'USER', status: 'PENDING', lastLogin: 'Chưa đăng nhập', avatar: '' },
-    { id: 7, name: 'Ngô Văn G', email: 'vang@example.com', role: 'USER', status: 'ACTIVE', lastLogin: '1 tháng trước', avatar: '' },
-];
+import { adminService, AdminUser } from '@/services/admin.service';
 
 interface AddAccountFormData {
     fullName: string;
@@ -81,16 +73,36 @@ interface AddAccountFormData {
 export default function UsersManagementPage() {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const queryClient = useQueryClient();
     const [page, setPage] = useState(1);
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-    const [selectedUser, setSelectedUser] = useState<any>(null);
+    const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
     const [showFilters, setShowFilters] = useState(false);
     const [addAccountOpen, setAddAccountOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Filter states
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [roleFilter, setRoleFilter] = useState('ALL');
     const [sortBy, setSortBy] = useState('lastLogin');
+    const limit = 10;
+
+    // API Query
+    const { data: usersData, isLoading, refetch } = useQuery({
+        queryKey: ['admin', 'users', { page, limit, status: statusFilter, role: roleFilter, sortBy, search: searchTerm }],
+        queryFn: () => adminService.getUsers({
+            page,
+            limit,
+            status: statusFilter !== 'ALL' ? statusFilter : undefined,
+            role: roleFilter !== 'ALL' ? roleFilter : undefined,
+            sortBy,
+            sortOrder: 'desc',
+            search: searchTerm || undefined
+        }),
+    });
+
+    const users = usersData?.data || [];
+    const pagination = usersData?.pagination;
 
     // Add account form
     const [formData, setFormData] = useState<AddAccountFormData>({
@@ -351,7 +363,24 @@ export default function UsersManagementPage() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {mockUsers.map((user, index) => (
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                                        <CircularProgress size={32} />
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                            Đang tải...
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : users.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                                        <Typography variant="body2" color="text.secondary">
+                                            Không tìm thấy người dùng nào
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : users.map((user, index) => (
                                 <TableRow
                                     hover
                                     key={user.id}
@@ -367,7 +396,7 @@ export default function UsersManagementPage() {
                                                     fontWeight: 600
                                                 }}
                                             >
-                                                {user.name.charAt(0)}
+                                                {user.name.charAt(0).toUpperCase()}
                                             </Avatar>
                                             <Typography variant="subtitle2" fontWeight="600">{user.name}</Typography>
                                         </Box>
@@ -392,8 +421,16 @@ export default function UsersManagementPage() {
                         </TableBody>
                     </Table>
                 </TableContainer>
-                <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                    <Pagination count={10} page={page} onChange={(e, v) => setPage(v)} color="primary" />
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                        {pagination ? `Hiển thị ${users.length} / ${pagination.total} người dùng` : ''}
+                    </Typography>
+                    <Pagination
+                        count={pagination?.totalPages || 1}
+                        page={page}
+                        onChange={(e, v) => setPage(v)}
+                        color="primary"
+                    />
                 </Box>
             </Paper>
 

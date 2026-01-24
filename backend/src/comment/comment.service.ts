@@ -18,6 +18,7 @@ import { Reaction, ReactionDocument, TypeFactor } from 'src/reaction/entities/re
 import { ReactionService } from 'src/reaction/reaction.service';
 import { NotificationService } from 'src/notification/notification.service';
 import { NotificationType } from 'src/notification/entities/notification.entity';
+import { NotificationGateway } from 'src/notification/notification.gateway';
 
 interface CommentWithReactInfo extends Comment {
   reactInfo?: {
@@ -36,8 +37,9 @@ export class CommentService {
     private hashtagService: HashtagService,
     @Inject(forwardRef(() => ReactionService))
     private reactionService: ReactionService,
-    private notificationService: NotificationService
-  ) {}
+    private notificationService: NotificationService,
+    private notificationGateway: NotificationGateway
+  ) { }
 
   async create(createCommentDto: CreateCommentDto, user: any) {
     const { postId, parentId, ...rest } = createCommentDto;
@@ -113,6 +115,16 @@ export class CommentService {
 
     // Populate user info
     await comment.populate('userId', 'firstName lastName avatar');
+
+    // Emit to admin dashboard real-time
+    const userInfo = comment.userId as any;
+    this.notificationGateway.emitAdminNewComment({
+      id: comment._id.toString(),
+      user: userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : 'Anonymous',
+      avatar: userInfo?.avatar || '',
+      content: comment.content,
+      time: 'Vừa xong'
+    });
 
     return comment;
   }

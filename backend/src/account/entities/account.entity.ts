@@ -130,7 +130,17 @@ export class Account {
   deletedAt: Date;
 
   @Prop({ default: 0 })
-  loginCount: number; // Để thống kê bên dashboard ?
+  loginCount: number; // Tổng số lần đăng nhập
+
+  // Lịch sử đăng nhập để thống kê traffic
+  @Prop([{
+    date: { type: Date, required: true },
+    count: { type: Number, default: 1 }
+  }])
+  loginHistory: Array<{
+    date: Date;
+    count: number;
+  }>;
 
   @Prop({ type: [String], default: [] })
   fcmTokens: string[]; // Lưu các FCM tokens của thiết bị người dùng

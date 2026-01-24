@@ -25,6 +25,7 @@ import { NotificationModule } from './notification/notification.module';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { EmailModule } from './email/email.module';
 import { OtpModule } from './otp/otp.module';
+import { AdminModule } from './admin/admin.module';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 
 @Module({
@@ -56,6 +57,7 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     NotificationModule,
     EmailModule,
     OtpModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [

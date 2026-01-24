@@ -16,7 +16,7 @@ export class AuthService {
     private accountService: AccountService,
     private jwtService: JwtService,
     private configService: ConfigService
-  ) {}
+  ) { }
 
   async googleLogin(accountGoogle: AccountGoogleDto) {
     if (!accountGoogle) throw new BadRequestException('Account google không tồn tại');
@@ -52,6 +52,12 @@ export class AuthService {
     if (!account) {
       throw new BadRequestException('Not found bla bla');
     }
+
+    // Tăng loginCount và ghi lịch sử đăng nhập
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    await this.accountService.recordLogin(account._id.toString(), today);
 
     const payload = {
       fullname: account.firstName + ' ' + account.lastName,

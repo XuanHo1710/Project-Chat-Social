@@ -70,4 +70,17 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
   isUserOnline(userId: string): boolean {
     return (this.userSockets.get(userId)?.size || 0) > 0;
   }
+
+  // Emit new comment to admin dashboard (real-time)
+  emitAdminNewComment(comment: {
+    id: string;
+    user: string;
+    avatar: string;
+    content: string;
+    time: string;
+  }) {
+    // Broadcast to all connected clients on admin:dashboard room
+    this.server.emit('admin:newComment', comment);
+    this.logger.log(`Broadcast new comment to admin dashboard: ${comment.id}`);
+  }
 }

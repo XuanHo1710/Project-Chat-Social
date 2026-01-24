@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
     Paper,
     Typography,
@@ -32,6 +33,8 @@ import { LineChart } from '@mui/x-charts/LineChart';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { adminService, RecentComment } from '@/services/admin.service';
+import { useSocket } from '@/contexts/SocketContext';
 
 // --- Components ---
 
@@ -120,39 +123,129 @@ const StatCard = ({ title, value, icon, color, trend, trendValue, subtitle }: an
     );
 };
 
-// --- Mock Data ---
-
-const stats = [
-    { label: 'Tổng người dùng', value: '1,234', icon: <PeopleIcon fontSize="medium" />, color: '#1877f2', trend: true, trendValue: 12, subtitle: 'So với tháng trước' },
-    { label: 'Bài viết mới', value: '567', icon: <ArticleIcon fontSize="medium" />, color: '#42b72a', trend: true, trendValue: 5, subtitle: 'Trong 7 ngày qua' },
-    { label: 'Đang online', value: '42', icon: <VisibilityIcon fontSize="medium" />, color: '#f7b928', trend: false, trendValue: 0, subtitle: 'Người dùng hoạt động' },
-    { label: 'Tổng tương tác', value: '89.2k', icon: <TrendingUpIcon fontSize="medium" />, color: '#fa383e', trend: true, trendValue: 24, subtitle: 'Like, comment, share' },
-];
-
-const mockComments = [
-    { id: 1, user: 'Hoàng Long', avatar: '', content: 'Bài viết rất hay, mình rất thích cách trình bày này!', time: '2 phút trước' },
-    { id: 2, user: 'Thảo Nhi', avatar: '', content: 'Cảm ơn admin đã chia sẻ thông tin hữu ích.', time: '5 phút trước' },
-    { id: 3, user: 'Minh Tuấn', avatar: '', content: 'Hóng bài tiếp theo của team quá đi ^^', time: '12 phút trước' },
-    { id: 4, user: 'Hà Anh', avatar: '', content: 'Giao diện app dạo này xịn xò quá.', time: '15 phút trước' },
-    { id: 5, user: 'Đức Huy', avatar: '', content: 'Cần sửa lại chút ở phần footer nha admin.', time: '25 phút trước' },
-];
-
-const trafficData = [20, 45, 30, 80, 55, 90, 100];
-const activeUsersData = [10, 25, 20, 50, 40, 70, 85];
-const weeklyPostsData = [45, 52, 38, 67, 82, 73, 91];
-
-const topPages = [
-    { name: 'Trang chủ', views: '45.2k', percentage: 85 },
-    { name: 'Reels', views: '32.1k', percentage: 68 },
-    { name: 'Tin nhắn', views: '28.4k', percentage: 55 },
-    { name: 'Nhóm', views: '18.9k', percentage: 42 },
-    { name: 'Thông báo', views: '12.3k', percentage: 28 },
-];
-
 export default function AdminDashboard() {
     const theme = useTheme();
     const { user } = useAuthStore();
     const isDark = theme.palette.mode === 'dark';
+    const { socketNotification } = useSocket();
+
+    // State for real-time comments
+    const [liveComments, setLiveComments] = useState<RecentComment[]>([]);
+
+    // Listen for new comments via socket
+    useEffect(() => {
+        if (!socketNotification) return;
+
+        const handleNewComment = (comment: RecentComment) => {
+            console.log('📝 New comment from admin socket:', comment);
+            setLiveComments(prev => {
+                // Add to beginning, keep max 10
+                const updated = [comment, ...prev].slice(0, 10);
+                return updated;
+            });
+        };
+
+        socketNotification.on('admin:newComment', handleNewComment);
+
+        return () => {
+            socketNotification.off('admin:newComment', handleNewComment);
+        };
+    }, [socketNotification]);
+
+    // API Queries
+    const { data: dashboardStats } = useQuery({
+        queryKey: ['admin', 'stats'],
+        queryFn: () => adminService.getDashboardStats(),
+    });
+
+    const { data: weeklyPosts } = useQuery({
+        queryKey: ['admin', 'weekly-posts'],
+        queryFn: () => adminService.getWeeklyPostsStats(),
+    });
+
+    const { data: topPagesData } = useQuery({
+        queryKey: ['admin', 'top-pages'],
+        queryFn: () => adminService.getTopPagesStats(),
+    });
+
+    const { data: recentCommentsData } = useQuery({
+        queryKey: ['admin', 'recent-comments'],
+        queryFn: () => adminService.getRecentComments(),
+    });
+
+    const { data: emotionsData } = useQuery({
+        queryKey: ['admin', 'emotions'],
+        queryFn: () => adminService.getEmotionStats(),
+    });
+
+    const { data: trafficDataApi } = useQuery({
+        queryKey: ['admin', 'traffic'],
+        queryFn: () => adminService.getTrafficData(7),
+    });
+
+    // Format number to display
+    const formatNumber = (num: number | undefined) => {
+        if (!num) return '0';
+        if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+        return num.toString();
+    };
+
+    // Traffic data from API or fallback
+    const trafficData = trafficDataApi?.map(t => t.logins) || [];
+    const activeUsersData = trafficDataApi?.map(t => t.activeUsers) || [];
+    const trafficLabels = trafficDataApi?.map(t => {
+        const [y, m, d] = t.date.split('-'); // 1 số browser new Date() có thể lệch múi giờ, split safe hơn
+        return `${d}/${m}`;
+    }) || ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+
+    // Stats from API or fallback
+    const stats = [
+        {
+            label: 'Tổng người dùng',
+            value: formatNumber(dashboardStats?.totalUsers),
+            icon: <PeopleIcon fontSize="medium" />,
+            color: '#1877f2',
+            trend: true,
+            trendValue: dashboardStats?.userChange || 0,
+            subtitle: `+${dashboardStats?.newUsersToday || 0} hôm nay`
+        },
+        {
+            label: 'Tổng bài viết',
+            value: formatNumber(dashboardStats?.totalPosts),
+            icon: <ArticleIcon fontSize="medium" />,
+            color: '#42b72a',
+            trend: true,
+            trendValue: 5,
+            subtitle: `+${dashboardStats?.newPostsToday || 0} hôm nay`
+        },
+        {
+            label: 'Đang online',
+            value: dashboardStats?.onlineUsers?.toString() || '0',
+            icon: <VisibilityIcon fontSize="medium" />,
+            color: '#f7b928',
+            trend: false,
+            trendValue: 0,
+            subtitle: 'Người dùng hoạt động'
+        },
+        {
+            label: 'Tổng tương tác',
+            value: formatNumber((dashboardStats?.totalComments || 0) + (dashboardStats?.totalReactions || 0)),
+            icon: <TrendingUpIcon fontSize="medium" />,
+            color: '#fa383e',
+            trend: true,
+            trendValue: 24,
+            subtitle: 'Like, comment, share'
+        },
+    ];
+
+    const weeklyPostsChartData = weeklyPosts?.map(w => w.count) || [];
+    const topPages = topPagesData || [];
+
+    // Merge live comments with API comments (live takes priority, avoid duplicates)
+    const apiComments = recentCommentsData || [];
+    const liveCommentIds = new Set(liveComments.map(c => c.id));
+    const filteredApiComments = apiComments.filter(c => !liveCommentIds.has(c.id));
+    const mockComments = [...liveComments, ...filteredApiComments].slice(0, 10);
 
     const cardStyle = {
         p: 3,
@@ -266,7 +359,7 @@ export default function AdminDashboard() {
                             <LineChart
                                 grid={{ horizontal: true }}
                                 xAxis={[{
-                                    data: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+                                    data: trafficLabels,
                                     scaleType: 'point',
                                 }]}
                                 series={[
@@ -318,11 +411,13 @@ export default function AdminDashboard() {
                             <PieChart
                                 series={[
                                     {
-                                        data: [
-                                            { id: 0, value: 35, label: 'Like', color: '#1877f2' },
-                                            { id: 1, value: 25, label: 'Love', color: '#f23e5c' },
-                                            { id: 2, value: 15, label: 'Haha', color: '#f7b928' },
-                                            { id: 3, value: 25, label: 'Khác', color: isDark ? '#4e4f50' : '#e4e6eb' },
+                                        data: emotionsData?.length ? emotionsData.map((e, i) => ({
+                                            id: i,
+                                            value: e.count,
+                                            label: e.label,
+                                            color: e.color
+                                        })) : [
+                                            { id: 0, value: 1, label: 'No data', color: isDark ? '#4e4f50' : '#e4e6eb' }
                                         ],
                                         innerRadius: 50,
                                         outerRadius: 85,
@@ -342,14 +437,21 @@ export default function AdminDashboard() {
                                 transform: 'translate(-50%, -50%)',
                                 textAlign: 'center'
                             }}>
-                                <Typography variant="h4" fontWeight="800" color="text.primary">89k</Typography>
+                                <Typography variant="h4" fontWeight="800" color="text.primary">
+                                    {emotionsData?.reduce((sum, e) => sum + e.count, 0)?.toLocaleString() || '0'}
+                                </Typography>
                                 <Typography variant="caption" color="text.secondary">Tổng</Typography>
                             </Box>
                         </Box>
                         <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
-                            <Chip size="small" label="👍 Like 35%" sx={{ bgcolor: alpha('#1877f2', 0.15), color: '#1877f2', fontWeight: 600 }} />
-                            <Chip size="small" label="❤️ Love 25%" sx={{ bgcolor: alpha('#f23e5c', 0.15), color: '#f23e5c', fontWeight: 600 }} />
-                            <Chip size="small" label="😂 Haha 15%" sx={{ bgcolor: alpha('#f7b928', 0.15), color: '#b88b00', fontWeight: 600 }} />
+                            {emotionsData?.slice(0, 3).map((e) => (
+                                <Chip
+                                    key={e.type}
+                                    size="small"
+                                    label={`${e.label} ${e.percentage}%`}
+                                    sx={{ bgcolor: alpha(e.color, 0.15), color: e.color, fontWeight: 600 }}
+                                />
+                            ))}
                         </Box>
                     </Paper>
                 </Box>
@@ -359,14 +461,16 @@ export default function AdminDashboard() {
             <Box sx={{
                 display: 'flex',
                 flexWrap: 'wrap',
+                alignItems: 'flex-start',
                 gap: 3
             }}>
                 {/* Weekly Posts Bar Chart */}
                 <Box sx={{
                     flex: { xs: '1 1 100%', md: '1 1 calc(33.333% - 16px)' },
-                    minWidth: { xs: '100%', md: 'calc(33.333% - 16px)' }
+                    minWidth: { xs: '100%', md: 'calc(33.333% - 16px)' },
+                    maxWidth: { xs: '100%', md: 'calc(33.333% - 16px)' }
                 }}>
-                    <Paper sx={{ ...cardStyle, height: '100%' }}>
+                    <Paper sx={{ ...cardStyle, height: '100%', maxWidth: 'max-content', minWidth: '100%' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                             <Typography variant="h6" fontWeight="700" color="text.primary">
                                 Bài viết theo tuần
@@ -381,23 +485,18 @@ export default function AdminDashboard() {
                                 }}
                             />
                         </Box>
-                        <Box sx={{ height: 220, width: '100%', pt: 1 }}>
+                        <Box sx={{ height: 200, width: '100%' }}>
                             <BarChart
                                 grid={{ horizontal: true }}
                                 xAxis={[{
                                     data: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
                                     scaleType: 'band',
                                     tickLabelStyle: {
-                                        fontSize: 12,
+                                        fontSize: 11,
                                     }
                                 }]}
-                                yAxis={[{
-                                    min: 0,
-                                    max: 100,
-                                    tickNumber: 3,
-                                }]}
                                 series={[{
-                                    data: weeklyPostsData,
+                                    data: weeklyPostsChartData,
                                     color: '#1877f2',
                                 }]}
                                 sx={{
@@ -406,18 +505,18 @@ export default function AdminDashboard() {
                                     '.MuiChartsAxis-tickLabel': {
                                         fill: theme.palette.text.secondary,
                                         fontWeight: 500,
-                                        fontSize: '12px',
+                                        fontSize: '11px',
                                     },
                                     '.MuiChartsGrid-line': {
                                         stroke: isDark ? '#3a3b3c' : '#e4e6eb',
-                                        strokeDasharray: '4 4',
+                                        strokeOpacity: 0.5,
                                     },
                                     '.MuiBarElement-root': {
                                         rx: 4,
                                         ry: 4,
                                     },
                                 }}
-                                margin={{ left: 35, right: 10, top: 10, bottom: 25 }}
+                                margin={{ left: 30, right: 10, top: 5, bottom: 20 }}
                                 hideLegend
                             />
                         </Box>
@@ -427,7 +526,8 @@ export default function AdminDashboard() {
                 {/* Top Pages */}
                 <Box sx={{
                     flex: { xs: '1 1 100%', md: '1 1 calc(33.333% - 16px)' },
-                    minWidth: { xs: '100%', md: 'calc(33.333% - 16px)' }
+                    minWidth: { xs: '100%', md: 'calc(33.333% - 16px)' },
+                    maxHeight: "max-content"
                 }}>
                     <Paper sx={{ ...cardStyle, height: '100%' }}>
                         <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ mb: 3 }}>
@@ -462,7 +562,7 @@ export default function AdminDashboard() {
                     flex: { xs: '1 1 100%', md: '1 1 calc(33.333% - 16px)' },
                     minWidth: { xs: '100%', md: 'calc(33.333% - 16px)' }
                 }}>
-                    <Paper sx={{ ...cardStyle, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <Paper sx={{ ...cardStyle, height: '600px', display: 'flex', flexDirection: 'column' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                             <Typography variant="h6" fontWeight="700" color="text.primary">
                                 Bình luận mới nhất
@@ -478,19 +578,19 @@ export default function AdminDashboard() {
                             />
                         </Box>
 
-                        <List sx={{ p: 0, overflow: 'auto', flexGrow: 1 }}>
+                        <List sx={{ p: 0, overflow: 'auto', scrollbarWidth: 'thin', flexGrow: 1 }}>
                             {mockComments.map((comment, index) => (
                                 <React.Fragment key={comment.id}>
                                     <ListItem
                                         alignItems="flex-start"
                                         sx={{
-                                            px: 0,
+                                            px: 1,
                                             py: 1.5,
+                                            mx: -1,
+                                            borderRadius: 2,
+                                            transition: 'background-color 0.2s ease',
                                             '&:hover': {
-                                                bgcolor: isDark ? '#3a3b3c' : '#f5f6f7',
-                                                borderRadius: 2,
-                                                mx: -1,
-                                                px: 1
+                                                bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
                                             }
                                         }}
                                     >

@@ -305,4 +305,90 @@ export class AccountService {
       .findOne({ email: email.toLowerCase().trim() })
       .select('_id email firstName lastName');
   }
+
+  /**
+   * Record login: tăng loginCount và ghi lịch sử đăng nhập
+   */
+  async recordLogin(userId: string, today: Date) {
+    // Tìm xem ngày hôm nay đã có entry chưa
+    const account = await this.accountModel.findById(userId);
+    if (!account) return;
+
+    // Kiểm tra xem ngày hôm nay đã được ghi chưa
+    const todayStr = today.toISOString().split('T')[0];
+    const existingEntry = account.loginHistory?.find(entry => {
+      const entryDateStr = new Date(entry.date).toISOString().split('T')[0];
+      return entryDateStr === todayStr;
+    });
+
+    if (existingEntry) {
+      // Đã có entry ngày hôm nay -> tăng count
+      await this.accountModel.updateOne(
+        { _id: userId, 'loginHistory.date': existingEntry.date },
+        {
+          $inc: { loginCount: 1, 'loginHistory.$.count': 1 },
+          $set: { lastLogin: new Date() }
+        }
+      );
+    } else {
+      // Chưa có entry ngày hôm nay -> tạo mới
+      await this.accountModel.updateOne(
+        { _id: userId },
+        {
+          $inc: { loginCount: 1 },
+          $push: { loginHistory: { date: today, count: 1 } },
+          $set: { lastLogin: new Date() }
+        }
+      );
+    }
+  }
+
+  /**
+   * Lấy thống kê traffic (số lượt đăng nhập) trong 7 ngày gần nhất
+   */
+  async getTrafficData(days: number = 7): Promise<Array<{ date: string; logins: number; activeUsers: number }>> {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - (days - 1));
+    startDate.setHours(0, 0, 0, 0);
+
+    // Tính tổng số lượt đăng nhập từ tất cả users theo từng ngày
+    const result: Array<{ date: string; logins: number; activeUsers: number }> = [];
+
+    for (let i = 0; i < days; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      // Đếm số lượt đăng nhập trong ngày này
+      const loginStats = await this.accountModel.aggregate([
+        { $unwind: { path: '$loginHistory', preserveNullAndEmptyArrays: true } },
+        {
+          $match: {
+            'loginHistory.date': {
+              $gte: new Date(dateStr + 'T00:00:00.000Z'),
+              $lt: new Date(dateStr + 'T23:59:59.999Z')
+            }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalLogins: { $sum: '$loginHistory.count' },
+            uniqueUsers: { $addToSet: '$_id' }
+          }
+        }
+      ]);
+
+      result.push({
+        date: dateStr,
+        logins: loginStats[0]?.totalLogins || 0,
+        activeUsers: loginStats[0]?.uniqueUsers?.length || 0
+      });
+    }
+
+    return result;
+  }
 }

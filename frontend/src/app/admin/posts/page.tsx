@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
     Box,
     Paper,
@@ -27,7 +28,8 @@ import {
     useTheme,
     alpha,
     Collapse,
-    Divider
+    Divider,
+    CircularProgress
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -47,31 +49,42 @@ import {
     Comment as CommentIcon,
     Share as ShareIcon
 } from '@mui/icons-material';
+import { adminService, AdminPost } from '@/services/admin.service';
 
-// Mock posts data with shares
-const mockPosts = [
-    { id: 101, author: 'Nguyễn Văn A', content: 'Hôm nay trời đẹp quá!', privacy: 'PUBLIC', reactions: 156, comments: 23, shares: 12, status: 'ACTIVE', time: '2 giờ trước' },
-    { id: 102, author: 'Trần Thị B', content: 'Cần tìm người nuôi mèo...', privacy: 'FRIENDS', reactions: 45, comments: 12, shares: 3, status: 'ACTIVE', time: '1 ngày trước' },
-    { id: 103, author: 'Lê Văn C', content: 'Chia sẻ kinh nghiệm lập trình', privacy: 'PUBLIC', reactions: 890, comments: 150, shares: 89, status: 'REPORTED', time: '30 phút trước' },
-    { id: 104, author: 'Phạm Thị D', content: 'Check in Đà Lạt', privacy: 'PRIVATE', reactions: 340, comments: 45, shares: 0, status: 'ACTIVE', time: '3 ngày trước' },
-    { id: 105, author: 'Admin System', content: 'Thông báo bảo trì server', privacy: 'PUBLIC', reactions: 1200, comments: 300, shares: 156, status: 'ACTIVE', time: '1 tuần trước' },
-    { id: 106, author: 'Hoàng Văn E', content: 'Nhóm IT chia sẻ kiến thức', privacy: 'GROUP', reactions: 78, comments: 15, shares: 5, status: 'HIDDEN', time: '2 ngày trước' },
-];
 
 export default function PostsManagementPage() {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const [page, setPage] = useState(1);
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-    const [selectedPost, setSelectedPost] = useState<any>(null);
+    const [selectedPost, setSelectedPost] = useState<AdminPost | null>(null);
     const [showFilters, setShowFilters] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Filter states
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [privacyFilter, setPrivacyFilter] = useState('ALL');
     const [sortBy, setSortBy] = useState('time');
+    const limit = 10;
 
-    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, post: any) => {
+    // API Query
+    const { data: postsData, isLoading } = useQuery({
+        queryKey: ['admin', 'posts', { page, limit, status: statusFilter, privacy: privacyFilter, sortBy, search: searchTerm }],
+        queryFn: () => adminService.getPosts({
+            page,
+            limit,
+            status: statusFilter !== 'ALL' ? statusFilter : undefined,
+            privacy: privacyFilter !== 'ALL' ? privacyFilter : undefined,
+            sortBy,
+            sortOrder: 'desc',
+            search: searchTerm || undefined
+        }),
+    });
+
+    const posts = postsData?.data || [];
+    const pagination = postsData?.pagination;
+
+    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, post: AdminPost) => {
         setAnchorEl(event.currentTarget);
         setSelectedPost(post);
     };
@@ -280,7 +293,24 @@ export default function PostsManagementPage() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {mockPosts.map((post) => (
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                                        <CircularProgress size={32} />
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                            Đang tải...
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : posts.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                                        <Typography variant="body2" color="text.secondary">
+                                            Không tìm thấy bài viết nào
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : posts.map((post) => (
                                 <TableRow
                                     hover
                                     key={post.id}
@@ -288,7 +318,7 @@ export default function PostsManagementPage() {
                                 >
                                     <TableCell>
                                         <Typography variant="body2" fontWeight="600" color="text.secondary">
-                                            #{post.id}
+                                            #{post.id.toString().slice(-6)}
                                         </Typography>
                                     </TableCell>
                                     <TableCell>
@@ -330,8 +360,16 @@ export default function PostsManagementPage() {
                         </TableBody>
                     </Table>
                 </TableContainer>
-                <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                    <Pagination count={10} page={page} onChange={(e, v) => setPage(v)} color="primary" />
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                        {pagination ? `Hiển thị ${posts.length} / ${pagination.total} bài viết` : ''}
+                    </Typography>
+                    <Pagination
+                        count={pagination?.totalPages || 1}
+                        page={page}
+                        onChange={(e, v) => setPage(v)}
+                        color="primary"
+                    />
                 </Box>
             </Paper>
 

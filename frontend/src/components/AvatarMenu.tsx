@@ -27,6 +27,8 @@ import {
     LightMode as LightModeIcon,
     TextFields as TextFieldsIcon,
     HelpOutline as HelpIcon,
+    Language as LanguageIcon,
+    Check as CheckIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useThemeStore, ThemeMode, FontSize } from '@/stores/useThemeStore';
@@ -40,14 +42,14 @@ interface AvatarMenuProps {
     onClose: () => void;
 }
 
-type MenuPanel = 'main' | 'display';
+type MenuPanel = 'main' | 'display' | 'language';
 
 export default function AvatarMenu({ onClose }: AvatarMenuProps) {
     const user = useAuthStore((state) => state.user);
     const logout = useAuthStore((state) => state.logout);
     const router = useRouter();
     const muiTheme = useTheme();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const isDark = muiTheme.palette.mode === 'dark';
 
     const [activePanel, setActivePanel] = useState<MenuPanel>('main');
@@ -82,6 +84,14 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
 
     const handleOpenDisplaySettings = () => {
         setActivePanel('display');
+    };
+
+    const handleOpenLanguageSettings = () => {
+        setActivePanel('language');
+    };
+
+    const handleLanguageChange = (lang: string) => {
+        i18n.changeLanguage(lang);
     };
 
     const handleBackToMain = () => {
@@ -176,13 +186,13 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                     <ArrowRightIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                 </ListItemButton>
 
-                <ListItemButton sx={{ py: 1.5, px: 2 }}>
+                <ListItemButton onClick={handleOpenLanguageSettings} sx={{ py: 1.5, px: 2 }}>
                     <ListItemIcon sx={{ minWidth: 40 }}>
                         <Box sx={iconBoxStyle}>
-                            <FeedbackIcon sx={{ fontSize: 20, color: 'text.primary' }} />
+                            <LanguageIcon sx={{ fontSize: 20, color: 'text.primary' }} />
                         </Box>
                     </ListItemIcon>
-                    <ListItemText primary={t('avatar_menu.give_feedback')} primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
+                    <ListItemText primary={t('avatar_menu.language')} primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
                     <ArrowRightIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                 </ListItemButton>
 
@@ -293,6 +303,50 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
         </Box>
     );
 
+    // Language Settings Panel
+    const LanguageSettingsPanel = () => (
+        <Box>
+            {/* Header with back button */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2, borderBottom: 1, borderColor: 'divider' }}>
+                <IconButton onClick={handleBackToMain} size="small">
+                    <ArrowBackIcon sx={{ color: 'text.primary' }} />
+                </IconButton>
+                <Typography variant="h6" fontWeight={700} color="text.primary">
+                    {t('avatar_menu.language_title')}
+                </Typography>
+            </Box>
+
+            <Box sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 1 }}>
+                    <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle1" fontWeight={600} color="text.primary" sx={{ mb: 1 }}>
+                            {t('avatar_menu.language')}
+                        </Typography>
+
+                        <List disablePadding>
+                            <ListItemButton
+                                onClick={() => handleLanguageChange('vi')}
+                                sx={{ py: 1, borderRadius: 1, justifyContent: 'space-between' }}
+                                selected={i18n.language === 'vi'}
+                            >
+                                <Typography fontSize={15} color="text.primary">{t('avatar_menu.vietnamese')}</Typography>
+                                {i18n.language === 'vi' && <CheckIcon color="primary" fontSize="small" />}
+                            </ListItemButton>
+                            <ListItemButton
+                                onClick={() => handleLanguageChange('en')}
+                                sx={{ py: 1, borderRadius: 1, justifyContent: 'space-between' }}
+                                selected={i18n.language === 'en'}
+                            >
+                                <Typography fontSize={15} color="text.primary">{t('avatar_menu.english')}</Typography>
+                                {i18n.language === 'en' && <CheckIcon color="primary" fontSize="small" />}
+                            </ListItemButton>
+                        </List>
+                    </Box>
+                </Box>
+            </Box>
+        </Box>
+    );
+
     return (
         <Paper
             elevation={8}
@@ -318,7 +372,8 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                     <MainMenuPanel />
                 </Box>
                 <Box sx={{ width: '50%', flexShrink: 0 }}>
-                    <DisplaySettingsPanel />
+                    {activePanel === 'display' && <DisplaySettingsPanel />}
+                    {activePanel === 'language' && <LanguageSettingsPanel />}
                 </Box>
             </Box>
         </Paper>

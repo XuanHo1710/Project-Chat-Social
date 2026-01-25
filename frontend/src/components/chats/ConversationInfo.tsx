@@ -479,7 +479,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         // Check if trying to promote and already at max admins
         const currentAdminCount = conversation.participants.filter(p => p.isAdmin).length;
         if (!selectedMember.isAdmin && currentAdminCount >= 3) {
-            alert('Đã đạt giới hạn tối đa 3 quản trị viên cho nhóm này.');
+            alert(t('chat.max_admins_alert', { count: 3 }));
             handleMemberMenuClose();
             return;
         }
@@ -531,12 +531,12 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
         // Validate minimum 2 members selected
         if (selectedMembers.length < 2) {
-            toast.error('Vui lòng chọn ít nhất 2 bạn bè để tạo nhóm (nhóm cần ít nhất 3 người)');
+            toast.error(t('chat.min_members_group_error'));
             return;
         }
 
         setIsCreatingGroup(true);
-        const groupName = newGroupName.trim() || 'Nhóm mới';
+        const groupName = newGroupName.trim() || t('chat.new_group');
 
         socketChat.emit('conversation:create-group', {
             memberIds: selectedMembers,
@@ -551,7 +551,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 // Navigate to the new group conversation
                 router.push(CLIENT_PATH.CHAT_BY_ID(response.conversation._id));
             } else {
-                toast.error(response.error || 'Không thể tạo nhóm');
+                toast.error(response.error || t('chat.create_group_failed'));
             }
         });
     };
@@ -601,7 +601,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             socketChat.emit('conversation:avatar', { conversationId, avatar: uploadedUrl });
         } catch (error) {
             console.error('Failed to upload avatar:', error);
-            alert('Không thể tải lên ảnh. Vui lòng thử lại.');
+            alert(t('chat.upload_error'));
         }
     };
 
@@ -805,7 +805,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     <PersonIcon sx={{ color: 'text.primary' }} />
                                 </IconButton>
                                 <Typography fontSize={12} color="text.primary" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
-                                    Trang cá nhân
+                                    {t('common.profile')}
                                 </Typography>
                             </Box>
                         )}
@@ -819,7 +819,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     <GroupAddIcon sx={{ color: 'text.primary' }} />
                                 </IconButton>
                                 <Typography fontSize={12} color="text.primary" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
-                                    Tạo nhóm
+                                    {t('chat.create_group_chat')}
                                 </Typography>
                             </Box>
                         )}
@@ -842,7 +842,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                 )}
                             </IconButton>
                             <Typography fontSize={12} color="text.primary" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
-                                {isMuted ? 'Bật thông báo' : 'Tắt thông báo'}
+                                {isMuted ? t('chat.unmute_notifications') : t('chat.mute_notifications')}
                             </Typography>
                         </Box>
                         {/* Search Action */}
@@ -851,7 +851,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                 <SearchIcon sx={{ color: 'text.primary' }} />
                             </IconButton>
                             <Typography fontSize={12} color="text.primary" sx={{ mt: 0.5, maxWidth: 60, textAlign: 'center' }}>
-                                Tìm kiếm
+                                {t('common.search')}
                             </Typography>
                         </Box>
                     </Box>
@@ -861,7 +861,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 <Box sx={{ px: 1 }}>
                     <ListItemButton onClick={() => setCustomizeOpen(!customizeOpen)} sx={{ borderRadius: 2 }}>
                         <ListItemText
-                            primary={<Typography fontWeight={600} color="text.primary">Tùy chỉnh đoạn chat</Typography>}
+                            primary={<Typography fontWeight={600} color="text.primary">{t('chat.customize_chat')}</Typography>}
                         />
                         {customizeOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                     </ListItemButton>
@@ -875,17 +875,17 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     background: THEME_COLORS.find(t => t.color === conversation.theme)?.gradient || THEME_COLORS[0].gradient,
                                     mr: 2
                                 }} />
-                                <ListItemText primary={<Typography fontSize={14} color="text.primary">Đổi chủ đề</Typography>} />
+                                <ListItemText primary={<Typography fontSize={14} color="text.primary">{t('chat.change_theme')}</Typography>} />
                             </ListItemButton>
                             <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={() => setReactionDialogOpen(true)}>
                                 <Typography fontSize={24} sx={{ mr: 2 }}>{conversation.quickReaction || '👍'}</Typography>
-                                <ListItemText primary={<Typography fontSize={14} color="text.primary">Thay đổi biểu tượng cảm xúc</Typography>} />
+                                <ListItemText primary={<Typography fontSize={14} color="text.primary">{t('chat.change_emoji')}</Typography>} />
                             </ListItemButton>
                             <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={() => setNicknameListDialogOpen(true)}>
                                 <Box sx={{ width: 32, display: 'flex', justifyContent: 'center', mr: 2 }}>
                                     <Typography fontSize={16} fontWeight={700} color="text.primary">Aa</Typography>
                                 </Box>
-                                <ListItemText primary={<Typography fontSize={14} color="text.primary">Chỉnh sửa biệt danh</Typography>} />
+                                <ListItemText primary={<Typography fontSize={14} color="text.primary">{t('chat.nicknames')}</Typography>} />
                             </ListItemButton>
                         </List>
                     </Collapse>
@@ -897,7 +897,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 <Box sx={{ px: 1 }}>
                     <ListItemButton onClick={() => setMediaOpen(!mediaOpen)} sx={{ borderRadius: 2 }}>
                         <ListItemText
-                            primary={<Typography fontWeight={600} color="text.primary">File phương tiện & file</Typography>}
+                            primary={<Typography fontWeight={600} color="text.primary">{t('chat.media_and_files')}</Typography>}
                         />
                         {mediaOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                     </ListItemButton>
@@ -905,11 +905,11 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         <List disablePadding sx={{ pl: 1 }}>
                             <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={handleOpenMediaGallery}>
                                 <PhotoIcon sx={{ mr: 2, color: 'text.secondary' }} />
-                                <ListItemText primary={<Typography fontSize={14} color="text.primary">File phương tiện</Typography>} />
+                                <ListItemText primary={<Typography fontSize={14} color="text.primary">{t('chat.shared_media')}</Typography>} />
                             </ListItemButton>
                             <ListItemButton sx={{ borderRadius: 2, py: 1 }} onClick={handleOpenMediaGallery}>
                                 <FileIcon sx={{ mr: 2, color: 'text.secondary' }} />
-                                <ListItemText primary={<Typography fontSize={14} color="text.primary">File</Typography>} />
+                                <ListItemText primary={<Typography fontSize={14} color="text.primary">{t('chat.shared_files')}</Typography>} />
                             </ListItemButton>
                         </List>
                     </Collapse>
@@ -924,7 +924,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             <ListItemButton onClick={() => setSettingsOpen(!settingsOpen)} sx={{ borderRadius: 2 }}>
                                 <SettingsIcon sx={{ mr: 2, color: 'text.secondary' }} />
                                 <ListItemText
-                                    primary={<Typography fontWeight={600} color="text.primary">Cài đặt nhóm</Typography>}
+                                    primary={<Typography fontWeight={600} color="text.primary">{t('chat.group_settings')}</Typography>}
                                 />
                                 {settingsOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                             </ListItemButton>
@@ -941,10 +941,10 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                             <PersonAddIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                                             <Box>
                                                 <Typography fontSize={14} color="text.primary" fontWeight={500}>
-                                                    Cho phép thành viên thêm người
+                                                    {t('chat.allow_members_add')}
                                                 </Typography>
                                                 <Typography fontSize={12} color="text.secondary">
-                                                    Tất cả thành viên có thể mời bạn bè
+                                                    {t('chat.allow_members_add_desc')}
                                                 </Typography>
                                             </Box>
                                         </Box>
@@ -971,10 +971,10 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                             <ChatIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                                             <Box>
                                                 <Typography fontSize={14} color="text.primary" fontWeight={500}>
-                                                    Chỉ quản trị viên nhắn tin
+                                                    {t('chat.only_admins_chat')}
                                                 </Typography>
                                                 <Typography fontSize={12} color="text.secondary">
-                                                    Thành viên chỉ có thể xem tin nhắn
+                                                    {t('chat.only_admins_chat_desc')}
                                                 </Typography>
                                             </Box>
                                         </Box>
@@ -1003,7 +1003,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <Box sx={{ px: 1 }}>
                         <ListItemButton onClick={() => setMembersOpen(!membersOpen)} sx={{ borderRadius: 2 }}>
                             <ListItemText
-                                primary={<Typography fontWeight={600} color="text.primary">Thành viên ({conversation.participants.filter(p => !p.kickedAt && !p.leftAt).length})</Typography>}
+                                primary={<Typography fontWeight={600} color="text.primary">{t('chat.members')} ({conversation.participants.filter(p => !p.kickedAt && !p.leftAt).length})</Typography>}
                             />
                             {canAddMember && (
                                 <IconButton size="small" onClick={(e) => { e.stopPropagation(); setAddMemberDialogOpen(true); }}>
@@ -1017,9 +1017,9 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                 {conversation.participants.filter(p => !p.kickedAt && !p.leftAt).map((member) => {
                                     const memberIsCreator = isMemberCreator(member.user._id);
                                     const memberRole = memberIsCreator
-                                        ? 'Người tạo nhóm'
+                                        ? t('chat.creator')
                                         : member.isAdmin
-                                            ? 'Quản trị viên'
+                                            ? t('chat.admin')
                                             : '';
 
                                     // Get online status for member
@@ -1030,9 +1030,9 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     // Get display status text
                                     const getStatusText = () => {
                                         if (memberRole) return memberRole;
-                                        if (isOnline) return 'Đang hoạt động';
-                                        if (lastActive) return `Hoạt động ${timeAgo(lastActive)}`;
-                                        return 'Không hoạt động';
+                                        if (isOnline) return t('chat.chat_online');
+                                        if (lastActive) return `${t('common.active')} ${timeAgo(lastActive)}`;
+                                        return t('chat.chat_offline');
                                     };
 
                                     return (
@@ -1108,7 +1108,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         <Box sx={{ px: 1 }}>
                             <ListItemButton onClick={() => setPrivacyOpen(!privacyOpen)} sx={{ borderRadius: 2 }}>
                                 <ListItemText
-                                    primary={<Typography fontWeight={600} color="text.primary">Quyền riêng tư & hỗ trợ</Typography>}
+                                    primary={<Typography fontWeight={600} color="text.primary">{t('chat.privacy_support')}</Typography>}
                                 />
                                 {privacyOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                             </ListItemButton>
@@ -1120,8 +1120,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     >
                                         <BlockIcon sx={{ mr: 2, color: 'error.main' }} />
                                         <ListItemText
-                                            primary={<Typography fontSize={14} color="text.primary">Chặn {otherUser.firstName} {otherUser.lastName}</Typography>}
-                                            secondary={<Typography fontSize={12} color="text.secondary">Các bạn sẽ không thể nhắn tin cho nhau</Typography>}
+                                            primary={<Typography fontSize={14} color="text.primary">{t('chat.block_user', { name: `${otherUser.firstName} ${otherUser.lastName}` })}</Typography>}
+                                            secondary={<Typography fontSize={12} color="text.secondary">{t('chat.block_user_desc')}</Typography>}
                                         />
                                     </ListItemButton>
                                     <ListItemButton
@@ -1130,8 +1130,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                     >
                                         <PersonOffIcon sx={{ mr: 2, color: 'warning.main' }} />
                                         <ListItemText
-                                            primary={<Typography fontSize={14} color="text.primary">Hạn chế {otherUser.firstName} {otherUser.lastName}</Typography>}
-                                            secondary={<Typography fontSize={12} color="text.secondary">Ẩn cuộc trò chuyện nhưng vẫn là bạn bè</Typography>}
+                                            primary={<Typography fontSize={14} color="text.primary">{t('chat.restrict_user', { name: `${otherUser.firstName} ${otherUser.lastName}` })}</Typography>}
+                                            secondary={<Typography fontSize={12} color="text.secondary">{t('chat.restrict_user_desc')}</Typography>}
                                         />
                                     </ListItemButton>
                                 </List>
@@ -1172,22 +1172,22 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         <BlockIcon sx={{ fontSize: 32, color: 'white' }} />
                     </Box>
                     <Typography variant="h6" fontWeight={700} color="white">
-                        Chặn {otherUser?.firstName} {otherUser?.lastName}?
+                        {t('chat.block_confirm_title', { name: `${otherUser?.firstName} ${otherUser?.lastName}` })}
                     </Typography>
                 </Box>
                 <DialogContent sx={{ p: 3, textAlign: 'center' }}>
                     <Typography color="text.secondary" sx={{ mb: 2 }}>
-                        Khi chặn người dùng này:
+                        {t('chat.block_confirm_warning')}
                     </Typography>
                     <Box sx={{ textAlign: 'left', bgcolor: 'action.hover', p: 2, borderRadius: 2 }}>
                         <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                            • Các bạn sẽ không thể nhắn tin cho nhau trong cuộc trò chuyện riêng
+                            • {t('chat.block_warning_1')}
                         </Typography>
                         <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                            • Cuộc trò chuyện này sẽ bị ẩn khỏi danh sách của bạn
+                            • {t('chat.block_warning_2')}
                         </Typography>
                         <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            • Bạn vẫn có thể thấy tin nhắn trong nhóm chat chung
+                            • {t('chat.block_warning_3')}
                         </Typography>
                     </Box>
                 </DialogContent>
@@ -1204,7 +1204,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             fontWeight: 600,
                         }}
                     >
-                        Hủy
+                        {t('common.cancel')}
                     </Button>
                     <Button
                         fullWidth
@@ -1219,7 +1219,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             fontWeight: 600,
                         }}
                     >
-                        {isBlocking ? <CircularProgress size={20} color="inherit" /> : 'Chặn'}
+                        {isBlocking ? <CircularProgress size={20} color="inherit" /> : t('common.block')}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -1255,17 +1255,17 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         <WarningIcon sx={{ fontSize: 40, color: 'white' }} />
                     </Box>
                     <Typography variant="h6" fontWeight={700} color="white">
-                        Rời khỏi nhóm?
+                        {t('chat.leave_group_confirm_title')}
                     </Typography>
                 </Box>
                 <DialogContent sx={{ p: 3, textAlign: 'center' }}>
                     <Typography color="text.secondary" fontSize={14} sx={{ mb: 2 }}>
-                        Bạn sẽ không thể xem tin nhắn mới và lịch sử trò chuyện trong nhóm này nữa.
+                        {t('chat.leave_group_confirm_desc')}
                     </Typography>
                     <Typography color="text.secondary" fontSize={13} sx={{ fontStyle: 'italic' }}>
                         {isCreator
-                            ? 'Lưu ý: Bạn là người tạo nhóm. Quyền quản trị sẽ được chuyển cho thành viên khác.'
-                            : 'Bạn có thể được mời lại bởi các thành viên khác.'}
+                            ? t('chat.leave_group_creator_note')
+                            : t('chat.leave_group_member_note')}
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ p: 2, pt: 0, gap: 1 }}>
@@ -1286,7 +1286,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             },
                         }}
                     >
-                        Hủy
+                        {t('common.cancel')}
                     </Button>
                     <Button
                         onClick={handleLeaveGroup}
@@ -1304,7 +1304,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             },
                         }}
                     >
-                        {isLeaving ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Rời nhóm'}
+                        {isLeaving ? <CircularProgress size={20} sx={{ color: 'white' }} /> : t('chat.leave_group')}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -1313,7 +1313,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
             {/* Theme Dialog */}
             <Dialog open={themeDialogOpen} onClose={() => setThemeDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 3 } }}>
-                <DialogTitle sx={{ color: 'text.primary' }}>Đổi chủ đề</DialogTitle>
+                <DialogTitle sx={{ color: 'text.primary' }}>{t('chat.change_theme')}</DialogTitle>
                 <DialogContent>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, py: 1 }}>
                         {THEME_COLORS.map(item => (
@@ -1355,16 +1355,16 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
             {/* Edit Name Dialog */}
             <Dialog open={editNameDialogOpen} onClose={() => setEditNameDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 1, padding: 1 } }}>
-                <DialogTitle sx={{ color: 'text.primary' }}>Đổi tên nhóm</DialogTitle>
+                <DialogTitle sx={{ color: 'text.primary' }}>{t('chat.group_name')}</DialogTitle>
                 <DialogContent>
                     <TextField
-                        autoFocus margin="dense" label="Tên nhóm" fullWidth variant="outlined"
+                        autoFocus margin="dense" label={t('chat.group_name')} fullWidth variant="outlined"
                         value={newName} onChange={(e) => setNewName(e.target.value)}
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setEditNameDialogOpen(false)}>Hủy</Button>
-                    <Button onClick={handleUpdateName} variant="contained" disabled={!newName.trim()}>Lưu</Button>
+                    <Button onClick={() => setEditNameDialogOpen(false)}>{t('common.cancel')}</Button>
+                    <Button onClick={handleUpdateName} variant="contained" disabled={!newName.trim()}>{t('common.save')}</Button>
                 </DialogActions>
             </Dialog>
 
@@ -1380,7 +1380,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <IconButton onClick={() => setNicknameListDialogOpen(false)} size="small">
                         <ArrowBackIcon />
                     </IconButton>
-                    <Typography variant="h6" fontWeight={600}>Biệt danh</Typography>
+                    <Typography variant="h6" fontWeight={600}>{t('chat.nicknames')}</Typography>
                 </DialogTitle>
                 <DialogContent sx={{ px: 0 }}>
                     <List>
@@ -1411,7 +1411,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                         primary={
                                             <Typography fontWeight={500} color="text.primary">
                                                 {participant.nickname || fullName}
-                                                {isCurrentUser && ' (Bạn)'}
+                                                {isCurrentUser && ` (${t('common.you')})`}
                                             </Typography>
                                         }
                                         secondary={
@@ -1421,7 +1421,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                                 </Typography>
                                             ) : (
                                                 <Typography fontSize={13} color="text.secondary">
-                                                    Đặt biệt danh
+                                                    {t('chat.set_nickname_title')}
                                                 </Typography>
                                             )
                                         }
@@ -1436,40 +1436,40 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
 
             {/* Edit Nickname Dialog */}
             <Dialog open={editNicknameDialogOpen} onClose={() => setEditNicknameDialogOpen(false)} PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 3 } }}>
-                <DialogTitle sx={{ color: 'text.primary' }}>Đặt biệt danh</DialogTitle>
+                <DialogTitle sx={{ color: 'text.primary' }}>{t('chat.set_nickname_title')}</DialogTitle>
                 <DialogContent>
                     <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
-                        Đặt biệt danh cho {selectedMember?.user.firstName} {selectedMember?.user.lastName}
+                        {t('chat.set_nickname_desc', { name: `${selectedMember?.user.firstName} ${selectedMember?.user.lastName}` })}
                     </Typography>
                     <TextField
-                        autoFocus margin="dense" label="Biệt danh" fullWidth variant="outlined"
-                        value={newNickname} onChange={(e) => setNewNickname(e.target.value)} placeholder="Để trống để gỡ biệt danh"
+                        autoFocus margin="dense" label={t('chat.nicknames')} fullWidth variant="outlined"
+                        value={newNickname} onChange={(e) => setNewNickname(e.target.value)} placeholder={t('chat.set_nickname_placeholder')}
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setEditNicknameDialogOpen(false)}>Hủy</Button>
-                    <Button onClick={handleUpdateNickname} variant="contained">Lưu</Button>
+                    <Button onClick={() => setEditNicknameDialogOpen(false)}>{t('common.cancel')}</Button>
+                    <Button onClick={handleUpdateNickname} variant="contained">{t('common.save')}</Button>
                 </DialogActions>
             </Dialog>
 
             {/* Add Member Dialog */}
             <Dialog open={addMemberDialogOpen} onClose={() => { setAddMemberDialogOpen(false); setSearchQuery(''); }} fullWidth maxWidth="xs" PaperProps={{ sx: { bgcolor: 'background.paper', borderRadius: 3 } }}>
-                <DialogTitle sx={{ color: 'text.primary' }}>Thêm thành viên</DialogTitle>
+                <DialogTitle sx={{ color: 'text.primary' }}>{t('chat.add_members')}</DialogTitle>
                 <DialogContent>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Chỉ có thể thêm bạn bè vào nhóm
+                        {t('chat.add_member_note')}
                     </Typography>
                     <TextField
-                        autoFocus margin="dense" label="Tìm kiếm bạn bè" fullWidth variant="outlined"
+                        autoFocus margin="dense" label={t('friends.search_friends')} fullWidth variant="outlined"
                         value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Nhập tên bạn bè..."
+                        placeholder={t('chat.search_friend_placeholder')}
                     />
                     <List sx={{ mt: 2, maxHeight: 300, overflowY: 'auto' }}>
                         {isFriendsLoading ? (
                             <CircularProgress size={24} sx={{ display: 'block', m: 'auto' }} />
                         ) : filteredFriends.length === 0 ? (
                             <Typography color="text.secondary" textAlign="center" py={2}>
-                                {searchQuery ? 'Không tìm thấy bạn bè phù hợp' : 'Tất cả bạn bè đã trong nhóm'}
+                                {searchQuery ? t('chat.no_friend_found') : t('chat.all_friends_in_group')}
                             </Typography>
                         ) : (
                             filteredFriends.map((friend: FriendType) => (
@@ -1485,7 +1485,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                             variant="contained"
                                             onClick={() => handleAddMember(friend._id)}
                                         >
-                                            Thêm
+                                            {t('common.add')}
                                         </Button>
                                     </ListItemSecondaryAction>
                                 </ListItem>
@@ -1494,7 +1494,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     </List>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => { setAddMemberDialogOpen(false); setSearchQuery(''); }}>Đóng</Button>
+                    <Button onClick={() => { setAddMemberDialogOpen(false); setSearchQuery(''); }}>{t('common.close')}</Button>
                 </DialogActions>
             </Dialog>
 
@@ -1507,20 +1507,20 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             >
                 <MenuItem onClick={() => { setEditNicknameDialogOpen(true); setNewNickname(selectedMember?.nickname || ''); }}>
                     <EditIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
-                    <Typography color="text.primary">Đặt biệt danh</Typography>
+                    <Typography color="text.primary">{t('chat.set_nickname_title')}</Typography>
                 </MenuItem>
                 {/* Admin can promote/demote other members (but can't demote creator) */}
                 {isAdmin && selectedMember && selectedMember.user._id !== userId && !isMemberCreator(selectedMember.user._id) && (
                     <MenuItem onClick={handlePromoteAdmin}>
                         <SecurityIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
-                        <Typography color="text.primary">{selectedMember.isAdmin ? 'Gỡ quyền quản trị' : 'Chỉ định làm quản trị viên'}</Typography>
+                        <Typography color="text.primary">{selectedMember.isAdmin ? t('chat.remove_admin') : t('chat.make_admin')}</Typography>
                     </MenuItem>
                 )}
                 {/* Admin can kick other members and other admins (but not creator) */}
                 {selectedMember && canKickMember(selectedMember.user._id) && (
                     <MenuItem onClick={handleKickMember}>
                         <ExitToAppIcon fontSize="small" sx={{ mr: 1, color: '#e74c3c' }} />
-                        <Typography color="#e74c3c">Xóa khỏi nhóm</Typography>
+                        <Typography color="#e74c3c">{t('chat.remove_from_group')}</Typography>
                     </MenuItem>
                 )}
             </Menu>
@@ -1551,7 +1551,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     <IconButton onClick={() => setMediaGalleryOpen(false)} size="small">
                         <ArrowBackIcon />
                     </IconButton>
-                    <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 600 }}>File phương tiện và file</Box>
+                    <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('chat.media_gallery_title')}</Box>
                 </DialogTitle>
                 <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
                     <Tabs
@@ -1567,8 +1567,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             '& .MuiTabs-indicator': { backgroundColor: themeColor }
                         }}
                     >
-                        <Tab label="File phương tiện" />
-                        <Tab label="File" />
+                        <Tab label={t('chat.shared_media')} />
+                        <Tab label={t('chat.shared_files')} />
                     </Tabs>
                 </Box>
                 <DialogContent
@@ -1579,7 +1579,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         <Box sx={{ p: 2 }}>
                             {allMediaUrls.length === 0 && !mediaLoading ? (
                                 <Typography color="text.secondary" textAlign="center" py={4}>
-                                    Chưa có file phương tiện nào
+                                    {t('chat.no_media')}
                                 </Typography>
                             ) : (
                                 Object.entries(groupedMedia).map(([monthYear, items]) => (
@@ -1666,7 +1666,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         <Box sx={{ p: 2 }}>
                             {allFiles.length === 0 && !fileLoading ? (
                                 <Typography color="text.secondary" textAlign="center" py={4}>
-                                    Chưa có file nào
+                                    {t('chat.no_files')}
                                 </Typography>
                             ) : (
                                 Object.entries(groupedFiles).map(([monthYear, files]) => (
@@ -1721,7 +1721,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                                                     ? file.fileSize > 1024 * 1024
                                                                         ? `${(file.fileSize / (1024 * 1024)).toFixed(1)} MB`
                                                                         : `${(file.fileSize / 1024).toFixed(1)} KB`
-                                                                    : 'Không rõ dung lượng'
+                                                                    : t('chat.unknown_size')
                                                                 } • {new Date(file.date).toLocaleDateString('vi-VN')}
                                                             </Typography>
                                                         }
@@ -1764,9 +1764,9 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             <GroupAddIcon sx={{ color: 'primary.main', fontSize: 24 }} />
                         </Box>
                         <Box>
-                            <Typography fontWeight={700} fontSize={18}>Tạo nhóm chat</Typography>
+                            <Typography fontWeight={700} fontSize={18}>{t('chat.create_group_title')}</Typography>
                             <Typography fontSize={13} color="text.secondary">
-                                Chọn ít nhất 2 bạn bè để tạo nhóm (tối thiểu 3 người)
+                                {t('chat.create_group_desc')}
                             </Typography>
                         </Box>
                     </Box>
@@ -1774,12 +1774,12 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 <DialogContent sx={{ pt: 1 }}>
                     <Box sx={{ mt: 1 }}>
                         <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 1 }}>
-                            Tên nhóm
+                            {t('chat.group_name')}
                         </Typography>
                         <TextField
                             fullWidth
                             variant="outlined"
-                            placeholder="Nhập tên nhóm..."
+                            placeholder={t('groups.group_name_placeholder')}
                             value={newGroupName}
                             onChange={(e) => setNewGroupName(e.target.value)}
                             disabled={isCreatingGroup}
@@ -1796,7 +1796,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     {selectedMembers.length > 0 && (
                         <Box sx={{ mt: 2 }}>
                             <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 1 }}>
-                                Đã chọn ({selectedMembers.length + 1} người, bao gồm bạn)
+                                {t('chat.selected_count', { count: selectedMembers.length + 1 })}
                             </Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                 {selectedMembers.map(memberId => {
@@ -1820,12 +1820,12 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     {/* Friends list with checkboxes */}
                     <Box sx={{ mt: 2 }}>
                         <Typography fontSize={14} fontWeight={500} color="text.primary" sx={{ mb: 1 }}>
-                            Chọn bạn bè
+                            {t('chat.choose_friends')}
                         </Typography>
                         <TextField
                             fullWidth
                             variant="outlined"
-                            placeholder="Tìm kiếm bạn bè..."
+                            placeholder={t('friends.search_friends')}
                             value={createGroupSearchQuery}
                             onChange={(e) => setCreateGroupSearchQuery(e.target.value)}
                             size="small"
@@ -1838,7 +1838,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                 </Box>
                             ) : filteredFriendsForGroup.length === 0 ? (
                                 <Typography color="text.secondary" textAlign="center" py={2}>
-                                    {createGroupSearchQuery ? 'Không tìm thấy bạn bè' : 'Không có bạn bè nào'}
+                                    {createGroupSearchQuery ? t('chat.no_friend_found') : t('friends.no_friends')}
                                 </Typography>
                             ) : (
                                 filteredFriendsForGroup.map((friend) => {
@@ -1891,8 +1891,8 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         <PersonAddIcon sx={{ color: selectedMembers.length < 2 ? 'warning.main' : 'success.main', fontSize: 20, mt: 0.2 }} />
                         <Typography fontSize={13} color={selectedMembers.length < 2 ? 'warning.main' : 'success.main'}>
                             {selectedMembers.length < 2
-                                ? `Cần chọn thêm ${2 - selectedMembers.length} người nữa để tạo nhóm`
-                                : `Đã đủ điều kiện tạo nhóm với ${selectedMembers.length + 1} thành viên`
+                                ? t('chat.need_more_members', { count: 2 - selectedMembers.length })
+                                : t('chat.qualified_create_group', { count: selectedMembers.length + 1 })
                             }
                         </Typography>
                     </Box>
@@ -1907,7 +1907,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         disabled={isCreatingGroup}
                         sx={{ borderRadius: 2, textTransform: 'none', color: 'text.secondary' }}
                     >
-                        Hủy
+                        {t('common.cancel')}
                     </Button>
                     <Button
                         variant="contained"
@@ -1922,7 +1922,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                             '&.Mui-disabled': { bgcolor: 'action.disabledBackground', color: 'action.disabled' }
                         }}
                     >
-                        {isCreatingGroup ? 'Đang tạo...' : 'Tạo nhóm'}
+                        {isCreatingGroup ? t('common.loading') : t('groups.create_group')}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -1943,11 +1943,11 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             >
                 <MenuItem onClick={handleViewAvatar} sx={{ gap: 1.5, py: 1 }}>
                     <VisibilityIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                    <Typography fontSize={14}>Xem ảnh đại diện</Typography>
+                    <Typography fontSize={14}>{t('chat.view_avatar')}</Typography>
                 </MenuItem>
                 <MenuItem onClick={handleUploadAvatar} sx={{ gap: 1.5, py: 1 }}>
                     <PhotoCameraIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                    <Typography fontSize={14}>Tải ảnh lên</Typography>
+                    <Typography fontSize={14}>{t('chat.upload_avatar')}</Typography>
                 </MenuItem>
             </Menu>
 

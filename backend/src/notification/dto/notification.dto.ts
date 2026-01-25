@@ -7,7 +7,7 @@ export class CreateNotificationDto {
 
   @IsString()
   @IsOptional()
-  senderId?: string;
+  senderId?: string; // Single sender - will be added to senderIds array in service
 
   @IsEnum(NotificationType)
   type: NotificationType;

@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { t } from 'i18next';
+
 export interface UserOnlineStatus {
   userId: string;
   isOnline: boolean;
@@ -112,9 +114,9 @@ export function formatLastActive(
   // Không hiển thị nếu > 24 giờ
   if (diffHours > 24) return null;
 
-  if (diffMinutes < 1) return "1 phút";
-  if (diffMinutes < 60) return `${diffMinutes} phút`;
-  return `${diffHours} giờ`;
+  if (diffMinutes < 1) return `${t('time.minute_ago', { count: 1 })}`;
+  if (diffMinutes < 60) return `${t('time.minute_ago', { count: diffMinutes })}`;
+  return `${t('time.hour_ago', { count: diffHours })}`;
 }
 
 // Helper for chat: detailed format
@@ -130,12 +132,12 @@ export function formatLastActiveDetailed(
   const diffHours = Math.floor(diffMinutes / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMinutes < 1) return "Vừa mới hoạt động";
-  if (diffMinutes < 60) return `Hoạt động ${diffMinutes} phút trước`;
-  if (diffHours < 24) return `Hoạt động ${diffHours} giờ trước`;
-  if (diffDays === 1) return "Hoạt động hôm qua";
-  if (diffDays < 7) return `Hoạt động ${diffDays} ngày trước`;
+  if (diffMinutes < 1) return `${t('time.minute_ago', { count: 1 })}`;
+  if (diffMinutes < 60) return `${t('time.minute_ago', { count: diffMinutes })}`;
+  if (diffHours < 24) return `${t('time.hour_ago', { count: diffHours })}`;
+  if (diffDays === 1) return `${t('time.days_ago', { count: diffDays })}`;
+  if (diffDays < 7) return `${t('time.days_ago', { count: diffDays })}`;
 
-  // Format date for older
-  return `Hoạt động ${activeTime.toLocaleDateString("vi-VN")}`;
+  // For user not active more than 7 days. Not show last active time
+  return ``;
 }

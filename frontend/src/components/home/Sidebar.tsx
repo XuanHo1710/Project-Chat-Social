@@ -56,16 +56,51 @@ export default function Sidebar() {
             avatarSrc: user?.avatar,
             path: user?.username ? CLIENT_PATH.PROFILE_BY_USERNAME(user.username) : '/'
         },
-        { icon: <PeopleIcon sx={{ fontSize: 28 }} />, label: t('nav.friends'), path: '/friends', color: '#1877f2' },
-        { icon: <GroupsIcon sx={{ fontSize: 28 }} />, label: t('nav.groups'), path: '/groups', color: '#1e9f1cff' },
-        { icon: <VideoIcon sx={{ fontSize: 28 }} />, label: t('nav.watch'), path: '/reels', color: '#1877f2' },
-        { icon: <BookmarkIcon sx={{ fontSize: 28 }} />, label: t('nav.saved'), path: '/saved', color: '#a333c8' },
+        {
+            icon: <PeopleIcon sx={{ fontSize: 22, color: '#fff' }} />,
+            label: t('nav.friends'),
+            path: '/friends',
+            gradient: 'linear-gradient(135deg, #1877f2 0%, #0d5bba 100%)'
+        },
+        {
+            icon: <GroupsIcon sx={{ fontSize: 22, color: '#fff' }} />,
+            label: t('nav.groups'),
+            path: '/groups',
+            gradient: 'linear-gradient(135deg, #35c759 0%, #1e9f1c 100%)'
+        },
+        {
+            icon: <VideoIcon sx={{ fontSize: 22, color: '#fff' }} />,
+            label: t('nav.watch'),
+            path: '/reels',
+            gradient: 'linear-gradient(135deg, #f02849 0%, #c91a1a 100%)'
+        },
+        {
+            icon: <BookmarkIcon sx={{ fontSize: 22, color: '#fff' }} />,
+            label: t('nav.saved'),
+            path: '/saved',
+            gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)'
+        },
     ];
 
     const expandedItems = [
-        { icon: <AIIcon sx={{ fontSize: 28 }} />, label: t('nav.aiChat'), path: '/ai-chat', color: '#00a67e' },
-        { icon: <MessageIcon sx={{ fontSize: 28 }} />, label: t('nav.messenger'), path: '/chat', color: '#0084ff' },
-        { icon: <GamepadIcon sx={{ fontSize: 28 }} />, label: t('nav.gamestore'), path: '/games', color: '#f44336' },
+        {
+            icon: <AIIcon sx={{ fontSize: 22, color: '#fff' }} />,
+            label: t('nav.aiChat'),
+            path: '/ai-chat',
+            gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+        },
+        {
+            icon: <MessageIcon sx={{ fontSize: 22, color: '#fff' }} />,
+            label: t('nav.messenger'),
+            path: '/chat',
+            gradient: 'linear-gradient(135deg, #0084ff 0%, #0066cc 100%)'
+        },
+        {
+            icon: <GamepadIcon sx={{ fontSize: 22, color: '#fff' }} />,
+            label: t('nav.gamestore'),
+            path: '/games',
+            gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)'
+        },
     ];
 
     const handleItemClick = async (path: string) => {
@@ -141,7 +176,9 @@ export default function Sidebar() {
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        color: item.color || 'primary.main',
+                                        background: item.gradient || 'linear-gradient(135deg, #1877f2 0%, #0d5bba 100%)',
+                                        borderRadius: '50%',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                     }}
                                 >
                                     {item.icon}
@@ -217,7 +254,9 @@ export default function Sidebar() {
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        color: item.color || '#1877f2',
+                                        background: item.gradient || 'linear-gradient(135deg, #1877f2 0%, #0d5bba 100%)',
+                                        borderRadius: '50%',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                     }}
                                 >
                                     {item.icon}

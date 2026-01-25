@@ -40,8 +40,8 @@ export class Notification {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Account.name, required: true })
   recipientId: mongoose.Schema.Types.ObjectId; // Who receives the notification
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Account.name })
-  senderId: mongoose.Schema.Types.ObjectId; // Who triggered the notification (optional for system)
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: Account.name }], default: [] })
+  senderIds: mongoose.Schema.Types.ObjectId[]; // Users who triggered the notification (array for aggregated notifications like "A, B, C liked your post")
 
   @Prop({ enum: NotificationType, required: true })
   type: NotificationType;
@@ -89,3 +89,5 @@ export const NotificationSchema = SchemaFactory.createForClass(Notification);
 NotificationSchema.index({ recipientId: 1, status: 1, createdAt: -1 });
 NotificationSchema.index({ recipientId: 1, type: 1 });
 NotificationSchema.index({ groupId: 1, type: 1 });
+// Index for aggregated notifications lookup (find existing notification to update instead of creating new)
+NotificationSchema.index({ recipientId: 1, type: 1, postId: 1, commentId: 1 });

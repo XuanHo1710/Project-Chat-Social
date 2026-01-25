@@ -11,11 +11,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const { user, isLoading } = useAuthStore();
     const router = useRouter();
     const [isAuthorized, setIsAuthorized] = useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
 
     useEffect(() => {
-        // Chỉ check khi hết loading
         if (!isLoading) {
-            // Logic check quyền admin (hiện tại check user tồn tại và role)
             if (!user) {
                 router.push('/auth/login');
             } else if (user.role !== 'ADMIN' && user.role !== 'EMPLOYEE') {
@@ -26,6 +25,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
     }, [user, isLoading, router]);
 
+    const handleMobileMenuToggle = () => {
+        setMobileOpen(!mobileOpen);
+    };
+
+    const handleMobileMenuClose = () => {
+        setMobileOpen(false);
+    };
 
     if (isLoading || !isAuthorized) {
         return (
@@ -38,21 +44,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return (
         <Box sx={{ display: 'flex' }}>
             <CssBaseline />
-            <AdminHeader />
-            <AdminSidebar />
+            <AdminHeader onMenuClick={handleMobileMenuToggle} />
+            <AdminSidebar mobileOpen={mobileOpen} onMobileClose={handleMobileMenuClose} />
             <Box
                 component="main"
                 sx={{
                     flexGrow: 1,
-                    p: { xs: 2, sm: 3, md: 4 },
+                    p: { xs: 1.5, sm: 2, md: 3 },
                     bgcolor: (theme) => theme.palette.mode === 'dark' ? '#18191a' : '#f0f2f5',
                     minHeight: '100vh',
                     overflow: 'auto'
                 }}
             >
-                <Toolbar sx={{ minHeight: 70 }} />
+                <Toolbar sx={{ minHeight: { xs: 56, md: 64 } }} />
                 {children}
             </Box>
         </Box>
     );
 }
+
+

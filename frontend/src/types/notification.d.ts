@@ -37,7 +37,7 @@ export interface NotificationGroup {
 export interface Notification {
   _id: string;
   recipientId: string;
-  senderId?: NotificationSender;
+  senderIds?: NotificationSender[]; // Array for aggregated notifications like "A, B, C liked your post"
   type: NotificationEnum;
   status: NotificationEnumStatus;
   title: string;

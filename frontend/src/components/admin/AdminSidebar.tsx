@@ -9,10 +9,8 @@ import {
     ListItemIcon,
     ListItemText,
     Typography,
-    Divider,
     useTheme,
-    Avatar,
-    Stack
+    useMediaQuery
 } from '@mui/material';
 import {
     Dashboard as DashboardIcon,
@@ -30,114 +28,117 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useRouter } from 'next/navigation';
 import { useSettingsStore, THEME_COLORS } from '@/stores/useSettingsStore';
 import { useTranslation } from 'react-i18next';
+import { CLIENT_PATH } from '@/constants/paths';
 
-const drawerWidth = 260; // Tăng độ rộng chút cho thoáng
+const drawerWidth = 240;
 
 // Menu items will use translation keys
 const getMenuItems = (t: any) => [
-    { text: t('admin.dashboard'), icon: <DashboardIcon />, path: '/admin' },
-    { text: t('admin.user_management'), icon: <PeopleIcon />, path: '/admin/users' },
-    { text: t('admin.post_management'), icon: <ArticleIcon />, path: '/admin/posts' },
-    { text: t('admin.theme_management'), icon: <PaletteIcon />, path: '/admin/themes' },
-    { text: t('admin.settings'), icon: <SettingsIcon />, path: '/admin/settings' },
+    { text: t('admin.dashboard'), icon: <DashboardIcon sx={{ fontSize: 20 }} />, path: '/admin' },
+    { text: t('admin.user_management'), icon: <PeopleIcon sx={{ fontSize: 20 }} />, path: '/admin/users' },
+    { text: t('admin.post_management'), icon: <ArticleIcon sx={{ fontSize: 20 }} />, path: '/admin/posts' },
+    { text: t('admin.theme_management'), icon: <PaletteIcon sx={{ fontSize: 20 }} />, path: '/admin/themes' },
+    { text: t('admin.settings'), icon: <SettingsIcon sx={{ fontSize: 20 }} />, path: '/admin/settings' },
 ];
 
-export default function AdminSidebar() {
+interface AdminSidebarProps {
+    mobileOpen?: boolean;
+    onMobileClose?: () => void;
+}
+
+export default function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebarProps) {
     const theme = useTheme();
     const pathname = usePathname();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
     const router = useRouter();
-    const { logout, user } = useAuthStore();
+    const { logout } = useAuthStore();
     const { themeColor } = useSettingsStore();
     const { t } = useTranslation();
     const activeColor = THEME_COLORS[themeColor];
     const menuItems = getMenuItems(t);
+    const isDark = theme.palette.mode === 'dark';
 
     const handleLogout = () => {
         logout();
-        router.push('/auth/login');
+        router.push(CLIENT_PATH.LOGIN);
     }
 
-    return (
-        <Drawer
-            variant="permanent"
-            sx={{
-                width: drawerWidth,
-                flexShrink: 0,
-                [`& .MuiDrawer-paper`]: {
-                    width: drawerWidth,
-                    boxSizing: 'border-box',
-                    backgroundColor: theme.palette.mode === 'dark' ? '#242526' : '#ffffff',
-                    borderRight: `1px solid ${theme.palette.mode === 'dark' ? '#3a3b3c' : '#e4e6eb'}`,
-                    boxShadow: theme.palette.mode === 'dark' ? 'none' : '4px 0 24px rgba(0,0,0,0.02)',
-                },
-            }}
-        >
-            {/* Logo Area */}
-            <Box sx={{ p: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+    const handleNavClick = () => {
+        // Close mobile drawer when navigating
+        if (isMobile && onMobileClose) {
+            onMobileClose();
+        }
+    };
+
+    const drawerContent = (
+        <>
+            {/* Logo Area - Smaller */}
+            <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <Box sx={{
-                    p: 1,
-                    borderRadius: 2,
-                    bgcolor: 'primary.main',
+                    p: 0.8,
+                    borderRadius: 1.5,
+                    bgcolor: activeColor,
                     color: 'white',
                     display: 'flex',
-                    boxShadow: '0 4px 12px rgba(24, 119, 242, 0.3)'
+                    boxShadow: `0 3px 8px ${activeColor}50`
                 }}>
-                    <AdminIcon />
+                    <AdminIcon sx={{ fontSize: 20 }} />
                 </Box>
                 <Box>
-                    <Typography variant="h6" fontWeight="800" sx={{ lineHeight: 1, letterSpacing: -0.5 }}>
+                    <Typography sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2, letterSpacing: -0.3 }}>
                         SOCIAL
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" fontWeight="600" sx={{ letterSpacing: 2, textTransform: 'uppercase' }}>
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>
                         Admin Panel
                     </Typography>
                 </Box>
             </Box>
 
-
-            <Box sx={{ px: 2, overflow: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <List>
-                    <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ px: 2, mb: 1, display: 'block', opacity: 0.7 }}>
-                        MENU
+            <Box sx={{ px: 1.5, overflow: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <List sx={{ py: 0 }}>
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 700, px: 1.5, mb: 0.5, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        {t('admin.menu', 'Menu')}
                     </Typography>
                     {menuItems.map((item) => {
                         const isSelected = pathname === item.path;
                         return (
-                            <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
+                            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
                                 <ListItemButton
                                     component={Link}
                                     href={item.path}
                                     selected={isSelected}
+                                    onClick={handleNavClick}
                                     sx={{
-                                        borderRadius: 3,
-                                        py: 1.5,
-                                        px: 2.5,
-                                        transition: 'all 0.2s ease-in-out',
+                                        borderRadius: 2,
+                                        py: 1,
+                                        px: 1.5,
+                                        minHeight: 40,
+                                        transition: 'all 0.15s ease',
                                         '&.Mui-selected': {
                                             backgroundColor: activeColor,
                                             color: '#fff',
-                                            boxShadow: `0 8px 20px -4px ${activeColor}80`, // Colored shadow
+                                            boxShadow: `0 4px 12px ${activeColor}40`,
                                             '&:hover': {
-                                                filter: 'brightness(0.9)',
+                                                backgroundColor: activeColor,
+                                                filter: 'brightness(0.95)',
                                             },
                                             '& .MuiListItemIcon-root': {
                                                 color: '#fff',
                                             }
                                         },
                                         '&:hover': {
-                                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                                            transform: 'translateX(4px)'
+                                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
                                         }
                                     }}
                                 >
-                                    <ListItemIcon sx={{ minWidth: 40, color: isSelected ? 'inherit' : 'text.secondary', transition: 'color 0.2s' }}>
+                                    <ListItemIcon sx={{ minWidth: 32, color: isSelected ? 'inherit' : 'text.secondary' }}>
                                         {item.icon}
                                     </ListItemIcon>
                                     <ListItemText
                                         primary={item.text}
                                         primaryTypographyProps={{
-                                            fontSize: '0.95rem',
+                                            fontSize: 13,
                                             fontWeight: isSelected ? 600 : 500
                                         }}
                                     />
@@ -148,36 +149,94 @@ export default function AdminSidebar() {
                 </List>
 
                 <Box sx={{ mb: 2 }}>
-                    <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ px: 2, mb: 1, display: 'block', opacity: 0.7 }}>
-                        SYSTEM
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 700, px: 1.5, mb: 0.5, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        {t('admin.system', 'System')}
                     </Typography>
-                    <List>
-                        <ListItem disablePadding sx={{ mb: 1 }}>
-                            <ListItemButton component={Link} href="/" sx={{ borderRadius: 3, py: 1.5, px: 2.5 }}>
-                                <ListItemIcon sx={{ minWidth: 40, color: 'text.secondary' }}><HomeIcon /></ListItemIcon>
-                                <ListItemText primary={t('admin.back_to_home')} primaryTypographyProps={{ fontWeight: 500 }} />
+                    <List sx={{ py: 0 }}>
+                        <ListItem disablePadding sx={{ mb: 0.5 }}>
+                            <ListItemButton
+                                component={Link}
+                                href="/"
+                                onClick={handleNavClick}
+                                sx={{
+                                    borderRadius: 2,
+                                    py: 1,
+                                    px: 1.5,
+                                    minHeight: 40,
+                                    '&:hover': {
+                                        backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                                    }
+                                }}
+                            >
+                                <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}><HomeIcon sx={{ fontSize: 20 }} /></ListItemIcon>
+                                <ListItemText primary={t('admin.back_to_home')} primaryTypographyProps={{ fontSize: 13, fontWeight: 500 }} />
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
                             <ListItemButton
                                 onClick={handleLogout}
                                 sx={{
-                                    borderRadius: 3,
-                                    py: 1.5,
-                                    px: 2.5,
+                                    borderRadius: 2,
+                                    py: 1,
+                                    px: 1.5,
+                                    minHeight: 40,
                                     color: theme.palette.error.main,
                                     '&:hover': {
-                                        backgroundColor: theme.palette.error.main + '10',
+                                        backgroundColor: `${theme.palette.error.main}10`,
                                     }
                                 }}
                             >
-                                <ListItemIcon sx={{ minWidth: 40, color: theme.palette.error.main }}><LogoutIcon /></ListItemIcon>
-                                <ListItemText primary={t('common.logout')} primaryTypographyProps={{ fontWeight: 600 }} />
+                                <ListItemIcon sx={{ minWidth: 32, color: theme.palette.error.main }}><LogoutIcon sx={{ fontSize: 20 }} /></ListItemIcon>
+                                <ListItemText primary={t('common.logout')} primaryTypographyProps={{ fontSize: 13, fontWeight: 600 }} />
                             </ListItemButton>
                         </ListItem>
                     </List>
                 </Box>
             </Box>
-        </Drawer>
+        </>
+    );
+
+    return (
+        <>
+            {/* Mobile Drawer */}
+            <Drawer
+                variant="temporary"
+                open={mobileOpen}
+                onClose={onMobileClose}
+                ModalProps={{ keepMounted: true }}
+                sx={{
+                    display: { xs: 'block', md: 'none' },
+                    [`& .MuiDrawer-paper`]: {
+                        width: drawerWidth,
+                        boxSizing: 'border-box',
+                        backgroundColor: isDark ? '#242526' : '#ffffff',
+                        borderRight: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}`,
+                    },
+                }}
+            >
+                {drawerContent}
+            </Drawer>
+
+            {/* Desktop Drawer */}
+            <Drawer
+                variant="permanent"
+                sx={{
+                    display: { xs: 'none', md: 'block' },
+                    width: drawerWidth,
+                    flexShrink: 0,
+                    [`& .MuiDrawer-paper`]: {
+                        width: drawerWidth,
+                        boxSizing: 'border-box',
+                        backgroundColor: isDark ? '#242526' : '#ffffff',
+                        borderRight: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}`,
+                        boxShadow: isDark ? 'none' : '2px 0 12px rgba(0,0,0,0.03)',
+                    },
+                }}
+            >
+                {drawerContent}
+            </Drawer>
+        </>
     );
 }
+
+

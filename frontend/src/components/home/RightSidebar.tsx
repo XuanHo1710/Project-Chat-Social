@@ -199,7 +199,7 @@ export default function RightSidebar() {
                                         {friend.firstName + " " + friend.lastName}
                                     </Typography>
                                     {/* Show "X phút" or "X giờ" if offline */}
-                                    {lastActiveLabel && (
+                                    {lastActiveLabel ? (
                                         <Typography
                                             sx={{
                                                 fontSize: '12px',
@@ -210,6 +210,18 @@ export default function RightSidebar() {
                                             }}
                                         >
                                             {lastActiveLabel}
+                                        </Typography>
+                                    ) : (
+                                        <Typography
+                                            sx={{
+                                                fontSize: '12px',
+                                                color: 'text.secondary',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {t('chat.online')}
                                         </Typography>
                                     )}
                                 </Box>

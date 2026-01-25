@@ -1,16 +1,21 @@
 import { useState } from 'react';
-import { AppBar, Toolbar, Typography, IconButton, Box, Avatar, Tooltip } from '@mui/material';
-import { Brightness4, Brightness7, NotificationsOutlined, SettingsOutlined } from '@mui/icons-material';
+import { AppBar, Toolbar, Typography, IconButton, Box, Avatar, Tooltip, useMediaQuery, useTheme } from '@mui/material';
+import { Brightness4, Brightness7, NotificationsOutlined, SettingsOutlined, Menu as MenuIcon } from '@mui/icons-material';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import SettingsPanel from './SettingsPanel';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
 
-// Cần khớp với drawerWidth bên Sidebar
-const drawerWidth = 260;
+const drawerWidth = 240;
 
-export default function AdminHeader() {
+interface AdminHeaderProps {
+    onMenuClick?: () => void;
+}
+
+export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const { mode, setMode } = useThemeStore();
     const { user } = useAuthStore();
     const { t } = useTranslation();
@@ -25,77 +30,94 @@ export default function AdminHeader() {
             <AppBar
                 position="fixed"
                 sx={{
-                    width: { xs: '100%', sm: `calc(100% - ${drawerWidth}px)` },
-                    ml: { xs: 0, sm: `${drawerWidth}px` },
+                    width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
+                    ml: { xs: 0, md: `${drawerWidth}px` },
                     backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#242526' : '#ffffff',
                     backdropFilter: 'blur(12px)',
                     color: (theme) => theme.palette.text.primary,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                     borderBottom: '1px solid',
                     borderColor: (theme) => theme.palette.mode === 'dark' ? '#3a3b3c' : '#e4e6eb',
                     transition: 'width 0.2s ease-in-out'
                 }}
             >
-                <Toolbar sx={{ justifyContent: 'space-between', minHeight: 70 }}>
+                <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 56, md: 64 } }}>
                     {/* Left Side */}
-                    <Box>
-                        <Typography variant="subtitle1" fontWeight="700" color="text.secondary">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {isMobile && (
+                            <IconButton
+                                onClick={onMenuClick}
+                                sx={{
+                                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                                    borderRadius: 2
+                                }}
+                            >
+                                <MenuIcon fontSize="small" />
+                            </IconButton>
+                        )}
+                        <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.secondary' }}>
                             {t('common.dashboard')}
                         </Typography>
                     </Box>
 
                     {/* Right Side */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Tooltip title="Đổi giao diện">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 } }}>
+                        <Tooltip title={t('settings.display_mode')}>
                             <IconButton
                                 onClick={toggleTheme}
+                                size="small"
                                 sx={{
                                     bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                                    borderRadius: 3
+                                    borderRadius: 2,
+                                    p: 1
                                 }}
                             >
-                                {mode === 'dark' ? <Brightness7 fontSize="small" /> : <Brightness4 fontSize="small" />}
+                                {mode === 'dark' ? <Brightness7 sx={{ fontSize: 18 }} /> : <Brightness4 sx={{ fontSize: 18 }} />}
                             </IconButton>
                         </Tooltip>
 
                         <Tooltip title={t('common.settings')}>
                             <IconButton
                                 onClick={() => setOpenSettings(true)}
+                                size="small"
                                 sx={{
                                     bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                                    borderRadius: 3
+                                    borderRadius: 2,
+                                    p: 1
                                 }}
                             >
-                                <SettingsOutlined fontSize="small" />
+                                <SettingsOutlined sx={{ fontSize: 18 }} />
                             </IconButton>
                         </Tooltip>
 
                         <Tooltip title={t('notifications.notifications')}>
                             <IconButton
+                                size="small"
                                 sx={{
                                     bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                                    borderRadius: 3
+                                    borderRadius: 2,
+                                    p: 1
                                 }}
                             >
-                                <NotificationsOutlined fontSize="small" />
+                                <NotificationsOutlined sx={{ fontSize: 18 }} />
                             </IconButton>
                         </Tooltip>
 
                         <LanguageSwitcher />
 
-                        <Box sx={{ ml: 1, display: 'flex', alignItems: 'center', gap: 1.5, pl: 2, borderLeft: '1px solid', borderColor: 'divider' }}>
+                        <Box sx={{ ml: 1, display: 'flex', alignItems: 'center', gap: 1, pl: 1.5, borderLeft: '1px solid', borderColor: 'divider' }}>
                             <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                                <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>
                                     {user?.fullName || "Administrator"}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">
+                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
                                     {user?.role === 'ADMIN' ? 'Super Admin' : 'Employee'}
                                 </Typography>
                             </Box>
                             <Avatar
                                 src={user?.avatar || "/default-avatar.png"}
                                 alt={user?.fullName || "Admin"}
-                                sx={{ width: 40, height: 40, border: '2px solid white', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                                sx={{ width: 34, height: 34, border: '2px solid', borderColor: 'divider' }}
                             />
                         </Box>
                     </Box>
@@ -105,3 +127,5 @@ export default function AdminHeader() {
         </>
     );
 }
+
+

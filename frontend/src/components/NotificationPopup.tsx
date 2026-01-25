@@ -86,12 +86,19 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
             });
 
             newSocket.on('newNotification', (notification: Notification) => {
-                setNotifications(prev => [notification, ...prev]);
-                setUnreadCount(prev => {
-                    const newCount = prev + 1;
-                    onUnreadCountChange?.(newCount);
-                    return newCount;
+                setNotifications(prev => {
+                    // Check if notification already exists (for aggregated notifications)
+                    const existingIndex = prev.findIndex(n => n._id === notification._id);
+                    if (existingIndex >= 0) {
+                        // Update existing notification and move to top
+                        const updated = [...prev];
+                        updated.splice(existingIndex, 1);
+                        return [notification, ...updated];
+                    }
+                    // New notification - add to top
+                    return [notification, ...prev];
                 });
+                // Don't manually increment unreadCount - let unreadCountUpdate handle it
             });
 
             newSocket.on('unreadCountUpdate', ({ count }: { count: number }) => {
@@ -262,14 +269,15 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
         return currentPagination.hasMore;
     };
 
-    // Group notifications by time
+    // Group notifications by time (use updatedAt for aggregated notifications)
     const groupNotificationsByTime = () => {
         const now = new Date();
         const today: Notification[] = [];
         const earlier: Notification[] = [];
 
         notifications.forEach(n => {
-            const notifDate = new Date(n.createdAt);
+            // Use updatedAt for aggregated notifications, fallback to createdAt
+            const notifDate = new Date(n.updatedAt || n.createdAt);
             const diffHours = (now.getTime() - notifDate.getTime()) / (1000 * 60 * 60);
             if (diffHours < 24) {
                 today.push(n);
@@ -319,16 +327,85 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 },
             }}
         >
-            <ListItemAvatar sx={{ minWidth: 64 }}>
-                <Box sx={{ position: 'relative' }}>
-                    <Avatar
-                        src={
-                            notification.groupId?.avatar ||
-                            notification.senderId?.avatar ||
-                            ""
-                        }
-                        sx={{ width: 60, height: 60 }}
-                    />
+            <ListItemAvatar sx={{ minWidth: 72 }}>
+                <Box sx={{ position: 'relative', width: 60, height: 60 }}>
+                    {/* Avatar display logic */}
+                    {notification.groupId?.avatar ? (
+                        // Group notification - show group avatar
+                        <Avatar
+                            src={notification.groupId.avatar}
+                            sx={{ width: 56, height: 56 }}
+                        />
+                    ) : notification.senderIds && notification.senderIds.length > 1 ? (
+                        // Multiple senders - simple horizontal overlap (Facebook style)
+                        <Box sx={{
+                            position: 'relative',
+                            width: 56,
+                            height: 56,
+                            display: 'flex',
+                            alignItems: 'flex-end',
+                        }}>
+                            {/* Main avatar (latest sender) - larger, on left */}
+                            <Avatar
+                                src={[...notification.senderIds].reverse()[0]?.avatar || ''}
+                                sx={{
+                                    width: 40,
+                                    height: 40,
+                                    border: `2px solid ${theme.palette.background.paper}`,
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    zIndex: 3,
+                                }}
+                            />
+                            {/* Second avatar - smaller, bottom right */}
+                            {notification.senderIds.length >= 2 && (
+                                <Avatar
+                                    src={[...notification.senderIds].reverse()[1]?.avatar || ''}
+                                    sx={{
+                                        width: 28,
+                                        height: 28,
+                                        border: `2px solid ${theme.palette.background.paper}`,
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        right: 4,
+                                        zIndex: 2,
+                                    }}
+                                />
+                            )}
+                            {/* +X badge if more than 2 senders */}
+                            {notification.senderIds.length > 2 && (
+                                <Box
+                                    sx={{
+                                        position: 'absolute',
+                                        top: 2,
+                                        right: 0,
+                                        minWidth: 22,
+                                        height: 22,
+                                        borderRadius: '11px',
+                                        bgcolor: isDark ? 'grey.700' : 'grey.200',
+                                        border: `2px solid ${theme.palette.background.paper}`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        px: 0.5,
+                                        zIndex: 4,
+                                    }}
+                                >
+                                    <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary' }}>
+                                        +{notification.senderIds.length - 1}
+                                    </Typography>
+                                </Box>
+                            )}
+                        </Box>
+                    ) : (
+                        // Single sender - show single avatar
+                        <Avatar
+                            src={notification.senderIds?.[0]?.avatar || ''}
+                            sx={{ width: 56, height: 56 }}
+                        />
+                    )}
+                    {/* Notification type icon */}
                     {getNotificationIcon(notification.type, notification.typeReaction) && (
                         <Box
                             sx={{
@@ -341,12 +418,13 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                                             notification.type === "COMMENT_REACTED" ? theme.palette.background.paper :
                                                 notification.type === "POST_COMMENTED" ? 'green' : 'primary.main',
                                 borderRadius: '50%',
-                                width: 24,
-                                height: 24,
+                                width: 22,
+                                height: 22,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 border: `2px solid ${theme.palette.background.paper}`,
+                                zIndex: 5,
                             }}
                         >
                             {getNotificationIcon(notification.type, notification.typeReaction)}
@@ -441,7 +519,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                                         fontWeight: notification.status === "UNREAD" ? 600 : 400,
                                     }}
                                 >
-                                    {formatTime(notification.createdAt)}
+                                    {formatTime(notification.updatedAt || notification.createdAt)}
                                 </Typography>
                             </>
                         ) :
@@ -452,7 +530,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                                     fontWeight: notification.status === "UNREAD" ? 600 : 400,
                                 }}
                             >
-                                {formatTime(notification.createdAt)}
+                                {formatTime(notification.updatedAt || notification.createdAt)}
                             </Typography>
                         }
                     </Box>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppBar, Toolbar, Box, IconButton, Avatar, Badge, ClickAwayListener, Tooltip, Typography, useTheme, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, useMediaQuery } from '@mui/material';
+import { AppBar, Toolbar, Box, IconButton, Avatar, Badge, ClickAwayListener, Tooltip, Typography, useTheme, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, useMediaQuery, Divider, alpha } from '@mui/material';
 import {
     Search as SearchIcon,
     Home as HomeIcon,
@@ -305,27 +305,124 @@ export default function Header() {
         setMobileOpen(!mobileOpen);
     };
 
+    const handleLogout = () => {
+        useAuthStore.getState().logout();
+        router.push(CLIENT_PATH.LOGIN);
+    };
+
     const drawerContent = (
-        <Box sx={{ width: 280, pt: 2 }} role="presentation" onClick={handleDrawerToggle}>
-            <List>
+        <Box sx={{ width: 300, height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'background.paper' }} role="presentation">
+            {/* 1. Mobile Menu Header - User Profile */}
+            {user && (
+                <Box sx={{ p: 2, pb: 1 }}>
+                    <Box
+                        onClick={() => {
+                            router.push(CLIENT_PATH.PROFILE_BY_USERNAME(user.username));
+                            setMobileOpen(false);
+                        }}
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1.5,
+                            p: 1,
+                            borderRadius: 2,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }
+                        }}
+                    >
+                        <Avatar
+                            src={user.avatar}
+                            alt={user.fullName}
+                            sx={{ width: 48, height: 48, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                        />
+                        <Box>
+                            <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+                                {user.fullName}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                {t('common.profile')}
+                            </Typography>
+                        </Box>
+                    </Box>
+                </Box>
+            )}
+
+            <Divider sx={{ mx: 2, mb: 1, borderColor: theme.palette.divider }} />
+
+            {/* 2. Main Navigation Items */}
+            <List sx={{ px: 1.5, flex: 1, overflowY: 'auto' }}>
                 {[
-                    { label: t('nav.home'), icon: <HomeIcon />, path: '/' },
-                    { label: t('nav.friends'), icon: <PeopleIcon />, path: '/friends' },
-                    { label: t('nav.watch'), icon: <OndemandVideoIcon />, path: '/reels' },
-                    { label: t('nav.groups'), icon: <GroupsIcon />, path: '/groups' },
-                    { label: t('nav.gaming'), icon: <GamesIcon />, path: '/game' },
-                    { label: t('nav.saved'), icon: <BookmarkIcon />, path: '/saved' },
-                ].map((text) => (
-                    <ListItem key={text.label} disablePadding>
-                        <ListItemButton onClick={() => router.push(text.path)}>
-                            <ListItemIcon sx={{ color: 'primary.main' }}>
-                                {text.icon}
-                            </ListItemIcon>
-                            <ListItemText primary={text.label} primaryTypographyProps={{ fontWeight: 600 }} />
-                        </ListItemButton>
-                    </ListItem>
-                ))}
+                    { label: t('nav.home'), icon: <HomeIcon sx={{ fontSize: 26 }} />, activeIcon: <HomeIcon sx={{ fontSize: 26 }} />, path: '/' },
+                    { label: t('nav.friends'), icon: <PeopleOutlinedIcon sx={{ fontSize: 26 }} />, activeIcon: <PeopleIcon sx={{ fontSize: 26 }} />, path: '/friends' },
+                    { label: t('nav.watch'), icon: <OndemandVideoOutlinedIcon sx={{ fontSize: 26 }} />, activeIcon: <OndemandVideoIcon sx={{ fontSize: 26 }} />, path: '/reels' },
+                    { label: t('nav.groups'), icon: <GroupsOutlinedIcon sx={{ fontSize: 26 }} />, activeIcon: <GroupsIcon sx={{ fontSize: 26 }} />, path: '/groups' },
+                    { label: t('nav.gaming'), icon: <GamesOutlinedIcon sx={{ fontSize: 26 }} />, activeIcon: <GamesIcon sx={{ fontSize: 26 }} />, path: '/game' },
+                    { label: t('nav.saved'), icon: <BookmarkIcon sx={{ fontSize: 26 }} />, activeIcon: <BookmarkIcon sx={{ fontSize: 26 }} />, path: '/saved' },
+                ].map((item) => {
+                    const isActive = pathname === item.path || (item.path !== '/' && pathname?.startsWith(item.path));
+                    return (
+                        <ListItem key={item.label} disablePadding sx={{ mb: 0.5 }}>
+                            <ListItemButton
+                                onClick={() => {
+                                    router.push(item.path);
+                                    setMobileOpen(false);
+                                }}
+                                sx={{
+                                    borderRadius: 2,
+                                    py: 1.5,
+                                    px: 2,
+                                    color: isActive ? 'primary.main' : 'text.secondary',
+                                    bgcolor: isActive ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
+                                    '&:hover': {
+                                        bgcolor: isActive ? alpha(theme.palette.primary.main, 0.12) : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'),
+                                    }
+                                }}
+                            >
+                                <ListItemIcon sx={{ minWidth: 44, color: 'inherit' }}>
+                                    {isActive ? item.activeIcon : item.icon}
+                                </ListItemIcon>
+                                <ListItemText
+                                    primary={item.label}
+                                    primaryTypographyProps={{
+                                        fontWeight: isActive ? 600 : 500,
+                                        fontSize: 16
+                                    }}
+                                />
+                            </ListItemButton>
+                        </ListItem>
+                    );
+                })}
             </List>
+
+            {/* 3. Footer Section */}
+            <Box sx={{ p: 2, bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderTop: `1px solid ${theme.palette.divider}` }}>
+                {/* Apps Grid for secondary actions */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 1.5 }}>
+                    {/* Add more secondary items here if needed */}
+                </Box>
+
+                <ListItemButton
+                    onClick={handleLogout}
+                    sx={{
+                        borderRadius: 2,
+                        color: theme.palette.error.main,
+                        bgcolor: alpha(theme.palette.error.main, 0.05),
+                        '&:hover': {
+                            bgcolor: alpha(theme.palette.error.main, 0.1),
+                        }
+                    }}
+                >
+                    <ListItemText
+                        primary={t('common.logout')}
+                        primaryTypographyProps={{ fontWeight: 600, textAlign: 'center' }}
+                    />
+                </ListItemButton>
+
+                <Typography variant="caption" display="block" textAlign="center" color="text.secondary" sx={{ mt: 2, opacity: 0.6 }}>
+                    Social Chat © 2024
+                </Typography>
+            </Box>
         </Box>
     );
 

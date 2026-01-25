@@ -20,7 +20,7 @@ interface SelectedConversation {
     status: "online" | "offline";
     otherId: string;
     lastActive?: string;
-    type?: "DIRECT" | "GROUP";
+    type?: "DIRECT" | "GROUP" | "CHATBOT";
 }
 
 export default function ChatPage() {

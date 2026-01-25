@@ -25,6 +25,7 @@ import { useRouter } from "next/navigation";
 import { CLIENT_PATH } from "@/constants/paths";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { useTranslation } from "react-i18next";
 
 // Spark/Particle Component
 interface Particle {
@@ -115,6 +116,7 @@ export default function SigninPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { setUser, setAccessToken } = useAuthStore();
+  const { t } = useTranslation();
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
 
@@ -146,7 +148,7 @@ export default function SigninPage() {
     e.preventDefault();
 
     if (!username || !password || !firstName || !lastName) {
-      toast.error("Vui lòng nhập đầy đủ thông tin");
+      toast.error(t('auth.fill_all_info'));
       return;
     }
 
@@ -169,11 +171,11 @@ export default function SigninPage() {
         setAccessToken(response.data.access_token);
         setUser(userData);
 
-        toast.success(`Xin chào ${response.data.payload.fullname}! Đăng ký thành công!`);
+        toast.success(t('auth.welcome_user', { name: response.data.payload.fullname }));
         router.push(CLIENT_PATH.HOME);
       }
     } catch {
-      toast.error("Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.");
+      toast.error(t('auth.register_failed'));
     } finally {
       setLoading(false);
     }
@@ -234,7 +236,7 @@ export default function SigninPage() {
             transition={{ delay: 0.8 }}
           >
             <Typography variant="h5" color="text.secondary" sx={{ mb: 4, fontWeight: 500 }}>
-              Tham gia cộng đồng ngay hôm nay và kết nối với mọi người.
+              {t('auth.join_community')}
             </Typography>
           </motion.div>
         </Box>
@@ -284,11 +286,11 @@ export default function SigninPage() {
                   textAlign: 'center',
                   mb: 1
                 }}>
-                  Tạo tài khoản
+                  {t('auth.create_account_title')}
                 </Typography>
               </motion.div>
               <Typography variant="body1" color="text.secondary">
-                Nhanh chóng và dễ dàng.
+                {t('auth.quick_easy')}
               </Typography>
             </Stack>
 
@@ -297,14 +299,14 @@ export default function SigninPage() {
               <Stack spacing={2.5}>
                 <Stack direction="row" spacing={2}>
                   <TextField
-                    label="Họ"
+                    label={t('auth.firstName')}
                     fullWidth
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     disabled={loading}
                   />
                   <TextField
-                    label="Tên"
+                    label={t('auth.lastName')}
                     fullWidth
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
@@ -313,7 +315,7 @@ export default function SigninPage() {
                 </Stack>
 
                 <TextField
-                  label="Tên đăng nhập"
+                  label={t('auth.username')}
                   fullWidth
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -321,7 +323,7 @@ export default function SigninPage() {
                 />
 
                 <TextField
-                  label="Mật khẩu"
+                  label={t('auth.password')}
                   type={showPassword ? "text" : "password"}
                   fullWidth
                   value={password}
@@ -342,7 +344,7 @@ export default function SigninPage() {
                 />
 
                 <Typography variant="caption" color="text.secondary" sx={{ px: 1, textAlign: 'center' }}>
-                  Bằng cách nhấp vào Đăng ký, bạn đồng ý với Điều khoản, Chính sách quyền riêng tư của chúng tôi.
+                  {t('auth.terms_agreement')}
                 </Typography>
 
                 <Button
@@ -367,14 +369,14 @@ export default function SigninPage() {
                     }
                   }}
                 >
-                  {loading ? <CircularProgress size={24} color="inherit" /> : "Đăng ký"}
+                  {loading ? <CircularProgress size={24} color="inherit" /> : t('auth.register_button')}
                 </Button>
 
                 <Box sx={{ mt: 3, textAlign: 'center' }}>
                   <Typography variant="body2" color="text.secondary">
-                    Đã có tài khoản?{' '}
+                    {t('auth.have_account')}{' '}
                     <Link href={CLIENT_PATH.LOGIN} className="font-semibold text-blue-600 hover:text-blue-700 hover:underline">
-                      Đăng nhập
+                      {t('auth.login_now')}
                     </Link>
                   </Typography>
                 </Box>

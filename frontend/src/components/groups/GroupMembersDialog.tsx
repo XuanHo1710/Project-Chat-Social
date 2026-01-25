@@ -36,6 +36,7 @@ import { groupService } from '@/services/group.service';
 import { GroupMember, GroupRole } from '@/types/group';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 
 interface GroupMembersDialogProps {
@@ -60,6 +61,7 @@ export default function GroupMembersDialog({
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const { user } = useAuthStore();
+    const { t } = useTranslation();
     const [members, setMembers] = useState<GroupMember[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -138,9 +140,9 @@ export default function GroupMembersDialog({
     const getRoleChip = (role: GroupRole) => {
         switch (role) {
             case "ADMIN":
-                return <Chip label="Quản trị viên" size="small" sx={{ bgcolor: '#1877f2', color: 'white', fontSize: 11 }} />;
+                return <Chip label={t('group_members.admin')} size="small" sx={{ bgcolor: '#1877f2', color: 'white', fontSize: 11 }} />;
             case "MODERATOR":
-                return <Chip label="Người kiểm duyệt" size="small" sx={{ bgcolor: '#42b72a', color: 'white', fontSize: 11 }} />;
+                return <Chip label={t('group_members.moderator')} size="small" sx={{ bgcolor: '#42b72a', color: 'white', fontSize: 11 }} />;
             default:
                 return null;
         }
@@ -174,7 +176,7 @@ export default function GroupMembersDialog({
                 pb: 2
             }}>
                 <Typography variant="h6" fontWeight={700}>
-                    Thành viên ({members.length})
+                    {t('group_members.title')} ({members.length})
                 </Typography>
                 <IconButton onClick={onClose} size="small">
                     <CloseIcon />
@@ -186,7 +188,7 @@ export default function GroupMembersDialog({
                 <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                     <TextField
                         fullWidth
-                        placeholder="Tìm thành viên..."
+                        placeholder={t('group_members.search_placeholder')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         InputProps={{
@@ -214,7 +216,7 @@ export default function GroupMembersDialog({
                         </Box>
                     ) : filteredMembers.length === 0 ? (
                         <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                            Không tìm thấy thành viên
+                            {t('group_members.no_members_found')}
                         </Typography>
                     ) : (
                         <List>
@@ -240,7 +242,7 @@ export default function GroupMembersDialog({
                                                 </Typography>
                                                 {getRoleChip(member.role)}
                                                 {member._id === user?.id && (
-                                                    <Typography variant="caption" color="text.secondary">(Bạn)</Typography>
+                                                    <Typography variant="caption" color="text.secondary">({t('group_members.you')})</Typography>
                                                 )}
                                             </Box>
                                         }
@@ -282,14 +284,14 @@ export default function GroupMembersDialog({
                         {isCreator && selectedMember.role !== "ADMIN" && (
                             <MenuItem onClick={() => handleUpdateRole("ADMIN")}>
                                 <ListItemIcon><AdminIcon sx={{ color: '#1877f2' }} /></ListItemIcon>
-                                <ListItemText>Thăng lên quản trị viên</ListItemText>
+                                <ListItemText>{t('group_members.promote_admin')}</ListItemText>
                             </MenuItem>
                         )}
 
                         {selectedMember.role !== "MODERATOR" && selectedMember.role !== "ADMIN" && (
                             <MenuItem onClick={() => handleUpdateRole("MODERATOR")}>
                                 <ListItemIcon><ShieldIcon sx={{ color: '#42b72a' }} /></ListItemIcon>
-                                <ListItemText>Thăng lên người kiểm duyệt</ListItemText>
+                                <ListItemText>{t('group_members.promote_mod')}</ListItemText>
                             </MenuItem>
                         )}
 
@@ -297,7 +299,7 @@ export default function GroupMembersDialog({
                             (isCreator || selectedMember.role !== "ADMIN") && (
                                 <MenuItem onClick={() => handleUpdateRole("MEMBER")}>
                                     <ListItemIcon><ShieldIcon sx={{ color: 'text.secondary' }} /></ListItemIcon>
-                                    <ListItemText>Hạ xuống thành viên</ListItemText>
+                                    <ListItemText>{t('group_members.demote_member')}</ListItemText>
                                 </MenuItem>
                             )}
 
@@ -312,7 +314,7 @@ export default function GroupMembersDialog({
                                 <PersonRemoveIcon sx={{ color: '#fa3e3e' }} />
                             </ListItemIcon>
                             <ListItemText>
-                                {isRemoving ? 'Đang xóa...' : 'Xóa khỏi nhóm'}
+                                {isRemoving ? t('group_members.removing') : t('group_members.remove_from_group')}
                             </ListItemText>
                         </MenuItem>
                     </>

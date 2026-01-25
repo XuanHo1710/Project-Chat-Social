@@ -1,6 +1,7 @@
 import {
     Box, Avatar, Typography, IconButton, Button, InputBase, Menu, MenuItem, ListItemIcon, ListItemText, CircularProgress, useTheme
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import {
     MoreHoriz as MoreIcon,
     Public as PublicIcon,
@@ -28,21 +29,7 @@ import { postService } from '@/services/post.service';
 import { toast } from 'sonner';
 import { usePostStore } from '@/stores/usePostStore';
 
-// Privacy options
-const privacyOptions = [
-    { id: 'PUBLIC' as PostPrivacy, icon: PublicIcon, label: 'Công khai', description: 'Bất kỳ ai ở trên hoặc ngoài Facebook' },
-    { id: 'FRIEND' as PostPrivacy, icon: PeopleIcon, label: 'Bạn bè', description: 'Bạn bè của bạn trên Facebook' },
-    { id: 'PRIVATE' as PostPrivacy, icon: LockIcon, label: 'Chỉ mình tôi', description: 'Chỉ mình bạn' },
-];
 
-// Share options
-const shareOptions = [
-    { id: 'messenger', icon: MessageIcon, label: 'Messenger', color: '#0084ff' },
-    { id: 'whatsapp', icon: WhatsAppIcon, label: 'WhatsApp', color: '#25d366' },
-    { id: 'copy', icon: LinkIcon, label: 'Sao chép liên kết', color: '#65676b' },
-    { id: 'groups', icon: GroupsIcon, label: 'Nhóm', color: '#65676b' },
-    { id: 'profile', icon: PersonIcon, label: 'Trang cá nhân của bạn bè', color: '#65676b' },
-];
 
 
 export default function ShareContentModal({ handleCloseShare, user, sharePrivacy: initialSharePrivacy, shareCaption, setShareCaption, showEmojiPicker, setShowEmojiPicker, handleEmojiSelect, sharingPost }: { handleCloseShare: () => void, user: UserLoginType | null, sharePrivacy: string, shareCaption: string, setShareCaption: React.Dispatch<React.SetStateAction<string>>, showEmojiPicker: boolean, setShowEmojiPicker: React.Dispatch<React.SetStateAction<boolean>>, handleEmojiSelect: (emoji: { native: string }) => void, sharingPost: PostType | null }) {
@@ -50,6 +37,21 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
     const isDark = theme.palette.mode === 'dark';
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
+    const { t } = useTranslation();
+
+    const privacyOptions = [
+        { id: 'PUBLIC' as PostPrivacy, icon: PublicIcon, label: t('share.public'), description: t('share.public_desc') },
+        { id: 'FRIEND' as PostPrivacy, icon: PeopleIcon, label: t('share.friends'), description: t('share.friends_desc') },
+        { id: 'PRIVATE' as PostPrivacy, icon: LockIcon, label: t('share.private'), description: t('share.private_desc') },
+    ];
+
+    const shareOptions = [
+        { id: 'messenger', icon: MessageIcon, label: t('share.share_messenger'), color: '#0084ff' },
+        { id: 'whatsapp', icon: WhatsAppIcon, label: t('share.share_whatsapp'), color: '#25d366' },
+        { id: 'copy', icon: LinkIcon, label: t('share.copy_link'), color: '#65676b' },
+        { id: 'groups', icon: GroupsIcon, label: t('share.share_group'), color: '#65676b' },
+        { id: 'profile', icon: PersonIcon, label: t('share.share_page'), color: '#65676b' },
+    ];
 
     // Local state for privacy selection
     const [sharePrivacy, setSharePrivacy] = useState<PostPrivacy>(initialSharePrivacy as PostPrivacy || 'PUBLIC');
@@ -58,7 +60,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
 
     const { addPost, incrementShareCount } = usePostStore();
 
-    const getSharePrivacyLabel = () => privacyOptions.find(p => p.id === sharePrivacy)?.label || 'Công khai';
+    const getSharePrivacyLabel = () => privacyOptions.find(p => p.id === sharePrivacy)?.label || t('share.public');
     const getSharePrivacyIcon = () => {
         const option = privacyOptions.find(p => p.id === sharePrivacy);
         return option ? option.icon : PublicIcon;
@@ -100,12 +102,12 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                 addPost(response.data);
                 // Increment share count on original post
                 incrementShareCount(sharingPost._id);
-                toast.success('Chia sẻ bài viết thành công!');
+                toast.success(t('share.share_success'));
                 handleCloseShare();
             }
         } catch (error) {
             console.error('Error sharing post:', error);
-            toast.error('Lỗi khi chia sẻ bài viết');
+            toast.error(t('share.share_error'));
         } finally {
             setIsSharing(false);
         }
@@ -116,7 +118,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
         <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 550, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 24, overflow: 'hidden', zIndex: 100 }}>
             {/* Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, borderBottom: `1px solid ${theme.palette.divider}`, position: 'relative' }}>
-                <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>Chia sẻ</Typography>
+                <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>{t('share.title')}</Typography>
                 <IconButton onClick={handleCloseShare} sx={{ position: 'absolute', right: 12, bgcolor: hoverBg, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf' } }}>
                     <CloseIcon />
                 </IconButton>
@@ -134,7 +136,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                                 startIcon={<PublicIcon sx={{ fontSize: 12 }} />}
                                 sx={{ bgcolor: inputBg, color: 'text.primary', textTransform: 'none', fontSize: 12, fontWeight: 600, px: 1, py: 0.25, borderRadius: 1, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf' } }}
                             >
-                                Bảng feed
+                                {t('share.feed')}
                             </Button>
                             <Button
                                 size="small"
@@ -154,7 +156,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                                 }}
                             >
                                 <Typography sx={{ px: 2, py: 1, fontWeight: 700, fontSize: 16, color: 'text.primary' }}>
-                                    Ai có thể xem bài viết này?
+                                    {t('share.who_can_see')}
                                 </Typography>
                                 {privacyOptions.map((option) => (
                                     <MenuItem
@@ -200,7 +202,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                         multiline
                         fullWidth
                         rows={2}
-                        placeholder="Hãy nói gì đó về nội dung này..."
+                        placeholder={t('share.write_something')}
                         value={shareCaption}
                         onChange={(e) => setShareCaption(e.target.value)}
                         sx={{ fontSize: 15, color: 'text.primary', mb: 1 }}
@@ -243,13 +245,13 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                         '&:disabled': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb', color: isDark ? 'rgba(255,255,255,0.3)' : '#bcc0c4' }
                     }}
                 >
-                    {isSharing ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Chia sẻ ngay'}
+                    {isSharing ? <CircularProgress size={24} sx={{ color: 'white' }} /> : t('share.share_now')}
                 </Button>
             </Box>
 
             {/* Send via Messenger */}
             <Box sx={{ px: 2, pb: 2 }}>
-                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary', mb: 1.5 }}>Gửi bằng Messenger</Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary', mb: 1.5 }}>{t('share.share_to_messenger')}</Typography>
                 <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', position: 'relative' }}>
                     <IconButton sx={{ p: 0 }}>
                         <ArrowBackIcon sx={{ color: 'text.secondary' }} />
@@ -280,14 +282,14 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                         <Box sx={{ width: 56, height: 56, borderRadius: '50%', bgcolor: inputBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <MoreIcon sx={{ color: 'text.primary' }} />
                         </Box>
-                        <Typography sx={{ fontSize: 12, color: 'text.primary', textAlign: 'center', mt: 0.5 }}>Xem thêm</Typography>
+                        <Typography sx={{ fontSize: 12, color: 'text.primary', textAlign: 'center', mt: 0.5 }}>{t('share.see_more')}</Typography>
                     </Box>
                 </Box>
             </Box>
 
             {/* Share Options */}
             <Box sx={{ px: 2, pb: 2 }}>
-                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary', mb: 1.5 }}>Chia sẻ lên</Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary', mb: 1.5 }}>{t('share.share_to')}</Typography>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                     {shareOptions.map((option) => (
                         <Box
@@ -298,7 +300,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
                                     setOpenMessengerShare(true);
                                 } else if (option.id === 'copy') {
                                     navigator.clipboard.writeText(`${window.location.origin}/post/${sharingPost?._id}`);
-                                    alert('Đã sao chép liên kết!');
+                                    alert(t('share.copy_success'));
                                 }
                             }}
                         >

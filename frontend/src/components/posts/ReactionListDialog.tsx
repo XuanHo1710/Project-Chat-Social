@@ -20,6 +20,7 @@ import { relationshipService } from '@/services/relationship.service';
 import { Reaction, ReactionType, ReactionUser } from '@/types/reaction';
 import { FriendType } from '@/types/account';
 import { useSocket } from '@/contexts/SocketContext';
+import { useTranslation } from 'react-i18next';
 
 const REACTION_EMOJI: Record<ReactionType, string> = {
     LIKE: '👍',
@@ -43,6 +44,7 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
     const isDark = theme.palette.mode === 'dark';
     const hoverBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
     const [loading, setLoading] = useState(false);
+    const { t } = useTranslation();
     const [reactions, setReactions] = useState<Reaction[]>([]);
     const [counts, setCounts] = useState<Record<ReactionType, number>>({
         LIKE: 0, LOVE: 0, HAHA: 0, WOW: 0, SAD: 0, ANGRY: 0
@@ -229,7 +231,7 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                 p: 2,
             }}>
                 <Typography variant="h6" fontWeight={700}>
-                    Cảm xúc về bài viết
+                    {t('reactions.title')}
                 </Typography>
                 <IconButton onClick={onClose} sx={{ color: 'text.secondary' }}>
                     <CloseIcon />
@@ -261,7 +263,7 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                             label={
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                     {tab.emoji && <span>{tab.emoji}</span>}
-                                    {tab.type === 'ALL' ? 'Tất cả' : ''}
+                                    {tab.type === 'ALL' ? t('reactions.all') : ''}
                                     <Typography component="span" fontSize={14}>
                                         {tab.count}
                                     </Typography>
@@ -280,7 +282,7 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                     </Box>
                 ) : filteredUsers.length === 0 ? (
                     <Typography color="text.secondary" textAlign="center" py={4}>
-                        Chưa có ai bày tỏ cảm xúc
+                        {t('reactions.no_reactions')}
                     </Typography>
                 ) : (
                     <Box>
@@ -346,7 +348,7 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                                             }
                                         }}
                                     >
-                                        {user.hasSentRequest || pendingRequests.has(user._id) ? 'Đã gửi lời mời' : 'Thêm bạn bè'}
+                                        {user.hasSentRequest || pendingRequests.has(user._id) ? t('common.request_sent') : t('common.add_friend')}
                                     </Button>
                                 )}
                             </Box>
@@ -354,6 +356,6 @@ export default function ReactionListDialog({ open, onClose, postId, userId }: Re
                     </Box>
                 )}
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 }

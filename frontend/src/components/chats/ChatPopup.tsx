@@ -34,6 +34,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 import { useSocket } from '@/contexts/SocketContext';
 import { renderContentWithMentionsPlain } from '@/utils/hashtagParser';
+import { useTranslation } from 'react-i18next';
 
 
 interface ChatPopupProps {
@@ -46,6 +47,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
     const router = useRouter();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const { t } = useTranslation();
     const [tabValue, setTabValue] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const { user } = useAuthStore();
@@ -143,7 +145,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                 : nickname.toLowerCase();
             return fullName.includes(searchQuery.toLowerCase());
         } else if (conversation.type === 'GROUP') {
-            const groupName = conversation.nickname?.toLowerCase() || 'nhóm chat';
+            const groupName = conversation.nickname?.toLowerCase() || (t('messenger_popup.groups') || 'nhóm chat');
             return groupName.includes(searchQuery.toLowerCase());
         } else if (conversation.type === 'CHATBOT') {
             return "BOT AI".toLowerCase().includes(searchQuery.toLowerCase());
@@ -192,7 +194,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
             <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                     <Typography variant="h6" fontWeight={700} color="text.primary">
-                        Đoạn chat
+                        {t('messenger_popup.header')}
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
                         <IconButton
@@ -228,7 +230,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                 {/* Search */}
                 <TextField
                     fullWidth
-                    placeholder="Tìm kiếm trên Messenger"
+                    placeholder={t('messenger_popup.search_placeholder')}
                     size="small"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -283,9 +285,9 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                     },
                 }}
             >
-                <Tab label="Tất cả" />
-                <Tab label="Chưa đọc" />
-                <Tab label="Nhóm" />
+                <Tab label={t('messenger_popup.all')} />
+                <Tab label={t('messenger_popup.unread')} />
+                <Tab label={t('messenger_popup.groups')} />
             </Tabs>
 
             {/* Conversation List */}
@@ -367,12 +369,12 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                             }}
                         >
                             {searchQuery
-                                ? 'Không tìm thấy cuộc trò chuyện nào'
+                                ? t('messenger_popup.no_conversations')
                                 : tabValue === 1
-                                    ? 'Không có tin nhắn chưa đọc'
+                                    ? t('messenger_popup.no_unread')
                                     : tabValue === 2
-                                        ? 'Không có nhóm nào'
-                                        : 'Bắt đầu cuộc trò chuyện mới'}
+                                        ? t('messenger_popup.no_groups')
+                                        : t('messenger_popup.start_new')}
                         </Typography>
                     </Box>
                 )}
@@ -397,7 +399,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                 // Bot always online
                                 status = { isOnline: true, lastActive: undefined };
                             } else if (isGroup) {
-                                displayName = conversation.nickname || 'Nhóm chat';
+                                displayName = conversation.nickname || (t('messenger_popup.groups') || 'Nhóm chat');
                                 displayAvatar = conversation.avatar || '';
                                 // Groups don't have online status
                             } else {
@@ -484,12 +486,12 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                                 >
                                                     {(() => {
                                                         const lastMsg = conversation.lastMessage;
-                                                        if (!lastMsg) return 'Bắt đầu cuộc trò chuyện mới';
+                                                        if (!lastMsg) return t('messenger_popup.start_new');
 
                                                         // Get sender prefix for group chats
                                                         const getSenderPrefix = () => {
                                                             if (!isGroup) return '';
-                                                            if (lastMsg.senderId === user?.id) return 'Bạn: ';
+                                                            if (lastMsg.senderId === user?.id) return `${t('messenger_popup.you')}: `;
                                                             const sender = conversation.participants.find(p => p.user._id === lastMsg.senderId)?.user;
                                                             return sender ? `${sender.firstName || ''}: ` : '';
                                                         };
@@ -498,22 +500,22 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
 
                                                         switch (lastMsg.type) {
                                                             case 'IMAGE':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một ảnh' : prefix + 'đã gửi một ảnh';
+                                                                return lastMsg.senderId === user?.id ? `${t('messenger_popup.you')} ${t('messenger_popup.sent_image')}` : prefix + t('messenger_popup.sent_image');
                                                             case 'VIDEO':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một video' : prefix + 'đã gửi một video';
+                                                                return lastMsg.senderId === user?.id ? `${t('messenger_popup.you')} ${t('messenger_popup.sent_video')}` : prefix + t('messenger_popup.sent_video');
                                                             case 'FILE':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã gửi một tệp' : prefix + 'đã gửi một tệp';
+                                                                return lastMsg.senderId === user?.id ? `${t('messenger_popup.you')} ${t('messenger_popup.sent_file')}` : prefix + t('messenger_popup.sent_file');
                                                             case 'POST':
-                                                                return lastMsg.senderId === user?.id ? 'Bạn đã chia sẻ bài viết' : prefix + 'đã chia sẻ bài viết';
+                                                                return lastMsg.senderId === user?.id ? `${t('messenger_popup.you')} ${t('messenger_popup.shared_post')}` : prefix + t('messenger_popup.shared_post');
                                                             case 'SYSTEM':
-                                                                return lastMsg.content || 'Thông báo';
+                                                                return lastMsg.content || t('messenger_popup.system_notification');
                                                             case "CHATBOT":
-                                                                return "AI Assistant: " + (lastMsg.content || 'Tin nhắn từ Chatbot');
+                                                                return t('messenger_popup.ai_message') + (lastMsg.content || t('messenger_popup.start_new'));
                                                             default:
                                                                 if (lastMsg.attachments && lastMsg.attachments.length > 0 && !lastMsg.content) {
-                                                                    return lastMsg.senderId === user?.id ? 'Bạn đã gửi ảnh' : prefix + 'đã gửi ảnh';
+                                                                    return lastMsg.senderId === user?.id ? `${t('messenger_popup.you')} ${t('messenger_popup.sent_image')}` : prefix + t('messenger_popup.sent_image');
                                                                 }
-                                                                return prefix + (renderContentWithMentionsPlain(lastMsg.content) || 'Bắt đầu cuộc trò chuyện mới');
+                                                                return prefix + (renderContentWithMentionsPlain(lastMsg.content) || t('messenger_popup.start_new'));
                                                         }
                                                     })()}
                                                 </Typography>
@@ -572,7 +574,7 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                         },
                     }}
                 >
-                    Xem tất cả trong Messenger
+                    {t('messenger_popup.view_all')}
                 </Typography>
             </Box>
         </Paper>

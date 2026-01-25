@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import { CLIENT_PATH } from "@/constants/paths";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { useTranslation } from "react-i18next";
 
 // Spark/Particle Component
 interface Particle {
@@ -95,7 +96,7 @@ const SocialParticles = () => {
           animate={{
             x: p.xPath,
             y: p.yPath,
-            opacity: [0, Math.random().toFixed * 0.8 + 0.2, 0],
+            opacity: [0, Math.random() * 0.8 + 0.2, 0],
             scale: [0, Math.random() * 1.5 + 0.5, 0]
           }}
           transition={{
@@ -117,6 +118,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const { setUser, setAccessToken } = useAuthStore();
+  const { t } = useTranslation();
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
 
@@ -148,7 +150,7 @@ export default function LoginPage() {
     e.preventDefault();
 
     if (!username || !password) {
-      toast.error("Vui lòng nhập đầy đủ thông tin");
+      toast.error(t('auth.fill_all_info'));
       return;
     }
 
@@ -171,11 +173,11 @@ export default function LoginPage() {
         setAccessToken(response.data.access_token);
         setUser(userData);
 
-        toast.success(`Xin chào ${response.data.payload.fullname}! Đăng nhập thành công!`);
+        toast.success(t('auth.welcome_user', { name: response.data.payload.fullname }));
         router.push(CLIENT_PATH.HOME);
       }
     } catch {
-      toast.error("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
+      toast.error(t('auth.login_failed'));
     } finally {
       setLoading(false);
     }
@@ -220,7 +222,7 @@ export default function LoginPage() {
       }
 
       if (type === 'GOOGLE_LOGIN_FAILED') {
-        toast.error('Đăng nhập bằng google thất bại');
+        toast.error(t('auth.google_login_failed'));
       }
     };
     window.addEventListener('message', handler);
@@ -283,7 +285,7 @@ export default function LoginPage() {
             transition={{ delay: 0.5, duration: 0.8 }}
           >
             <Typography variant="h5" color="text.secondary" sx={{ mb: 4, fontWeight: 500, lineHeight: 1.6 }}>
-              Kết nối với bạn bè và thế giới xung quanh bạn trên Social Chat.
+              {t('auth.connect_friends')}
             </Typography>
           </motion.div>
         </Box>
@@ -322,13 +324,13 @@ export default function LoginPage() {
             </Box>
 
             <Typography variant="h4" fontWeight={700} sx={{ mb: 1, color: 'text.primary', textAlign: 'center' }}>
-              Đăng nhập
+              {t('auth.login_button')}
             </Typography>
 
             <form onSubmit={handleLogin}>
               <Stack spacing={2.5} sx={{ mt: 3 }}>
                 <TextField
-                  label="Tên đăng nhập"
+                  label={t('auth.username')}
                   fullWidth
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -336,7 +338,7 @@ export default function LoginPage() {
                 />
 
                 <TextField
-                  label="Mật khẩu"
+                  label={t('auth.password')}
                   type={showPassword ? "text" : "password"}
                   fullWidth
                   value={password}
@@ -364,10 +366,10 @@ export default function LoginPage() {
                         onChange={(e) => setRememberMe(e.target.checked)}
                       />
                     }
-                    label={<Typography variant="body2">Ghi nhớ đăng nhập</Typography>}
+                    label={<Typography variant="body2">{t('auth.remember_me')}</Typography>}
                   />
                   <Link href={CLIENT_PATH.FORGOT_PASSWORD} className="text-sm font-medium text-blue-600 hover:text-blue-700 no-underline hover:underline">
-                    Quên mật khẩu?
+                    {t('auth.forgot_password')}
                   </Link>
                 </Stack>
 
@@ -390,11 +392,11 @@ export default function LoginPage() {
                     boxShadow: '0 4px 12px rgba(24, 119, 242, 0.3)',
                   }}
                 >
-                  {loading ? <CircularProgress size={24} color="inherit" /> : "Đăng nhập"}
+                  {loading ? <CircularProgress size={24} color="inherit" /> : t('auth.login_button')}
                 </Button>
 
                 <Divider sx={{ my: 2 }}>
-                  <Typography variant="caption" color="text.secondary">HOẶC</Typography>
+                  <Typography variant="caption" color="text.secondary">{t('auth.or')}</Typography>
                 </Divider>
 
                 <Button
@@ -407,14 +409,14 @@ export default function LoginPage() {
                   fullWidth
                   sx={{ py: 1.2, textTransform: 'none', borderRadius: 1.5 }}
                 >
-                  Đăng nhập bằng Google
+                  {t('auth.login_with_google')}
                 </Button>
 
                 <Box sx={{ mt: 3, textAlign: 'center' }}>
                   <Typography variant="body2" color="text.secondary">
-                    Bạn chưa có tài khoản?{' '}
+                    {t('auth.no_account')}{' '}
                     <Link href={CLIENT_PATH.REGISTER} className="font-semibold text-blue-600 hover:text-blue-700 hover:underline">
-                      Đăng ký ngay
+                      {t('auth.register_now')}
                     </Link>
                   </Typography>
                 </Box>

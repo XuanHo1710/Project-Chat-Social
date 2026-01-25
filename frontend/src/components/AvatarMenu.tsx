@@ -34,6 +34,7 @@ import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
+import { useTranslation } from 'react-i18next';
 
 interface AvatarMenuProps {
     onClose: () => void;
@@ -46,6 +47,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
     const logout = useAuthStore((state) => state.logout);
     const router = useRouter();
     const muiTheme = useTheme();
+    const { t } = useTranslation();
     const isDark = muiTheme.palette.mode === 'dark';
 
     const [activePanel, setActivePanel] = useState<MenuPanel>('main');
@@ -58,10 +60,11 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
         const response = await authService.logout();
         if (response.statusCode === 201) {
             logout();
-            toast.success('Đã đăng xuất thành công!');
+            logout();
+            toast.success(t('avatar_menu.logout_success'));
             router.push(CLIENT_PATH.LOGIN);
         } else {
-            toast.error('Đăng xuất thất bại. Vui lòng thử lại.');
+            toast.error(t('avatar_menu.logout_failed'));
         }
     };
 
@@ -129,7 +132,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                             {user?.fullName || user?.username}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Xem trang cá nhân của bạn
+                            {t('avatar_menu.see_profile')}
                         </Typography>
                     </Box>
                 </Box>
@@ -145,7 +148,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                             <SettingsIcon sx={{ fontSize: 20, color: 'text.primary' }} />
                         </Box>
                     </ListItemIcon>
-                    <ListItemText primary="Cài đặt và quyền riêng tư" primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
+                    <ListItemText primary={t('avatar_menu.settings_privacy')} primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
                     <ArrowRightIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                 </ListItemButton>
 
@@ -155,7 +158,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                             <HelpIcon sx={{ fontSize: 20, color: 'text.primary' }} />
                         </Box>
                     </ListItemIcon>
-                    <ListItemText primary="Trợ giúp và hỗ trợ" primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
+                    <ListItemText primary={t('avatar_menu.help_support')} primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
                     <ArrowRightIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                 </ListItemButton>
 
@@ -169,7 +172,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                             )}
                         </Box>
                     </ListItemIcon>
-                    <ListItemText primary="Màn hình và trợ năng" primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
+                    <ListItemText primary={t('avatar_menu.display_accessibility')} primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
                     <ArrowRightIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                 </ListItemButton>
 
@@ -179,7 +182,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                             <FeedbackIcon sx={{ fontSize: 20, color: 'text.primary' }} />
                         </Box>
                     </ListItemIcon>
-                    <ListItemText primary="Đóng góp ý kiến" primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
+                    <ListItemText primary={t('avatar_menu.give_feedback')} primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
                     <ArrowRightIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                 </ListItemButton>
 
@@ -189,7 +192,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                             <LogoutIcon sx={{ fontSize: 20, color: 'text.primary' }} />
                         </Box>
                     </ListItemIcon>
-                    <ListItemText primary="Đăng xuất" primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
+                    <ListItemText primary={t('avatar_menu.logout')} primaryTypographyProps={{ fontSize: '15px', fontWeight: 500, color: 'text.primary' }} />
                 </ListItemButton>
             </List>
 
@@ -211,7 +214,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                     <ArrowBackIcon sx={{ color: 'text.primary' }} />
                 </IconButton>
                 <Typography variant="h6" fontWeight={700} color="text.primary">
-                    Màn hình và trợ năng
+                    {t('avatar_menu.display_title')}
                 </Typography>
             </Box>
 
@@ -223,33 +226,33 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                     </Box>
                     <Box sx={{ flex: 1 }}>
                         <Typography variant="subtitle1" fontWeight={600} color="text.primary">
-                            Chế độ tối
+                            {t('avatar_menu.dark_mode')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Điều chỉnh giao diện của ứng dụng để giảm độ chói và cho đôi mắt được nghỉ ngơi.
+                            {t('avatar_menu.dark_mode_desc')}
                         </Typography>
 
                         <RadioGroup value={mode} onChange={(e) => handleThemeChange(e.target.value as ThemeMode)}>
                             <FormControlLabel
                                 value="light"
                                 control={<Radio size="small" />}
-                                label={<Typography color="text.primary" fontSize={15}>Tắt</Typography>}
+                                label={<Typography color="text.primary" fontSize={15}>{t('avatar_menu.off')}</Typography>}
                                 sx={{ mb: 0.5 }}
                             />
                             <FormControlLabel
                                 value="dark"
                                 control={<Radio size="small" />}
-                                label={<Typography color="text.primary" fontSize={15}>Bật</Typography>}
+                                label={<Typography color="text.primary" fontSize={15}>{t('avatar_menu.on')}</Typography>}
                                 sx={{ mb: 0.5 }}
                             />
                             <Box>
                                 <FormControlLabel
                                     value="system"
                                     control={<Radio size="small" />}
-                                    label={<Typography color="text.primary" fontSize={15}>Tự động</Typography>}
+                                    label={<Typography color="text.primary" fontSize={15}>{t('avatar_menu.automatic')}</Typography>}
                                 />
                                 <Typography variant="body2" color="text.secondary" sx={{ ml: 4, mt: -0.5 }}>
-                                    Chúng tôi sẽ tự động điều chỉnh màn hình theo cài đặt hệ thống trên thiết bị của bạn.
+                                    {t('avatar_menu.automatic_desc')}
                                 </Typography>
                             </Box>
                         </RadioGroup>
@@ -265,23 +268,23 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
                     </Box>
                     <Box sx={{ flex: 1 }}>
                         <Typography variant="subtitle1" fontWeight={600} color="text.primary">
-                            Chế độ Thu gọn
+                            {t('avatar_menu.compact_mode')}
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Giảm kích thước phông chữ để có thêm nội dung vừa với màn hình.
+                            {t('avatar_menu.compact_mode_desc')}
                         </Typography>
 
                         <RadioGroup value={fontSize} onChange={(e) => handleFontSizeChange(e.target.value as FontSize)}>
                             <FormControlLabel
                                 value="normal"
                                 control={<Radio size="small" />}
-                                label={<Typography color="text.primary" fontSize={15}>Tắt</Typography>}
+                                label={<Typography color="text.primary" fontSize={15}>{t('avatar_menu.off')}</Typography>}
                                 sx={{ mb: 0.5 }}
                             />
                             <FormControlLabel
                                 value="compact"
                                 control={<Radio size="small" />}
-                                label={<Typography color="text.primary" fontSize={15}>Bật</Typography>}
+                                label={<Typography color="text.primary" fontSize={15}>{t('avatar_menu.on')}</Typography>}
                             />
                         </RadioGroup>
                     </Box>

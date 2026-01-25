@@ -87,6 +87,7 @@ import { useGetUserPostsInfinite } from '@/queries/usePostQueries';
 import { useInView } from 'react-intersection-observer';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants/query-keys';
+import { useTranslation } from 'react-i18next';
 
 interface ProfilePageProps {
     userName: string;
@@ -105,6 +106,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     const paperBg = theme.palette.background.paper;
     const textPrimary = theme.palette.text.primary;
     const textSecondary = theme.palette.text.secondary;
+    const { t } = useTranslation();
 
     // Profile states
     const [profile, setProfile] = useState<ProfileType | null>(null);
@@ -357,9 +359,9 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     const getGenderText = (gender?: string) => {
         switch (gender) {
-            case 'MALE': return 'Nam';
-            case 'FEMALE': return 'Nữ';
-            default: return 'Khác';
+            case 'MALE': return t('profile.male');
+            case 'FEMALE': return t('profile.female');
+            default: return t('profile.other');
         }
     };
 
@@ -508,10 +510,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         try {
             await relationshipService.addFriend(user.id, profile._id);
             setFriendshipStatus('PENDING');
-            toast.success('Đã gửi lời mời kết bạn!');
+            toast.success(t('profile.friend_request_sent'));
         } catch (error) {
             console.error('Error adding friend:', error);
-            toast.error('Lỗi khi gửi lời mời kết bạn');
+            toast.error(t('profile.friend_request_error'));
         }
     };
 
@@ -528,10 +530,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                 setFriends(prev => prev.filter(f => f._id !== friendId));
             }
             handleCloseFriendMenu();
-            toast.success('Đã hủy kết bạn!');
+            toast.success(t('profile.unfriended'));
         } catch (error) {
             console.error('Error unfriending:', error);
-            toast.error('Lỗi khi hủy kết bạn');
+            toast.error(t('profile.unfriend_error'));
         }
     };
 
@@ -541,10 +543,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         try {
             await relationshipService.updateStatusRelationship(user.id, profile._id, 'CANCELED');
             setFriendshipStatus(null);
-            toast.success('Đã hủy lời mời kết bạn!');
+            toast.success(t('profile.request_canceled'));
         } catch (error) {
             console.error('Error canceling friend request:', error);
-            toast.error('Lỗi khi hủy lời mời kết bạn');
+            toast.error(t('profile.request_cancel_error'));
         }
     };
 
@@ -572,19 +574,19 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
             if (socketRelationship) {
                 socketRelationship.emit('user:block', { targetUserId: profile._id }, (response: { success: boolean; error?: string }) => {
                     if (response.success) {
-                        toast.success(`Đã chặn ${profile.firstName} ${profile.lastName}`);
+                        toast.success(t('profile.user_blocked'));
                         setBlockDialogOpen(false);
                         setProfileSettingsAnchor(null);
                         router.push('/');
                     } else {
-                        toast.error(response.error || 'Không thể chặn người dùng');
+                        toast.error(response.error || t('profile.block_error'));
                     }
                     setIsBlocking(false);
                 });
             } else {
                 // Fallback to REST API
                 await relationshipService.blockUser(profile._id);
-                toast.success(`Đã chặn ${profile.firstName} ${profile.lastName}`);
+                toast.success(t('profile.user_blocked'));
                 setBlockDialogOpen(false);
                 setProfileSettingsAnchor(null);
                 router.push('/');
@@ -607,20 +609,20 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
             if (socketRelationship) {
                 socketRelationship.emit('user:block', { targetUserId: selectedFriend._id }, (response: { success: boolean; error?: string }) => {
                     if (response.success) {
-                        toast.success(`Đã chặn ${selectedFriend.firstName} ${selectedFriend.lastName}`);
+                        toast.success(t('profile.user_blocked'));
                         setBlockFriendDialogOpen(false);
                         setFriendMenuAnchor(null);
                         setFriends(friends.filter(f => f._id !== selectedFriend._id));
                         setSelectedFriend(null);
                     } else {
-                        toast.error(response.error || 'Không thể chặn người dùng');
+                        toast.error(response.error || t('profile.block_error'));
                     }
                     setIsBlocking(false);
                 });
             } else {
                 // Fallback to REST API
                 await relationshipService.blockUser(selectedFriend._id);
-                toast.success(`Đã chặn ${selectedFriend.firstName} ${selectedFriend.lastName}`);
+                toast.success(t('profile.user_blocked'));
                 setBlockFriendDialogOpen(false);
                 setFriendMenuAnchor(null);
                 setFriends(friends.filter(f => f._id !== selectedFriend._id));
@@ -713,7 +715,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                 const backgroundUrl = result.results[0].url;
                 const updatedProfile = await accountService.updateProfile({ background: backgroundUrl });
                 setProfile(updatedProfile);
-                toast.success('Cập nhật ảnh bìa thành công!');
+                toast.success(t('profile.cover_updated'));
                 handleCloseCoverEditModal();
             }
         } catch (error) {
@@ -1018,7 +1020,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
             <Box sx={{ bgcolor: mainBg, minHeight: '100vh' }}>
                 <Header />
                 <Box sx={{ pt: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 56px)' }}>
-                    <Typography color="text.primary">Không tìm thấy người dùng</Typography>
+                    <Typography color="text.primary">{t('profile.not_found')}</Typography>
                 </Box>
             </Box>
         );
@@ -1097,7 +1099,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     onClick={profile.background ? handleOpenCoverMenu : handleOpenCoverEditModal}
                                     disabled={uploadingCover}
                                 >
-                                    {profile.background ? 'Chỉnh sửa ảnh bìa' : 'Thêm ảnh bìa'}
+                                    {profile.background ? t('profile.edit_cover_desc') : t('profile.edit_cover_desc')}
                                 </Button>
                             )}
                         </Box>
@@ -1175,7 +1177,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     {fullName}
                                 </Typography>
                                 <Typography color={textSecondary} fontWeight={500} fontSize={15}>
-                                    {friends.length} bạn bè
+                                    {t('profile.friends_count', { count: friends.length })}
                                 </Typography>
                                 {/* Friends avatars preview */}
                                 {friends.length > 0 && (
@@ -1220,7 +1222,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 '&:hover': { bgcolor: '#166fe5' }
                                             }}
                                         >
-                                            Thêm vào tin
+                                            {t('profile.add_to_story')}
                                         </Button>
                                         <Button
                                             variant="contained"
@@ -1234,7 +1236,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             }}
                                             onClick={() => setEditModalOpen(true)}
                                         >
-                                            Chỉnh sửa trang cá nhân
+                                            {t('profile.edit_profile')}
                                         </Button>
                                     </>
                                 ) : (
@@ -1252,7 +1254,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 }}
                                             >
                                                 <CircularProgress size={20} sx={{ mr: 1 }} />
-                                                Đang tải...
+                                                {t('common.loading')}
                                             </Button>
                                         ) : isFriend ? (
                                             <Button
@@ -1267,7 +1269,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 }}
                                                 onClick={() => handleUnfriend()}
                                             >
-                                                Bạn bè
+                                                {t('profile.friend_status')}
                                             </Button>
                                         ) : friendshipStatus === 'PENDING' ? (
                                             <Button
@@ -1282,7 +1284,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 }}
                                                 onClick={handleCancelFriendRequest}
                                             >
-                                                Hủy lời mời
+                                                {t('profile.cancel_request')}
                                             </Button>
                                         ) : (
                                             <Button
@@ -1296,7 +1298,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 }}
                                                 onClick={handleAddFriend}
                                             >
-                                                Thêm bạn bè
+                                                {t('profile.add_friend')}
                                             </Button>
                                         )}
                                         <Button
@@ -1311,7 +1313,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             }}
                                             onClick={handleMessage}
                                         >
-                                            Nhắn tin
+                                            {t('profile.message')}
                                         </Button>
                                     </>
                                 )}
@@ -1351,11 +1353,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     '& .MuiTabs-indicator': { bgcolor: 'primary.main', height: 3 }
                                 }}
                             >
-                                <Tab label="Bài viết" />
-                                <Tab label="Giới thiệu" />
-                                <Tab label="Bạn bè" />
-                                <Tab label="Ảnh" />
-                                <Tab label="Xem thêm" />
+                                <Tab label={t('profile.posts')} />
+                                <Tab label={t('profile.about')} />
+                                <Tab label={t('profile.friends')} />
+                                <Tab label={t('profile.photos')} />
+                                <Tab label={t('profile.more')} />
                             </Tabs>
                         </Box>
                     </Container>
@@ -1372,7 +1374,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 <Card sx={{ bgcolor: paperBg, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
                                     <CardContent>
                                         <Typography variant="h6" fontWeight={700} color={textPrimary} gutterBottom>
-                                            Giới thiệu
+                                            {t('profile.about')}
                                         </Typography>
 
                                         {/* Bio */}
@@ -1393,7 +1395,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 }}
                                                 onClick={() => setEditModalOpen(true)}
                                             >
-                                                Thêm tiểu sử
+                                                {t('profile.add_bio')}
                                             </Button>
                                         )}
 
@@ -1404,7 +1406,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                     <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                                         <HomeIcon sx={{ fontSize: 20, color: textSecondary }} />
                                                         <Typography color={textPrimary} fontSize={15}>
-                                                            Sống tại <strong>{addr.ward?.name}, {addr.district?.name}, {addr.province?.name}</strong>
+                                                            {t('profile.lives_in')} <strong>{addr.ward?.name}, {addr.district?.name}, {addr.province?.name}</strong>
                                                         </Typography>
                                                     </Box>
                                                 ))
@@ -1414,7 +1416,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                                     <CakeIcon sx={{ fontSize: 20, color: textSecondary }} />
                                                     <Typography color={textPrimary} fontSize={15}>
-                                                        Sinh ngày <strong>{formatDate(profile.birthday)}</strong>
+                                                        {t('profile.born_on')} <strong>{formatDate(profile.birthday)}</strong>
                                                     </Typography>
                                                 </Box>
                                             )}
@@ -1432,7 +1434,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                                     <PublicIcon sx={{ fontSize: 20, color: textSecondary }} />
                                                     <Typography color={textPrimary} fontSize={15}>
-                                                        Tham gia từ <strong>{formatDate(profile.createdAt)}</strong>
+                                                        {t('profile.joined_from')} <strong>{formatDate(profile.createdAt)}</strong>
                                                     </Typography>
                                                 </Box>
                                             )}
@@ -1451,7 +1453,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 }}
                                                 onClick={() => setEditModalOpen(true)}
                                             >
-                                                Chỉnh sửa chi tiết
+                                                {t('profile.edit_details')}
                                             </Button>
                                         )}
                                     </CardContent>
@@ -1462,10 +1464,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     <CardContent>
                                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                                             <Typography variant="h6" fontWeight={700} color={textPrimary}>
-                                                Ảnh
+                                                {t('profile.photos')}
                                             </Typography>
                                             <Button sx={{ textTransform: 'none', color: 'primary.main' }} onClick={() => setActiveTab(3)}>
-                                                Xem tất cả ảnh
+                                                {t('profile.photos_all')}
                                             </Button>
                                         </Box>
                                         {posts.filter(p => p.media && p.media.length > 0).length > 0 ? (
@@ -1492,7 +1494,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             </Grid>
                                         ) : (
                                             <Typography color={textSecondary} fontSize={14}>
-                                                Chưa có ảnh nào
+                                                {t('profile.no_photos')}
                                             </Typography>
                                         )}
                                     </CardContent>

@@ -72,6 +72,7 @@ import { ConversationParticipant, ConversationParticipantUser, ConversationRespo
 import { toast } from 'sonner';
 import { relationshipService } from "@/services/relationship.service";
 import { useCall } from "@/contexts/CallContext";
+import { useTranslation } from 'react-i18next';
 
 interface SelectedConversation {
     _id: string;
@@ -99,6 +100,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const { callUser, startGroupCall } = useCall();
+    const { t } = useTranslation();
 
     // Get conversation detail for theme
     const { data: conversationDetail } = useConversationDetail(selectedConversation._id);
@@ -163,37 +165,37 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             if (socketRelationship) {
                 socketRelationship.emit('user:unblock', { targetUserId: selectedConversation.otherId }, (response: { success: boolean; error?: string }) => {
                     if (response.success) {
-                        toast.success('Đã bỏ chặn người dùng');
+                        toast.success(t('chat.user_unblocked'));
                         // Refetch conversation detail to update blockedByMe status
                         queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
                         queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
                     } else {
-                        toast.error(response.error || 'Không thể bỏ chặn người dùng');
+                        toast.error(response.error || t('chat.unblock_failed'));
                     }
                     setIsUnblocking(false);
                 });
             } else {
                 // Fallback to REST API
                 await relationshipService.unblockUser(selectedConversation.otherId);
-                toast.success('Đã bỏ chặn người dùng');
+                toast.success(t('chat.user_unblocked'));
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_DETAIL, selectedConversation._id] });
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
                 setIsUnblocking(false);
             }
         } catch (error) {
             console.error('Failed to unblock user:', error);
-            toast.error('Không thể bỏ chặn người dùng');
+            toast.error(t('chat.unblock_failed'));
             setIsUnblocking(false);
         }
     };
 
     // Message for restricted chat
     const getChatRestrictionMessage = () => {
-        if (conversation?.chatBlocked) return 'Bạn đã bị chặn bởi người dùng này';
-        if (isGroupDeleted) return 'Nhóm đã bị giải tán';
-        if (wasKicked) return 'Bạn đã bị mời ra khỏi nhóm';
-        if (!canChatBasedOnSettings) return 'Chỉ quản trị viên mới có thể gửi tin nhắn trong nhóm này';
-        if (isLeft) return 'Bạn đã rời khỏi nhóm này';
+        if (conversation?.chatBlocked) return t('chat.blocked_by_user');
+        if (isGroupDeleted) return t('chat.group_dissolved');
+        if (wasKicked) return t('chat.kicked_from_group');
+        if (!canChatBasedOnSettings) return t('chat.only_admin_can_chat');
+        if (isLeft) return t('chat.left_group');
         return '';
     };
 
@@ -272,13 +274,13 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         if (isGroup) {
             // Show member count for groups
             const activeMembers = conversationDetail?.data?.participants.filter(p => !p.kickedAt && !p.leftAt).length || 0;
-            return `${activeMembers} thành viên`;
+            return t('chat.members_count', { count: activeMembers });
         }
         if (otherUserStatus.isOnline || isChatbot) {
-            return 'Đang hoạt động';
+            return t('common.active');
         }
         return formatLastActiveDetailed(otherUserStatus.lastActive);
-    }, [isGroup, otherUserStatus, conversationDetail]);
+    }, [isGroup, otherUserStatus, conversationDetail, isChatbot, t]);
 
     // Flatten all pages into single array of messages
     const pages = chatData?.pages;

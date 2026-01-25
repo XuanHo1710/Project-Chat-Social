@@ -34,6 +34,7 @@ import {
     DarkMode as DarkModeIcon,
     LightMode as LightModeIcon
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 // Mock themes data
 const mockThemes = [
@@ -99,6 +100,7 @@ interface ThemeFormData {
 
 export default function ThemesManagementPage() {
     const theme = useTheme();
+    const { t } = useTranslation();
     const isDark = theme.palette.mode === 'dark';
     const [themes, setThemes] = useState(mockThemes);
     const [openDialog, setOpenDialog] = useState(false);
@@ -177,9 +179,9 @@ export default function ThemesManagementPage() {
         <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={4}>
                 <Box>
-                    <Typography variant="h5" fontWeight="bold">Quản lý Giao diện</Typography>
+                    <Typography variant="h5" fontWeight="bold">{t('admin.themes_title')}</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        Tùy chỉnh màu sắc và theme cho ứng dụng
+                        {t('admin.themes_subtitle')}
                     </Typography>
                 </Box>
                 <Button
@@ -187,7 +189,7 @@ export default function ThemesManagementPage() {
                     startIcon={<AddIcon />}
                     onClick={() => handleOpenDialog()}
                 >
-                    Thêm Theme mới
+                    {t('admin.add_new_theme')}
                 </Button>
             </Stack>
 
@@ -257,7 +259,7 @@ export default function ThemesManagementPage() {
                             {themeItem.isActive && (
                                 <Chip
                                     icon={<CheckIcon sx={{ fontSize: 16 }} />}
-                                    label="Đang sử dụng"
+                                    label={t('admin.active')}
                                     size="small"
                                     sx={{
                                         position: 'absolute',
@@ -273,7 +275,7 @@ export default function ThemesManagementPage() {
                             {/* Default badge */}
                             {themeItem.isDefault && (
                                 <Chip
-                                    label="Mặc định"
+                                    label={t('admin.default')}
                                     size="small"
                                     sx={{
                                         position: 'absolute',
@@ -316,14 +318,14 @@ export default function ThemesManagementPage() {
                                     onClick={() => handleSetActive(themeItem.id)}
                                     sx={{ borderColor: themeItem.primaryColor, color: themeItem.primaryColor }}
                                 >
-                                    Áp dụng
+                                    {t('admin.apply')}
                                 </Button>
                             ) : (
-                                <Chip label="✓ Đang dùng" color="success" size="small" />
+                                <Chip label={`✓ ${t('admin.active')}`} color="success" size="small" />
                             )}
 
                             <Stack direction="row" spacing={0.5}>
-                                <Tooltip title="Chỉnh sửa">
+                                <Tooltip title={t('admin.edit_theme')}>
                                     <IconButton
                                         size="small"
                                         onClick={() => handleOpenDialog(themeItem)}
@@ -332,7 +334,7 @@ export default function ThemesManagementPage() {
                                     </IconButton>
                                 </Tooltip>
                                 {!themeItem.isDefault && (
-                                    <Tooltip title="Xóa">
+                                    <Tooltip title="Delete">
                                         <IconButton
                                             size="small"
                                             color="error"
@@ -353,14 +355,14 @@ export default function ThemesManagementPage() {
                 <DialogTitle>
                     <Stack direction="row" alignItems="center" gap={1}>
                         <ColorLensIcon color="primary" />
-                        {editingTheme ? 'Chỉnh sửa Theme' : 'Thêm Theme mới'}
+                        {editingTheme ? t('admin.edit_theme') : t('admin.create_theme')}
                     </Stack>
                 </DialogTitle>
                 <DialogContent dividers>
                     <Stack spacing={3} sx={{ py: 1 }}>
                         <TextField
                             fullWidth
-                            label="Tên Theme"
+                            label={t('admin.theme_name')}
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         />
@@ -368,7 +370,7 @@ export default function ThemesManagementPage() {
                         <Box sx={{ display: 'flex', gap: 2 }}>
                             <Box sx={{ flex: 1 }}>
                                 <Typography variant="caption" color="text.secondary" gutterBottom sx={{ display: 'block', mb: 1 }}>
-                                    Màu chính (Primary)
+                                    {t('admin.primary_color')}
                                 </Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <input
@@ -388,7 +390,7 @@ export default function ThemesManagementPage() {
 
                             <Box sx={{ flex: 1 }}>
                                 <Typography variant="caption" color="text.secondary" gutterBottom sx={{ display: 'block', mb: 1 }}>
-                                    Màu phụ (Secondary)
+                                    {t('admin.secondary_color')}
                                 </Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <input
@@ -410,7 +412,7 @@ export default function ThemesManagementPage() {
                         <Box sx={{ display: 'flex', gap: 2 }}>
                             <Box sx={{ flex: 1 }}>
                                 <Typography variant="caption" color="text.secondary" gutterBottom sx={{ display: 'block', mb: 1 }}>
-                                    Nền Dark Mode
+                                    {t('admin.bg_dark')}
                                 </Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <input
@@ -430,7 +432,7 @@ export default function ThemesManagementPage() {
 
                             <Box sx={{ flex: 1 }}>
                                 <Typography variant="caption" color="text.secondary" gutterBottom sx={{ display: 'block', mb: 1 }}>
-                                    Nền Light Mode
+                                    {t('admin.bg_light')}
                                 </Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <input
@@ -452,7 +454,7 @@ export default function ThemesManagementPage() {
                         {/* Preview */}
                         <Box>
                             <Typography variant="caption" color="text.secondary" gutterBottom sx={{ display: 'block', mb: 1 }}>
-                                Xem trước
+                                {t('admin.preview')}
                             </Typography>
                             <Box sx={{
                                 height: 80,
@@ -482,29 +484,29 @@ export default function ThemesManagementPage() {
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2 }}>
-                    <Button onClick={handleCloseDialog}>Hủy</Button>
+                    <Button onClick={handleCloseDialog}>{t('common.cancel')}</Button>
                     <Button
                         variant="contained"
                         onClick={handleSave}
                         disabled={!formData.name}
                     >
-                        {editingTheme ? 'Cập nhật' : 'Tạo Theme'}
+                        {editingTheme ? t('admin.update_theme') : t('admin.create_theme')}
                     </Button>
                 </DialogActions>
             </Dialog>
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
-                <DialogTitle>Xác nhận xóa</DialogTitle>
+                <DialogTitle>{t('admin.confirm_delete_title')}</DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Bạn có chắc chắn muốn xóa theme <strong>{themeToDelete?.name}</strong>?
+                        {t('admin.confirm_delete_theme', { name: themeToDelete?.name })}
                     </Typography>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDeleteConfirmOpen(false)}>Hủy</Button>
+                    <Button onClick={() => setDeleteConfirmOpen(false)}>{t('common.cancel')}</Button>
                     <Button color="error" variant="contained" onClick={handleConfirmDelete}>
-                        Xóa
+                        Delete
                     </Button>
                 </DialogActions>
             </Dialog>

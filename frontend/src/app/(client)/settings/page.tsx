@@ -30,6 +30,7 @@ import { relationshipService, BlockedUser, RestrictedUser } from '@/services/rel
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/contexts/SocketContext';
+import { useTranslation } from 'react-i18next';
 
 // Simple date formatter
 const formatDate = (dateStr: string) => {
@@ -67,6 +68,7 @@ export default function SettingsPage() {
     // Expanded sections
     const [expandedBlocked, setExpandedBlocked] = useState(false);
     const [expandedRestricted, setExpandedRestricted] = useState(false);
+    const { t } = useTranslation();
 
     useEffect(() => {
         loadData();
@@ -123,10 +125,10 @@ export default function SettingsPage() {
                 socketChat.emit('activity:toggle', { showActivityStatus: newStatus });
             }
 
-            toast.success(settings.showActivityStatus ? 'Đã tắt trạng thái hoạt động' : 'Đã bật trạng thái hoạt động');
+            toast.success(settings.showActivityStatus ? t('settings.activity_off') : t('settings.activity_on'));
         } catch (error) {
             console.error('Failed to toggle activity status:', error);
-            toast.error('Không thể thay đổi cài đặt');
+            toast.error(t('settings.change_failed'));
         } finally {
             setSavingActivity(false);
         }
@@ -136,13 +138,13 @@ export default function SettingsPage() {
         try {
             setBlockingAccount(true);
             await accountService.selfBlockAccount();
-            toast.success('Tài khoản đã được tạm khóa trong 30 ngày');
+            toast.success(t('settings.account_locked'));
             setShowBlockConfirm(false);
             // Redirect to login
             router.push('/auth/login');
         } catch (error) {
             console.error('Failed to block account:', error);
-            toast.error('Không thể khóa tài khoản');
+            toast.error(t('settings.lock_failed'));
         } finally {
             setBlockingAccount(false);
         }
@@ -152,10 +154,10 @@ export default function SettingsPage() {
         try {
             await relationshipService.unblockUser(userId);
             setBlockedUsers(blockedUsers.filter(u => u._id !== userId));
-            toast.success('Đã bỏ chặn người dùng');
+            toast.success(t('settings.user_unblocked'));
         } catch (error) {
             console.error('Failed to unblock user:', error);
-            toast.error('Không thể bỏ chặn người dùng');
+            toast.error(t('settings.unblock_failed'));
         }
     };
 
@@ -163,10 +165,10 @@ export default function SettingsPage() {
         try {
             await relationshipService.unrestrictUser(userId);
             setRestrictedUsers(restrictedUsers.filter(u => u._id !== userId));
-            toast.success('Đã bỏ hạn chế người dùng');
+            toast.success(t('settings.user_unrestricted'));
         } catch (error) {
             console.error('Failed to unrestrict user:', error);
-            toast.error('Không thể bỏ hạn chế người dùng');
+            toast.error(t('settings.unrestrict_failed'));
         }
     };
 
@@ -195,7 +197,7 @@ export default function SettingsPage() {
                         <ArrowBackIcon />
                     </IconButton>
                     <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>
-                        Cài đặt & quyền riêng tư
+                        {t('settings.settings_privacy')}
                     </Typography>
                 </Box>
             </Box>
@@ -214,7 +216,7 @@ export default function SettingsPage() {
                 }}>
                     <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
                         <Typography sx={{ fontSize: 17, fontWeight: 600, color: 'text.primary' }}>
-                            Trạng thái hoạt động
+                            {t('settings.activity_status')}
                         </Typography>
                     </Box>
                     <Box sx={{
@@ -239,10 +241,10 @@ export default function SettingsPage() {
                         </Box>
                         <Box sx={{ flex: 1 }}>
                             <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
-                                Hiển thị trạng thái hoạt động
+                                {t('settings.show_activity')}
                             </Typography>
                             <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.25 }}>
-                                Cho phép người khác thấy khi bạn đang online
+                                {t('settings.show_activity_desc')}
                             </Typography>
                         </Box>
                         <Switch
@@ -273,7 +275,7 @@ export default function SettingsPage() {
                 }}>
                     <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
                         <Typography sx={{ fontSize: 17, fontWeight: 600, color: 'text.primary' }}>
-                            Chặn
+                            {t('settings.block')}
                         </Typography>
                     </Box>
                     <Box
@@ -301,10 +303,10 @@ export default function SettingsPage() {
                         </Box>
                         <Box sx={{ flex: 1 }}>
                             <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
-                                Người dùng đã chặn
+                                {t('settings.blocked_users')}
                             </Typography>
                             <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.25 }}>
-                                {blockedUsers.length === 0 ? 'Bạn chưa chặn ai' : `${blockedUsers.length} người dùng`}
+                                {blockedUsers.length === 0 ? t('settings.no_blocked') : `${blockedUsers.length} ${t('settings.users')}`}
                             </Typography>
                         </Box>
                         <ChevronRightIcon sx={{
@@ -335,7 +337,7 @@ export default function SettingsPage() {
                                                 {user.firstName} {user.lastName}
                                             </Typography>
                                             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-                                                Đã chặn {formatDate(user.blockedAt)}
+                                                {t('settings.blocked_on')} {formatDate(user.blockedAt)}
                                             </Typography>
                                         </Box>
                                         <Button
@@ -350,7 +352,7 @@ export default function SettingsPage() {
                                                 '&:hover': { bgcolor: 'action.selected' },
                                             }}
                                         >
-                                            Bỏ chặn
+                                            {t('settings.unblock')}
                                         </Button>
                                     </Box>
                                     {index < blockedUsers.length - 1 && <Divider sx={{ mx: 2 }} />}
@@ -372,7 +374,7 @@ export default function SettingsPage() {
                 }}>
                     <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
                         <Typography sx={{ fontSize: 17, fontWeight: 600, color: 'text.primary' }}>
-                            Hạn chế
+                            {t('settings.restrict')}
                         </Typography>
                     </Box>
                     <Box
@@ -400,10 +402,10 @@ export default function SettingsPage() {
                         </Box>
                         <Box sx={{ flex: 1 }}>
                             <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
-                                Tài khoản bị hạn chế
+                                {t('settings.restricted_accounts')}
                             </Typography>
                             <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.25 }}>
-                                {restrictedUsers.length === 0 ? 'Không có tài khoản nào bị hạn chế' : `${restrictedUsers.length} tài khoản`}
+                                {restrictedUsers.length === 0 ? t('settings.no_restricted') : `${restrictedUsers.length} ${t('settings.accounts')}`}
                             </Typography>
                         </Box>
                         <ChevronRightIcon sx={{
@@ -434,7 +436,7 @@ export default function SettingsPage() {
                                                 {user.firstName} {user.lastName}
                                             </Typography>
                                             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-                                                Bị hạn chế ngày {formatDate(user.restrictedAt)}
+                                                {t('settings.restricted_on')} {formatDate(user.restrictedAt)}
                                             </Typography>
                                         </Box>
                                         <Button
@@ -449,7 +451,7 @@ export default function SettingsPage() {
                                                 '&:hover': { bgcolor: 'action.selected' },
                                             }}
                                         >
-                                            Bỏ hạn chế
+                                            {t('settings.unrestrict')}
                                         </Button>
                                     </Box>
                                     {index < restrictedUsers.length - 1 && <Divider sx={{ mx: 2 }} />}
@@ -470,7 +472,7 @@ export default function SettingsPage() {
                 }}>
                     <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
                         <Typography sx={{ fontSize: 17, fontWeight: 600, color: 'text.primary' }}>
-                            Bảo mật tài khoản
+                            {t('settings.account_security')}
                         </Typography>
                     </Box>
                     <Box sx={{ p: 2 }}>
@@ -489,11 +491,10 @@ export default function SettingsPage() {
                             </Box>
                             <Box sx={{ flex: 1 }}>
                                 <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary' }}>
-                                    Tạm khóa tài khoản
+                                    {t('settings.lock_account')}
                                 </Typography>
                                 <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.5, lineHeight: 1.5 }}>
-                                    Tạm khóa tài khoản của bạn trong 30 ngày. Trong thời gian này, bạn sẽ không thể đăng nhập
-                                    và người khác sẽ không thể xem trang cá nhân của bạn.
+                                    {t('settings.lock_account_desc')}
                                 </Typography>
 
                                 {settings?.isSelfBlocked ? (
@@ -506,7 +507,7 @@ export default function SettingsPage() {
                                         mt: 2,
                                     }}>
                                         <Typography sx={{ color: 'error.main', fontWeight: 500, fontSize: 14 }}>
-                                            Tài khoản đã bị khóa đến{' '}
+                                            {t('settings.account_locked_until')}{' '}
                                             {settings.selfBlockExpireAt
                                                 ? formatDateTime(settings.selfBlockExpireAt)
                                                 : 'N/A'}
@@ -529,7 +530,7 @@ export default function SettingsPage() {
                                             '&:hover': { bgcolor: 'error.dark' },
                                         }}
                                     >
-                                        Tạm khóa 30 ngày
+                                        {t('settings.lock_30_days')}
                                     </Button>
                                 )}
                             </Box>
@@ -547,12 +548,11 @@ export default function SettingsPage() {
                 }}
             >
                 <DialogTitle sx={{ fontWeight: 600, fontSize: 18, pb: 1, color: 'text.primary' }}>
-                    Xác nhận tạm khóa tài khoản?
+                    {t('settings.confirm_lock')}
                 </DialogTitle>
                 <DialogContent>
                     <Typography sx={{ color: 'text.secondary', fontSize: 14, lineHeight: 1.5 }}>
-                        Bạn có chắc chắn muốn tạm khóa tài khoản trong 30 ngày không?
-                        Bạn sẽ không thể đăng nhập trong thời gian này.
+                        {t('settings.confirm_lock_desc')}
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ p: 2, pt: 1.5, gap: 1 }}>
@@ -568,7 +568,7 @@ export default function SettingsPage() {
                             '&:hover': { bgcolor: 'action.selected' },
                         }}
                     >
-                        Hủy
+                        {t('common.cancel')}
                     </Button>
                     <Button
                         variant="contained"
@@ -583,7 +583,7 @@ export default function SettingsPage() {
                             '&:hover': { bgcolor: 'error.dark' },
                         }}
                     >
-                        {blockingAccount ? <CircularProgress size={24} color="inherit" /> : 'Xác nhận khóa'}
+                        {blockingAccount ? <CircularProgress size={24} color="inherit" /> : t('settings.confirm_lock_button')}
                     </Button>
                 </DialogActions>
             </Dialog>

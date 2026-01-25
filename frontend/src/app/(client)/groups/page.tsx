@@ -30,6 +30,7 @@ import Header from '@/components/home/Header';
 import { groupService } from '@/services/group.service';
 import { Group, GroupWithMembership } from '@/types/group';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 export default function GroupsPage() {
     const router = useRouter();
@@ -39,6 +40,7 @@ export default function GroupsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [myGroups, setMyGroups] = useState<GroupWithMembership[]>([]);
+    const { t } = useTranslation();
 
     useEffect(() => {
         loadGroups();
@@ -80,11 +82,11 @@ export default function GroupsPage() {
         const diffDays = Math.floor(diffMs / 86400000);
         const diffWeeks = Math.floor(diffDays / 7);
 
-        if (diffMins < 60) return `${diffMins} phút trước`;
-        if (diffHours < 24) return `${diffHours} giờ trước`;
-        if (diffDays < 7) return `${diffDays} ngày trước`;
-        if (diffWeeks < 4) return `${diffWeeks} tuần trước`;
-        return `${Math.floor(diffDays / 30)} tháng trước`;
+        if (diffMins < 60) return t('time.minutes_ago', { count: diffMins });
+        if (diffHours < 24) return t('time.hours_ago', { count: diffHours });
+        if (diffDays < 7) return t('time.days_ago', { count: diffDays });
+        if (diffWeeks < 4) return t('time.weeks_ago', { count: diffWeeks });
+        return t('time.months_ago', { count: Math.floor(diffDays / 30) });
     };
 
     // Filter groups based on search
@@ -119,7 +121,7 @@ export default function GroupsPage() {
                     {/* Sidebar Header */}
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                         <Typography variant="h5" fontWeight={700}>
-                            Nhóm
+                            {t('groups.groups')}
                         </Typography>
                         <IconButton sx={{ bgcolor: hoverBg }}>
                             <SettingsIcon />
@@ -129,7 +131,7 @@ export default function GroupsPage() {
                     {/* Search */}
                     <TextField
                         fullWidth
-                        placeholder="Tìm kiếm nhóm"
+                        placeholder={t('groups.search_groups')}
                         size="small"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -160,7 +162,7 @@ export default function GroupsPage() {
                                 <GroupsIcon />
                             </Avatar>
                         </ListItemAvatar>
-                        <ListItemText primary="Nhóm của bạn" primaryTypographyProps={{ fontWeight: 500 }} />
+                        <ListItemText primary={t('groups.your_groups')} primaryTypographyProps={{ fontWeight: 500 }} />
                     </ListItemButton>
 
                     {/* Create Group Button */}
@@ -179,7 +181,7 @@ export default function GroupsPage() {
                             mb: 2,
                         }}
                     >
-                        + Tạo nhóm mới
+                        {t('groups.create_new_group')}
                     </Button>
 
                     <Divider sx={{ my: 2 }} />
@@ -188,13 +190,13 @@ export default function GroupsPage() {
                     <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                             <Typography variant="subtitle1" fontWeight={600}>
-                                Nhóm bạn đã tham gia
+                                {t('groups.joined_groups')}
                             </Typography>
                             <Button
                                 size="small"
                                 sx={{ textTransform: 'none', color: 'primary.main' }}
                             >
-                                Xem tất cả
+                                {t('common.view_all')}
                             </Button>
                         </Box>
 
@@ -221,7 +223,7 @@ export default function GroupsPage() {
                                         </ListItemAvatar>
                                         <ListItemText
                                             primary={group.name}
-                                            secondary={`Lần hoạt động gần nhất: ${formatLastActivity(group.updatedAt)}`}
+                                            secondary={`${t('groups.last_activity')}: ${formatLastActivity(group.updatedAt)}`}
                                             primaryTypographyProps={{ fontWeight: 500, noWrap: true }}
                                             secondaryTypographyProps={{ fontSize: 12 }}
                                         />
@@ -239,10 +241,10 @@ export default function GroupsPage() {
                             {/* Header */}
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
                                 <Typography variant="h5" fontWeight={600}>
-                                    Tất cả các nhóm ({myGroups.length})
+                                    {t('groups.all_groups')} ({myGroups.length})
                                 </Typography>
                                 <Button sx={{ textTransform: 'none', color: 'primary.main' }}>
-                                    Sắp xếp
+                                    {t('groups.sort')}
                                 </Button>
                             </Box>
 
@@ -276,7 +278,7 @@ export default function GroupsPage() {
                                                 {group.name}
                                             </Typography>
                                             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                                Lần truy cập gần đây nhất:
+                                                {t('groups.last_visit')}:
                                                 <br />
                                                 {formatLastActivity(group.updatedAt)}
                                             </Typography>
@@ -295,7 +297,7 @@ export default function GroupsPage() {
                                                         router.push(`/groups/${group._id}`);
                                                     }}
                                                 >
-                                                    Xem nhóm
+                                                    {t('groups.view_group')}
                                                 </Button>
                                                 <IconButton size="small" sx={{ border: `1px solid ${theme.palette.divider}` }}>
                                                     <MoreHorizIcon fontSize="small" />
@@ -311,17 +313,17 @@ export default function GroupsPage() {
                         <Box sx={{ maxWidth: 600, mx: 'auto', textAlign: 'center', py: 8 }}>
                             <GroupsIcon sx={{ fontSize: 80, color: '#bcc0c4', mb: 2 }} />
                             <Typography variant="h5" fontWeight={600} sx={{ mb: 1 }}>
-                                Bạn chưa tham gia nhóm nào
+                                {t('groups.no_groups')}
                             </Typography>
                             <Typography color="text.secondary" sx={{ mb: 3 }}>
-                                Khám phá và tham gia các nhóm để kết nối với mọi người
+                                {t('groups.discover_desc')}
                             </Typography>
                             <Button
                                 variant="contained"
                                 onClick={() => router.push('/groups/create')}
                                 sx={{ textTransform: 'none' }}
                             >
-                                KHÁM PHÁ NHÓM
+                                {t('groups.discover_groups')}
                             </Button>
                         </Box>
                     )}
@@ -330,7 +332,7 @@ export default function GroupsPage() {
                     {suggestedGroups.length > 0 && (
                         <Box sx={{ mt: 4 }}>
                             <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
-                                Gợi ý cho bạn
+                                {t('groups.suggestions')}
                             </Typography>
                             <Box
                                 sx={{
@@ -362,7 +364,7 @@ export default function GroupsPage() {
                                                 {group.name}
                                             </Typography>
                                             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                                {group.memberCount.toLocaleString()} thành viên
+                                                {group.memberCount.toLocaleString()} {t('groups.members')}
                                             </Typography>
                                             <Button
                                                 variant="contained"
@@ -371,7 +373,7 @@ export default function GroupsPage() {
                                                 sx={{ textTransform: 'none' }}
                                                 onClick={(e) => handleJoinGroup(group._id, e)}
                                             >
-                                                Tham gia
+                                                {t('groups.join_group')}
                                             </Button>
                                         </Box>
                                     </Card>

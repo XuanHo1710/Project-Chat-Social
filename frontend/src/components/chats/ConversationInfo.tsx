@@ -81,6 +81,7 @@ import { UploadImage } from '@/utils/uploadImage';
 import { toast } from 'sonner';
 import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 import { timeAgo } from '@/utils/formatDate';
+import { useTranslation } from 'react-i18next';
 
 // Theme colors for chat background - now with gradients
 const THEME_COLORS = [
@@ -109,6 +110,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
     const { socketChat, socketRelationship } = useSocket();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const { t } = useTranslation();
 
     // Online status store
     const onlineUsers = useOnlineStatusStore(state => state.onlineUsers);
@@ -199,7 +201,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                 // Update conversation cache
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
             } else {
-                toast.error(response.error || 'Không thể thay đổi thông báo');
+                toast.error(response.error || t('chat.notification_change_failed'));
             }
         });
     }, [socketChat, conversationId, isMuting, queryClient]);
@@ -431,10 +433,10 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
         if (socketChat) {
             socketChat.emit('conversation:member:add', { conversationId, newUserId }, (response: { success: boolean; error?: string }) => {
                 if (response.success) {
-                    toast.success('Đã thêm thành viên vào nhóm');
+                    toast.success(t('chat.member_added'));
                     setAddMemberDialogOpen(false);
                 } else {
-                    toast.error(response.error || 'Không thể thêm thành viên');
+                    toast.error(response.error || t('chat.add_member_failed'));
                 }
             });
         }
@@ -498,11 +500,11 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             setIsLeaving(false);
             if (response.success) {
                 setLeaveDialogOpen(false);
-                toast.success('Đã rời khỏi nhóm');
+                toast.success(t('chat.left_group_success'));
                 onClose();
                 router.push(CLIENT_PATH.CHAT);
             } else {
-                toast.error(response.error || 'Không thể rời nhóm');
+                toast.error(response.error || t('chat.leave_group_failed'));
             }
         });
     };
@@ -516,9 +518,9 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             settings: { [key]: value }
         }, (response: { success: boolean; error?: string }) => {
             if (response.success) {
-                toast.success('Đã cập nhật cài đặt nhóm');
+                toast.success(t('chat.settings_updated'));
             } else {
-                toast.error(response.error || 'Không thể cập nhật cài đặt');
+                toast.error(response.error || t('chat.settings_update_failed'));
             }
         });
     };
@@ -614,13 +616,13 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             if (socketRelationship) {
                 socketRelationship.emit('user:block', { targetUserId: otherUser._id }, (response: { success: boolean; error?: string }) => {
                     if (response.success) {
-                        toast.success(`Đã chặn ${otherUser.firstName} ${otherUser.lastName}`);
+                        toast.success(t('chat.blocked_user', { name: `${otherUser.firstName} ${otherUser.lastName}` }));
                         setBlockDialogOpen(false);
                         // Invalidate queries to refresh data
                         queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
                         queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
                     } else {
-                        toast.error(response.error || 'Không thể chặn người dùng');
+                        toast.error(response.error || t('chat.block_failed'));
                     }
                     setIsBlocking(false);
                 });
@@ -634,7 +636,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             }
         } catch (error) {
             console.error('Failed to block user:', error);
-            toast.error('Không thể chặn người dùng');
+            toast.error(t('chat.block_failed'));
             setIsBlocking(false);
         }
     };
@@ -652,7 +654,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                     conversationId: conversationId
                 }, (response: { success: boolean; error?: string }) => {
                     if (response.success) {
-                        toast.success(`Đã hạn chế ${otherUser.firstName} ${otherUser.lastName}`);
+                        toast.success(t('chat.restricted_user', { name: `${otherUser.firstName} ${otherUser.lastName}` }));
 
                         // IMPORTANT: Hide conversation in global store BEFORE navigating
                         // Navigate first, then invalidate queries
@@ -663,14 +665,14 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                         queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
                         onClose();
                     } else {
-                        toast.error(response.error || 'Không thể hạn chế người dùng');
+                        toast.error(response.error || t('chat.restrict_failed'));
                     }
                     setIsRestricting(false);
                 });
             } else {
                 // Fallback to REST API
                 await relationshipService.restrictUser(otherUser._id);
-                toast.success(`Đã hạn chế ${otherUser.firstName} ${otherUser.lastName}`);
+                toast.success(t('chat.restricted_user', { name: `${otherUser.firstName} ${otherUser.lastName}` }));
 
                 router.push(CLIENT_PATH.CHAT);
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', conversationId] });
@@ -680,7 +682,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
             }
         } catch (error) {
             console.error('Failed to restrict user:', error);
-            toast.error('Không thể hạn chế người dùng');
+            toast.error(t('chat.restrict_failed'));
             setIsRestricting(false);
         }
     };

@@ -41,6 +41,7 @@ import { accountService } from '@/services/account.service';
 import { uploadChatMedia } from '@/services/cloudinary.service';
 import { toast } from 'sonner';
 import AddressPickerModal from '@/components/profile/AddressPickerModal';
+import { useTranslation } from 'react-i18next';
 
 interface EditProfileModalProps {
     open: boolean;
@@ -52,6 +53,7 @@ interface EditProfileModalProps {
 export default function EditProfileModal({ open, onClose, profile, onUpdate }: EditProfileModalProps) {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const { t } = useTranslation();
     const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const hoverBg = isDark ? 'rgba(255,255,255,0.15)' : '#e4e6eb';
     const [loading, setLoading] = useState(false);
@@ -107,11 +109,11 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
             if (result.success && result.results.length > 0) {
                 const avatarUrl = result.results[0].url;
                 setFormData(prev => ({ ...prev, avatar: avatarUrl }));
-                toast.success('Tải ảnh đại diện thành công!');
+                toast.success(t('profile.upload_avatar_success'));
             }
         } catch (error) {
             console.error('Error uploading avatar:', error);
-            toast.error('Lỗi khi tải ảnh lên');
+            toast.error(t('profile.upload_error'));
         } finally {
             setUploadingAvatar(false);
             if (avatarInputRef.current) avatarInputRef.current.value = '';
@@ -128,11 +130,11 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
             if (result.success && result.results.length > 0) {
                 const backgroundUrl = result.results[0].url;
                 setFormData(prev => ({ ...prev, background: backgroundUrl }));
-                toast.success('Tải ảnh bìa thành công!');
+                toast.success(t('profile.upload_cover_success'));
             }
         } catch (error) {
             console.error('Error uploading cover:', error);
-            toast.error('Lỗi khi tải ảnh lên');
+            toast.error(t('profile.upload_error'));
         } finally {
             setUploadingCover(false);
             if (coverInputRef.current) coverInputRef.current.value = '';
@@ -144,11 +146,11 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
             setLoading(true);
             const updatedProfile = await accountService.updateProfile(formData);
             onUpdate(updatedProfile);
-            toast.success('Cập nhật thông tin thành công!');
+            toast.success(t('profile.update_success'));
             onClose();
         } catch (error) {
             console.error('Error updating profile:', error);
-            toast.error('Lỗi khi cập nhật thông tin');
+            toast.error(t('profile.update_error'));
         } finally {
             setLoading(false);
         }
@@ -194,7 +196,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                 pb: 1
             }}>
                 <Typography variant="h6" fontWeight={700} color="text.primary">
-                    Chỉnh sửa trang cá nhân
+                    {t('profile.edit_profile')}
                 </Typography>
                 <IconButton onClick={onClose} size="small">
                     <CloseIcon />
@@ -206,14 +208,14 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                 <Box sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography fontWeight={600} color="text.primary">
-                            Ảnh đại diện
+                            {t('profile.avatar')}
                         </Typography>
                         <Button
                             sx={{ textTransform: 'none', color: 'primary.main' }}
                             onClick={() => avatarInputRef.current?.click()}
                             disabled={uploadingAvatar}
                         >
-                            {uploadingAvatar ? 'Đang tải...' : 'Chọn ảnh'}
+                            {uploadingAvatar ? t('common.loading') : t('profile.choose_photo')}
                         </Button>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'center' }}>
@@ -270,14 +272,14 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                 <Box sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography fontWeight={600} color="text.primary">
-                            Ảnh bìa
+                            {t('profile.cover_photo')}
                         </Typography>
                         <Button
                             sx={{ textTransform: 'none', color: 'primary.main' }}
                             onClick={() => coverInputRef.current?.click()}
                             disabled={uploadingCover}
                         >
-                            {uploadingCover ? 'Đang tải...' : 'Chọn ảnh'}
+                            {uploadingCover ? t('common.loading') : t('profile.choose_photo')}
                         </Button>
                     </Box>
                     <Box
@@ -326,7 +328,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                         {!formData.background && !uploadingCover && (
                             <Box sx={{ textAlign: 'center', color: 'white', zIndex: 1 }}>
                                 <AddAPhotoIcon sx={{ fontSize: 32 }} />
-                                <Typography fontSize={14}>Nhấn để chọn ảnh bìa</Typography>
+                                <Typography fontSize={14}>{t('profile.tap_to_choose_cover')}</Typography>
                             </Box>
                         )}
                     </Box>
@@ -338,11 +340,11 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                 <Box sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography fontWeight={600} color="text.primary">
-                            Tiểu sử
+                            {t('profile.bio')}
                         </Typography>
                     </Box>
                     <TextField
-                        placeholder="Mô tả bản thân..."
+                        placeholder={t('profile.bio_placeholder')}
                         value={formData.bio || ''}
                         onChange={(e) => handleChange('bio', e.target.value)}
                         multiline
@@ -374,12 +376,12 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                 {/* Basic Info Section */}
                 <Box sx={{ p: 2 }}>
                     <Typography fontWeight={600} color="text.primary" gutterBottom>
-                        Thông tin cơ bản
+                        {t('profile.basic_info')}
                     </Typography>
 
                     <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                         <TextField
-                            label="Họ"
+                            label={t('auth.firstName')}
                             value={formData.firstName}
                             onChange={(e) => handleChange('firstName', e.target.value)}
                             fullWidth
@@ -393,7 +395,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                             }}
                         />
                         <TextField
-                            label="Tên"
+                            label={t('auth.lastName')}
                             value={formData.lastName}
                             onChange={(e) => handleChange('lastName', e.target.value)}
                             fullWidth
@@ -409,7 +411,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                     </Box>
 
                     <TextField
-                        label="Email"
+                        label={t('auth.email')}
                         type="email"
                         value={formData.email}
                         onChange={(e) => handleChange('email', e.target.value)}
@@ -426,7 +428,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                     />
 
                     <TextField
-                        label="Số điện thoại"
+                        label={t('auth.phone')}
                         value={formData.phone}
                         onChange={(e) => handleChange('phone', e.target.value)}
                         fullWidth
@@ -442,10 +444,10 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                     />
 
                     <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                        <InputLabel sx={{ color: 'text.secondary' }}>Giới tính</InputLabel>
+                        <InputLabel sx={{ color: 'text.secondary' }}>{t('auth.gender')}</InputLabel>
                         <Select
                             value={formData.gender}
-                            label="Giới tính"
+                            label={t('auth.gender')}
                             onChange={(e) => handleChange('gender', e.target.value)}
                             sx={{
                                 bgcolor: inputBg,
@@ -455,24 +457,24 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                         >
                             <MenuItem value="MALE">
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <MaleIcon sx={{ color: 'primary.main' }} /> Nam
+                                    <MaleIcon sx={{ color: 'primary.main' }} /> {t('auth.male')}
                                 </Box>
                             </MenuItem>
                             <MenuItem value="FEMALE">
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <FemaleIcon sx={{ color: '#e91e8c' }} /> Nữ
+                                    <FemaleIcon sx={{ color: '#e91e8c' }} /> {t('auth.female')}
                                 </Box>
                             </MenuItem>
                             <MenuItem value="OTHER">
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <TransgenderIcon sx={{ color: 'text.secondary' }} /> Khác
+                                    <TransgenderIcon sx={{ color: 'text.secondary' }} /> {t('auth.other')}
                                 </Box>
                             </MenuItem>
                         </Select>
                     </FormControl>
 
                     <TextField
-                        label="Ngày sinh"
+                        label={t('auth.birthday')}
                         type="date"
                         value={formData.birthday}
                         onChange={(e) => handleChange('birthday', e.target.value)}
@@ -497,7 +499,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                 <Box sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography fontWeight={600} color="text.primary">
-                            Địa chỉ
+                            {t('profile.address')}
                         </Typography>
                     </Box>
 
@@ -544,7 +546,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                         </Box>
                     ) : (
                         <Typography color="text.secondary" fontSize={14} sx={{ mb: 2 }}>
-                            Chưa có địa chỉ nào
+                            {t('profile.no_address')}
                         </Typography>
                     )}
 
@@ -564,7 +566,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                         }}
                         onClick={() => setAddressPickerOpen(true)}
                     >
-                        Thêm địa chỉ
+                        {t('profile.add_address')}
                     </Button>
                 </Box>
 
@@ -573,10 +575,10 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                 {/* Additional Info */}
                 <Box sx={{ p: 2 }}>
                     <Typography fontWeight={600} color="text.primary" gutterBottom>
-                        Chi tiết khác
+                        {t('profile.other_details')}
                     </Typography>
                     <Typography color="text.secondary" fontSize={13} sx={{ mb: 2 }}>
-                        Thông tin bạn chọn sẽ ở chế độ Công khai và hiển thị ở đầu trang cá nhân của bạn.
+                        {t('profile.public_info_notice')}
                     </Typography>
 
                     <List disablePadding>
@@ -593,7 +595,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                                 <WorkIcon sx={{ color: 'text.secondary' }} />
                             </ListItemIcon>
                             <ListItemText
-                                primary={<Typography color="primary.main" fontSize={14}>Thêm nơi làm việc</Typography>}
+                                primary={<Typography color="primary.main" fontSize={14}>{t('profile.add_work')}</Typography>}
                             />
                         </ListItem>
 
@@ -610,7 +612,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                                 <SchoolIcon sx={{ color: 'text.secondary' }} />
                             </ListItemIcon>
                             <ListItemText
-                                primary={<Typography color="primary.main" fontSize={14}>Thêm trường học</Typography>}
+                                primary={<Typography color="primary.main" fontSize={14}>{t('profile.add_school')}</Typography>}
                             />
                         </ListItem>
 
@@ -627,7 +629,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                                 <HomeIcon sx={{ color: 'text.secondary' }} />
                             </ListItemIcon>
                             <ListItemText
-                                primary={<Typography color="primary.main" fontSize={14}>Thêm địa chỉ</Typography>}
+                                primary={<Typography color="primary.main" fontSize={14}>{t('profile.add_address')}</Typography>}
                             />
                         </ListItem>
                     </List>
@@ -644,7 +646,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                         '&:hover': { bgcolor: hoverBg }
                     }}
                 >
-                    Hủy
+                    {t('common.cancel')}
                 </Button>
                 <Button
                     variant="contained"
@@ -658,7 +660,7 @@ export default function EditProfileModal({ open, onClose, profile, onUpdate }: E
                         '&:disabled': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb' }
                     }}
                 >
-                    {loading ? <CircularProgress size={20} color="inherit" /> : 'Lưu'}
+                    {loading ? <CircularProgress size={20} color="inherit" /> : t('common.save')}
                 </Button>
             </DialogActions>
 

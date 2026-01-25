@@ -42,17 +42,19 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { relationshipService } from '@/services/relationship.service';
 import { FriendType } from '@/types/account';
+import { useTranslation } from 'react-i18next';
 
 export default function CreateGroupPage() {
     const router = useRouter();
     const { user } = useAuthStore();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const { t } = useTranslation();
 
     const [createForm, setCreateForm] = useState<CreateGroupData>({
         name: '',
         description: '',
-        privacy: GroupPrivacy.PRIVATE,
+        privacy: "PRIVATE",
     });
     const [isCreating, setIsCreating] = useState(false);
     const [friends, setFriends] = useState<FriendType[]>([]);
@@ -108,9 +110,9 @@ export default function CreateGroupPage() {
             !selectedFriends.find(f => f._id === friend._id);
     });
 
-    const privacyText = createForm.privacy === GroupPrivacy.PRIVATE
-        ? 'Quyền riêng tư của nhóm'
-        : 'Quyền riêng tư của nhóm';
+    const privacyText = createForm.privacy === "PRIVATE"
+        ? t('groups.group_privacy')
+        : t('groups.group_privacy');
 
     return (
         <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
@@ -151,12 +153,12 @@ export default function CreateGroupPage() {
                                     sx={{ color: 'text.secondary', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
                                     onClick={() => router.push('/groups')}
                                 >
-                                    Nhóm › Tạo nhóm
+                                    {t('groups.groups')} › {t('groups.create_group')}
                                 </Typography>
                             </Box>
                         </Box>
                         <Typography variant="h5" fontWeight={700}>
-                            Tạo nhóm
+                            {t('groups.create_group')}
                         </Typography>
                     </Box>
 
@@ -170,7 +172,7 @@ export default function CreateGroupPage() {
                                 {user?.fullName || user?.username}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                                Quản trị viên
+                                {t('groups.admins')}
                             </Typography>
                         </Box>
                     </Box>
@@ -180,7 +182,7 @@ export default function CreateGroupPage() {
                         {/* Group Name */}
                         <TextField
                             fullWidth
-                            placeholder="Tên nhóm"
+                            placeholder={t('groups.group_name_placeholder')}
                             value={createForm.name}
                             onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
                             sx={{
@@ -204,35 +206,35 @@ export default function CreateGroupPage() {
                                 }}
                                 renderValue={(value) => (
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        {value === GroupPrivacy.PRIVATE ? (
+                                        {value === "PRIVATE" ? (
                                             <LockIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                                         ) : (
                                             <PublicIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                                         )}
                                         <Typography>
-                                            {value === GroupPrivacy.PRIVATE ? 'Riêng tư' : 'Công khai'}
+                                            {value === "PRIVATE" ? t('groups.private_group') : t('groups.public_group')}
                                         </Typography>
                                     </Box>
                                 )}
                             >
-                                <MenuItem value={GroupPrivacy.PUBLIC}>
+                                <MenuItem value="PUBLIC">
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
                                         <PublicIcon sx={{ mt: 0.5 }} />
                                         <Box>
-                                            <Typography fontWeight={500}>Công khai</Typography>
+                                            <Typography fontWeight={500}>{t('groups.public_group')}</Typography>
                                             <Typography variant="caption" color="text.secondary">
-                                                Ai cũng có thể xem bài đăng và tham gia
+                                                {t('groups.public_group_desc')}
                                             </Typography>
                                         </Box>
                                     </Box>
                                 </MenuItem>
-                                <MenuItem value={GroupPrivacy.PRIVATE}>
+                                <MenuItem value="PRIVATE">
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
                                         <LockIcon sx={{ mt: 0.5 }} />
                                         <Box>
-                                            <Typography fontWeight={500}>Riêng tư</Typography>
+                                            <Typography fontWeight={500}>{t('groups.private_group')}</Typography>
                                             <Typography variant="caption" color="text.secondary">
-                                                Chỉ thành viên mới có thể xem bài đăng
+                                                {t('groups.private_group_desc')}
                                             </Typography>
                                         </Box>
                                     </Box>
@@ -251,11 +253,11 @@ export default function CreateGroupPage() {
                                     mb: 0.5
                                 }}
                             >
-                                Mời bạn bè
+                                {t('groups.invite_members')}
                             </Typography>
                             <TextField
                                 fullWidth
-                                placeholder="Nhập tên hoặc địa chỉ email"
+                                placeholder={t('groups.invite_placeholder', { defaultValue: 'Enter name or email' })}
                                 value={friendSearch}
                                 onChange={(e) => setFriendSearch(e.target.value)}
                                 sx={{
@@ -363,7 +365,7 @@ export default function CreateGroupPage() {
                                 }
                             }}
                         >
-                            {isCreating ? <CircularProgress size={20} color="inherit" /> : 'Tạo'}
+                            {isCreating ? <CircularProgress size={20} color="inherit" /> : t('groups.create_group')}
                         </Button>
                     </Box>
                 </Box>
@@ -380,7 +382,7 @@ export default function CreateGroupPage() {
                             borderBottom: `1px solid ${theme.palette.divider}`
                         }}>
                             <Typography fontWeight={500} color="text.secondary">
-                                Xem trước trên máy tính
+                                {t('groups.preview_desktop')}
                             </Typography>
                             <Box sx={{ display: 'flex', gap: 1 }}>
                                 <IconButton
@@ -440,10 +442,10 @@ export default function CreateGroupPage() {
 
                             {/* Group Info */}
                             <Typography variant="h5" fontWeight={600} sx={{ color: createForm.name ? 'text.primary' : 'text.disabled', mb: 0.5 }}>
-                                {createForm.name || 'Tên nhóm'}
+                                {createForm.name || t('groups.group_name')}
                             </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                {createForm.privacy === GroupPrivacy.PRIVATE ? 'Quyền riêng tư của nhóm' : 'Nhóm Công khai'} · 1 thành viên
+                                {createForm.privacy === "PRIVATE" ? t('groups.private_group') : t('groups.public_group')} · 1 {t('groups.members')}
                             </Typography>
 
                             {/* Tabs Preview */}
@@ -455,10 +457,10 @@ export default function CreateGroupPage() {
                                 py: 1.5,
                                 mb: 2
                             }}>
-                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>Giới thiệu</Button>
-                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>Bài viết</Button>
-                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>Thành viên</Button>
-                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>Sự kiện</Button>
+                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>{t('groups.about_group')}</Button>
+                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>{t('profile.posts')}</Button>
+                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>{t('groups.members_list')}</Button>
+                                <Button size="small" sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 'auto' }}>{t('profile.events')}</Button>
                             </Box>
 
                             {/* Create Post Preview */}
@@ -475,21 +477,21 @@ export default function CreateGroupPage() {
                                     }}>
                                         <Avatar sx={{ width: 32, height: 32, bgcolor: 'action.selected' }} />
                                         <Typography color="text.secondary" fontSize={14}>
-                                            Bạn đang nghĩ gì?
+                                            {t('post.whats_on_your_mind')}
                                         </Typography>
                                     </Box>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                             <ImageIcon sx={{ color: 'success.main', fontSize: 18 }} />
-                                            <Typography variant="caption" color="text.secondary">Ảnh/video</Typography>
+                                            <Typography variant="caption" color="text.secondary">{t('post.photo_video')}</Typography>
                                         </Box>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                             <TagIcon sx={{ color: 'primary.main', fontSize: 18 }} />
-                                            <Typography variant="caption" color="text.secondary">Gắn thẻ người khác</Typography>
+                                            <Typography variant="caption" color="text.secondary">{t('post.tag_people')}</Typography>
                                         </Box>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                             <EmojiIcon sx={{ color: 'warning.main', fontSize: 18 }} />
-                                            <Typography variant="caption" color="text.secondary">Feeling/activity</Typography>
+                                            <Typography variant="caption" color="text.secondary">{t('post.feeling_activity')}</Typography>
                                         </Box>
                                     </Box>
                                 </Box>
@@ -497,7 +499,7 @@ export default function CreateGroupPage() {
                                 {/* About Section */}
                                 <Box sx={{ width: 200 }}>
                                     <Typography fontWeight={500} color="text.secondary" fontSize={14}>
-                                        Giới thiệu
+                                        {t('groups.about_group')}
                                     </Typography>
                                 </Box>
                             </Box>

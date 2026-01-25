@@ -109,9 +109,9 @@ export default function SettingsPage() {
         <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={4}>
                 <Box>
-                    <Typography variant="h5" fontWeight="bold">Cài đặt</Typography>
+                    <Typography variant="h5" fontWeight="bold">{t('admin.settings_title')}</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        Tùy chỉnh giao diện và cài đặt hệ thống admin
+                        {t('admin.settings_subtitle')}
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={2}>
@@ -120,14 +120,14 @@ export default function SettingsPage() {
                         startIcon={<RestoreIcon />}
                         onClick={handleRestoreDefaults}
                     >
-                        Khôi phục mặc định
+                        {t('admin.restore_defaults')}
                     </Button>
                     <Button
                         variant="contained"
                         startIcon={<SaveIcon />}
                         onClick={handleSaveSettings}
                     >
-                        Lưu thay đổi
+                        {t('admin.save_changes')}
                     </Button>
                 </Stack>
             </Stack>
@@ -136,13 +136,13 @@ export default function SettingsPage() {
             <Paper sx={cardStyle}>
                 <Stack direction="row" alignItems="center" spacing={1} mb={3}>
                     <PaletteIcon color="primary" />
-                    <Typography variant="h6" fontWeight="700">Giao diện</Typography>
+                    <Typography variant="h6" fontWeight="700">{t('admin.appearance')}</Typography>
                 </Stack>
 
                 {/* Theme Mode */}
                 <Box sx={{ mb: 3 }}>
                     <Typography variant="subtitle2" fontWeight="600" gutterBottom>
-                        Chế độ hiển thị
+                        {t('admin.display_mode')}
                     </Typography>
                     <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
                         <Card
@@ -158,7 +158,7 @@ export default function SettingsPage() {
                         >
                             <CardContent sx={{ textAlign: 'center', py: 2 }}>
                                 <LightModeIcon sx={{ fontSize: 40, color: '#f7b928', mb: 1 }} />
-                                <Typography variant="body2" fontWeight="600">Sáng</Typography>
+                                <Typography variant="body2" fontWeight="600">{t('admin.light_mode')}</Typography>
                             </CardContent>
                         </Card>
                         <Card
@@ -174,7 +174,7 @@ export default function SettingsPage() {
                         >
                             <CardContent sx={{ textAlign: 'center', py: 2 }}>
                                 <DarkModeIcon sx={{ fontSize: 40, color: '#65676b', mb: 1 }} />
-                                <Typography variant="body2" fontWeight="600">Tối</Typography>
+                                <Typography variant="body2" fontWeight="600">{t('admin.dark_mode')}</Typography>
                             </CardContent>
                         </Card>
                         <Card
@@ -193,7 +193,7 @@ export default function SettingsPage() {
                                     <LightModeIcon sx={{ fontSize: 30, color: '#f7b928' }} />
                                     <DarkModeIcon sx={{ fontSize: 30, color: '#65676b', ml: -1 }} />
                                 </Box>
-                                <Typography variant="body2" fontWeight="600">Hệ thống</Typography>
+                                <Typography variant="body2" fontWeight="600">{t('admin.system_mode')}</Typography>
                             </CardContent>
                         </Card>
                     </Stack>
@@ -204,7 +204,7 @@ export default function SettingsPage() {
                 {/* Admin Color Scheme */}
                 <Box sx={{ mb: 3 }}>
                     <Typography variant="subtitle2" fontWeight="600" gutterBottom>
-                        Màu chủ đạo Admin
+                        {t('admin.admin_color_scheme')}
                     </Typography>
                     <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', gap: 1 }}>
                         {adminColorSchemes.map((scheme) => (
@@ -241,7 +241,7 @@ export default function SettingsPage() {
                     <Stack direction="row" alignItems="center" spacing={1} mb={1}>
                         <TextFieldsIcon fontSize="small" />
                         <Typography variant="subtitle2" fontWeight="600">
-                            Cỡ chữ: {fontSize}px
+                            {t('admin.font_size')}: {fontSize}px
                         </Typography>
                     </Stack>
                     <Slider
@@ -266,9 +266,9 @@ export default function SettingsPage() {
                         control={<Switch checked={compactMode} onChange={toggleCompactMode} />}
                         label={
                             <Box>
-                                <Typography variant="body2" fontWeight="500">Chế độ gọn</Typography>
+                                <Typography variant="body2" fontWeight="500">{t('admin.compact_mode')}</Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                    Giảm khoảng cách giữa các phần tử
+                                    {t('admin.compact_mode_desc')}
                                 </Typography>
                             </Box>
                         }
@@ -277,9 +277,9 @@ export default function SettingsPage() {
                         control={<Switch checked={showAnimations} onChange={setShowAnimations} />}
                         label={
                             <Box>
-                                <Typography variant="body2" fontWeight="500">Hiệu ứng động</Typography>
+                                <Typography variant="body2" fontWeight="500">{t('admin.enable_animations')}</Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                    Bật/tắt hiệu ứng chuyển động
+                                    {t('admin.enable_animations_desc')}
                                 </Typography>
                             </Box>
                         }
@@ -291,14 +291,14 @@ export default function SettingsPage() {
             <Paper sx={cardStyle}>
                 <Stack direction="row" alignItems="center" spacing={1} mb={3}>
                     <LanguageIcon color="primary" />
-                    <Typography variant="h6" fontWeight="700">Ngôn ngữ & Khu vực</Typography>
+                    <Typography variant="h6" fontWeight="700">{t('admin.language_region')}</Typography>
                 </Stack>
 
                 <FormControl sx={{ minWidth: 250 }}>
-                    <InputLabel>Ngôn ngữ hiển thị</InputLabel>
+                    <InputLabel>{t('admin.display_language')}</InputLabel>
                     <Select
                         value={language}
-                        label="Ngôn ngữ hiển thị"
+                        label={t('admin.display_language')}
                         onChange={(e) => handleLanguageChange(e.target.value)}
                     >
                         <MenuItem value="vi">🇻🇳 Tiếng Việt</MenuItem>
@@ -314,7 +314,7 @@ export default function SettingsPage() {
             <Paper sx={cardStyle}>
                 <Stack direction="row" alignItems="center" spacing={1} mb={3}>
                     <NotificationsIcon color="primary" />
-                    <Typography variant="h6" fontWeight="700">Thông báo</Typography>
+                    <Typography variant="h6" fontWeight="700">{t('admin.notifications')}</Typography>
                 </Stack>
 
                 <Stack spacing={2}>
@@ -322,9 +322,9 @@ export default function SettingsPage() {
                         control={<Switch checked={emailNotifications} onChange={(e) => setEmailNotifications(e.target.checked)} />}
                         label={
                             <Box>
-                                <Typography variant="body2" fontWeight="500">Thông báo Email</Typography>
+                                <Typography variant="body2" fontWeight="500">{t('admin.email_notifications')}</Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                    Nhận email khi có báo cáo mới hoặc sự cố
+                                    {t('admin.email_notifications_desc')}
                                 </Typography>
                             </Box>
                         }
@@ -333,9 +333,9 @@ export default function SettingsPage() {
                         control={<Switch checked={pushNotifications} onChange={(e) => setPushNotifications(e.target.checked)} />}
                         label={
                             <Box>
-                                <Typography variant="body2" fontWeight="500">Push Notification</Typography>
+                                <Typography variant="body2" fontWeight="500">{t('admin.push_notifications')}</Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                    Nhận thông báo đẩy trên trình duyệt
+                                    {t('admin.push_notifications_desc')}
                                 </Typography>
                             </Box>
                         }
@@ -344,9 +344,9 @@ export default function SettingsPage() {
                         control={<Switch checked={soundNotifications} onChange={(e) => setSoundNotifications(e.target.checked)} />}
                         label={
                             <Box>
-                                <Typography variant="body2" fontWeight="500">Âm thanh thông báo</Typography>
+                                <Typography variant="body2" fontWeight="500">{t('admin.sound_notifications')}</Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                    Phát âm thanh khi có thông báo mới
+                                    {t('admin.sound_notifications_desc')}
                                 </Typography>
                             </Box>
                         }
@@ -358,7 +358,7 @@ export default function SettingsPage() {
             <Paper sx={cardStyle}>
                 <Stack direction="row" alignItems="center" spacing={1} mb={3}>
                     <SecurityIcon color="primary" />
-                    <Typography variant="h6" fontWeight="700">Bảo mật</Typography>
+                    <Typography variant="h6" fontWeight="700">{t('admin.security')}</Typography>
                 </Stack>
 
                 <Stack spacing={3}>
@@ -366,9 +366,9 @@ export default function SettingsPage() {
                         control={<Switch checked={twoFactorAuth} onChange={(e) => setTwoFactorAuth(e.target.checked)} />}
                         label={
                             <Box>
-                                <Typography variant="body2" fontWeight="500">Xác thực 2 bước (2FA)</Typography>
+                                <Typography variant="body2" fontWeight="500">{t('admin.two_factor_auth')}</Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                    Yêu cầu mã xác thực khi đăng nhập
+                                    {t('admin.two_factor_auth_desc')}
                                 </Typography>
                             </Box>
                         }
@@ -376,7 +376,7 @@ export default function SettingsPage() {
 
                     <Box>
                         <Typography variant="subtitle2" fontWeight="600" gutterBottom>
-                            Thời gian hết phiên: {sessionTimeout} phút
+                            {t('admin.session_timeout', { minutes: sessionTimeout })}
                         </Typography>
                         <Slider
                             value={sessionTimeout}
@@ -393,7 +393,7 @@ export default function SettingsPage() {
                             sx={{ maxWidth: 400 }}
                         />
                         <Typography variant="caption" color="text.secondary">
-                            Tự động đăng xuất sau thời gian không hoạt động
+                            {t('admin.auto_logout_desc')}
                         </Typography>
                     </Box>
                 </Stack>
@@ -403,7 +403,7 @@ export default function SettingsPage() {
             <Paper sx={cardStyle}>
                 <Stack direction="row" alignItems="center" spacing={1} mb={3}>
                     <SpeedIcon color="primary" />
-                    <Typography variant="h6" fontWeight="700">Hiệu suất</Typography>
+                    <Typography variant="h6" fontWeight="700">{t('admin.performance')}</Typography>
                 </Stack>
 
                 <Stack spacing={3}>
@@ -411,9 +411,9 @@ export default function SettingsPage() {
                         control={<Switch checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />}
                         label={
                             <Box>
-                                <Typography variant="body2" fontWeight="500">Tự động làm mới dữ liệu</Typography>
+                                <Typography variant="body2" fontWeight="500">{t('admin.auto_refresh')}</Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                    Cập nhật thống kê và danh sách tự động
+                                    {t('admin.auto_refresh_desc')}
                                 </Typography>
                             </Box>
                         }
@@ -422,7 +422,7 @@ export default function SettingsPage() {
                     {autoRefresh && (
                         <Box>
                             <Typography variant="subtitle2" fontWeight="600" gutterBottom>
-                                Tần suất làm mới: {refreshInterval} giây
+                                {t('admin.refresh_interval', { seconds: refreshInterval })}
                             </Typography>
                             <Slider
                                 value={refreshInterval}

@@ -23,6 +23,7 @@ import {
     Close as CloseIcon,
     Home as HomeIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { addressService, Province, District, Ward } from '@/services/address.service';
 import { AddressType } from '@/types/account';
 
@@ -35,6 +36,7 @@ interface AddressPickerModalProps {
 
 export default function AddressPickerModal({ open, onClose, onSave, existingAddress }: AddressPickerModalProps) {
     const theme = useTheme();
+    const { t } = useTranslation();
     const isDark = theme.palette.mode === 'dark';
     const [provinces, setProvinces] = useState<Province[]>([]);
     const [districts, setDistricts] = useState<District[]>([]);
@@ -44,7 +46,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
     const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
     const [selectedWard, setSelectedWard] = useState<Ward | null>(null);
     const [detailAddress, setDetailAddress] = useState('');
-    const [label, setLabel] = useState('Nhà');
+    const [label, setLabel] = useState(t('address.home'));
 
     const [loadingProvinces, setLoadingProvinces] = useState(false);
     const [loadingDistricts, setLoadingDistricts] = useState(false);
@@ -127,7 +129,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
             setSelectedDistrict(null);
             setSelectedWard(null);
             setDetailAddress('');
-            setLabel('Nhà');
+            setLabel(t('address.home'));
             setDistricts([]);
             setWards([]);
         }
@@ -141,7 +143,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                 setSelectedProvince(province);
             }
             setDetailAddress(existingAddress.detailAddress || '');
-            setLabel(existingAddress.label || 'Nhà');
+            setLabel(existingAddress.label || t('address.home'));
         }
     }, [open, existingAddress, provinces]);
 
@@ -182,7 +184,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <HomeIcon sx={{ color: 'primary.main' }} />
                     <Typography variant="h6" fontWeight={700} color={primaryText}>
-                        {existingAddress ? 'Chỉnh sửa địa chỉ' : 'Thêm địa chỉ mới'}
+                        {existingAddress ? t('address.edit_address') : t('address.add_new_address')}
                     </Typography>
                 </Box>
                 <IconButton onClick={onClose}>
@@ -194,15 +196,15 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {/* Label */}
                     <FormControl fullWidth size="small">
-                        <InputLabel>Nhãn</InputLabel>
+                        <InputLabel>{t('address.label')}</InputLabel>
                         <Select
                             value={label}
-                            label="Nhãn"
+                            label={t('address.label')}
                             onChange={(e) => setLabel(e.target.value)}
                         >
-                            <MenuItem value="Nhà">Nhà</MenuItem>
-                            <MenuItem value="Văn phòng">Văn phòng</MenuItem>
-                            <MenuItem value="Khác">Khác</MenuItem>
+                            <MenuItem value={t('address.home')}>{t('address.home')}</MenuItem>
+                            <MenuItem value={t('address.office')}>{t('address.office')}</MenuItem>
+                            <MenuItem value={t('address.other')}>{t('address.other')}</MenuItem>
                         </Select>
                     </FormControl>
 
@@ -216,7 +218,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                         renderInput={(params) => (
                             <TextField
                                 {...params}
-                                label="Tỉnh/Thành phố"
+                                label={t('address.province')}
                                 size="small"
                                 InputProps={{
                                     ...params.InputProps,
@@ -229,7 +231,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                                 }}
                             />
                         )}
-                        noOptionsText="Không tìm thấy"
+                        noOptionsText={t('address.no_options')}
                     />
 
                     {/* District */}
@@ -243,7 +245,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                         renderInput={(params) => (
                             <TextField
                                 {...params}
-                                label="Quận/Huyện"
+                                label={t('address.district')}
                                 size="small"
                                 InputProps={{
                                     ...params.InputProps,
@@ -256,7 +258,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                                 }}
                             />
                         )}
-                        noOptionsText="Không tìm thấy"
+                        noOptionsText={t('address.no_options')}
                     />
 
                     {/* Ward */}
@@ -270,7 +272,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                         renderInput={(params) => (
                             <TextField
                                 {...params}
-                                label="Phường/Xã"
+                                label={t('address.ward')}
                                 size="small"
                                 InputProps={{
                                     ...params.InputProps,
@@ -283,24 +285,24 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                                 }}
                             />
                         )}
-                        noOptionsText="Không tìm thấy"
+                        noOptionsText={t('address.no_options')}
                     />
 
                     {/* Detail Address */}
                     <TextField
-                        label="Địa chỉ chi tiết (số nhà, tên đường...)"
+                        label={t('address.detail_address')}
                         size="small"
                         fullWidth
                         value={detailAddress}
                         onChange={(e) => setDetailAddress(e.target.value)}
-                        placeholder="VD: Số 123, Đường ABC"
+                        placeholder={t('address.detail_placeholder')}
                     />
 
                     {/* Preview */}
                     {isValid && (
                         <Box sx={{ p: 2, bgcolor: bgLight, borderRadius: 2 }}>
                             <Typography fontSize={12} color={secondaryText} gutterBottom>
-                                Địa chỉ của bạn:
+                                {t('address.your_address')}
                             </Typography>
                             <Typography fontSize={14} color={primaryText} fontWeight={500}>
                                 {detailAddress && `${detailAddress}, `}
@@ -316,7 +318,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                     onClick={onClose}
                     sx={{ textTransform: 'none', color: secondaryText }}
                 >
-                    Hủy
+                    {t('common.cancel')}
                 </Button>
                 <Button
                     variant="contained"
@@ -330,7 +332,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                         '&:disabled': { bgcolor: isDark ? 'action.disabledBackground' : '#e4e6eb' }
                     }}
                 >
-                    Lưu
+                    {t('common.save')}
                 </Button>
             </DialogActions>
         </Dialog>

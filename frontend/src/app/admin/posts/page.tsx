@@ -52,11 +52,13 @@ import {
     ArrowUpward as ArrowUpwardIcon
 } from '@mui/icons-material';
 import { adminService, AdminPost } from '@/services/admin.service';
+import { useTranslation } from 'react-i18next';
 
 
 export default function PostsManagementPage() {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const { t } = useTranslation();
     const [page, setPage] = useState(1);
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [selectedPost, setSelectedPost] = useState<AdminPost | null>(null);
@@ -106,9 +108,9 @@ export default function PostsManagementPage() {
 
     const getStatusChip = (status: string) => {
         switch (status) {
-            case 'ACTIVE': return <Chip label="Hiển thị" color="success" size="small" variant="outlined" />;
-            case 'REPORTED': return <Chip label="Bị báo cáo" color="error" size="small" variant="outlined" />;
-            case 'HIDDEN': return <Chip label="Đã ẩn" color="default" size="small" variant="outlined" />;
+            case 'ACTIVE': return <Chip label={t('admin.status_active')} color="success" size="small" variant="outlined" />;
+            case 'REPORTED': return <Chip label={t('admin.status_reported')} color="error" size="small" variant="outlined" />;
+            case 'HIDDEN': return <Chip label={t('admin.status_hidden')} color="default" size="small" variant="outlined" />;
             default: return <Chip label={status} size="small" />;
         }
     };
@@ -117,25 +119,25 @@ export default function PostsManagementPage() {
         const configs: Record<string, { icon: React.ReactNode; label: string; color: string; bgcolor: string }> = {
             PUBLIC: {
                 icon: <PublicIcon sx={{ fontSize: 14 }} />,
-                label: 'Công khai',
+                label: t('admin.privacy_public'),
                 color: '#1877f2',
                 bgcolor: alpha('#1877f2', 0.1)
             },
             FRIENDS: {
                 icon: <PeopleIcon sx={{ fontSize: 14 }} />,
-                label: 'Bạn bè',
+                label: t('admin.privacy_friends'),
                 color: '#42b72a',
                 bgcolor: alpha('#42b72a', 0.1)
             },
             PRIVATE: {
                 icon: <LockIcon sx={{ fontSize: 14 }} />,
-                label: 'Riêng tư',
+                label: t('admin.privacy_private'),
                 color: '#fa383e',
                 bgcolor: alpha('#fa383e', 0.1)
             },
             GROUP: {
                 icon: <GroupIcon sx={{ fontSize: 14 }} />,
-                label: 'Nhóm',
+                label: t('admin.privacy_group'),
                 color: '#f7b928',
                 bgcolor: alpha('#f7b928', 0.1)
             }
@@ -167,7 +169,7 @@ export default function PostsManagementPage() {
     return (
         <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={4}>
-                <Typography variant="h5" fontWeight="bold">Quản lý Bài viết</Typography>
+                <Typography variant="h5" fontWeight="bold">{t('admin.post_management')}</Typography>
             </Stack>
 
             <Paper sx={{
@@ -202,7 +204,7 @@ export default function PostsManagementPage() {
                         </IconButton>
                         <InputBase
                             sx={{ ml: 1, flex: 1 }}
-                            placeholder="Tìm kiếm bài viết..."
+                            placeholder={t('admin.search_posts_placeholder')}
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                         />
@@ -214,7 +216,7 @@ export default function PostsManagementPage() {
                         variant={hasActiveFilters ? 'contained' : 'outlined'}
                         color={hasActiveFilters ? 'primary' : 'inherit'}
                     >
-                        Bộ lọc {hasActiveFilters && `(${[statusFilter !== 'ALL', privacyFilter !== 'ALL'].filter(Boolean).length})`}
+                        {t('common.filter')} {hasActiveFilters && `(${[statusFilter !== 'ALL', privacyFilter !== 'ALL'].filter(Boolean).length})`}
                     </Button>
                 </Box>
 
@@ -229,52 +231,52 @@ export default function PostsManagementPage() {
                         alignItems: 'center'
                     }}>
                         <FormControl size="small" sx={{ minWidth: 150 }}>
-                            <InputLabel>Trạng thái</InputLabel>
+                            <InputLabel>{t('admin.status')}</InputLabel>
                             <Select
                                 value={statusFilter}
-                                label="Trạng thái"
+                                label={t('admin.status')}
                                 onChange={(e) => setStatusFilter(e.target.value)}
                             >
-                                <MenuItem value="ALL">Tất cả</MenuItem>
-                                <MenuItem value="ACTIVE">Hiển thị</MenuItem>
-                                <MenuItem value="REPORTED">Bị báo cáo</MenuItem>
-                                <MenuItem value="HIDDEN">Đã ẩn</MenuItem>
+                                <MenuItem value="ALL">{t('admin.status_all')}</MenuItem>
+                                <MenuItem value="ACTIVE">{t('admin.status_active')}</MenuItem>
+                                <MenuItem value="REPORTED">{t('admin.status_reported')}</MenuItem>
+                                <MenuItem value="HIDDEN">{t('admin.status_hidden')}</MenuItem>
                             </Select>
                         </FormControl>
 
                         <FormControl size="small" sx={{ minWidth: 150 }}>
-                            <InputLabel>Quyền riêng tư</InputLabel>
+                            <InputLabel>{t('admin.privacy')}</InputLabel>
                             <Select
                                 value={privacyFilter}
-                                label="Quyền riêng tư"
+                                label={t('admin.privacy')}
                                 onChange={(e) => setPrivacyFilter(e.target.value)}
                             >
-                                <MenuItem value="ALL">Tất cả</MenuItem>
-                                <MenuItem value="PUBLIC">Công khai</MenuItem>
-                                <MenuItem value="FRIENDS">Bạn bè</MenuItem>
-                                <MenuItem value="PRIVATE">Riêng tư</MenuItem>
-                                <MenuItem value="GROUP">Nhóm</MenuItem>
+                                <MenuItem value="ALL">{t('admin.status_all')}</MenuItem>
+                                <MenuItem value="PUBLIC">{t('admin.privacy_public')}</MenuItem>
+                                <MenuItem value="FRIENDS">{t('admin.privacy_friends')}</MenuItem>
+                                <MenuItem value="PRIVATE">{t('admin.privacy_private')}</MenuItem>
+                                <MenuItem value="GROUP">{t('admin.privacy_group')}</MenuItem>
                             </Select>
                         </FormControl>
 
                         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
 
                         <FormControl size="small" sx={{ minWidth: 180 }}>
-                            <InputLabel>Sắp xếp theo</InputLabel>
+                            <InputLabel>{t('admin.sort_by')}</InputLabel>
                             <Select
                                 value={sortBy}
-                                label="Sắp xếp theo"
+                                label={t('admin.sort_by')}
                                 onChange={(e) => setSortBy(e.target.value)}
                                 startAdornment={<SortIcon sx={{ mr: 1, color: 'text.secondary' }} />}
                             >
-                                <MenuItem value="time">Thời gian đăng</MenuItem>
-                                <MenuItem value="reactions">Lượt thích</MenuItem>
-                                <MenuItem value="comments">Bình luận</MenuItem>
-                                <MenuItem value="shares">Lượt chia sẻ</MenuItem>
+                                <MenuItem value="time">{t('admin.time')}</MenuItem>
+                                <MenuItem value="reactions">{t('admin.likes')}</MenuItem>
+                                <MenuItem value="comments">{t('admin.comments')}</MenuItem>
+                                <MenuItem value="shares">{t('admin.shares')}</MenuItem>
                             </Select>
                         </FormControl>
 
-                        <Tooltip title={sortOrder === 'desc' ? "Giảm dần" : "Tăng dần"}>
+                        <Tooltip title={sortOrder === 'desc' ? t('admin.sort_descending') : t('admin.sort_ascending')}>
                             <IconButton
                                 onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
                                 sx={{
@@ -293,7 +295,7 @@ export default function PostsManagementPage() {
                                 onClick={clearFilters}
                                 sx={{ ml: 'auto' }}
                             >
-                                Xóa bộ lọc
+                                {t('admin.clear_filters')}
                             </Button>
                         )}
                     </Box>
@@ -306,12 +308,12 @@ export default function PostsManagementPage() {
                         }}>
                             <TableRow>
                                 <TableCell>ID</TableCell>
-                                <TableCell>Tác giả</TableCell>
-                                <TableCell>Nội dung</TableCell>
-                                <TableCell>Quyền riêng tư</TableCell>
-                                <TableCell>Tương tác</TableCell>
-                                <TableCell>Trạng thái</TableCell>
-                                <TableCell align="right">Hành động</TableCell>
+                                <TableCell>{t('admin.author')}</TableCell>
+                                <TableCell>{t('admin.content')}</TableCell>
+                                <TableCell>{t('admin.privacy')}</TableCell>
+                                <TableCell>{t('admin.stats')}</TableCell>
+                                <TableCell>{t('admin.status')}</TableCell>
+                                <TableCell align="right">{t('admin.actions')}</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -320,7 +322,7 @@ export default function PostsManagementPage() {
                                     <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                                         <CircularProgress size={32} />
                                         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                            Đang tải...
+                                            {t('common.loading')}
                                         </Typography>
                                     </TableCell>
                                 </TableRow>
@@ -328,7 +330,7 @@ export default function PostsManagementPage() {
                                 <TableRow>
                                     <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                                         <Typography variant="body2" color="text.secondary">
-                                            Không tìm thấy bài viết nào
+                                            {t('admin.no_posts_found')}
                                         </Typography>
                                     </TableCell>
                                 </TableRow>
@@ -371,7 +373,7 @@ export default function PostsManagementPage() {
                                     </TableCell>
                                     <TableCell>{getStatusChip(post.status)}</TableCell>
                                     <TableCell align="right">
-                                        <Tooltip title="Tùy chọn">
+                                        <Tooltip title={t('admin.options')}>
                                             <IconButton onClick={(e) => handleMenuOpen(e, post)}>
                                                 <MoreVertIcon />
                                             </IconButton>
@@ -384,7 +386,7 @@ export default function PostsManagementPage() {
                 </TableContainer>
                 <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="body2" color="text.secondary">
-                        {pagination ? `Hiển thị ${posts.length} / ${pagination.total} bài viết` : ''}
+                        {pagination ? t('admin.showing_posts', { count: posts.length, total: pagination.total }) : ''}
                     </Typography>
                     <Pagination
                         count={pagination?.totalPages || 1}
@@ -402,11 +404,11 @@ export default function PostsManagementPage() {
             >
                 <MenuItem onClick={handleMenuClose}>
                     <ListItemIcon><VisibilityIcon fontSize="small" /></ListItemIcon>
-                    Xem bài viết
+                    {t('admin.view_post')}
                 </MenuItem>
                 <MenuItem onClick={handleMenuClose} sx={{ color: 'error.main' }}>
                     <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
-                    Xóa bài viết
+                    {t('admin.delete_post')}
                 </MenuItem>
             </Menu>
         </Box>

@@ -69,6 +69,7 @@ import TransferOwnershipDialog from '@/components/groups/TransferOwnershipDialog
 import PhotoMenuButton from '@/components/groups/PhotoMenuButton';
 import { postService } from '@/services/post.service';
 import { io, Socket } from 'socket.io-client';
+import { useTranslation } from 'react-i18next';
 
 export default function GroupDetailPage() {
     const params = useParams();
@@ -76,6 +77,7 @@ export default function GroupDetailPage() {
     const theme = useTheme();
     const groupId = params.groupId as string;
     const { user, accessToken } = useAuthStore();
+    const { t } = useTranslation();
 
     // Group post store
     const { groupPosts, setGroupPosts, addGroupPost } = useGroupPostStore();
@@ -189,7 +191,9 @@ export default function GroupDetailPage() {
         socket.on('memberRoleUpdate', (data: { groupId: string; userId: string; newRole: string; updatedBy: string }) => {
             if (data.groupId === groupId && data.userId === user?.id) {
                 setGroup(prev => prev ? { ...prev, myRole: data.newRole as GroupRole } : null);
-                toast.info(`Vai trò của bạn trong nhóm đã được thay đổi thành ${data.newRole === 'ADMIN' ? 'Quản trị viên' : data.newRole === 'MODERATOR' ? 'Người kiểm duyệt' : 'Thành viên'}`);
+                // toast.info(`Vai trò của bạn trong nhóm đã được thay đổi thành ${data.newRole === 'ADMIN' ? 'Quản trị viên' : data.newRole === 'MODERATOR' ? 'Người kiểm duyệt' : 'Thành viên'}`);
+                // TODO: Translate role names
+                toast.info(t('groups.role_updated', { role: data.newRole }));
             }
         });
 
@@ -199,9 +203,9 @@ export default function GroupDetailPage() {
                 // Reload group data to get updated creator info
                 loadGroupData();
                 if (data.oldOwnerId === user?.id) {
-                    toast.info('Bạn đã nhượng quyền sở hữu nhóm');
+                    toast.info(t('groups.ownership_transferred_from_you'));
                 } else if (data.newOwnerId === user?.id) {
-                    toast.success('Bạn đã trở thành chủ sở hữu của nhóm');
+                    toast.success(t('groups.ownership_transferred_to_you'));
                 }
             }
         });
@@ -410,7 +414,7 @@ export default function GroupDetailPage() {
     }
 
     if (!group) {
-        return (<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}><Header /><Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><Typography>Khong tim thay nhom</Typography></Box></Box>);
+        return (<Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}><Header /><Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><Typography>{t('groups.group_not_found')}</Typography></Box></Box>);
     }
 
     return (
@@ -441,7 +445,7 @@ export default function GroupDetailPage() {
                                         '&:hover': { bgcolor: 'action.hover' }
                                     }}
                                 >
-                                    Chỉnh sửa ảnh bìa
+                                    {t('groups.edit_cover')}
                                 </Button>
                             </PhotoMenuButton>
                         </Box>
@@ -470,14 +474,14 @@ export default function GroupDetailPage() {
                                     </PhotoMenuButton>
                                 </Box>
                             )}
-                            <Box sx={{ position: 'absolute', top: { xs: -10, md: 8 }, left: { xs: '50%', md: -16 }, transform: { xs: 'translateX(-50%)', md: 'none' }, bgcolor: 'primary.main', color: 'primary.contrastText', px: 1.5, py: 0.5, borderRadius: 1, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', zIndex: 1 }}>{group.privacy === "PRIVATE" ? 'Nhóm riêng tư' : 'Nhóm công khai'}</Box>
+                            <Box sx={{ position: 'absolute', top: { xs: -10, md: 8 }, left: { xs: '50%', md: -16 }, transform: { xs: 'translateX(-50%)', md: 'none' }, bgcolor: 'primary.main', color: 'primary.contrastText', px: 1.5, py: 0.5, borderRadius: 1, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', zIndex: 1 }}>{group.privacy === "PRIVATE" ? t('groups.private_group') : t('groups.public_group')}</Box>
                         </Box>
                         <Box sx={{ flex: 1, textAlign: { xs: 'center', md: 'left' }, minWidth: 0 }}>
                             <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: 24, md: 28 }, color: 'text.primary' }}>{group.name}</Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, justifyContent: { xs: 'center', md: 'flex-start' }, flexWrap: 'wrap' }}>
                                 {group.privacy === "PRIVATE" ? <LockIcon sx={{ fontSize: 14, color: 'text.secondary' }} /> : <PublicIcon sx={{ fontSize: 14, color: 'text.secondary' }} />}
-                                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 15 }}>{group.privacy === "PRIVATE" ? 'Nhóm Riêng tư' : 'Nhóm Công khai'}</Typography>
-                                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 15 }}>· {group.memberCount.toLocaleString()} thành viên</Typography>
+                                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 15 }}>{group.privacy === "PRIVATE" ? t('groups.private_group') : t('groups.public_group')}</Typography>
+                                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 15 }}>· {group.memberCount.toLocaleString()} {t('groups.members')}</Typography>
                             </Box>
                             <Box sx={{ display: 'flex', justifyContent: { xs: 'center', md: 'flex-start' }, mt: 1.5 }}>
                                 <AvatarGroup max={12} sx={{ '& .MuiAvatar-root': { width: 32, height: 32, border: `2px solid ${theme.palette.background.paper}`, fontSize: 14 } }}>{topMembers.map((member) => (<Avatar key={member._id} src={member.avatar} alt={member.firstName}>{member.firstName?.[0]}</Avatar>))}</AvatarGroup>
@@ -486,9 +490,9 @@ export default function GroupDetailPage() {
                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: { xs: 'center', md: 'flex-end' }, alignSelf: { xs: 'center', md: 'center' } }}>
                             {group.isMember ? (
                                 <>
-                                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenInviteDialog(true)} sx={{ bgcolor: 'primary.main', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' } }}>Mời</Button>
-                                    <Button variant="contained" startIcon={<ShareIcon />} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>Chia sẻ</Button>
-                                    <Button variant="contained" endIcon={<ArrowDownIcon />} onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>Đã tham gia</Button>
+                                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenInviteDialog(true)} sx={{ bgcolor: 'primary.main', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' } }}>{t('groups.invite')}</Button>
+                                    <Button variant="contained" startIcon={<ShareIcon />} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>{t('groups.share')}</Button>
+                                    <Button variant="contained" endIcon={<ArrowDownIcon />} onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>{t('groups.joined')}</Button>
                                     {isAdmin && (
                                         <IconButton onClick={(e) => setMoreMenuAnchor(e.currentTarget)} sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}>
                                             <MoreHorizIcon />
@@ -496,16 +500,16 @@ export default function GroupDetailPage() {
                                     )}
                                 </>
                             ) : group.isPending ? (
-                                <Button variant="contained" onClick={handleCancelRequest} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>Hủy yêu cầu tham gia</Button>
+                                <Button variant="contained" onClick={handleCancelRequest} sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>{t('groups.cancel_request')}</Button>
                             ) : (
-                                <Button variant="contained" onClick={handleJoinGroup} disabled={isJoining} sx={{ bgcolor: 'primary.main', textTransform: 'none', fontWeight: 600, px: 3, borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' } }}>{isJoining ? <CircularProgress size={20} color="inherit" /> : '+ Tham gia nhóm'}</Button>
+                                <Button variant="contained" onClick={handleJoinGroup} disabled={isJoining} sx={{ bgcolor: 'primary.main', textTransform: 'none', fontWeight: 600, px: 3, borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' } }}>{isJoining ? <CircularProgress size={20} color="inherit" /> : `+ ${t('groups.join_group')}`}</Button>
                             )}
 
                             {/* "Đã tham gia" dropdown menu - only Leave option */}
                             <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} PaperProps={{ sx: { borderRadius: 2, minWidth: 200 } }}>
                                 <MenuItem onClick={() => { setAnchorEl(null); setOpenLeaveDialog(true); }}>
                                     <ListItemIcon><ExitToAppIcon /></ListItemIcon>
-                                    <ListItemText primary="Rời nhóm" />
+                                    <ListItemText primary={t('groups.leave_group')} />
                                 </MenuItem>
                             </Menu>
 
@@ -514,13 +518,13 @@ export default function GroupDetailPage() {
                                 {isAdmin && (
                                     <MenuItem onClick={() => { setMoreMenuAnchor(null); setOpenSettingsDialog(true); }}>
                                         <ListItemIcon><InfoIcon /></ListItemIcon>
-                                        <ListItemText primary="Cài đặt nhóm" />
+                                        <ListItemText primary={t('groups.group_settings')} />
                                     </MenuItem>
                                 )}
                                 {group.createdBy?._id === user?.id && (
                                     <MenuItem onClick={() => { setMoreMenuAnchor(null); setOpenTransferDialog(true); }}>
                                         <ListItemIcon><ShareIcon /></ListItemIcon>
-                                        <ListItemText primary="Chuyển quyền sở hữu" />
+                                        <ListItemText primary={t('groups.transfer_ownership')} />
                                     </MenuItem>
                                 )}
                             </Menu>
@@ -528,7 +532,7 @@ export default function GroupDetailPage() {
                     </Box>
                     <Divider />
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Tabs value={tabValue} onChange={(_, newValue) => { if (newValue === 2) { setOpenMembersDialog(true); } else { setTabValue(newValue); } }} sx={{ '& .MuiTab-root': { textTransform: 'none', fontSize: 15, fontWeight: 600, color: 'text.secondary', minHeight: 52, px: 2, '&.Mui-selected': { color: 'primary.main' } }, '& .MuiTabs-indicator': { bgcolor: 'primary.main', height: 3, borderRadius: '3px 3px 0 0' } }}><Tab label="Thảo luận" /><Tab label="Đáng chú ý" /><Tab label="Mọi người" /><Tab label="Sự kiện" /><Tab label="File phương tiện" /><Tab label="File" /></Tabs>
+                        <Tabs value={tabValue} onChange={(_, newValue) => { if (newValue === 2) { setOpenMembersDialog(true); } else { setTabValue(newValue); } }} sx={{ '& .MuiTab-root': { textTransform: 'none', fontSize: 15, fontWeight: 600, color: 'text.secondary', minHeight: 52, px: 2, '&.Mui-selected': { color: 'primary.main' } }, '& .MuiTabs-indicator': { bgcolor: 'primary.main', height: 3, borderRadius: '3px 3px 0 0' } }}><Tab label={t('groups.discussion')} /><Tab label={t('groups.featured')} /><Tab label={t('groups.people')} /><Tab label={t('groups.events')} /><Tab label={t('groups.media')} /><Tab label={t('groups.files')} /></Tabs>
                         <Box sx={{ display: 'flex', gap: 1, pr: 1 }}><IconButton sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}><SearchIcon /></IconButton><IconButton sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}><MoreHorizIcon /></IconButton></Box>
                     </Box>
                 </Box>
@@ -544,22 +548,22 @@ export default function GroupDetailPage() {
                                     <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                                         <Avatar sx={{ width: 40, height: 40 }} src={user?.avatar}>{user?.fullName?.[0]}</Avatar>
                                         <Box onClick={() => setOpenCreatePost(true)} sx={{ flex: 1, bgcolor: 'action.hover', borderRadius: '20px', display: 'flex', alignItems: 'center', px: 2, py: 1, cursor: 'pointer', '&:hover': { bgcolor: 'action.selected' } }}>
-                                            <Typography sx={{ color: 'text.secondary', fontSize: 17 }}>Bạn viết gì đi...</Typography>
+                                            <Typography sx={{ color: 'text.secondary', fontSize: 17 }}>{t('post.whats_on_your_mind')}</Typography>
                                         </Box>
                                     </Box>
                                     <Divider sx={{ mb: 1.5 }} />
                                     <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
                                         <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: 'action.hover' } }}>
                                             <VisibilityOffIcon sx={{ color: '#45bd62' }} />
-                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.secondary' }}>Bài viết ẩn danh</Typography>
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.secondary' }}>{t('post.anonymous_post')}</Typography>
                                         </Box>
                                         <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: 'action.hover' } }}>
                                             <PollIcon sx={{ color: '#f7b928' }} />
-                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.secondary' }}>Thăm dò ý kiến</Typography>
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.secondary' }}>{t('post.poll')}</Typography>
                                         </Box>
                                         <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: 'action.hover' } }}>
                                             <MoodIcon sx={{ color: '#f7b928' }} />
-                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.secondary' }}>Cảm xúc/hoạt động</Typography>
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.secondary' }}>{t('post.feeling_activity')}</Typography>
                                         </Box>
                                     </Box>
                                 </CardContent>
@@ -584,7 +588,7 @@ export default function GroupDetailPage() {
                         {!isLoadingPosts && posts.length === 0 && (
                             <Card sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
                                 <CardContent sx={{ py: 6 }}>
-                                    <Typography variant="body1" sx={{ color: 'text.secondary', textAlign: 'center' }}>Chưa có bài viết nào trong nhóm này</Typography>
+                                    <Typography variant="body1" sx={{ color: 'text.secondary', textAlign: 'center' }}>{t('groups.no_posts_yet')}</Typography>
                                 </CardContent>
                             </Card>
                         )}
@@ -616,32 +620,32 @@ export default function GroupDetailPage() {
                     <Box sx={{ width: { xs: '100%', md: 360 }, flexShrink: 0 }}>
                         <Card sx={{ mb: 2, borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
                             <CardContent sx={{ p: 2 }}>
-                                <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color: 'text.primary' }}>Giới thiệu</Typography>
+                                <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color: 'text.primary' }}>{t('groups.about')}</Typography>
                                 {group.description && <Typography variant="body2" sx={{ color: 'text.primary', mb: 2 }}>{group.description}</Typography>}
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
                                     <PublicIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                     <Box>
-                                        <Typography variant="body1" fontWeight={600} sx={{ color: 'text.primary' }}>{group.privacy === "PRIVATE" ? 'Riêng tư' : 'Công khai'}</Typography>
-                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{group.privacy === "PRIVATE" ? 'Chỉ thành viên mới nhìn thấy mọi người trong nhóm và những gì họ đăng.' : 'Bất kỳ ai cũng có thể nhìn thấy mọi người trong nhóm và những gì họ đăng.'}</Typography>
+                                        <Typography variant="body1" fontWeight={600} sx={{ color: 'text.primary' }}>{group.privacy === "PRIVATE" ? t('groups.private_group') : t('groups.public_group')}</Typography>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{group.privacy === "PRIVATE" ? t('groups.private_group_desc') : t('groups.public_group_desc')}</Typography>
                                     </Box>
                                 </Box>
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
                                     <VisibilityIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                     <Box>
-                                        <Typography variant="body1" fontWeight={600} sx={{ color: 'text.primary' }}>Hiển thị</Typography>
-                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>Ai cũng có thể tìm thấy nhóm này.</Typography>
+                                        <Typography variant="body1" fontWeight={600} sx={{ color: 'text.primary' }}>{t('groups.visibility')}</Typography>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('groups.visible_desc')}</Typography>
                                     </Box>
                                 </Box>
-                                <Button fullWidth variant="contained" sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, mt: 1, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>Tìm hiểu thêm về nhóm này</Button>
+                                <Button fullWidth variant="contained" sx={{ bgcolor: 'action.hover', color: 'text.primary', textTransform: 'none', fontWeight: 600, mt: 1, borderRadius: 1, '&:hover': { bgcolor: 'action.selected' } }}>{t('groups.learn_more')}</Button>
                             </CardContent>
                         </Card>
                         <Card sx={{ borderRadius: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
                             <CardContent sx={{ p: 2 }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                    <Typography variant="h6" fontWeight={700} sx={{ color: 'text.primary' }}>File phương tiện mới đây</Typography>
+                                    <Typography variant="h6" fontWeight={700} sx={{ color: 'text.primary' }}>{t('groups.recent_media')}</Typography>
                                     <IconButton size="small" sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}><SearchIcon fontSize="small" /></IconButton>
                                 </Box>
-                                <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center', py: 3 }}>Chưa có file phương tiện nào</Typography>
+                                <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center', py: 3 }}>{t('groups.no_media')}</Typography>
                             </CardContent>
                         </Card>
                     </Box>
@@ -650,11 +654,11 @@ export default function GroupDetailPage() {
 
             {/* Dialogs & Modals */}
             <Dialog open={openLeaveDialog} onClose={() => setOpenLeaveDialog(false)} PaperProps={{ sx: { borderRadius: 2 } }}>
-                <DialogTitle sx={{ fontWeight: 700 }}>Rời nhóm?</DialogTitle>
-                <DialogContent><Typography>Bạn có chắc chắn muốn rời khỏi nhóm {group.name}?</Typography></DialogContent>
+                <DialogTitle sx={{ fontWeight: 700 }}>{t('groups.leave_group_confirm_title')}</DialogTitle>
+                <DialogContent><Typography>{t('groups.leave_group_confirm', { name: group.name })}</Typography></DialogContent>
                 <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setOpenLeaveDialog(false)} sx={{ textTransform: 'none' }}>Hủy</Button>
-                    <Button onClick={handleLeaveGroup} disabled={isLeaving} variant="contained" color="error" sx={{ textTransform: 'none' }}>{isLeaving ? <CircularProgress size={20} color="inherit" /> : 'Rời nhóm'}</Button>
+                    <Button onClick={() => setOpenLeaveDialog(false)} sx={{ textTransform: 'none' }}>{t('common.cancel')}</Button>
+                    <Button onClick={handleLeaveGroup} disabled={isLeaving} variant="contained" color="error" sx={{ textTransform: 'none' }}>{isLeaving ? <CircularProgress size={20} color="inherit" /> : t('groups.leave_group')}</Button>
                 </DialogActions>
             </Dialog>
 
@@ -697,9 +701,9 @@ export default function GroupDetailPage() {
                             await postService.updatePost(menuPost._id, { allowComments: allow });
                             useGroupPostStore.getState().updateGroupPost(groupId, menuPost._id, { ...menuPost, allowComments: allow });
                             setMenuPost(prev => prev ? { ...prev, allowComments: allow } : null);
-                            toast.success(allow ? 'Đã bật bình luận' : 'Đã tắt bình luận');
+                            toast.success(allow ? t('post.comments_enabled') : t('post.comments_disabled'));
                         } catch {
-                            toast.error('Không thể cập nhật cài đặt');
+                            toast.error(t('post.settings_update_failed'));
                         }
                     }}
                     onToggleShares={async (allow) => {
@@ -708,9 +712,9 @@ export default function GroupDetailPage() {
                             await postService.updatePost(menuPost._id, { allowShares: allow });
                             useGroupPostStore.getState().updateGroupPost(groupId, menuPost._id, { ...menuPost, allowShares: allow });
                             setMenuPost(prev => prev ? { ...prev, allowShares: allow } : null);
-                            toast.success(allow ? 'Đã bật chia sẻ' : 'Đã tắt chia sẻ');
+                            toast.success(allow ? t('post.shares_enabled') : t('post.shares_disabled'));
                         } catch {
-                            toast.error('Không thể cập nhật cài đặt');
+                            toast.error(t('post.settings_update_failed'));
                         }
                     }}
                     onToggleReactions={async (allow) => {
@@ -719,9 +723,9 @@ export default function GroupDetailPage() {
                             await postService.updatePost(menuPost._id, { allowReactions: allow });
                             useGroupPostStore.getState().updateGroupPost(groupId, menuPost._id, { ...menuPost, allowReactions: allow });
                             setMenuPost(prev => prev ? { ...prev, allowReactions: allow } : null);
-                            toast.success(allow ? 'Đã bật tương tác' : 'Đã tắt tương tác');
+                            toast.success(allow ? t('post.reactions_enabled') : t('post.reactions_disabled'));
                         } catch {
-                            toast.error('Không thể cập nhật cài đặt');
+                            toast.error(t('post.settings_update_failed'));
                         }
                     }}
                 />

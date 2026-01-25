@@ -30,6 +30,7 @@ import { groupService } from '@/services/group.service';
 import { FriendType } from '@/types/account';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 interface InviteFriendsDialogProps {
     open: boolean;
@@ -40,6 +41,7 @@ interface InviteFriendsDialogProps {
 
 export default function InviteFriendsDialog({ open, onClose, groupId, groupName }: InviteFriendsDialogProps) {
     const { user } = useAuthStore();
+    const { t } = useTranslation();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const inputBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
@@ -101,9 +103,9 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
         try {
             await groupService.inviteMember(groupId, friendId);
             setInvitedIds(prev => new Set([...prev, friendId]));
-            toast.success('Đã gửi lời mời!');
+            toast.success(t('groups.invite_sent'));
         } catch {
-            toast.error('Không thể gửi lời mời');
+            toast.error(t('groups.invite_failed'));
         } finally {
             setInvitingId(null);
         }
@@ -139,7 +141,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                 pb: 2
             }}>
                 <Typography variant="h6" fontWeight={700}>
-                    Mời bạn bè vào {groupName}
+                    {t('groups.invite_friends_to', { group: groupName })}
                 </Typography>
                 <IconButton onClick={onClose} size="small">
                     <CloseIcon />
@@ -151,7 +153,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                 <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                     <TextField
                         fullWidth
-                        placeholder="Tìm kiếm bạn bè..."
+                        placeholder={t('groups.search_friends')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         InputProps={{
@@ -179,7 +181,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                         </Box>
                     ) : filteredFriends.length === 0 ? (
                         <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                            {friends.length === 0 ? 'Bạn chưa có bạn bè nào' : 'Không tìm thấy bạn bè'}
+                            {friends.length === 0 ? t('groups.no_friends_yet') : t('groups.no_friends_found')}
                         </Typography>
                     ) : (
                         <List>
@@ -194,7 +196,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                                         secondaryAction={
                                             status === 'member' ? (
                                                 <Chip
-                                                    label="Đã là thành viên"
+                                                    label={t('groups.already_member')}
                                                     size="small"
                                                     sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb', color: 'text.secondary' }}
                                                 />
@@ -207,7 +209,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                                                         color: 'text.secondary'
                                                     }}
                                                 >
-                                                    {status === 'pending' ? 'Đang chờ' : 'Đã mời'}
+                                                    {status === 'pending' ? t('groups.invite_pending') : t('groups.invited')}
                                                 </Button>
                                             ) : (
                                                 <Button
@@ -223,7 +225,7 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                                                     {invitingId === friend._id ? (
                                                         <CircularProgress size={20} color="inherit" />
                                                     ) : (
-                                                        'Mời'
+                                                        t('groups.invite')
                                                     )}
                                                 </Button>
                                             )

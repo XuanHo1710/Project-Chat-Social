@@ -64,6 +64,7 @@ import {
     ArrowUpward as ArrowUpwardIcon
 } from '@mui/icons-material';
 import { adminService, AdminUser } from '@/services/admin.service';
+import { useTranslation } from 'react-i18next';
 
 interface AddAccountFormData {
     fullName: string;
@@ -78,6 +79,7 @@ export default function UsersManagementPage() {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const queryClient = useQueryClient();
+    const { t } = useTranslation();
     const [page, setPage] = useState(1);
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
@@ -249,13 +251,13 @@ export default function UsersManagementPage() {
     return (
         <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={4}>
-                <Typography variant="h5" fontWeight="bold">Quản lý Tài khoản</Typography>
+                <Typography variant="h5" fontWeight="bold">{t('admin.user_management')}</Typography>
                 <Button
                     variant="contained"
                     startIcon={<PersonAddIcon />}
                     onClick={handleOpenAddAccount}
                 >
-                    Thêm tài khoản
+                    {t('admin.add_user')}
                 </Button>
             </Stack>
 
@@ -291,7 +293,7 @@ export default function UsersManagementPage() {
                         </IconButton>
                         <InputBase
                             sx={{ ml: 1, flex: 1 }}
-                            placeholder="Tìm kiếm theo tên, email..."
+                            placeholder={t('admin.search_users_placeholder')}
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                         />
@@ -303,7 +305,7 @@ export default function UsersManagementPage() {
                         variant={hasActiveFilters ? 'contained' : 'outlined'}
                         color={hasActiveFilters ? 'primary' : 'inherit'}
                     >
-                        Bộ lọc {hasActiveFilters && `(${[statusFilter !== 'ALL', roleFilter !== 'ALL'].filter(Boolean).length})`}
+                        {t('common.filter')} {hasActiveFilters && `(${[statusFilter !== 'ALL', roleFilter !== 'ALL'].filter(Boolean).length})`}
                     </Button>
                 </Box>
 
@@ -348,21 +350,21 @@ export default function UsersManagementPage() {
                         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
 
                         <FormControl size="small" sx={{ minWidth: 180 }}>
-                            <InputLabel>Sắp xếp theo</InputLabel>
+                            <InputLabel>{t('admin.sort_by')}</InputLabel>
                             <Select
                                 value={sortBy}
-                                label="Sắp xếp theo"
+                                label={t('admin.sort_by')}
                                 onChange={(e) => setSortBy(e.target.value)}
                                 startAdornment={<SortIcon sx={{ mr: 1, color: 'text.secondary' }} />}
                             >
-                                <MenuItem value="lastLogin">Đăng nhập cuối</MenuItem>
-                                <MenuItem value="email">Email</MenuItem>
-                                <MenuItem value="name">Tên người dùng</MenuItem>
-                                <MenuItem value="createdAt">Ngày tạo</MenuItem>
+                                <MenuItem value="lastLogin">{t('admin.last_login')}</MenuItem>
+                                <MenuItem value="email">{t('auth.email')}</MenuItem>
+                                <MenuItem value="name">{t('admin.users')}</MenuItem>
+                                <MenuItem value="createdAt">{t('admin.created_at')}</MenuItem>
                             </Select>
                         </FormControl>
 
-                        <Tooltip title={sortOrder === 'desc' ? "Giảm dần" : "Tăng dần"}>
+                        <Tooltip title={sortOrder === 'desc' ? t('admin.sort_descending') : t('admin.sort_ascending')}>
                             <IconButton
                                 onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
                                 sx={{
@@ -381,7 +383,7 @@ export default function UsersManagementPage() {
                                 onClick={clearFilters}
                                 sx={{ ml: 'auto' }}
                             >
-                                Xóa bộ lọc
+                                {t('admin.clear_filters')}
                             </Button>
                         )}
                     </Box>
@@ -393,12 +395,12 @@ export default function UsersManagementPage() {
                             bgcolor: isDark ? '#18191a' : '#f0f2f5'
                         }}>
                             <TableRow>
-                                <TableCell>Người dùng</TableCell>
-                                <TableCell>Email</TableCell>
-                                <TableCell>Vai trò</TableCell>
-                                <TableCell>Trạng thái</TableCell>
-                                <TableCell>Đăng nhập cuối</TableCell>
-                                <TableCell align="right">Hành động</TableCell>
+                                <TableCell>{t('admin.users')}</TableCell>
+                                <TableCell>{t('auth.email')}</TableCell>
+                                <TableCell>{t('admin.role')}</TableCell>
+                                <TableCell>{t('admin.status')}</TableCell>
+                                <TableCell>{t('admin.last_login')}</TableCell>
+                                <TableCell align="right">{t('admin.actions')}</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -407,7 +409,7 @@ export default function UsersManagementPage() {
                                     <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                                         <CircularProgress size={32} />
                                         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                            Đang tải...
+                                            {t('common.loading')}
                                         </Typography>
                                     </TableCell>
                                 </TableRow>
@@ -415,7 +417,7 @@ export default function UsersManagementPage() {
                                 <TableRow>
                                     <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                                         <Typography variant="body2" color="text.secondary">
-                                            Không tìm thấy người dùng nào
+                                            {t('admin.no_users_found')}
                                         </Typography>
                                     </TableCell>
                                 </TableRow>

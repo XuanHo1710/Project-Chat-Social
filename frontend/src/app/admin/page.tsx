@@ -35,6 +35,7 @@ import { BarChart } from '@mui/x-charts/BarChart';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { adminService, RecentComment } from '@/services/admin.service';
 import { useSocket } from '@/contexts/SocketContext';
+import { useTranslation } from 'react-i18next';
 
 // --- Components ---
 
@@ -125,12 +126,11 @@ const StatCard = ({ title, value, icon, color, trend, trendValue, subtitle }: an
 
 export default function AdminDashboard() {
     const theme = useTheme();
-    const { user } = useAuthStore();
     const isDark = theme.palette.mode === 'dark';
+    const { user } = useAuthStore();
     const { socketNotification } = useSocket();
-
-    // State for real-time comments
     const [liveComments, setLiveComments] = useState<RecentComment[]>([]);
+    const { t } = useTranslation();
 
     // Listen for new comments via socket
     useEffect(() => {
@@ -201,34 +201,34 @@ export default function AdminDashboard() {
     // Stats from API or fallback
     const stats = [
         {
-            label: 'Tổng người dùng',
+            label: t('admin.total_users'),
             value: formatNumber(dashboardStats?.totalUsers),
             icon: <PeopleIcon fontSize="medium" />,
             color: '#1877f2',
             trend: true,
             trendValue: dashboardStats?.userChange || 0,
-            subtitle: `+${dashboardStats?.newUsersToday || 0} hôm nay`
+            subtitle: `+${dashboardStats?.newUsersToday || 0} ${t('time.today').replace('Today: ', '').replace('Hôm nay: ', '')}` // Hacky but works for now or use t('admin.new_today')
         },
         {
-            label: 'Tổng bài viết',
+            label: t('admin.total_posts'),
             value: formatNumber(dashboardStats?.totalPosts),
             icon: <ArticleIcon fontSize="medium" />,
             color: '#42b72a',
             trend: true,
             trendValue: 5,
-            subtitle: `+${dashboardStats?.newPostsToday || 0} hôm nay`
+            subtitle: `+${dashboardStats?.newPostsToday || 0} ${t('time.today').replace('Today: ', '').replace('Hôm nay: ', '')}`
         },
         {
-            label: 'Đang online',
+            label: t('admin.online'),
             value: dashboardStats?.onlineUsers?.toString() || '0',
             icon: <VisibilityIcon fontSize="medium" />,
             color: '#f7b928',
             trend: false,
             trendValue: 0,
-            subtitle: 'Người dùng hoạt động'
+            subtitle: t('admin.active_users')
         },
         {
-            label: 'Tổng tương tác',
+            label: t('admin.interactions'),
             value: formatNumber((dashboardStats?.totalComments || 0) + (dashboardStats?.totalReactions || 0)),
             icon: <TrendingUpIcon fontSize="medium" />,
             color: '#fa383e',
@@ -281,14 +281,14 @@ export default function AdminDashboard() {
                             mb: 1
                         }}
                     >
-                        Dashboard
+                        {t('admin.dashboard')}
                     </Typography>
                     <Typography variant="body1" color="text.secondary">
-                        Chào <strong>{user?.fullName || 'Admin'}</strong>, đây là tổng quan hệ thống hôm nay.
+                        {t('admin.welcome_admin', { name: user?.fullName || 'Admin' })}
                     </Typography>
                 </Box>
                 <Chip
-                    label={`Hôm nay: ${new Date().toLocaleDateString('vi-VN')}`}
+                    label={t('admin.today', { date: new Date().toLocaleDateString('vi-VN') })}
                     sx={{
                         fontWeight: 600,
                         borderRadius: 2,
@@ -344,10 +344,10 @@ export default function AdminDashboard() {
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                             <Box>
                                 <Typography variant="h6" fontWeight="700" color="text.primary">
-                                    Phân tích truy cập
+                                    {t('admin.traffic_analytics')}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                    Dữ liệu 7 ngày gần nhất
+                                    {t('admin.traffic_subtitle')}
                                 </Typography>
                             </Box>
                             <IconButton size="small" sx={{ bgcolor: isDark ? '#3a3b3c' : '#f0f2f5' }}>
@@ -366,7 +366,7 @@ export default function AdminDashboard() {
                                     {
                                         data: trafficData,
                                         area: true,
-                                        label: 'Lượt truy cập',
+                                        label: t('admin.visits'),
                                         color: '#1877f2',
                                         showMark: false,
                                         curve: "catmullRom",
@@ -374,7 +374,7 @@ export default function AdminDashboard() {
                                     {
                                         data: activeUsersData,
                                         area: true,
-                                        label: 'Người dùng active',
+                                        label: t('admin.active_users'),
                                         color: '#42b72a',
                                         showMark: false,
                                         curve: "catmullRom",
@@ -405,7 +405,7 @@ export default function AdminDashboard() {
                 }}>
                     <Paper sx={{ ...cardStyle, height: '100%' }}>
                         <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ mb: 3 }}>
-                            Tương tác cảm xúc
+                            {t('admin.emotion_interaction')}
                         </Typography>
                         <Box sx={{ display: 'flex', justifyContent: 'center', position: 'relative', mb: 3 }}>
                             <PieChart
@@ -440,7 +440,7 @@ export default function AdminDashboard() {
                                 <Typography variant="h4" fontWeight="800" color="text.primary">
                                     {emotionsData?.reduce((sum, e) => sum + e.count, 0)?.toLocaleString() || '0'}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">Tổng</Typography>
+                                <Typography variant="caption" color="text.secondary">{t('admin.total')}</Typography>
                             </Box>
                         </Box>
                         <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -473,7 +473,7 @@ export default function AdminDashboard() {
                     <Paper sx={{ ...cardStyle, height: '100%', maxWidth: 'max-content', minWidth: '100%' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                             <Typography variant="h6" fontWeight="700" color="text.primary">
-                                Bài viết theo tuần
+                                {t('admin.posts_weekly')}
                             </Typography>
                             <Chip
                                 size="small"
@@ -531,7 +531,7 @@ export default function AdminDashboard() {
                 }}>
                     <Paper sx={{ ...cardStyle, height: '100%' }}>
                         <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ mb: 3 }}>
-                            Trang được truy cập nhiều
+                            {t('admin.top_pages')}
                         </Typography>
                         {topPages.map((page, index) => (
                             <Box key={index} sx={{ mb: 2.5, '&:last-child': { mb: 0 } }}>
@@ -565,7 +565,7 @@ export default function AdminDashboard() {
                     <Paper sx={{ ...cardStyle, height: '600px', display: 'flex', flexDirection: 'column' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                             <Typography variant="h6" fontWeight="700" color="text.primary">
-                                Bình luận mới nhất
+                                {t('admin.recent_comments')}
                             </Typography>
                             <Chip
                                 label="🔴 Live"

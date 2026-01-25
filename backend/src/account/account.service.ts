@@ -57,20 +57,24 @@ export class AccountService {
     const relationships = await this.relationshipModel
       .find(
         {
-          $or: [
+          $and: [
             {
-              $and: [
-                { userId: me },
-                { $or: [{ status: 'ACCEPTED' }, { status: 'PENDING' }, { status: 'BLOCKED' }] },
-              ],
-            },
-            {
-              $and: [
-                { friendId: me },
-                { $or: [{ status: 'ACCEPTED' }, { status: 'PENDING' }, { status: 'BLOCKED' }] },
-              ],
-            },
-          ],
+              $or: [
+                {
+                  $and: [
+                    { userId: me },
+                    { $or: [{ status: 'ACCEPTED' }, { status: 'PENDING' }, { status: 'BLOCKED' }] },
+                  ],
+                },
+                {
+                  $and: [
+                    { friendId: me },
+                    { $or: [{ status: 'ACCEPTED' }, { status: 'PENDING' }, { status: 'BLOCKED' }] },
+                  ],
+                },
+              ]
+            }
+          ]
         },
         { userId: 1, friendId: 1 } // chỉ lấy field cần
       )
@@ -95,6 +99,7 @@ export class AccountService {
       this.accountModel
         .find({
           _id: { $nin: excludedIdsArray },
+          role: { $ne: 'BOT' },
           isDeleted: false,
           isActive: true,
         })

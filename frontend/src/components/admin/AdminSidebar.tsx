@@ -95,27 +95,6 @@ export default function AdminSidebar() {
                 </Box>
             </Box>
 
-            {/* User Mini Profile in Sidebar (Optional) */}
-            <Box sx={{ px: 3, mb: 2 }}>
-                <Box sx={{
-                    p: 2,
-                    borderRadius: 3,
-                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2
-                }}>
-                    <Avatar src={user?.avatar} sx={{ width: 40, height: 40, border: '2px solid white', boxShadow: 1 }} />
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="subtitle2" fontWeight="700" noWrap>
-                            {user?.fullName || 'Administrator'}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" display="block" noWrap>
-                            Super Admin
-                        </Typography>
-                    </Box>
-                </Box>
-            </Box>
 
             <Box sx={{ px: 2, overflow: 'auto', flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <List>

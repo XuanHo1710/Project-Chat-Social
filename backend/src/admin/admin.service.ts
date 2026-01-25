@@ -196,7 +196,7 @@ export class AdminService {
         const skip = (page - 1) * limit;
 
         // Build filter
-        const filter: any = { isDeleted: { $ne: true } };
+        const filter: any = { isDeleted: { $ne: true }, role: { $ne: 'BOT' } };
 
         if (status) {
             if (status === 'ACTIVE') filter.isBlocked = { $ne: true };

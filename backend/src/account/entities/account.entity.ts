@@ -77,7 +77,7 @@ export class Account {
   @Prop()
   password: string;
 
-  @Prop({ enum: ['USER', 'ADMIN', 'EMPLOYEE'], default: 'USER' })
+  @Prop({ enum: ['USER', 'ADMIN', 'EMPLOYEE', 'BOT'], default: 'USER' })
   role: string; //USER, ADMIN, EMPLOYEE
 
   @Prop()

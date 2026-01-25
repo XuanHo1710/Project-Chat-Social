@@ -193,6 +193,14 @@ export default function AdminDashboard() {
     // Traffic data from API or fallback
     const trafficData = trafficDataApi?.map(t => t.logins) || [];
     const activeUsersData = trafficDataApi?.map(t => t.activeUsers) || [];
+
+    // Visit stats calculation
+    const visitsToday = trafficDataApi?.[trafficDataApi.length - 1]?.logins || 0;
+    const visitsYesterday = trafficDataApi?.[trafficDataApi.length - 2]?.logins || 0;
+    const visitsChange = visitsYesterday > 0
+        ? Math.round(((visitsToday - visitsYesterday) / visitsYesterday) * 100)
+        : (visitsToday > 0 ? 100 : 0);
+
     const trafficLabels = trafficDataApi?.map(t => {
         const [y, m, d] = t.date.split('-'); // 1 số browser new Date() có thể lệch múi giờ, split safe hơn
         return `${d}/${m}`;
@@ -219,13 +227,13 @@ export default function AdminDashboard() {
             subtitle: `+${dashboardStats?.newPostsToday || 0} ${t('time.today').replace('Today: ', '').replace('Hôm nay: ', '')}`
         },
         {
-            label: t('admin.online'),
-            value: dashboardStats?.onlineUsers?.toString() || '0',
-            icon: <VisibilityIcon fontSize="medium" />,
+            label: `${t('admin.visits')} ${t('time.today').toLowerCase()}`,
+            value: formatNumber(visitsToday),
+            icon: <TrendingUpIcon fontSize="medium" />,
             color: '#f7b928',
-            trend: false,
-            trendValue: 0,
-            subtitle: t('admin.active_users')
+            trend: true,
+            trendValue: visitsChange,
+            subtitle: t('admin.traffic_analytics')
         },
         {
             label: t('admin.interactions'),

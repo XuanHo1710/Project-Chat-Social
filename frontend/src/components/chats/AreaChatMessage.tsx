@@ -41,6 +41,8 @@ import { MessagesResponse, MessageReadStatus } from "@/services/chat.service";
 // Type helpers for ID extraction
 type ObjectIdLike = string | { _id: string | ObjectIdLike } | { toString(): string };
 
+
+
 // Helper function to extract string ID from various formats
 function extractId(id: ObjectIdLike | null | undefined): string {
     if (!id) return '';

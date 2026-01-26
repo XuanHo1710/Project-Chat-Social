@@ -302,9 +302,6 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
             </Box>
         </Box>
     );
-
-
-
     // Language Settings Panel
     const LanguageSettingsPanel = () => (
         <Box>

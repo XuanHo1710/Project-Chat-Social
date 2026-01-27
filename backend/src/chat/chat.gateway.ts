@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -25,6 +25,7 @@ import { FirebaseService } from 'src/firebase/firebase.service';
 import { CommentService } from 'src/comment/comment.service';
 import { ReactionService } from 'src/reaction/reaction.service';
 import { TypeFactor } from 'src/reaction/entities/reaction.entity';
+import { ClientProxy } from '@nestjs/microservices';
 
 interface CallPayload {
   toUserId: string;
@@ -75,6 +76,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly httpService: HttpService,
     private readonly firebaseService: FirebaseService,
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
+    @Inject('RABBITMQ_SERVICE') private readonly rabbitMQService: ClientProxy,
     private readonly commentService: CommentService,
     private readonly reactionService: ReactionService
   ) { }
@@ -572,7 +574,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       // Fetch full user info for comment service and response
-      const user = await this.accountModel.findById(userId).select('firstName lastName avatar _id username');
+      const user = await this.accountModel
+        .findById(userId)
+        .select('firstName lastName avatar _id username');
       if (!user) {
         return { success: false, error: 'User not found' };
       }
@@ -822,139 +826,63 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       await this.handleEmitMessageToClient(savedMessage, data, conversation, userId);
 
-
+      // 4️⃣ Emit EVENT cho RabbitMQ (ASYNC processing - AI chatbot + FCM notification)
       // Determine if AI should reply
       const isChatbotConversation = conversation.type === 'CHATBOT';
       const isChatbotMentioned = data.content && data.content.includes('@[chatbot:');
 
+      let chatMessage = data.content || '';
+      let chatbotName = 'AI Assistant';
+
+      if (isChatbotMentioned && data.content) {
+        chatbotName = data.content.match(/@\[\w+:([^\]]+)\]/)?.[1] || 'Bot';
+        chatMessage = data.content.replace(/@\[\w+:([^\]]+)\]/, '').trim();
+      }
+
+      // Get sender profile for FCM notification
+      const senderProfile = await this.getSenderProfile(userId);
+
+      // Get offline participant IDs for FCM notification
+      const activeParticipants = conversation.participants.filter((p) => !p.kickedAt && !p.leftAt);
+      const offlineParticipantIds = activeParticipants
+        .filter((p) => {
+          const participantId = p.user._id.toString();
+          if (participantId === userId) return false; // Skip sender
+          const participantSockets = userSockets.get(participantId);
+          return !participantSockets || participantSockets.size === 0; // Only offline users
+        })
+        .map((p) => p.user._id.toString());
+
+      // Emit to RabbitMQ with all necessary data
+      this.rabbitMQService.emit('chat.message.created', {
+        messageId: savedMessage._id.toString(),
+        conversationId: data.conversationId.toString(),
+        senderId: userId,
+        content: savedMessage.content,
+        conversationType: conversation.type,
+        // AI chatbot data
+        isChatbotConversation,
+        isChatbotMentioned,
+        chatMessage,
+        chatbotName,
+        attachments: data.attachments,
+        // FCM notification data
+        participantIds: offlineParticipantIds,
+        senderName: senderProfile.name,
+        senderAvatar: senderProfile.avatar,
+      });
+
+      // Log for debugging
       if (isChatbotConversation || isChatbotMentioned) {
-        let chatMessage = data.content || '';
-        let chatbotName = 'AI Assistant';
+        this.logger.log(
+          `Chatbot request sent to RabbitMQ. Type: ${isChatbotConversation ? 'Conversation' : 'Mention'}. Message: ${chatMessage}`
+        );
+      }
 
-        if (isChatbotMentioned && data.content) {
-          chatbotName = data.content.match(/@\[\w+:([^\]]+)\]/)?.[1] || 'Bot';
-          chatMessage = data.content.replace(/@\[\w+:([^\]]+)\]/, '').trim(); // Remove mention tag from content
-        }
-
-        this.logger.log(`Chatbot triggered. Type: ${isChatbotConversation ? 'Conversation' : 'Mention'}. Message: ${chatMessage}`);
-
-        // Emit typing indicator for chatbot
-        this.server.to(`room:${data.conversationId}`).emit('chatbot:typing', {
-          conversationId: data.conversationId.toString(),
-          isTyping: true,
-        });
-
-        try {
-          // Fetch last 15 messages for chat history context
-          const recentMessages = await this.chatService.getRecentMessagesForContext(
-            data.conversationId.toString(),
-            15
-          );
-
-          // Format chat history for AI context (oldest first)
-          const chatHistory = recentMessages.reverse().map((msg: any) => ({
-            role: msg.type === 'CHATBOT' ? 'assistant' : 'user',
-            content: msg.content || '',
-            senderName: msg.senderId
-              ? `${msg.senderId.firstName} ${msg.senderId.lastName}`
-              : 'User',
-          }));
-
-          // Extract image URLs from current message attachments
-          const imageUrls: string[] = [];
-          if (data.attachments && data.attachments.length > 0) {
-            data.attachments.forEach((att) => {
-              if (att.mediaType === 'IMAGE' && att.url) {
-                imageUrls.push(att.url);
-              }
-            });
-          }
-
-          this.logger.log(
-            `Chat context: ${chatHistory.length} messages, ${imageUrls.length} images`
-          );
-
-          // Call AI server chat bot endpoint with POST to send chat history
-          const responseAPIAi: AxiosResponse<{
-            message: string;
-            response: string;
-            postIds?: string[];
-          }> = await firstValueFrom(
-            this.httpService.post(
-              `${this.aiServerUrl}/chat/bot`,
-              {
-                message: chatMessage,
-                chatHistory: chatHistory,
-                imageUrls: imageUrls,
-              },
-              { timeout: 120000 } // 2 min timeout for detailed vision analysis
-            )
-          );
-          this.logger.log('AI server response received');
-
-          // Stop typing indicator
-          this.server.to(`room:${data.conversationId}`).emit('chatbot:typing', {
-            conversationId: data.conversationId.toString(),
-            isTyping: false,
-          });
-
-          // Determine senderId for the bot message
-          let botSenderId = userId; // Default fallback (old behavior for group mentions)
-          if (isChatbotConversation) {
-            const botUser = await this.accountModel.findOne({ username: 'ai_assistant' });
-            if (botUser) botSenderId = botUser._id.toString();
-          }
-
-          // Prepare message data with optional postIds
-          const chatbotMessageData: any = {
-            conversationId: new Types.ObjectId(data.conversationId),
-            senderId: botSenderId as any, // Bot User ID for Chatbot conv, or User ID for mention
-            content: responseAPIAi.data.response,
-            type: MessageType.CHATBOT,
-          };
-
-          // Include postIdsRecommendationfromAI if AI suggested posts
-          if (responseAPIAi.data.postIds && responseAPIAi.data.postIds.length > 0) {
-            chatbotMessageData.postIdsRecommendationfromAI = responseAPIAi.data.postIds;
-            this.logger.log(
-              `Chatbot suggesting ${responseAPIAi.data.postIds.length} posts: ${responseAPIAi.data.postIds.join(', ')}`
-            );
-          }
-
-          // Save chatbot message
-          const savedMessageChatBot = await this.chatService.sendMessage(chatbotMessageData);
-
-          if (!savedMessageChatBot) {
-            return { success: false, error: 'Failed to save chatbot message' };
-          }
-
-          await this.handleEmitMessageToClient(savedMessageChatBot, data, conversation, userId);
-        } catch (aiError) {
-          this.logger.error('AI server error:', aiError);
-          // Stop typing indicator on error
-          this.server.to(`room:${data.conversationId}`).emit('chatbot:typing', {
-            conversationId: data.conversationId.toString(),
-            isTyping: false,
-          });
-
-          // Send error message as chatbot
-          // Same senderId logic
-          let botSenderId = userId;
-          if (isChatbotConversation) {
-            const botUser = await this.accountModel.findOne({ username: 'ai_assistant' });
-            if (botUser) botSenderId = botUser._id.toString();
-          }
-
-          const errorMessage = await this.chatService.sendMessage({
-            conversationId: data.conversationId,
-            senderId: botSenderId as any,
-            content: '⚠️ Xin lỗi, tôi đang gặp sự cố kỹ thuật. Vui lòng thử lại sau!',
-            type: MessageType.CHATBOT,
-          });
-          if (errorMessage) {
-            await this.handleEmitMessageToClient(errorMessage, data, conversation, userId);
-          }
-        }
+      if (offlineParticipantIds.length > 0) {
+        this.logger.log(
+          `FCM request sent to RabbitMQ for ${offlineParticipantIds.length} offline users`
+        );
       }
 
       return { success: true, message: savedMessage };
@@ -963,6 +891,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { success: false, error: 'Failed to save message' };
     }
   }
+
 
   async handleEmitMessageToClient(
     savedMessage: any,
@@ -993,28 +922,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       _unreadCount: updatedUnreadCount?.unreadCount, // Prefixed with _ to indicate metadata
     };
 
-
     // Kiểm tra xem user có bị restrict không
     // Chỉ dành cho conversation 1:1 DIRECT
     let isRestricted = false;
-    if (conversation.type === "DIRECT") {
-      const otherUserId = activeParticipants.find((p) => p.user._id.toString() !== userId)?.user._id.toString();
+    if (conversation.type === 'DIRECT') {
+      const otherUserId = activeParticipants
+        .find((p) => p.user._id.toString() !== userId)
+        ?.user._id.toString();
       const restrictedUsers = await this.relationshipService.getRestrictedUsers(otherUserId);
       isRestricted = restrictedUsers.length > 0;
     }
 
     messageWithUnread.isRestricted = isRestricted;
 
-
-
-
     activeParticipants.forEach(async (participant) => {
       const participantId = participant.user._id.toString();
       const participantSockets = userSockets.get(participantId);
       const messageWithMutedAndUnread = {
         ...messageWithUnread,
-        isMuted: conversation.mutedBy.includes(participantId) ? true : false
-      }
+        isMuted: conversation.mutedBy.includes(participantId) ? true : false,
+      };
 
       if (participantSockets && participantSockets.size > 0) {
         participantSockets.forEach((socketId) => {
@@ -1043,57 +970,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
     });
 
-    // LOGIC FIREBASE: Chỉ gửi notification khi user OFFLINE
-    // Khi user online, họ đã nhận được message:new qua socket rồi
-    for (const participant of activeParticipants) {
-      const participantId = participant.user._id.toString();
-
-      // Không gửi cho chính người gửi
-      if (participantId === userId) continue;
-
-      // Kiểm tra user có online không (có socket kết nối)
-      const participantSockets = userSockets.get(participantId);
-      const isOnline = participantSockets && participantSockets.size > 0;
-
-      // CHỈ gửi FCM khi user OFFLINE - tránh duplicate notification
-      if (isOnline) {
-        this.logger.log(`User ${participantId} is ONLINE, skipping FCM (will receive via socket)`);
-        continue;
-      }
-
-      // Kiểm tra xem user có mute conversation không
-      const isMuted = await this.conversationService.isConversationMuted(
-        data.conversationId.toString(),
-        participantId
-      );
-      if (isMuted) {
-        this.logger.log(
-          `User ${participantId} has muted conversation ${data.conversationId}, skipping FCM`
-        );
-        continue;
-      }
-
-      // User offline - gửi FCM notification
-      const userAccount = await this.accountModel.findById(participantId).select('fcmTokens');
-      if (userAccount && userAccount.fcmTokens && userAccount.fcmTokens.length > 0) {
-        const senderProfile = await this.getSenderProfile(userId);
-        const contentPreview = savedMessage.content || '[Hình ảnh/File]';
-
-        await this.firebaseService.sendToDevice(
-          userAccount.fcmTokens,
-          senderProfile.name,
-          contentPreview,
-          {
-            conversationId: data.conversationId.toString(),
-            messageId: savedMessage._id.toString(),
-            type: 'NEW_MESSAGE',
-            avatar: senderProfile.avatar,
-          }
-        );
-        this.logger.log(`FCM sent to offline user ${participantId}`);
-      }
-    }
+    // NOTE: FCM notifications are now handled asynchronously by RabbitMQ service
+    // This makes the message flow faster as we don't wait for FCM to complete
   }
+
 
   // ============ MESSAGE FEATURES ============
 

@@ -26,6 +26,7 @@ import { FirebaseService } from 'src/firebase/firebase.service';
 import { EmailModule } from './email/email.module';
 import { OtpModule } from './otp/otp.module';
 import { AdminModule } from './admin/admin.module';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 
 @Module({
@@ -58,6 +59,23 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     EmailModule,
     OtpModule,
     AdminModule,
+    ClientsModule.registerAsync([
+      {
+        name: 'RABBITMQ_SERVICE',
+        imports: [ConfigModule],
+        useFactory: async (configService: ConfigService) => ({
+          transport: Transport.RMQ,
+          options: {
+            urls: [configService.get<string>('RABBITMQ_URL')!],
+            queue: configService.get<string>('RABBITMQ_QUEUE_NAME')!,
+            queueOptions: {
+              durable: true,
+            },
+          },
+        }),
+        inject: [ConfigService],
+      },
+    ]),
   ],
   controllers: [AppController],
   providers: [
@@ -72,4 +90,4 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     FirebaseService,
   ],
 })
-export class AppModule { }
+export class AppModule {}

@@ -273,6 +273,26 @@ export class ChatService {
     return await this.messageModel.findById(id).exec();
   }
 
+  // Find message by ID with full population (for RabbitMQ AI response)
+  async findMessageById(id: string) {
+    return await this.messageModel
+      .findById(id)
+      .populate('senderId', 'firstName lastName _id avatar')
+      .populate({
+        path: 'replyTo',
+        populate: { path: 'senderId', select: 'firstName lastName _id' },
+      })
+      .populate({
+        path: 'postId',
+        populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+      })
+      .populate({
+        path: 'postIdsRecommendationfromAI',
+        populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+      })
+      .exec();
+  }
+
   // ============ MESSAGE FEATURES ============
 
   // 1. Chỉnh sửa tin nhắn (giới hạn 15 phút)

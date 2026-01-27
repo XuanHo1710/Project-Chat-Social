@@ -9,6 +9,7 @@ import { HashtagModule } from 'src/hashtag/hashtag.module';
 import { Reaction, ReactionSchema } from 'src/reaction/entities/reaction.entity';
 import { ReactionModule } from 'src/reaction/reaction.module';
 import { NotificationModule } from 'src/notification/notification.module';
+import { KafkaModule } from 'src/kafka/kafka.module';
 
 @Module({
   imports: [
@@ -21,9 +22,10 @@ import { NotificationModule } from 'src/notification/notification.module';
     HashtagModule,
     forwardRef(() => ReactionModule),
     NotificationModule,
+    KafkaModule,
   ],
   controllers: [CommentController],
   providers: [CommentService],
   exports: [CommentService],
 })
-export class CommentModule {}
+export class CommentModule { }

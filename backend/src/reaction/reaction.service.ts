@@ -16,6 +16,7 @@ import {
 import { Post, PostDocument } from 'src/post/entities/post.entity';
 import { Comment, CommentDocument } from 'src/comment/entities/comment.entity';
 import { NotificationEmitterService } from 'src/notification/notification-emitter.service';
+import { KafkaProducerService } from 'src/kafka/kafka-producer.service';
 
 @Injectable()
 export class ReactionService implements OnModuleInit {
@@ -25,7 +26,8 @@ export class ReactionService implements OnModuleInit {
     @InjectModel(Reaction.name) private reactionModel: Model<ReactionDocument>,
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
-    private readonly notificationEmitter: NotificationEmitterService
+    private readonly notificationEmitter: NotificationEmitterService,
+    private readonly kafkaProducer: KafkaProducerService
   ) { }
 
   async onModuleInit() {
@@ -70,13 +72,6 @@ export class ReactionService implements OnModuleInit {
       })
       .lean();
   }
-
-  /**
-   * Toggle reaction on any factor (post/comment/message)
-   * - If user hasn't reacted: add reaction
-   * - If user reacted with same type: remove reaction
-   * - If user reacted with different type: update reaction
-   */
 
   formatReactionTypeToVietnamese(type: ReactionType): string {
     switch (type) {
@@ -129,12 +124,14 @@ export class ReactionService implements OnModuleInit {
       userId: new Types.ObjectId(user._id),
     });
 
+    let result;
+
     if (existingReaction) {
       if (existingReaction.type === type) {
         // Same reaction type - remove it
         await this.reactionModel.findByIdAndDelete(existingReaction._id);
         const totalReacts = await this.updateFactorReactCount(factorId, typeFactor, -1);
-        return {
+        result = {
           action: 'removed',
           reaction: null,
           totalReacts: Math.max(0, totalReacts),
@@ -144,7 +141,7 @@ export class ReactionService implements OnModuleInit {
         await this.reactionModel.updateOne({ _id: existingReaction._id }, { type });
         const currentTotal = await this.getFactorReactCount(factorId, typeFactor);
         await this.sendNotificationForReaction(factorId, typeFactor, type, user);
-        return {
+        result = {
           action: 'updated',
           reaction: { ...existingReaction.toObject(), type },
           totalReacts: currentTotal,
@@ -162,7 +159,7 @@ export class ReactionService implements OnModuleInit {
         await reaction.save();
         const totalReacts = await this.updateFactorReactCount(factorId, typeFactor, 1);
         await this.sendNotificationForReaction(factorId, typeFactor, type, user);
-        return {
+        result = {
           action: 'added',
           reaction,
           totalReacts,
@@ -179,21 +176,34 @@ export class ReactionService implements OnModuleInit {
 
           if (currentReaction && currentReaction.type !== type) {
             await this.reactionModel.updateOne({ _id: currentReaction._id }, { type });
-            return {
+            result = {
               action: 'updated',
               reaction: { ...currentReaction.toObject(), type },
               totalReacts: currentTotal,
             };
+          } else {
+            result = {
+              action: 'exists',
+              reaction: currentReaction,
+              totalReacts: currentTotal,
+            };
           }
-          return {
-            action: 'exists',
-            reaction: currentReaction,
-            totalReacts: currentTotal,
-          };
+        } else {
+          throw error;
         }
-        throw error;
       }
     }
+
+    // Emit Kafka Event for AI/Newsfeed
+    if (typeFactor === TypeFactor.POST && result.action !== 'removed') {
+      this.kafkaProducer.emitPostLike(
+        user._id.toString(),
+        factorId,
+        type
+      ).catch(e => this.logger.warn(`Failed to emit Kafka interaction: ${e.message}`));
+    }
+
+    return result;
   }
 
   /**

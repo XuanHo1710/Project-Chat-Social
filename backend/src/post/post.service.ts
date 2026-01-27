@@ -10,6 +10,7 @@ import {
   MediaItem,
   LivestreamStatus,
 } from './entities/post.entity';
+import { UserFeed, UserFeedDocument } from './schemas/user-feed.schema';
 import { HashtagService } from 'src/hashtag/hashtag.service';
 import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
@@ -20,6 +21,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiVideoService } from 'src/common/services/api-video.service';
 import { NotificationEmitterService } from 'src/notification/notification-emitter.service';
 import { ConfigService } from '@nestjs/config';
+import { KafkaProducerService } from 'src/kafka/kafka-producer.service';
 interface ReactInfo {
   isReact: boolean;
   type: string | null;
@@ -42,7 +44,10 @@ export class PostService {
     private readonly httpService: HttpService,
     private apiVideoService: ApiVideoService,
     private notificationEmitter: NotificationEmitterService,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private kafkaProducer: KafkaProducerService,
+    @InjectModel(UserFeed.name)
+    private userFeedModel: Model<UserFeedDocument>,
   ) {
     this.aiServerUrl = this.configService.get<string>('AI_SERVER_URL') || '';
   }
@@ -166,6 +171,13 @@ export class PostService {
           savedPost._id.toString(),
           `${user.fullname || 'Ai đó'} đã chia sẻ bài viết của bạn.`,
         );
+
+        // Emit Kafka Interaction for AI Learning
+        this.kafkaProducer.emitInteractionPostShare(
+          createPostDto.userId,
+          createPostDto.sharedPostId,
+          savedPost._id.toString()
+        ).catch(err => console.warn('Kafka share error:', err));
       }
     }
 
@@ -178,10 +190,36 @@ export class PostService {
       populate: { path: 'userId', select: 'firstName lastName avatar username' },
     });
 
-    // Embed post to AI server (async, don't block response)
-    this.embedPostToAI(savedPost).catch(() => { });
+
+
+    // Emit Kafka event for newsfeed fan-out (async, don't block response)
+    // This will push the post to all followers' pre-computed feeds
+    this.emitPostCreatedToKafka(savedPost, createPostDto.userId).catch(() => { });
 
     return savedPost;
+  }
+
+  /**
+   * Emit post created event to Kafka for fan-out to followers
+   */
+  private async emitPostCreatedToKafka(post: PostDocument, authorId: string): Promise<void> {
+    try {
+      // Get follower IDs from relationship service (simplified - in real app you'd inject RelationshipService)
+      // For now, we'll emit without followerIds and let the kafka consumer handle fetching them
+      await this.kafkaProducer.emitPostCreated(
+        post._id.toString(),
+        authorId,
+        [], // Follower IDs will be fetched by Kafka consumer
+        {
+          content: post.content?.substring(0, 200),
+          privacy: post.privacy,
+          mediaType: post.media?.length > 0 ? (post.media[0] as any).type : undefined,
+          groupId: post.groupId?.toString(),
+        }
+      );
+    } catch (error) {
+      console.warn('Failed to emit post to Kafka:', error.message);
+    }
   }
 
   // Adding the method properly after constructor update
@@ -290,7 +328,78 @@ export class PostService {
     const currentUserObjId = new Types.ObjectId(currentUserId);
     const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
 
-    // Try to use AI server for recommendations (auto-detects LLM availability)
+    // 1. Try fetching from Pre-computed Kafka Feed (Fastest & Scalable)
+    try {
+      const userFeeds = await this.userFeedModel
+        .find({ userId: currentUserObjId, isHidden: false })
+        .sort({ score: -1, postCreatedAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean();
+
+      if (userFeeds.length > 0) {
+        const postIds = userFeeds.map((f) => f.postId);
+        const dataPosts = await this.postModel
+          .find({ _id: { $in: postIds }, isDeleted: false, isActive: true })
+          .populate('userId', 'firstName lastName avatar username')
+          .populate('groupId', 'name avatar privacy')
+          .populate({
+            path: 'sharedPostId',
+            populate: { path: 'userId', select: 'firstName lastName avatar username' },
+          })
+          .lean()
+          .exec();
+
+        const postMap = new Map(dataPosts.map((post) => [post._id.toString(), post]));
+
+        // Map back to guarantee order and attach scores
+        const sortedPosts = userFeeds
+          .map((feed) => {
+            const post = postMap.get(feed.postId.toString());
+            if (!post) return null;
+            return {
+              ...post,
+              aiScore: feed.score,
+              isRecommended: (feed as any).isRecommended || false
+            };
+          })
+          .filter((post) => post !== null);
+
+        // Reactions logic
+        const finalPostIds = sortedPosts.map((p) => p._id);
+        const finalPostIdStrings = finalPostIds.map((id) => id.toString());
+
+        const [userReactions, reactionsSummary] = await Promise.all([
+          this.reactionService.userReactions(finalPostIds, currentUserId),
+          this.reactionService.getPostsReactionsSummary(finalPostIdStrings, currentUserId),
+        ]);
+
+        const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
+
+        (sortedPosts as PostWithReactInfo[]).forEach((post) => {
+          const postIdStr = post._id.toString();
+          const r = reactionMap.get(postIdStr) as any;
+          const summary = reactionsSummary[postIdStr];
+
+          post.reactInfo = { isReact: !!r, type: r ? r.type : null };
+          (post as any).topReactions = summary?.topReactions || [];
+        });
+
+        // Get total count
+        const total = await this.userFeedModel.countDocuments({ userId: currentUserObjId, isHidden: false });
+
+        return {
+          data: sortedPosts as PostWithReactInfo[],
+          total,
+          page,
+          totalPages: Math.ceil(total / limit),
+        };
+      }
+    } catch (error) {
+      console.warn('Failed to fetch pre-computed feed:', error.message);
+    }
+
+    // 2. Fallback to Direct AI Server Call (Realtime Inference)
     try {
       const responseAPIAi: AxiosResponse<{
         posts: { post_id: string; score: number }[];
@@ -302,7 +411,7 @@ export class PostService {
             limit,
             page,
           },
-          timeout: 30000,
+          timeout: 10000, // Reduced timeout
         })
       );
 

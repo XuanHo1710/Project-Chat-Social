@@ -1,180 +1,181 @@
 # Hướng dẫn thiết lập Apache Kafka cho Project Chat Social
 
 ## 1. Giới thiệu
-Apache Kafka là một nền tảng event streaming phân tán, được thiết kế để xử lý dữ liệu realtime với băng thông cao và độ trễ thấp. Trong dự án, Kafka thích hợp cho:
-- Tracking hành vi người dùng (User activity tracking).
-- Hệ thống log tập trung.
-- Event sourcing.
-- Xử lý các luồng dữ liệu (Message stream processing).
+Apache Kafka là một nền tảng event streaming phân tán, được thiết kế để xử lý dữ liệu realtime với băng thông cao và độ trễ thấp. Trong dự án, Kafka được sử dụng cho:
+- **Newsfeed Fan-out**: Pre-compute feeds cho users (kiến trúc phổ biến nhất của Facebook, Twitter)
+- Tracking hành vi người dùng (User activity tracking)
+- Event sourcing và analytics
 
-## 2. Cài đặt Kafka (Sử dụng Docker)
+## 2. Kiến trúc Newsfeed với Kafka
 
-Việc cài đặt Kafka trực tiếp trên Windows khá phức tạp (yêu cầu Java, cấu hình môi trường...), do đó **Docker** là giải pháp tốt nhất. Dưới đây là cấu hình bao gồm: Zookeeper, Kafka Broker và Kafka UI để quản lý.
-
-### Bước 1: Tạo file cấu hình
-Tạo file `docker-compose.kafka.yml` tại thư mục gốc dự án:
-
-```yaml
-version: '3'
-services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.0
-    container_name: social-zookeeper
-    ports:
-      - "2181:2181"
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-
-  kafka:
-    image: confluentinc/cp-kafka:7.4.0
-    container_name: social-kafka
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Cấu hình để Kafka có thể truy cập từ ngoài container (localhost) và trong mạng Docker
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: social-kafka-ui
-    ports:
-      - "8080:8080"
-    depends_on:
-      - kafka
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+```
+┌─────────────────┐     ┌─────────────────┐     ┌───────────────────┐
+│    Backend      │────▶│      Kafka      │────▶│  Kafka Consumer   │
+│   (Producer)    │     │  (Event Broker) │     │   (Processor)     │
+└─────────────────┘     └─────────────────┘     └───────────────────┘
+       │                        │                        │
+       │                        │                        ▼
+       │                   Topics:               ┌───────────────────┐
+       │              - post-events              │  MongoDB (Feeds)  │
+       │              - user-interactions        │  user_feeds table │
+       │                                         └───────────────────┘
+       │
+       ▼
+ Khi user tạo post, emit event
+ đến Kafka với followerIds
 ```
 
-### Bước 2: Khởi chạy
-Chạy lệnh sau trong terminal:
+### Topics:
+- **post-events**: Khi posts được tạo, cập nhật, xóa
+- **user-interactions**: Khi users tương tác (like, comment, view, follow)
+
+### Schemas:
+- **UserFeed**: Pre-computed feed cho mỗi user (postId, authorId, score, timestamp)
+- **UserInteraction**: Lịch sử tương tác để analytics
+
+## 3. Cài đặt Kafka (Sử dụng Docker)
+
+### Bước 1: Di chuyển đến thư mục kafka-server
 ```bash
-docker-compose -f docker-compose.kafka.yml up -d
+cd kafka-server
+```
+
+### Bước 2: Khởi chạy Docker
+```bash
+docker compose up -d
 ```
 
 ### Bước 3: Kiểm tra
-- **Kafka UI**: Truy cập http://localhost:8080 để xem Dashboard quản lý Topic, Messages, Consumers.
+- **Kafka UI**: Truy cập http://localhost:8090 để xem Dashboard quản lý Topic, Messages, Consumers.
 - Nếu vào được giao diện và thấy status cluster là Online nghĩa là đã thành công.
 
 ---
 
-## 3. Tích hợp Kafka vào Backend (NestJS)
+## 4. Cấu hình Environment Variables
 
-### Bước 1: Cài đặt Dependencies
-Tại thư mục `backend`, chạy lệnh:
+### Backend (.env)
+```env
+KAFKA_BROKER=localhost:9092
+```
+
+### Kafka Server (.env)
+```env
+KAFKA_BROKER=localhost:9092
+MONGODB_URI=<your-mongodb-uri>
+PORT=3002
+```
+
+---
+
+## 5. Chạy Services
+
+### 1. Khởi động Kafka (Docker)
 ```bash
-npm install --save @nestjs/microservices kafkajs
+cd kafka-server
+docker compose up -d
 ```
 
-### Bước 2: Cấu hình Client (Producer)
-Đăng ký Module trong `app.module.ts`:
+### 2. Khởi động Kafka Consumer Service
+```bash
+cd kafka-server
+npm run start:dev
+```
+
+### 3. Khởi động Backend (đã có sẵn)
+```bash
+cd backend
+npm run start:dev
+```
+
+---
+
+## 6. Cấu trúc thư mục Kafka Server
+
+```
+kafka-server/
+├── src/
+│   ├── feed/
+│   │   ├── dto/
+│   │   │   └── feed-event.dto.ts       # DTOs cho events
+│   │   ├── schemas/
+│   │   │   ├── user-feed.schema.ts     # Schema pre-computed feed
+│   │   │   └── user-interaction.schema.ts  # Schema interaction tracking
+│   │   ├── feed.module.ts
+│   │   ├── feed.service.ts             # Logic fan-out, scoring
+│   │   └── feed-consumer.controller.ts # Kafka event handlers
+│   ├── app.module.ts
+│   └── main.ts                         # Kafka microservice config
+├── docker-compose.yml                  # Zookeeper + Kafka + Kafka UI
+└── .env
+```
+
+---
+
+## 7. Luồng hoạt động
+
+### Khi User tạo Post:
+1. **Backend**: `PostService.create()` emit event `post-events` với `POST_CREATED`
+2. **Kafka**: Nhận event và đẩy đến consumers
+3. **Kafka Consumer**: `FeedService.handlePostEvent()` fan-out post đến feeds của followers
+4. **MongoDB**: Lưu vào `user_feeds` collection
+
+### Khi User Like/Comment:
+1. **Backend**: Emit event `user-interactions` với type `POST_LIKE` / `POST_COMMENT`
+2. **Kafka Consumer**: 
+   - Lưu interaction vào `user_interactions` (analytics)
+   - Tăng score của post trong feeds (boost visibility)
+
+### Khi User mở Newsfeed:
+1. **Backend**: Query `user_feeds` với `userId`, sắp xếp theo `score` và `postCreatedAt`
+2. **Response**: Trả về danh sách posts đã pre-computed, siêu nhanh!
+
+---
+
+## 8. Backend Integration
+
+### KafkaProducerService
+File: `backend/src/kafka/kafka-producer.service.ts`
 
 ```typescript
-import { Module } from '@nestjs/common';
-import { ClientsModule, Transport } from '@nestjs/microservices';
+// Emit khi tạo post
+await this.kafkaProducer.emitPostCreated(
+  postId,
+  authorId,
+  followerIds,
+  { content, privacy, mediaType, groupId }
+);
 
-@Module({
-  imports: [
-    ClientsModule.register([
-      {
-        name: 'KAFKA_SERVICE',
-        transport: Transport.KAFKA,
-        options: {
-          client: {
-            clientId: 'social-backend',
-            brokers: ['localhost:9092'],
-          },
-          consumer: {
-            groupId: 'social-consumer-group',
-          },
-        },
-      },
-    ]),
-  ],
-})
-export class AppModule {}
+// Emit khi like
+await this.kafkaProducer.emitPostLike(userId, postId, reactionType);
+
+// Emit khi comment
+await this.kafkaProducer.emitPostComment(userId, postId, commentPreview);
+
+// Emit khi follow
+await this.kafkaProducer.emitUserFollow(userId, targetUserId);
 ```
 
-### Bước 3: Gửi tin nhắn (Producer)
-Trong Service hoặc Controller:
+---
 
-```typescript
-import { Injectable, Inject, OnModuleInit } from '@nestjs/common';
-import { ClientKafka } from '@nestjs/microservices';
+## 9. Lưu ý quan trọng
 
-@Injectable()
-export class AppService implements OnModuleInit {
-  constructor(@Inject('KAFKA_SERVICE') private readonly kafkaClient: ClientKafka) {}
-
-  async onModuleInit() {
-    // Đăng ký topic để client biết (bắt buộc với mô hình Request-Response)
-    this.kafkaClient.subscribeToResponseOf('topic_notification');
-    await this.kafkaClient.connect();
-  }
-
-  sendEvent() {
-    // Gửi Event (không cần phản hồi)
-    this.kafkaClient.emit('topic_notification', {
-      title: 'New Message',
-      content: 'Hello World',
-      userId: 123
-    });
-  }
-}
-```
-
-### Bước 4: Nhận tin nhắn (Consumer)
-Để nhận tin nhắn, bạn cần cấu hình `main.ts` để ứng dụng kết nối như một Microservice Kafka:
-
-**Trong `main.ts`:**
-```typescript
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  app.connectMicroservice({
-    transport: Transport.KAFKA,
-    options: {
-      client: {
-        brokers: ['localhost:9092'],
-      },
-      consumer: {
-        groupId: 'social-consumer-group',
-      },
-    },
-  });
-
-  await app.startAllMicroservices();
-  await app.listen(3000);
-}
-```
-
-**Trong Controller:**
-```typescript
-import { Controller } from '@nestjs/common';
-import { EventPattern, Payload } from '@nestjs/microservices';
-
-@Controller()
-export class AppController {
-  
-  @EventPattern('topic_notification')
-  handleNotification(@Payload() message: any) {
-    console.log('Kafka received:', message);
-    // Xử lý message...
-  }
-}
-```
-
-## 4. Lưu ý quan trọng
 - **Broker URL**: Khi chạy local (ngoài Docker), dùng `localhost:9092`. Nếu service backend cũng chạy trong Docker (cùng network), dùng `kafka:29092`.
-- **Kafka UI**: Rất hữu ích để debug, xem tin nhắn có thực sự được đẩy vào topic hay không.
+- **Kafka UI**: Truy cập http://localhost:8090 để debug, xem tin nhắn có được đẩy vào topic hay không.
+- **MongoDB Atlas**: Đảm bảo IP whitelist đúng nếu sử dụng cloud MongoDB.
+- **Graceful Shutdown**: Kafka consumer sẽ tự commit offset khi tắt service.
+
+---
+
+## 10. Troubleshooting
+
+### Kafka không khởi động được
+- Kiểm tra Docker Desktop đang chạy
+- Chạy `docker compose down` rồi `docker compose up -d` lại
+
+### Consumer không nhận được event
+- Kiểm tra topic đã được tạo trong Kafka UI
+- Xem logs: `docker logs social-kafka`
+
+### Connection refused
+- Đảm bảo `KAFKA_BROKER=localhost:9092` đúng
+- Kiểm tra port 9092 không bị firewall chặn

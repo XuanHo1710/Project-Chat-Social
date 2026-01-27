@@ -8,6 +8,7 @@ import { Post, PostSchema } from 'src/post/entities/post.entity';
 import { Comment, CommentSchema } from 'src/comment/entities/comment.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { AccountModule } from 'src/account/account.module';
+import { KafkaModule } from 'src/kafka/kafka.module';
 
 @Module({
   imports: [
@@ -18,9 +19,10 @@ import { AccountModule } from 'src/account/account.module';
     ]),
     NotificationModule,
     AccountModule,
+    KafkaModule,
   ],
   controllers: [ReactionController],
   providers: [ReactionService, ReactionGateway],
   exports: [ReactionService],
 })
-export class ReactionModule {}
+export class ReactionModule { }

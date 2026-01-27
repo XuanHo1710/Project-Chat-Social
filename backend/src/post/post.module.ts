@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { PostService } from './post.service';
 import { PostController } from './post.controller';
 import { Post, PostSchema } from './entities/post.entity';
+import { UserFeed, UserFeedSchema } from './schemas/user-feed.schema';
 import { HashtagModule } from 'src/hashtag/hashtag.module';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { ReactionModule } from 'src/reaction/reaction.module';
@@ -12,12 +13,14 @@ import { ApiVideoService } from 'src/common/services/api-video.service';
 import { ConfigModule } from '@nestjs/config';
 import { Notification } from 'src/notification/entities/notification.entity';
 import { NotificationModule } from 'src/notification/notification.module';
+import { KafkaModule } from 'src/kafka/kafka.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Post.name, schema: PostSchema },
       { name: Reaction.name, schema: ReactionSchema },
+      { name: UserFeed.name, schema: UserFeedSchema },
     ]),
     HashtagModule,
     CloudinaryModule,
@@ -25,9 +28,10 @@ import { NotificationModule } from 'src/notification/notification.module';
     HttpModule,
     ConfigModule,
     NotificationModule,
+    KafkaModule,
   ],
   controllers: [PostController],
   providers: [PostService, ApiVideoService],
   exports: [PostService],
 })
-export class PostModule {}
+export class PostModule { }

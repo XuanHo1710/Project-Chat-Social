@@ -24,6 +24,7 @@ from sentence_transformers import SentenceTransformer
 from pymongo import MongoClient
 from bson import ObjectId
 import numpy as np
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -66,6 +67,72 @@ class RecommendationService:
         self._collection = None
         self._model = None
         self._mongo_client = None
+        # IN-MEMORY CACHE
+        self.user_vectors_cache: Dict[str, np.ndarray] = {}
+        self.user_interaction_counts: Dict[str, int] = {}
+
+    def update_realtime_vector(self, user_id: str, post_id: str, interaction_type: str) -> bool:
+        """
+        ⚡ REAL-TIME VECTOR UPDATE
+        Called by Kafka Consumer -> API when user interact.
+        Updates user vector immediately in memory without DB query.
+        """
+        try:
+            # 1. Get post embedding
+            if not self.is_ready(): return False
+            
+            result = self.collection.get(ids=[post_id], include=["embeddings"])
+            embeddings = result.get('embeddings')
+            
+            # Explicit None check for Numpy safety
+            if embeddings is None or len(embeddings) == 0:
+                logger.warning(f"Post {post_id} not found for realtime update")
+                return False
+                
+            post_emb = np.array(embeddings[0])
+            weight = INTERACTION_WEIGHTS.get(interaction_type, 1.0)
+            
+            # 2. Get current user vector (from cache or DB)
+            current_vector = self.user_vectors_cache.get(user_id)
+            if current_vector is None:
+                # Cold start or cache miss: fetching from DB once
+                current_vector, count = self.get_user_vector(user_id)
+                if current_vector is None:
+                    # New user interaction
+                    current_vector = post_emb
+                    self.user_vectors_cache[user_id] = current_vector
+                    self.user_interaction_counts[user_id] = 1
+                    logger.info(f"⚡ User {user_id}: Init vector from realtime interaction")
+                    return True
+
+            # 3. Update Vector (Weighted Moving Average Strategy)
+            # Alpha controls how fast user preference changes (0.1 = slow, 0.5 = fast)
+            alpha = 0.3 
+            
+            # Normalize inputs
+            post_emb = post_emb / np.linalg.norm(post_emb)
+            
+            # Formula: NewVector = (1-alpha)*OldVector + alpha*(Weight * PostVector)
+            new_vector = (1 - alpha) * current_vector + alpha * (weight * post_emb)
+            
+            # Normalize result
+            norm = np.linalg.norm(new_vector)
+            if norm > 0:
+                new_vector = new_vector / norm
+                
+            # 4. Save to Cache
+            self.user_vectors_cache[user_id] = new_vector
+            self.user_interaction_counts[user_id] = self.user_interaction_counts.get(user_id, 0) + 1
+            
+            # 5. Persist to DB (for restart durability)
+            self._save_user_vector_to_db(user_id, new_vector, self.user_interaction_counts[user_id])
+            
+            logger.info(f"⚡ User {user_id}: Vector updated realtime & saved (Total: {self.user_interaction_counts[user_id]})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Realtime update error: {e}")
+            return False
     
     @property
     def collection(self):
@@ -111,24 +178,52 @@ class RecommendationService:
         return self.collection.count()
     
     # ========================================
-    # CORE: Lấy User Vector từ MongoDB interactions
+    # CORE: Lấy User Vector
     # ========================================
     def get_user_vector(self, user_id: str) -> Tuple[Optional[np.ndarray], int]:
         """
-        Lấy user preference vector từ MongoDB dựa trên TẤT CẢ interactions.
-        
-        Returns:
-            Tuple (user_vector, total_interactions)
-            - user_vector: None nếu không có interactions
-            - total_interactions: Số posts đã tương tác
+        Lấy preference vector. 
+        Ưu tiên 1: Memory Cache
+        Ưu tiên 2: Collection 'ai_user_vectors' (Pre-computed)
+        Fallback: Tính toán từ đầu (Migration only)
+        """
+        # 1. Cache HIT
+        if user_id in self.user_vectors_cache:
+            return self.user_vectors_cache[user_id], self.user_interaction_counts.get(user_id, 0)
+
+        # 2. Storage HIT (ai_user_vectors)
+        try:
+            db = self.mongo_client[DB_NAME]
+            stored_vector = db.ai_user_vectors.find_one({"user_id": user_id})
+            
+            if stored_vector and "vector" in stored_vector:
+                logger.info(f"💾 Loaded vector from DB for user {user_id}")
+                vector = np.array(stored_vector["vector"])
+                count = stored_vector.get("count", 0)
+                
+                # Update Cache
+                self.user_vectors_cache[user_id] = vector
+                self.user_interaction_counts[user_id] = count
+                return vector, count
+                
+        except Exception as e:
+            logger.error(f"Error loading user vector: {e}")
+
+        # 3. Fallback (Migration): Calculate from scratch ONCE and save
+        logger.warning(f"⚠️ User {user_id} vector missing. Building from raw interactions (MIGRATION)...")
+        return self._build_and_save_vector_from_scratch(user_id)
+
+    def _build_and_save_vector_from_scratch(self, user_id: str) -> Tuple[Optional[np.ndarray], int]:
+        """
+        Hàm này chỉ chạy 1 lần duy nhất khi User chưa có vector trong 'ai_user_vectors'.
+        Nó sẽ quét bảng reactions, tính toán, và LƯU vào 'ai_user_vectors'.
         """
         try:
             db = self.mongo_client[DB_NAME]
             user_oid = ObjectId(user_id)
-            
-            # Dict để track post_id -> max_weight (tránh duplicate)
             post_weights: Dict[str, float] = {}
             
+            # --- START RAW QUERY (ONLY RUN ONCE) ---
             # 1. REACTIONS
             reactions = db.reactions.find({
                 "userId": user_oid,
@@ -137,96 +232,92 @@ class RecommendationService:
             
             for r in reactions:
                 post_id = str(r.get('factorId', ''))
-                if not post_id:
-                    continue
-                reaction_type = r.get('type', 'LIKE')
-                weight = INTERACTION_WEIGHTS.get(reaction_type, 0.5)
-                # Lấy weight cao nhất nếu có nhiều reactions cho cùng post
+                if not post_id: continue
+                weight = INTERACTION_WEIGHTS.get(r.get('type', 'LIKE'), 0.5)
                 post_weights[post_id] = max(post_weights.get(post_id, 0), weight)
             
             # 2. COMMENTS
             comments = db.comments.find({"userId": user_oid}, {"postId": 1})
             for c in comments:
                 post_id = str(c.get('postId', ''))
-                if not post_id:
-                    continue
-                weight = INTERACTION_WEIGHTS["COMMENT"]
-                post_weights[post_id] = max(post_weights.get(post_id, 0), weight)
-            
-            # 3. SHARES (posts có sharedPostId)
-            shares = db.posts.find({
-                "userId": user_oid,
-                "sharedPostId": {"$exists": True, "$ne": None}
-            }, {"sharedPostId": 1})
-            
-            for s in shares:
-                shared_id = s.get('sharedPostId')
-                if not shared_id:
-                    continue
-                post_id = str(shared_id)
-                weight = INTERACTION_WEIGHTS["SHARE"]
-                post_weights[post_id] = max(post_weights.get(post_id, 0), weight)
+                if not post_id: continue
+                post_weights[post_id] = max(post_weights.get(post_id, 0), INTERACTION_WEIGHTS["COMMENT"])
+            # --- END RAW QUERY ---
             
             if not post_weights:
-                logger.info(f"👤 User {user_id}: Không có interactions")
                 return None, 0
-            
-            logger.info(f"👤 User {user_id}: Found {len(post_weights)} interacted posts")
-            
-            # Lấy embeddings từ ChromaDB (batch query)
+                
+            # Fetch embeddings
             post_ids = list(post_weights.keys())
             try:
                 result = self.collection.get(ids=post_ids, include=["embeddings"])
-            except Exception as e:
-                logger.warning(f"ChromaDB get error: {e}")
+            except: 
                 return None, 0
-            
+
             embeddings = result.get('embeddings')
-            ids = result.get('ids', [])
-            
-            # Check embeddings có tồn tại không (tránh numpy array truth value error)
-            if embeddings is None or len(embeddings) == 0:
-                logger.info(f"👤 User {user_id}: Không tìm thấy embeddings trong ChromaDB")
+            # Fix Numpy Ambiguous Error: Explicitly check None or len
+            if embeddings is None or len(embeddings) == 0: 
                 return None, 0
             
-            # Tính weighted average
+            # Calculate Weighted Average
             weighted_sum = None
             total_weight = 0.0
             found_count = 0
             
-            for i, pid in enumerate(ids):
-                if i >= len(embeddings):
-                    continue
-                emb_data = embeddings[i]
-                # Check nếu embedding là None hoặc empty
-                if emb_data is None or (hasattr(emb_data, '__len__') and len(emb_data) == 0):
-                    continue
-                    
-                weight = post_weights.get(pid, 1.0)
-                emb = np.array(emb_data)
-                
-                if weighted_sum is None:
-                    weighted_sum = emb * weight
-                else:
-                    weighted_sum += emb * weight
-                total_weight += abs(weight)
-                found_count += 1
+            ids_map = {id: i for i, id in enumerate(result['ids'])}
             
-            if weighted_sum is None or total_weight == 0:
+            for pid, weight in post_weights.items():
+                if pid in ids_map:
+                    idx = ids_map[pid]
+                    emb = np.array(embeddings[idx])
+                    
+                    # Fix Numpy check for None
+                    if weighted_sum is None: 
+                        weighted_sum = emb * weight
+                    else: 
+                        weighted_sum += emb * weight
+                    
+                    total_weight += abs(weight)
+                    found_count += 1
+            
+            # Fix Numpy check
+            if weighted_sum is None or total_weight == 0: 
                 return None, 0
             
-            # Normalize user vector
+            # Normalize
             user_vector = weighted_sum / total_weight
             norm = np.linalg.norm(user_vector)
-            if norm > 0:
-                user_vector = user_vector / norm
+            if norm > 0: user_vector = user_vector / norm
             
-            logger.info(f"✅ User {user_id}: {found_count} embeddings → user vector ready")
+            # SAVE TO PERSISTENT STORAGE
+            self._save_user_vector_to_db(user_id, user_vector, found_count)
+            
+            # Cache
+            self.user_vectors_cache[user_id] = user_vector
+            self.user_interaction_counts[user_id] = found_count
+            
             return user_vector, found_count
             
         except Exception as e:
-            logger.error(f"❌ get_user_vector error: {e}")
+            logger.error(f"Migration error: {e}")
             return None, 0
+
+    def _save_user_vector_to_db(self, user_id: str, vector: np.ndarray, count: int):
+        try:
+            db = self.mongo_client[DB_NAME]
+            db.ai_user_vectors.replace_one(
+                {"user_id": user_id},
+                {
+                    "user_id": user_id,
+                    "vector": vector.tolist(),
+                    "count": count,
+                    "last_updated": datetime.now()
+                },
+                upsert=True
+            )
+            logger.info(f"💾 Saved User {user_id} vector to 'ai_user_vectors'")
+        except Exception as e:
+            logger.error(f"Failed to save user vector: {e}")
     
     # ========================================
     # Privacy Filter
@@ -604,11 +695,13 @@ class RecommendationService:
         try:
             # Lấy embedding của post
             result = self.collection.get(ids=[post_id], include=["embeddings"])
-            if not result['embeddings'] or len(result['embeddings']) == 0:
+            embeddings = result.get('embeddings')
+            
+            if embeddings is None or len(embeddings) == 0:
                 logger.warning(f"Post {post_id} không tồn tại")
                 return [], 0
             
-            source_emb = result['embeddings'][0]
+            source_emb = embeddings[0]
             
             # Query similar posts
             n_results = min(100, self.collection.count())

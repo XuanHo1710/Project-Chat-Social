@@ -18,6 +18,7 @@ import { Reaction, ReactionDocument, TypeFactor } from 'src/reaction/entities/re
 import { ReactionService } from 'src/reaction/reaction.service';
 import { NotificationEmitterService } from 'src/notification/notification-emitter.service';
 import { NotificationGateway } from 'src/notification/notification.gateway';
+import { KafkaProducerService } from 'src/kafka/kafka-producer.service';
 
 interface CommentWithReactInfo extends Comment {
   reactInfo?: {
@@ -37,7 +38,8 @@ export class CommentService {
     @Inject(forwardRef(() => ReactionService))
     private reactionService: ReactionService,
     private notificationEmitter: NotificationEmitterService,
-    private notificationGateway: NotificationGateway
+    private notificationGateway: NotificationGateway,
+    private kafkaProducer: KafkaProducerService,
   ) { }
 
   async create(createCommentDto: CreateCommentDto, user: any) {
@@ -85,6 +87,13 @@ export class CommentService {
         user._id
       );
     }
+
+    // 🚀 NEW: Emit Kafka Interaction Event (For AI & Analytics)
+    this.kafkaProducer.emitPostComment(
+      user._id.toString(),
+      postId,
+      comment.content
+    ).catch(err => console.warn('Kafka Comment Emit Error:', err));
 
     // Emit notification for post owner (if not commenting on own post)
     await this.notificationEmitter.emitPostComment(

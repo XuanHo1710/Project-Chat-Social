@@ -374,6 +374,7 @@ async def embed_single_post(request: EmbedPostRequest):
 
 @router.delete("/embed/post/{post_id}")
 async def delete_post_embedding(post_id: str):
+    # ... (code cũ)
     """
     🗑️ Delete a post embedding from ChromaDB
     
@@ -396,6 +397,35 @@ async def delete_post_embedding(post_id: str):
     except Exception as e:
         logger.error(f"❌ Failed to delete post embedding {post_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete: {str(e)}")
+
+
+class InteractionRequest(BaseModel):
+    user_id: str
+    target_id: str  # post_id
+    interaction_type: str  # LIKE, COMMENT, SHARE, VIEW
+    metadata: Optional[dict] = {}
+
+@router.post("/interaction")
+async def track_interaction(request: InteractionRequest):
+    """
+    ⚡ Real-time Interaction Tracking
+    Called by Kafka Server to update user vector immediately.
+    """
+    service = get_recommendation_service()
+    if not service.is_ready():
+        return {"success": False, "message": "Server not ready"}
+        
+    # Mapping interaction type names if needed
+    # Kafka sends: POST_LIKE, POST_COMMENT
+    # Helper: clean type
+    itype = request.interaction_type.replace("POST_", "")
+    
+    success = service.update_realtime_vector(request.user_id, request.target_id, itype)
+    
+    return {
+        "success": success,
+        "message": "Vector updated" if success else "Update failed or post not found"
+    }
 
 
 @router.get("/status")

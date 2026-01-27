@@ -16,8 +16,7 @@ import { HashtagService } from 'src/hashtag/hashtag.service';
 import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 import { Reaction, ReactionDocument, TypeFactor } from 'src/reaction/entities/reaction.entity';
 import { ReactionService } from 'src/reaction/reaction.service';
-import { NotificationService } from 'src/notification/notification.service';
-import { NotificationType } from 'src/notification/entities/notification.entity';
+import { NotificationEmitterService } from 'src/notification/notification-emitter.service';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 
 interface CommentWithReactInfo extends Comment {
@@ -37,7 +36,7 @@ export class CommentService {
     private hashtagService: HashtagService,
     @Inject(forwardRef(() => ReactionService))
     private reactionService: ReactionService,
-    private notificationService: NotificationService,
+    private notificationEmitter: NotificationEmitterService,
     private notificationGateway: NotificationGateway
   ) { }
 
@@ -87,26 +86,26 @@ export class CommentService {
       );
     }
 
-    if (user._id !== post.userId.toString())
-      this.notificationService.create({
-        recipientId: post.userId.toString(),
-        senderId: user._id,
-        type: NotificationType.POST_COMMENTED,
-        title: 'New Comment',
-        message: `${user?.fullname || 'Someone'} đã bình luận: "${comment.content}" về bài viết của bạn`,
-        postId: postId,
-      });
+    // Emit notification for post owner (if not commenting on own post)
+    await this.notificationEmitter.emitPostComment(
+      post.userId.toString(),
+      user._id.toString(),
+      postId,
+      `${user?.fullname || 'Ai đó'} đã bình luận: "${comment.content}" về bài viết của bạn`,
+    );
+
+    // Emit notification for parent comment owner (if replying)
     if (parentId) {
       const parentComment = await this.commentModel.findById(parentId);
-      if (parentComment && user._id !== parentComment.userId.toString())
-        this.notificationService.create({
-          recipientId: parentComment.userId.toString(),
-          senderId: user._id,
-          type: NotificationType.COMMENT_REPLIED,
-          title: 'New Comment',
-          message: `${user?.fullname || 'Someone'} đã trả lời bình luận của bạn`,
-          postId: postId,
-        });
+      if (parentComment) {
+        await this.notificationEmitter.emitCommentReply(
+          parentComment.userId.toString(),
+          user._id.toString(),
+          postId,
+          parentId,
+          `${user?.fullname || 'Ai đó'} đã trả lời bình luận của bạn`,
+        );
+      }
     }
     // Increment post's comment count
     await this.postModel.findByIdAndUpdate(postId, {

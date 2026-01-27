@@ -18,8 +18,7 @@ import { HttpService } from '@nestjs/axios';
 import { AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { ApiVideoService } from 'src/common/services/api-video.service';
-import { NotificationService } from 'src/notification/notification.service';
-import { NotificationType } from 'src/notification/entities/notification.entity';
+import { NotificationEmitterService } from 'src/notification/notification-emitter.service';
 import { ConfigService } from '@nestjs/config';
 interface ReactInfo {
   isReact: boolean;
@@ -42,7 +41,7 @@ export class PostService {
     private cloudinaryService: CloudinaryService,
     private readonly httpService: HttpService,
     private apiVideoService: ApiVideoService,
-    private notificationService: NotificationService,
+    private notificationEmitter: NotificationEmitterService,
     private configService: ConfigService
   ) {
     this.aiServerUrl = this.configService.get<string>('AI_SERVER_URL') || '';
@@ -160,15 +159,13 @@ export class PostService {
     if (createPostDto.sharedPostId) {
       const postShared = await this.postModel.findById(createPostDto.sharedPostId);
       if (postShared) {
-        console.log('Creating share notification for user:', user);
-        this.notificationService.create({
-          recipientId: postShared.userId.toString(),
-          senderId: createPostDto.userId,
-          type: NotificationType.POST_SHARED,
-          title: 'New Share',
-          message: `${user.fullname || 'Someone'} đã chia sẻ bài viết của bạn.`,
-          postId: savedPost._id.toString(),
-        });
+        // Emit share notification via RabbitMQ
+        await this.notificationEmitter.emitPostShared(
+          postShared.userId.toString(),
+          createPostDto.userId,
+          savedPost._id.toString(),
+          `${user.fullname || 'Ai đó'} đã chia sẻ bài viết của bạn.`,
+        );
       }
     }
 
@@ -182,7 +179,7 @@ export class PostService {
     });
 
     // Embed post to AI server (async, don't block response)
-    this.embedPostToAI(savedPost).catch(() => {});
+    this.embedPostToAI(savedPost).catch(() => { });
 
     return savedPost;
   }
@@ -942,7 +939,7 @@ export class PostService {
 
     // Re-embed post to AI server if content changed
     if (updatePostDto.content !== undefined && updatedPost) {
-      this.embedPostToAI(updatedPost).catch(() => {});
+      this.embedPostToAI(updatedPost).catch(() => { });
     }
 
     return updatedPost!;
@@ -988,7 +985,7 @@ export class PostService {
       deletedAt: new Date(),
     });
 
-    this.deletePostEmbedding(id).catch(() => {});
+    this.deletePostEmbedding(id).catch(() => { });
 
     return { message: 'Post deleted successfully' };
   }

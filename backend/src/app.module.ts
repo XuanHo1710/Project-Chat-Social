@@ -27,6 +27,7 @@ import { EmailModule } from './email/email.module';
 import { OtpModule } from './otp/otp.module';
 import { AdminModule } from './admin/admin.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { RabbitMQEventsController } from 'src/notification/rabbitmq-events.controller';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 
 @Module({
@@ -77,7 +78,7 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
       },
     ]),
   ],
-  controllers: [AppController],
+  controllers: [AppController, RabbitMQEventsController],
   providers: [
     AppService,
     {
@@ -90,4 +91,4 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     FirebaseService,
   ],
 })
-export class AppModule {}
+export class AppModule { }

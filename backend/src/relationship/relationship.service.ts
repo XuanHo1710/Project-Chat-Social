@@ -9,14 +9,17 @@ import {
 import { Model, Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { Conversation, ConversationDocument } from 'src/conversation/entities/conversation.entity';
+import { NotificationEmitterService } from 'src/notification/notification-emitter.service';
 import { Account, AccountDocument } from 'src/account/entities/account.entity';
 
 @Injectable()
 export class RelationshipService {
   constructor(
     @InjectModel(Relationship.name) private readonly relationshipModel: Model<RelationshipDocument>,
-    @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>
-  ) {}
+    @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
+    @InjectModel(Account.name) private readonly accountModel: Model<AccountDocument>,
+    private readonly notificationEmitter: NotificationEmitterService
+  ) { }
 
   // Tạo lời mời kết bạn
   async addFriend(createRelationshipDto: CreateRelationshipDto) {
@@ -55,7 +58,19 @@ export class RelationshipService {
     createRelationshipDto.sendRequestAt = new Date();
 
     const relationship = new this.relationshipModel(createRelationshipDto);
-    return await relationship.save();
+    await relationship.save();
+
+    // Send notification to friend via RabbitMQ
+    const user = await this.accountModel.findById(createRelationshipDto.userId);
+    if (user) {
+      await this.notificationEmitter.emitFriendRequest(
+        createRelationshipDto.friendId.toString(),
+        createRelationshipDto.userId.toString(),
+        `${user.firstName} ${user.lastName} đã gửi lời mời kết bạn`,
+      );
+    }
+
+    return relationship;
   }
 
   // Chấp nhận lời mời kết bạn
@@ -108,6 +123,16 @@ export class RelationshipService {
     };
 
     const conversation = new this.conversationModel(dataConverstation);
+
+    // Send notification to requester via RabbitMQ
+    const acceptor = await this.accountModel.findById(friendId);
+    if (acceptor) {
+      await this.notificationEmitter.emitFriendAccepted(
+        userId, // Requester
+        friendId, // Accepter
+        `${acceptor.firstName} ${acceptor.lastName} đã chấp nhận lời mời kết bạn`,
+      );
+    }
 
     return await conversation.save();
   }

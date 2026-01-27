@@ -17,6 +17,7 @@ import {
 } from './entities/group-member.entity';
 import { CreateGroupDto, UpdateGroupDto } from './dto/group.dto';
 import { NotificationService } from 'src/notification/notification.service';
+import { NotificationEmitterService } from 'src/notification/notification-emitter.service';
 import { Account, AccountDocument } from 'src/account/entities/account.entity';
 import { GroupGateway } from './group.gateway';
 
@@ -28,6 +29,7 @@ export class GroupService {
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
     @Inject(forwardRef(() => NotificationService))
     private notificationService: NotificationService,
+    private notificationEmitter: NotificationEmitterService,
     private groupGateway: GroupGateway
   ) { }
 
@@ -499,6 +501,33 @@ export class GroupService {
       { $inc: { memberCount: 1 } }
     );
 
+    // Send notification approved via RabbitMQ
+    const group = await this.groupModel.findById(groupId);
+    if (group) {
+      await this.notificationEmitter.emitGroupRequestApproved(
+        targetUserId,
+        userId,
+        groupId,
+        `Yêu cầu tham gia nhóm "${group.name}" của bạn đã được chấp nhận.`,
+      );
+
+      // Emit new member event
+      const newMemberInfo = await this.accountModel
+        .findById(targetUserId)
+        .select('firstName lastName avatar')
+        .lean();
+      if (newMemberInfo) {
+        this.groupGateway.emitMemberCountUpdate(groupId, group.memberCount + 1);
+        this.groupGateway.emitNewMember(groupId, {
+          odId: targetUserId,
+          firstName: newMemberInfo.firstName,
+          lastName: newMemberInfo.lastName,
+          avatar: newMemberInfo.avatar,
+          role: GroupRole.MEMBER,
+        });
+      }
+    }
+
     return { message: 'Đã duyệt thành viên' };
   }
 
@@ -523,6 +552,17 @@ export class GroupService {
 
     if (result.deletedCount === 0) {
       throw new NotFoundException('Không tìm thấy yêu cầu tham gia');
+    }
+
+    // Send notification rejected via RabbitMQ
+    const group = await this.groupModel.findById(groupId);
+    if (group) {
+      await this.notificationEmitter.emitGroupRequestRejected(
+        targetUserId,
+        userId,
+        groupId,
+        `Yêu cầu tham gia nhóm "${group.name}" của bạn đã bị từ chối.`,
+      );
     }
 
     return { message: 'Đã từ chối yêu cầu tham gia' };
@@ -614,14 +654,20 @@ export class GroupService {
     targetMember.role = newRole;
     await targetMember.save();
 
-    // Send notification about role change if role actually changed
+    // Send notification about role change via RabbitMQ
     if (oldRole !== newRole && group) {
-      await this.notificationService.createRoleChangedNotification(
+      const roleNames: Record<string, string> = {
+        ADMIN: 'Quản trị viên',
+        MODERATOR: 'Người kiểm duyệt',
+        MEMBER: 'Thành viên',
+      };
+
+      await this.notificationEmitter.emitGroupRoleChanged(
         targetUserId,
+        userId,
         groupId,
-        group.name,
         newRole,
-        userId
+        `Bạn đã được thay đổi vai trò thành ${roleNames[newRole] || newRole} trong nhóm "${group.name}"`,
       );
 
       // Emit socket event for role update
@@ -722,15 +768,14 @@ export class GroupService {
     });
     await newMember.save();
 
-    // Send notification to invited user
+    // Send notification to invited user via RabbitMQ
     if (inviter && group) {
       const inviterName = `${inviter.firstName} ${inviter.lastName}`;
-      await this.notificationService.createGroupInvitationNotification(
-        userId,
+      await this.notificationEmitter.emitGroupInvitation(
         targetUserId,
+        userId,
         groupId,
-        group.name,
-        inviterName
+        `${inviterName} đã mời bạn tham gia nhóm "${group.name}"`,
       );
     }
 
@@ -819,12 +864,12 @@ export class GroupService {
       { $set: { role: GroupRole.MEMBER } }
     );
 
-    // Send notification to new owner
-    await this.notificationService.createOwnershipTransferredNotification(
+    // Send notification to new owner via RabbitMQ
+    await this.notificationEmitter.emitGroupOwnershipTransferred(
       newOwnerId,
       userId,
       groupId,
-      group.name
+      `Bạn đã được nhận quyền sở hữu nhóm "${group.name}"`,
     );
 
     // Emit socket event for ownership transfer

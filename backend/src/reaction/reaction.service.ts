@@ -15,8 +15,7 @@ import {
 } from './dto/create-reaction.dto';
 import { Post, PostDocument } from 'src/post/entities/post.entity';
 import { Comment, CommentDocument } from 'src/comment/entities/comment.entity';
-import { NotificationService } from 'src/notification/notification.service';
-import { NotificationType } from 'src/notification/entities/notification.entity';
+import { NotificationEmitterService } from 'src/notification/notification-emitter.service';
 
 @Injectable()
 export class ReactionService implements OnModuleInit {
@@ -26,8 +25,8 @@ export class ReactionService implements OnModuleInit {
     @InjectModel(Reaction.name) private reactionModel: Model<ReactionDocument>,
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
-    private readonly notificationService: NotificationService
-  ) {}
+    private readonly notificationEmitter: NotificationEmitterService
+  ) { }
 
   async onModuleInit() {
     // Auto-run migration on startup
@@ -231,8 +230,10 @@ export class ReactionService implements OnModuleInit {
     type: ReactionType,
     user: any
   ): Promise<void> {
-    // Implementation for sending notifications
+    // Implementation for sending notifications via RabbitMQ
     const id = new Types.ObjectId(factorId);
+    const userName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Ai đó';
+
     switch (typeFactor) {
       case TypeFactor.POST:
         const post = await this.postModel.findById(id);
@@ -241,38 +242,31 @@ export class ReactionService implements OnModuleInit {
         if (post.allowReactions === false) {
           throw new BadRequestException('Tương tác đã bị tắt cho bài viết này');
         }
-        if (post.userId.toString() !== user._id.toString()) {
-          this.notificationService.create({
-            recipientId: post.userId.toString(),
-            senderId: user._id,
-            type: NotificationType.POST_REACTED,
-            title: 'Reaction post',
-            message: `${user?.firstName + ' ' + user?.lastName || 'Someone'} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bài viết của bạn`,
-            postId: post._id.toString(),
-            typeReaction: this.formatReactionTypeToView(type),
-          });
-        }
-
+        // Emit notification event via RabbitMQ (will be aggregated)
+        await this.notificationEmitter.emitPostReaction(
+          post.userId.toString(),
+          user._id.toString(),
+          post._id.toString(),
+          this.formatReactionTypeToView(type),
+          `${userName} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bài viết của bạn`,
+        );
         break;
+
       case TypeFactor.COMMENT:
         const comment = await this.commentModel.findById(id);
         if (!comment) throw new NotFoundException('Comment not found');
-
-        if (comment.userId.toString() !== user._id.toString()) {
-          this.notificationService.create({
-            recipientId: comment.userId.toString(),
-            senderId: user._id,
-            type: NotificationType.COMMENT_REACTED,
-            title: 'Reaction comment',
-            message: `${user?.firstName + ' ' + user?.lastName || 'Someone'} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bình luận của bạn`,
-            commentId: comment._id.toString(),
-            postId: comment.postId.toString(),
-            typeReaction: this.formatReactionTypeToView(type),
-          });
-        }
+        // Emit notification event via RabbitMQ (will be aggregated)
+        await this.notificationEmitter.emitCommentReaction(
+          comment.userId.toString(),
+          user._id.toString(),
+          comment._id.toString(),
+          this.formatReactionTypeToView(type),
+          `${userName} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bình luận của bạn`,
+        );
         break;
+
       case TypeFactor.MESSAGE:
-        // TODO: Add message validation when Message model is available
+        // TODO: Add message notification when Message model is available
         break;
     }
   }

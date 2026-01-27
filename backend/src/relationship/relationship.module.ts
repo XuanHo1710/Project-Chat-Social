@@ -7,6 +7,7 @@ import { Account, AccountSchema } from 'src/account/entities/account.entity';
 import { Conversation, ConversationSchema } from 'src/conversation/entities/conversation.entity';
 import { RelationshipGateway } from 'src/relationship/relationship.gateway';
 import { AccountModule } from 'src/account/account.module';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -16,9 +17,10 @@ import { AccountModule } from 'src/account/account.module';
       { name: Conversation.name, schema: ConversationSchema },
     ]),
     AccountModule,
+    NotificationModule,
   ],
   controllers: [RelationshipController],
   providers: [RelationshipGateway, RelationshipService],
   exports: [RelationshipService],
 })
-export class RelationshipModule {}
+export class RelationshipModule { }

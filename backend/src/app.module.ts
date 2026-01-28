@@ -29,6 +29,7 @@ import { AdminModule } from './admin/admin.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { RabbitMQEventsController } from 'src/notification/rabbitmq-events.controller';
 import { KafkaModule } from './kafka/kafka.module';
+import { ThemeModule } from './theme/theme.module';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 
 @Module({
@@ -62,6 +63,7 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     OtpModule,
     AdminModule,
     KafkaModule,
+    ThemeModule,
     ClientsModule.registerAsync([
       {
         name: 'RABBITMQ_SERVICE',

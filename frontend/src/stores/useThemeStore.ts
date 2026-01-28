@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { Theme } from '@/services/theme.service';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type FontSize = 'normal' | 'compact';
@@ -10,10 +11,12 @@ interface ThemeState {
     mode: ThemeMode;
     fontSize: FontSize;
     actualTheme: 'light' | 'dark';
+    customTheme: Theme | null; // Added custom theme state
     _hasHydrated: boolean;
     setMode: (mode: ThemeMode) => void;
     setFontSize: (size: FontSize) => void;
     setActualTheme: (theme: 'light' | 'dark') => void;
+    setCustomTheme: (theme: Theme | null) => void; // Added action
     setHasHydrated: (state: boolean) => void;
 }
 
@@ -34,6 +37,7 @@ export const useThemeStore = create<ThemeState>()(
             mode: 'light',
             fontSize: 'normal',
             actualTheme: 'light',
+            customTheme: null,
             _hasHydrated: false,
 
             setMode: (mode: ThemeMode) => {
@@ -49,6 +53,10 @@ export const useThemeStore = create<ThemeState>()(
                 set({ actualTheme });
             },
 
+            setCustomTheme: (customTheme: Theme | null) => {
+                set({ customTheme });
+            },
+
             setHasHydrated: (_hasHydrated: boolean) => {
                 set({ _hasHydrated });
             },
@@ -56,11 +64,12 @@ export const useThemeStore = create<ThemeState>()(
         {
             name: 'theme-storage',
             storage: createJSONStorage(() => localStorage),
-            // Persist both mode and actualTheme
+            // Persist both mode, actualTheme and customTheme
             partialize: (state) => ({
                 mode: state.mode,
                 fontSize: state.fontSize,
-                actualTheme: state.actualTheme
+                actualTheme: state.actualTheme,
+                customTheme: state.customTheme
             }),
             onRehydrateStorage: () => (state) => {
                 if (state) {

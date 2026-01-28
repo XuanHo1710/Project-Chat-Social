@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Paper,
@@ -22,7 +22,10 @@ import {
     Chip,
     Tooltip,
     Switch,
-    FormControlLabel
+    FormControlLabel,
+    CircularProgress,
+    Alert,
+    Snackbar
 } from '@mui/material';
 import {
     Add as AddIcon,
@@ -35,95 +38,66 @@ import {
     LightMode as LightModeIcon
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
-
-// Mock themes data
-const mockThemes = [
-    {
-        id: 1,
-        name: 'Facebook Classic',
-        primaryColor: '#1877f2',
-        secondaryColor: '#42b72a',
-        bgDark: '#18191a',
-        bgLight: '#f0f2f5',
-        isActive: true,
-        isDefault: true
-    },
-    {
-        id: 2,
-        name: 'Ocean Blue',
-        primaryColor: '#0077b6',
-        secondaryColor: '#00b4d8',
-        bgDark: '#1a1d29',
-        bgLight: '#e8f4f8',
-        isActive: false,
-        isDefault: false
-    },
-    {
-        id: 3,
-        name: 'Purple Galaxy',
-        primaryColor: '#7c3aed',
-        secondaryColor: '#a855f7',
-        bgDark: '#1e1b2e',
-        bgLight: '#f3e8ff',
-        isActive: false,
-        isDefault: false
-    },
-    {
-        id: 4,
-        name: 'Forest Green',
-        primaryColor: '#059669',
-        secondaryColor: '#10b981',
-        bgDark: '#1a2e1a',
-        bgLight: '#ecfdf5',
-        isActive: false,
-        isDefault: false
-    },
-    {
-        id: 5,
-        name: 'Sunset Orange',
-        primaryColor: '#ea580c',
-        secondaryColor: '#f97316',
-        bgDark: '#2e1a1a',
-        bgLight: '#fff7ed',
-        isActive: false,
-        isDefault: false
-    },
-];
+import { themeService, Theme, CreateThemeDto } from '@/services/theme.service';
 
 interface ThemeFormData {
     name: string;
     primaryColor: string;
     secondaryColor: string;
-    bgDark: string;
-    bgLight: string;
+    bgDarkMode: string;
+    bgLightMode: string;
 }
 
 export default function ThemesManagementPage() {
     const theme = useTheme();
     const { t } = useTranslation();
     const isDark = theme.palette.mode === 'dark';
-    const [themes, setThemes] = useState(mockThemes);
+
+    // State
+    const [themes, setThemes] = useState<Theme[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
-    const [editingTheme, setEditingTheme] = useState<any>(null);
+    const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-    const [themeToDelete, setThemeToDelete] = useState<any>(null);
+    const [themeToDelete, setThemeToDelete] = useState<Theme | null>(null);
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+
     const [formData, setFormData] = useState<ThemeFormData>({
         name: '',
         primaryColor: '#1877f2',
         secondaryColor: '#42b72a',
-        bgDark: '#18191a',
-        bgLight: '#f0f2f5'
+        bgDarkMode: '#18191a',
+        bgLightMode: '#f0f2f5'
     });
 
-    const handleOpenDialog = (themeItem?: any) => {
+    // Fetch themes
+    const fetchThemes = async () => {
+        try {
+            setLoading(true);
+            const response = await themeService.getAllThemes();
+            setThemes(response.data);
+        } catch (err) {
+            console.error('Failed to fetch themes:', err);
+            setError('Failed to load themes');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchThemes();
+    }, []);
+
+    const handleOpenDialog = (themeItem?: Theme) => {
         if (themeItem) {
             setEditingTheme(themeItem);
             setFormData({
                 name: themeItem.name,
                 primaryColor: themeItem.primaryColor,
                 secondaryColor: themeItem.secondaryColor,
-                bgDark: themeItem.bgDark,
-                bgLight: themeItem.bgLight
+                bgDarkMode: themeItem.bgDarkMode,
+                bgLightMode: themeItem.bgLightMode
             });
         } else {
             setEditingTheme(null);
@@ -131,8 +105,8 @@ export default function ThemesManagementPage() {
                 name: '',
                 primaryColor: '#1877f2',
                 secondaryColor: '#42b72a',
-                bgDark: '#18191a',
-                bgLight: '#f0f2f5'
+                bgDarkMode: '#18191a',
+                bgLightMode: '#f0f2f5'
             });
         }
         setOpenDialog(true);
@@ -143,37 +117,68 @@ export default function ThemesManagementPage() {
         setEditingTheme(null);
     };
 
-    const handleSave = () => {
-        if (editingTheme) {
-            setThemes(themes.map(t => t.id === editingTheme.id ? { ...t, ...formData } : t));
-        } else {
-            const newTheme = {
-                id: Date.now(),
-                ...formData,
-                isActive: false,
-                isDefault: false
-            };
-            setThemes([...themes, newTheme]);
+    const handleSave = async () => {
+        try {
+            if (editingTheme) {
+                await themeService.updateTheme(editingTheme._id, formData);
+                setSnackbar({ open: true, message: 'Theme updated successfully', severity: 'success' });
+            } else {
+                await themeService.createTheme(formData);
+                setSnackbar({ open: true, message: 'Theme created successfully', severity: 'success' });
+            }
+            await fetchThemes();
+            handleCloseDialog();
+        } catch (err) {
+            console.error('Failed to save theme:', err);
+            setSnackbar({ open: true, message: 'Failed to save theme', severity: 'error' });
         }
-        handleCloseDialog();
     };
 
-    const handleSetActive = (id: number) => {
-        setThemes(themes.map(t => ({ ...t, isActive: t.id === id })));
+    const handleSetActive = async (id: string, currentActive: boolean) => {
+        if (currentActive) return;
+        try {
+            await themeService.setActiveTheme(id);
+            setSnackbar({ open: true, message: 'Theme applied successfully', severity: 'success' });
+            await fetchThemes();
+            // Force reload or trigger global theme update event if needed
+            window.location.reload(); // Simple way to ensure theme applies globally if context doesn't auto-update
+        } catch (err) {
+            console.error('Failed to set active theme:', err);
+            setSnackbar({ open: true, message: 'Failed to apply theme', severity: 'error' });
+        }
     };
 
-    const handleDeleteClick = (themeItem: any) => {
+    const handleDeleteClick = (themeItem: Theme) => {
         setThemeToDelete(themeItem);
         setDeleteConfirmOpen(true);
     };
 
-    const handleConfirmDelete = () => {
+    const handleConfirmDelete = async () => {
         if (themeToDelete) {
-            setThemes(themes.filter(t => t.id !== themeToDelete.id));
+            try {
+                await themeService.deleteTheme(themeToDelete._id);
+                setSnackbar({ open: true, message: 'Theme deleted successfully', severity: 'success' });
+                await fetchThemes();
+            } catch (err) {
+                console.error('Failed to delete theme:', err);
+                setSnackbar({ open: true, message: 'Failed to delete theme', severity: 'error' });
+            }
         }
         setDeleteConfirmOpen(false);
         setThemeToDelete(null);
     };
+
+    const handleCloseSnackbar = () => {
+        setSnackbar({ ...snackbar, open: false });
+    };
+
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
 
     return (
         <Box>
@@ -201,7 +206,7 @@ export default function ThemesManagementPage() {
             }}>
                 {themes.map((themeItem) => (
                     <Card
-                        key={themeItem.id}
+                        key={themeItem._id}
                         sx={{
                             borderRadius: 3,
                             bgcolor: isDark ? '#242526' : '#ffffff',
@@ -221,7 +226,7 @@ export default function ThemesManagementPage() {
                         {/* Theme Preview */}
                         <Box sx={{
                             height: 120,
-                            background: `linear-gradient(135deg, ${themeItem.bgDark} 50%, ${themeItem.bgLight} 50%)`,
+                            background: `linear-gradient(135deg, ${themeItem.bgDarkMode} 50%, ${themeItem.bgLightMode} 50%)`,
                             position: 'relative',
                             borderRadius: '12px 12px 0 0'
                         }}>
@@ -271,22 +276,6 @@ export default function ThemesManagementPage() {
                                     }}
                                 />
                             )}
-
-                            {/* Default badge */}
-                            {themeItem.isDefault && (
-                                <Chip
-                                    label={t('admin.default')}
-                                    size="small"
-                                    sx={{
-                                        position: 'absolute',
-                                        top: 12,
-                                        left: 12,
-                                        bgcolor: 'rgba(255,255,255,0.9)',
-                                        color: themeItem.primaryColor,
-                                        fontWeight: 600
-                                    }}
-                                />
-                            )}
                         </Box>
 
                         <CardContent>
@@ -296,13 +285,13 @@ export default function ThemesManagementPage() {
                             <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
                                 <Chip
                                     icon={<DarkModeIcon sx={{ fontSize: 14 }} />}
-                                    label={themeItem.bgDark}
+                                    label={themeItem.bgDarkMode}
                                     size="small"
                                     sx={{ fontSize: '0.7rem' }}
                                 />
                                 <Chip
                                     icon={<LightModeIcon sx={{ fontSize: 14 }} />}
-                                    label={themeItem.bgLight}
+                                    label={themeItem.bgLightMode}
                                     size="small"
                                     sx={{ fontSize: '0.7rem' }}
                                 />
@@ -315,7 +304,7 @@ export default function ThemesManagementPage() {
                                     size="small"
                                     variant="outlined"
                                     startIcon={<PaletteIcon />}
-                                    onClick={() => handleSetActive(themeItem.id)}
+                                    onClick={() => handleSetActive(themeItem._id, themeItem.isActive)}
                                     sx={{ borderColor: themeItem.primaryColor, color: themeItem.primaryColor }}
                                 >
                                     {t('admin.apply')}
@@ -333,17 +322,15 @@ export default function ThemesManagementPage() {
                                         <EditIcon fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
-                                {!themeItem.isDefault && (
-                                    <Tooltip title="Delete">
-                                        <IconButton
-                                            size="small"
-                                            color="error"
-                                            onClick={() => handleDeleteClick(themeItem)}
-                                        >
-                                            <DeleteIcon fontSize="small" />
-                                        </IconButton>
-                                    </Tooltip>
-                                )}
+                                <Tooltip title="Delete">
+                                    <IconButton
+                                        size="small"
+                                        color="error"
+                                        onClick={() => handleDeleteClick(themeItem)}
+                                    >
+                                        <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
                             </Stack>
                         </CardActions>
                     </Card>
@@ -417,14 +404,14 @@ export default function ThemesManagementPage() {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <input
                                         type="color"
-                                        value={formData.bgDark}
-                                        onChange={(e) => setFormData({ ...formData, bgDark: e.target.value })}
+                                        value={formData.bgDarkMode}
+                                        onChange={(e) => setFormData({ ...formData, bgDarkMode: e.target.value })}
                                         style={{ width: 50, height: 40, border: 'none', borderRadius: 8, cursor: 'pointer' }}
                                     />
                                     <TextField
                                         size="small"
-                                        value={formData.bgDark}
-                                        onChange={(e) => setFormData({ ...formData, bgDark: e.target.value })}
+                                        value={formData.bgDarkMode}
+                                        onChange={(e) => setFormData({ ...formData, bgDarkMode: e.target.value })}
                                         sx={{ flex: 1 }}
                                     />
                                 </Box>
@@ -437,14 +424,14 @@ export default function ThemesManagementPage() {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <input
                                         type="color"
-                                        value={formData.bgLight}
-                                        onChange={(e) => setFormData({ ...formData, bgLight: e.target.value })}
+                                        value={formData.bgLightMode}
+                                        onChange={(e) => setFormData({ ...formData, bgLightMode: e.target.value })}
                                         style={{ width: 50, height: 40, border: 'none', borderRadius: 8, cursor: 'pointer' }}
                                     />
                                     <TextField
                                         size="small"
-                                        value={formData.bgLight}
-                                        onChange={(e) => setFormData({ ...formData, bgLight: e.target.value })}
+                                        value={formData.bgLightMode}
+                                        onChange={(e) => setFormData({ ...formData, bgLightMode: e.target.value })}
                                         sx={{ flex: 1 }}
                                     />
                                 </Box>
@@ -459,7 +446,7 @@ export default function ThemesManagementPage() {
                             <Box sx={{
                                 height: 80,
                                 borderRadius: 2,
-                                background: `linear-gradient(135deg, ${formData.bgDark} 50%, ${formData.bgLight} 50%)`,
+                                background: `linear-gradient(135deg, ${formData.bgDarkMode} 50%, ${formData.bgLightMode} 50%)`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -510,6 +497,17 @@ export default function ThemesManagementPage() {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 }

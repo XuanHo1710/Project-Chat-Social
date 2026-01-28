@@ -44,6 +44,7 @@ interface Particle {
 
 const SocialParticles = () => {
   const [particles, setParticles] = useState<Particle[]>([]);
+  const theme = useTheme();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -51,7 +52,7 @@ const SocialParticles = () => {
       key: i,
       width: Math.random() * 6 + 2,
       height: Math.random() * 6 + 2,
-      color: ['#1877f2', '#42b72a', '#e91e63', '#9c27b0', '#ffeb3b'][Math.floor(Math.random() * 5)],
+      color: [theme.palette.primary.main, theme.palette.secondary.main, '#e91e63', '#9c27b0', '#ffeb3b'][Math.floor(Math.random() * 5)],
       shadow: Math.random() * 10 + 5,
       initialX: Math.random() * window.innerWidth,
       initialY: Math.random() * window.innerHeight,
@@ -69,7 +70,7 @@ const SocialParticles = () => {
       ]
     }));
     setParticles(newParticles);
-  }, []);
+  }, [theme.palette.primary.main, theme.palette.secondary.main]);
 
   return (
     <Box sx={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
@@ -217,10 +218,10 @@ export default function SigninPage() {
               variant="h1"
               fontWeight={900}
               sx={{
-                background: 'linear-gradient(to right, #1877f2, #00c6ff)',
+                background: `linear-gradient(to right, ${theme.palette.primary.main}, ${theme.palette.secondary.main || '#00c6ff'})`, // Dynamic gradient
                 backgroundClip: 'text',
                 textFillColor: 'transparent',
-                textShadow: '0 4px 30px rgba(24, 119, 242, 0.4)',
+                textShadow: `0 4px 30px ${theme.palette.primary.main}66`,
                 mb: 2,
                 fontSize: '4.5rem',
                 letterSpacing: '-2px'
@@ -272,7 +273,7 @@ export default function SigninPage() {
             }}
           >
             <Box sx={{ mb: 4, textAlign: 'center', display: { md: 'none' } }}>
-              <Typography variant="h4" fontWeight={800} sx={{ color: "#1877f2" }}>Social Chat</Typography>
+              <Typography variant="h4" fontWeight={800} sx={{ color: theme.palette.primary.main }}>Social Chat</Typography>
             </Box>
 
             <Stack alignItems="center" sx={{ mb: 3 }}>
@@ -362,10 +363,10 @@ export default function SigninPage() {
                     fontSize: '1.2rem',
                     textTransform: 'none',
                     borderRadius: 1.5,
-                    bgcolor: '#1877f2', // Blue as requested
-                    boxShadow: '0 4px 12px rgba(24, 119, 242, 0.4)',
+                    bgcolor: theme.palette.primary.main,
+                    boxShadow: `0 4px 12px ${theme.palette.primary.main}66`,
                     '&:hover': {
-                      bgcolor: '#166fe5',
+                      bgcolor: theme.palette.primary.dark,
                     }
                   }}
                 >

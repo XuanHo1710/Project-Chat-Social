@@ -53,9 +53,9 @@ export default function AdminSidebar({ mobileOpen = false, onMobileClose }: Admi
 
     const router = useRouter();
     const { logout } = useAuthStore();
-    const { themeColor } = useSettingsStore();
+    // Use theme palette for active color instead of local settings store
     const { t } = useTranslation();
-    const activeColor = THEME_COLORS[themeColor];
+    const activeColor = theme.palette.primary.main; // Dynamic from ThemeProvider
     const menuItems = getMenuItems(t);
     const isDark = theme.palette.mode === 'dark';
 

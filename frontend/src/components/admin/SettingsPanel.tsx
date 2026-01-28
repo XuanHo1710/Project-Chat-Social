@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Drawer,
     Box,
@@ -11,7 +11,8 @@ import {
     Divider,
     Button,
     useTheme,
-    alpha
+    alpha,
+    Tooltip
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -24,6 +25,9 @@ import {
 } from '@mui/icons-material';
 import { useSettingsStore, THEME_COLORS, ThemeColor } from '@/stores/useSettingsStore';
 import { useTranslation } from 'react-i18next';
+import { themeService, Theme } from '@/services/theme.service';
+import { useThemeStore } from '@/stores/useThemeStore';
+import { toast } from 'sonner';
 
 interface SettingsPanelProps {
     open: boolean;
@@ -33,13 +37,53 @@ interface SettingsPanelProps {
 export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     const theme = useTheme();
     const { t, i18n } = useTranslation();
+
+    // Admin settings store (local UI preferences)
     const {
-        themeColor, setThemeColor,
         fontSize, setFontSize,
         compactMode, toggleCompactMode,
         enableMotion, toggleMotion,
-        language, setLanguage
+        language, setLanguage,
+        // We might not need setThemeColor anymore if we rely on global theme, 
+        // but keeping it for backward compat if needed or removing it from UI
     } = useSettingsStore();
+
+    // Global theme store (colors from backend)
+    const { customTheme, setCustomTheme } = useThemeStore();
+    const [themes, setThemes] = useState<Theme[]>([]);
+
+    // Fetch themes from backend when drawer opens
+    useEffect(() => {
+        const fetchThemes = async () => {
+            try {
+                const response = await themeService.getAllThemes();
+                // Handle response unwrapping
+                const data = (response as any).data || response;
+                if (Array.isArray(data)) {
+                    setThemes(data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch themes", error);
+            }
+        };
+
+        if (open) {
+            fetchThemes();
+        }
+    }, [open]);
+
+    // Handle theme selection
+    const handleThemeChange = async (selectedTheme: Theme) => {
+        try {
+            await themeService.setActiveTheme(selectedTheme._id);
+            setCustomTheme(selectedTheme);
+            toast.success(t('settings.theme_updated'));
+            // useSettingsStore.getState().setThemeColor('custom'); // optional if we wanted to track "custom" in local store
+        } catch (error) {
+            console.error("Failed to set active theme", error);
+            toast.error(t('settings.theme_update_failed'));
+        }
+    };
 
     const handleChangeLanguage = (lang: 'vi' | 'en') => {
         setLanguage(lang);
@@ -72,34 +116,44 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 
             <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 4 }}>
 
-                {/* Theme Color */}
+                {/* Theme Color - Dynamic from Backend */}
                 <Box>
                     <Typography variant="subtitle2" fontWeight="600" gutterBottom>
                         {t('settings.theme_color_admin')}
                     </Typography>
                     <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                        {(Object.keys(THEME_COLORS) as ThemeColor[]).map((color) => (
-                            <Box
-                                key={color}
-                                onClick={() => setThemeColor(color)}
-                                sx={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: '50%',
-                                    bgcolor: THEME_COLORS[color],
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    border: color === themeColor ? '3px solid white' : 'none',
-                                    boxShadow: color === themeColor ? `0 0 0 2px ${THEME_COLORS[color]}` : 'none',
-                                    transition: 'all 0.2s',
-                                    '&:hover': { transform: 'scale(1.1)' }
-                                }}
-                            >
-                                {color === themeColor && <Box sx={{ width: 10, height: 10, bgcolor: 'white', borderRadius: '50%' }} />}
-                            </Box>
+                        {themes.map((themeItem) => (
+                            <Tooltip key={themeItem._id} title={themeItem.name || 'Theme'}>
+                                <Box
+                                    onClick={() => handleThemeChange(themeItem)}
+                                    sx={{
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: '50%',
+                                        bgcolor: themeItem.primaryColor,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        border: (customTheme?._id === themeItem._id) ? '3px solid white' : '2px solid transparent',
+                                        boxShadow: (customTheme?._id === themeItem._id)
+                                            ? `0 0 0 2px ${themeItem.primaryColor}`
+                                            : '0 2px 4px rgba(0,0,0,0.1)',
+                                        transition: 'all 0.2s',
+                                        '&:hover': { transform: 'scale(1.1)' }
+                                    }}
+                                >
+                                    {(customTheme?._id === themeItem._id) && (
+                                        <Box sx={{ width: 10, height: 10, bgcolor: 'white', borderRadius: '50%' }} />
+                                    )}
+                                </Box>
+                            </Tooltip>
                         ))}
+                        {themes.length === 0 && (
+                            <Typography variant="caption" color="text.secondary">
+                                Loading themes...
+                            </Typography>
+                        )}
                     </Stack>
                 </Box>
 
@@ -123,7 +177,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                             { value: 18, label: '18' },
                         ]}
                         onChange={(_, val) => setFontSize(val as number)}
-                        sx={{ color: THEME_COLORS[themeColor] }}
+                        sx={{ color: theme.palette.primary.main }}
                     />
                 </Box>
 
@@ -138,8 +192,8 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                                 onChange={toggleCompactMode}
                                 sx={{
                                     '& .MuiSwitch-switchBase.Mui-checked': {
-                                        color: THEME_COLORS[themeColor],
-                                        '& + .MuiSwitch-track': { backgroundColor: THEME_COLORS[themeColor] }
+                                        color: theme.palette.primary.main,
+                                        '& + .MuiSwitch-track': { backgroundColor: theme.palette.primary.main }
                                     }
                                 }}
                             />
@@ -162,8 +216,8 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                                 onChange={toggleMotion}
                                 sx={{
                                     '& .MuiSwitch-switchBase.Mui-checked': {
-                                        color: THEME_COLORS[themeColor],
-                                        '& + .MuiSwitch-track': { backgroundColor: THEME_COLORS[themeColor] }
+                                        color: theme.palette.primary.main,
+                                        '& + .MuiSwitch-track': { backgroundColor: theme.palette.primary.main }
                                     }
                                 }}
                             />
@@ -193,12 +247,12 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                             onClick={() => handleChangeLanguage('vi')}
                             fullWidth
                             sx={{
-                                bgcolor: language === 'vi' ? THEME_COLORS[themeColor] : 'transparent',
-                                borderColor: language === 'vi' ? THEME_COLORS[themeColor] : 'inherit',
+                                bgcolor: language === 'vi' ? theme.palette.primary.main : 'transparent',
+                                borderColor: language === 'vi' ? theme.palette.primary.main : 'inherit',
                                 color: language === 'vi' ? 'white' : 'inherit',
                                 '&:hover': {
-                                    bgcolor: language === 'vi' ? alpha(THEME_COLORS[themeColor], 0.9) : alpha(THEME_COLORS[themeColor], 0.1),
-                                    borderColor: THEME_COLORS[themeColor]
+                                    bgcolor: language === 'vi' ? alpha(theme.palette.primary.main, 0.9) : alpha(theme.palette.primary.main, 0.1),
+                                    borderColor: theme.palette.primary.main
                                 }
                             }}
                         >
@@ -209,12 +263,12 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                             onClick={() => handleChangeLanguage('en')}
                             fullWidth
                             sx={{
-                                bgcolor: language === 'en' ? THEME_COLORS[themeColor] : 'transparent',
-                                borderColor: language === 'en' ? THEME_COLORS[themeColor] : 'inherit',
+                                bgcolor: language === 'en' ? theme.palette.primary.main : 'transparent',
+                                borderColor: language === 'en' ? theme.palette.primary.main : 'inherit',
                                 color: language === 'en' ? 'white' : 'inherit',
                                 '&:hover': {
-                                    bgcolor: language === 'en' ? alpha(THEME_COLORS[themeColor], 0.9) : alpha(THEME_COLORS[themeColor], 0.1),
-                                    borderColor: THEME_COLORS[themeColor]
+                                    bgcolor: language === 'en' ? alpha(theme.palette.primary.main, 0.9) : alpha(theme.palette.primary.main, 0.1),
+                                    borderColor: theme.palette.primary.main
                                 }
                             }}
                         >

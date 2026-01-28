@@ -48,6 +48,7 @@ interface Particle {
 
 const SocialParticles = () => {
   const [particles, setParticles] = useState<Particle[]>([]);
+  const theme = useTheme(); // Hook to access theme
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -55,7 +56,8 @@ const SocialParticles = () => {
       key: i,
       width: Math.random() * 6 + 2,
       height: Math.random() * 6 + 2,
-      color: ['#1877f2', '#42b72a', '#e91e63', '#9c27b0', '#ffeb3b'][Math.floor(Math.random() * 5)],
+      // Use theme primary color in the mix
+      color: [theme.palette.primary.main, theme.palette.secondary.main, '#e91e63', '#9c27b0', '#ffeb3b'][Math.floor(Math.random() * 5)],
       shadow: Math.random() * 10 + 5,
       initialX: Math.random() * window.innerWidth,
       initialY: Math.random() * window.innerHeight,
@@ -73,7 +75,7 @@ const SocialParticles = () => {
       ]
     }));
     setParticles(newParticles);
-  }, []);
+  }, [theme.palette.primary.main, theme.palette.secondary.main]);
   return (
     <Box sx={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
       {particles.map((p) => (
@@ -236,7 +238,7 @@ export default function LoginPage() {
         minHeight: "100vh",
         display: "flex",
         overflow: "hidden",
-        bgcolor: isDark ? "#0f172a" : "#f0f2f5",
+        bgcolor: isDark ? "#0f172a" : "#f0f2f5", // Consider using theme.palette.background.default
         position: 'relative'
       }}
     >
@@ -266,13 +268,13 @@ export default function LoginPage() {
               variant="h1"
               fontWeight={900}
               sx={{
-                background: 'linear-gradient(to right, #1877f2, #00c6ff)',
+                background: `linear-gradient(to right, ${theme.palette.primary.main}, ${theme.palette.secondary.main || '#00c6ff'})`, // Use theme colors
                 backgroundClip: 'text',
                 textFillColor: 'transparent',
                 mb: 2,
                 fontSize: '4rem',
                 letterSpacing: '-1px',
-                filter: 'drop-shadow(0 4px 20px rgba(24, 119, 242, 0.3))'
+                filter: `drop-shadow(0 4px 20px ${theme.palette.primary.main}4d)` // Dynamic shadow
               }}
             >
               Social Chat
@@ -320,7 +322,7 @@ export default function LoginPage() {
             }}
           >
             <Box sx={{ mb: 4, textAlign: 'center', display: { md: 'none' } }}>
-              <Typography variant="h4" fontWeight={800} sx={{ color: "#1877f2" }}>Social Chat</Typography>
+              <Typography variant="h4" fontWeight={800} sx={{ color: theme.palette.primary.main }}>Social Chat</Typography>
             </Box>
 
             <Typography variant="h4" fontWeight={700} sx={{ mb: 1, color: 'text.primary', textAlign: 'center' }}>
@@ -368,7 +370,7 @@ export default function LoginPage() {
                     }
                     label={<Typography variant="body2">{t('auth.remember_me')}</Typography>}
                   />
-                  <Link href={CLIENT_PATH.FORGOT_PASSWORD} className="text-sm font-medium text-blue-600 hover:text-blue-700 no-underline hover:underline">
+                  <Link href={CLIENT_PATH.FORGOT_PASSWORD} className="text-sm font-medium hover:underline" style={{ color: theme.palette.primary.main }}>
                     {t('auth.forgot_password')}
                   </Link>
                 </Stack>
@@ -388,8 +390,11 @@ export default function LoginPage() {
                     fontSize: '1.1rem',
                     textTransform: 'none',
                     borderRadius: 1.5,
-                    bgcolor: '#1877f2',
-                    boxShadow: '0 4px 12px rgba(24, 119, 242, 0.3)',
+                    bgcolor: theme.palette.primary.main,
+                    boxShadow: `0 4px 12px ${theme.palette.primary.main}4d`,
+                    '&:hover': {
+                      bgcolor: theme.palette.primary.dark,
+                    }
                   }}
                 >
                   {loading ? <CircularProgress size={24} color="inherit" /> : t('auth.login_button')}

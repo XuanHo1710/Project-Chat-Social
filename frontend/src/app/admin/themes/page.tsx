@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Box,
-    Paper,
     Typography,
     Button,
     Stack,
@@ -18,11 +17,8 @@ import {
     TextField,
     useTheme,
     alpha,
-    Grid,
     Chip,
     Tooltip,
-    Switch,
-    FormControlLabel,
     CircularProgress,
     Alert,
     Snackbar
@@ -38,7 +34,8 @@ import {
     LightMode as LightModeIcon
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
-import { themeService, Theme, CreateThemeDto } from '@/services/theme.service';
+import { themeService, Theme } from '@/services/theme.service';
+import { useThemeStore } from '@/stores/useThemeStore';
 
 interface ThemeFormData {
     name: string;
@@ -70,6 +67,9 @@ export default function ThemesManagementPage() {
         bgDarkMode: '#18191a',
         bgLightMode: '#f0f2f5'
     });
+
+    const { setCustomTheme } = useThemeStore();
+
 
     // Fetch themes
     const fetchThemes = async () => {
@@ -134,14 +134,13 @@ export default function ThemesManagementPage() {
         }
     };
 
-    const handleSetActive = async (id: string, currentActive: boolean) => {
+    const handleSetActive = async (themeItem: Theme, currentActive: boolean) => {
         if (currentActive) return;
         try {
-            await themeService.setActiveTheme(id);
+            await themeService.setActiveTheme(themeItem._id);
             setSnackbar({ open: true, message: 'Theme applied successfully', severity: 'success' });
             await fetchThemes();
-            // Force reload or trigger global theme update event if needed
-            window.location.reload(); // Simple way to ensure theme applies globally if context doesn't auto-update
+            setCustomTheme(themeItem);
         } catch (err) {
             console.error('Failed to set active theme:', err);
             setSnackbar({ open: true, message: 'Failed to apply theme', severity: 'error' });
@@ -304,7 +303,7 @@ export default function ThemesManagementPage() {
                                     size="small"
                                     variant="outlined"
                                     startIcon={<PaletteIcon />}
-                                    onClick={() => handleSetActive(themeItem._id, themeItem.isActive)}
+                                    onClick={() => handleSetActive(themeItem, themeItem.isActive)}
                                     sx={{ borderColor: themeItem.primaryColor, color: themeItem.primaryColor }}
                                 >
                                     {t('admin.apply')}

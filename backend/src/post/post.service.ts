@@ -10,7 +10,7 @@ import {
   MediaItem,
   LivestreamStatus,
 } from './entities/post.entity';
-import { UserFeed, UserFeedDocument } from './schemas/user-feed.schema';
+
 import { HashtagService } from 'src/hashtag/hashtag.service';
 import { HashtagEntityType } from 'src/hashtag/entities/hashtag-mapping.entity';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
@@ -46,8 +46,7 @@ export class PostService {
     private notificationEmitter: NotificationEmitterService,
     private configService: ConfigService,
     private kafkaProducer: KafkaProducerService,
-    @InjectModel(UserFeed.name)
-    private userFeedModel: Model<UserFeedDocument>,
+
   ) {
     this.aiServerUrl = this.configService.get<string>('AI_SERVER_URL') || '';
   }
@@ -327,77 +326,6 @@ export class PostService {
   ): Promise<{ data: PostWithReactInfo[]; total: number; page: number; totalPages: number }> {
     const currentUserObjId = new Types.ObjectId(currentUserId);
     const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
-
-    // 1. Try fetching from Pre-computed Kafka Feed (Fastest & Scalable)
-    try {
-      const userFeeds = await this.userFeedModel
-        .find({ userId: currentUserObjId, isHidden: false })
-        .sort({ score: -1, postCreatedAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean();
-
-      if (userFeeds.length > 0) {
-        const postIds = userFeeds.map((f) => f.postId);
-        const dataPosts = await this.postModel
-          .find({ _id: { $in: postIds }, isDeleted: false, isActive: true })
-          .populate('userId', 'firstName lastName avatar username')
-          .populate('groupId', 'name avatar privacy')
-          .populate({
-            path: 'sharedPostId',
-            populate: { path: 'userId', select: 'firstName lastName avatar username' },
-          })
-          .lean()
-          .exec();
-
-        const postMap = new Map(dataPosts.map((post) => [post._id.toString(), post]));
-
-        // Map back to guarantee order and attach scores
-        const sortedPosts = userFeeds
-          .map((feed) => {
-            const post = postMap.get(feed.postId.toString());
-            if (!post) return null;
-            return {
-              ...post,
-              aiScore: feed.score,
-              isRecommended: (feed as any).isRecommended || false
-            };
-          })
-          .filter((post) => post !== null);
-
-        // Reactions logic
-        const finalPostIds = sortedPosts.map((p) => p._id);
-        const finalPostIdStrings = finalPostIds.map((id) => id.toString());
-
-        const [userReactions, reactionsSummary] = await Promise.all([
-          this.reactionService.userReactions(finalPostIds, currentUserId),
-          this.reactionService.getPostsReactionsSummary(finalPostIdStrings, currentUserId),
-        ]);
-
-        const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
-
-        (sortedPosts as PostWithReactInfo[]).forEach((post) => {
-          const postIdStr = post._id.toString();
-          const r = reactionMap.get(postIdStr) as any;
-          const summary = reactionsSummary[postIdStr];
-
-          post.reactInfo = { isReact: !!r, type: r ? r.type : null };
-          (post as any).topReactions = summary?.topReactions || [];
-        });
-
-        // Get total count
-        const total = await this.userFeedModel.countDocuments({ userId: currentUserObjId, isHidden: false });
-
-        return {
-          data: sortedPosts as PostWithReactInfo[],
-          total,
-          page,
-          totalPages: Math.ceil(total / limit),
-        };
-      }
-    } catch (error) {
-      console.warn('Failed to fetch pre-computed feed:', error.message);
-    }
 
     // 2. Fallback to Direct AI Server Call (Realtime Inference)
     try {

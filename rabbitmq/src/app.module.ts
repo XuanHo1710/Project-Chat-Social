@@ -8,12 +8,12 @@ import { AppService } from './app.service';
 import { FirebaseService } from './services/firebase.service';
 import { AiService } from './services/ai.service';
 import { NotificationAggregationService } from './services/notification-aggregation.service';
-import { NotificationSenderService } from './services/notification-sender.service';
+
 import { Account, AccountSchema } from 'src/schemas/account.schema';
 import { Message, MessageSchema } from 'src/schemas/message.schema';
 import { Conversation, ConversationSchema } from 'src/schemas/conversation.schema';
 import { Notification, NotificationSchema } from 'src/schemas/notification.schema';
-import { PendingNotification, PendingNotificationSchema } from 'src/schemas/pending-notification.schema';
+
 
 @Module({
   imports: [
@@ -31,7 +31,7 @@ import { PendingNotification, PendingNotificationSchema } from 'src/schemas/pend
       { name: Message.name, schema: MessageSchema },
       { name: Conversation.name, schema: ConversationSchema },
       { name: Notification.name, schema: NotificationSchema },
-      { name: PendingNotification.name, schema: PendingNotificationSchema },
+
     ]),
     // HTTP module for AI server calls
     HttpModule,
@@ -60,7 +60,7 @@ import { PendingNotification, PendingNotificationSchema } from 'src/schemas/pend
     FirebaseService,
     AiService,
     NotificationAggregationService,
-    NotificationSenderService,
+
   ],
 })
 export class AppModule { }

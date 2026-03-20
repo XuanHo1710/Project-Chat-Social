@@ -7,28 +7,29 @@ import { AccountModule } from 'src/account/account.module';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OtpModule } from 'src/otp/otp.module';
-const ms = require("ms")
+import { AuthSessionService } from './auth-session.service';
+const ms = require('ms');
 
 @Module({
-    imports: [
-        AccountModule,
-        PassportModule,
-        OtpModule,
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            inject: [ConfigService],
-            useFactory: (configService: ConfigService) => {
-                return {
-                    secret: configService.get<string>("JWT_ACCESS_TOKEN_SECRET"),
-                    signOptions: {
-                        expiresIn: ms(configService.get<string>('JWT_ACCESS_EXPIRE'))
-                    }
-                }
-            }
-        }),
-    ],
-    controllers: [AuthController, PasswordResetController],
-    providers: [AuthService, JwtService, ConfigService],
-    exports: [AuthService, JwtService, ConfigService]
+  imports: [
+    AccountModule,
+    PassportModule,
+    OtpModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        return {
+          secret: configService.get<string>('JWT_ACCESS_TOKEN_SECRET'),
+          signOptions: {
+            expiresIn: ms(configService.get<string>('JWT_ACCESS_EXPIRE')),
+          },
+        };
+      },
+    }),
+  ],
+  controllers: [AuthController, PasswordResetController],
+  providers: [AuthService, AuthSessionService, JwtService, ConfigService],
+  exports: [AuthService, AuthSessionService, JwtService, ConfigService],
 })
-export class AuthModule { }
+export class AuthModule {}

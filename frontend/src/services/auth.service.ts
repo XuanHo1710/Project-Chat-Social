@@ -28,7 +28,7 @@ class AuthService {
 
   async logout() {
     try {
-      const response = await axios.post("/auth/logout", {});
+      const response = await axios.post("/api/auth/logout", {});
       return response.data;
     } catch (error) {
       console.error("Logout error:", error);
@@ -41,23 +41,41 @@ class AuthService {
   }
 
   // Password Reset APIs
-  async forgotPassword(email: string): Promise<{ success: boolean; message: string; expiresAt?: string }> {
-    const response = await axios.post<APIResponse<{ success: boolean; message: string; expiresAt?: string }>>("/auth/password/forgot", { email });
+  async forgotPassword(
+    email: string,
+  ): Promise<{ success: boolean; message: string; expiresAt?: string }> {
+    const response = await axios.post<
+      APIResponse<{ success: boolean; message: string; expiresAt?: string }>
+    >("/auth/password/forgot", { email });
     return response.data.data;
   }
 
-  async verifyOtp(email: string, otp: string): Promise<{ success: boolean; message: string }> {
-    const response = await axios.post<APIResponse<{ success: boolean; message: string }>>("/auth/password/verify-otp", { email, otp });
+  async verifyOtp(
+    email: string,
+    otp: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const response = await axios.post<
+      APIResponse<{ success: boolean; message: string }>
+    >("/auth/password/verify-otp", { email, otp });
     return response.data.data;
   }
 
-  async resetPassword(email: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-    const response = await axios.post<APIResponse<{ success: boolean; message: string }>>("/auth/password/reset", { email, newPassword });
+  async resetPassword(
+    email: string,
+    newPassword: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const response = await axios.post<
+      APIResponse<{ success: boolean; message: string }>
+    >("/auth/password/reset", { email, newPassword });
     return response.data.data;
   }
 
-  async resendOtp(email: string): Promise<{ success: boolean; message: string; expiresAt?: string }> {
-    const response = await axios.post<APIResponse<{ success: boolean; message: string; expiresAt?: string }>>("/auth/password/resend-otp", { email });
+  async resendOtp(
+    email: string,
+  ): Promise<{ success: boolean; message: string; expiresAt?: string }> {
+    const response = await axios.post<
+      APIResponse<{ success: boolean; message: string; expiresAt?: string }>
+    >("/auth/password/resend-otp", { email });
     return response.data.data;
   }
 }

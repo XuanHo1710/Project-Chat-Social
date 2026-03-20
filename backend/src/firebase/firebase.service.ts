@@ -35,7 +35,7 @@ export class FirebaseService implements OnModuleInit {
         },
       };
 
-      const response = await admin.messaging().sendEachForMulticast(message);
+      const response = await admin.messaging().sendMulticast(message);
       console.log('Successfully sent message:', response);
 
       // Có thể xử lý xóa các token lỗi (invalid/expired) tại đây dựa trên response.responses

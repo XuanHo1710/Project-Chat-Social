@@ -5,7 +5,7 @@ export interface LoginRequest {
 
 export interface LoginResponseData {
   access_token: string;
-  refresh_token?: string;
+  session_id?: string;
   payload: {
     fullname: string;
     gender?: string;

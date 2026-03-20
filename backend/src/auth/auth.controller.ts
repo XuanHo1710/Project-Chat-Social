@@ -14,8 +14,8 @@ export class AuthController {
   @Public()
   @UseGuards(LocalAuthGuard)
   @Post('/login')
-  async login(@Req() req: Request, @Res({ passthrough: true }) response: Response) {
-    return this.authService.login(req.user as Account, response); // Default la user. Do thang lon Passport lam nhu vay djt con me :)))
+  async login(@Req() req: Request) {
+    return this.authService.login(req.user as Account); // Default la user. Do thang lon Passport lam nhu vay djt con me :)))
   }
 
   @Public()
@@ -44,7 +44,7 @@ export class AuthController {
 
     try {
       const checkAccountGoogle = await this.authService.googleLogin(user as AccountGoogleDto);
-      const result = await this.authService.login(checkAccountGoogle, response);
+      const result = await this.authService.login(checkAccountGoogle);
       return response.send(`
       <script>
         window.opener.postMessage(
@@ -73,24 +73,20 @@ export class AuthController {
   @Public()
   @Post('/signup')
   async signup(
-    @Body() signupData: { username: string; password: string; firstName: string; lastName: string },
-    @Res({ passthrough: true }) response: Response
+    @Body() signupData: { username: string; password: string; firstName: string; lastName: string }
   ) {
-    return this.authService.signup(signupData, response);
+    return this.authService.signup(signupData);
   }
 
   @Post('/logout')
-  handleLogout(@Res({ passthrough: true }) response: Response) {
-    return this.authService.logout(response);
+  handleLogout(@Body() body: { sessionId?: string }) {
+    return this.authService.logout(body?.sessionId);
   }
 
   @Public()
   @Post('/refresh-token')
-  refreshToken(
-    @Res({ passthrough: true }) response: Response,
-    @Body() body: { refreshToken: string }
-  ) {
-    return this.authService.processNewToken(body.refreshToken, response);
+  refreshToken(@Body() body: { sessionId: string }) {
+    return this.authService.processNewToken(body.sessionId);
   }
 
   @Get('/profile')

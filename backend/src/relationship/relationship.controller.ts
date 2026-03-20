@@ -74,13 +74,13 @@ export class RelationshipController {
   // Lấy danh sách bạn bè hiện tại của người dùng đang đăng nhập
   @Get('/friends')
   getFriends(@UserInfo() user: any) {
-    return this.relationshipService.getFriendsList(user._id);
+    return this.relationshipService.getFriendsList(user._id, user._id);
   }
 
   // Lấy danh sách bạn bè của một người dùng cụ thể (theo userId)
   @Get('/friends/:userId')
-  getFriendsByUserId(@Param('userId') userId: string) {
-    return this.relationshipService.getFriendsList(userId);
+  getFriendsByUserId(@UserInfo() user: any, @Param('userId') userId: string) {
+    return this.relationshipService.getFriendsList(userId, user._id);
   }
 
   // Kiểm tra xem 2 người dùng có phải là bạn bè không

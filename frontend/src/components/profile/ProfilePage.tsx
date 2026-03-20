@@ -77,6 +77,7 @@ import CommentContentModal from '@/components/posts/CommentContentModal';
 import ShareContentModal from '@/components/posts/ShareContentModal';
 import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
 import LiveStreamViewerModal from '@/components/posts/LiveStreamViewerModal';
+import MutualFriendsPreview from '@/components/friends/MutualFriendsPreview';
 import Header from '@/components/home/Header';
 import { CLIENT_PATH } from '@/constants/paths';
 import { toast } from 'sonner';
@@ -1560,6 +1561,13 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                             >
                                                                 {friend.firstName} {friend.lastName}
                                                             </Typography>
+                                                            {!isOwnProfile && (
+                                                                <MutualFriendsPreview
+                                                                    count={friend.mutualFriends || 0}
+                                                                    preview={friend.mutualFriendPreview || []}
+                                                                    compact
+                                                                />
+                                                            )}
                                                         </Box>
                                                     </Grid>
                                                 ))}
@@ -1872,6 +1880,13 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                         <Typography fontSize={13} color={textSecondary}>
                                                             @{friend.username}
                                                         </Typography>
+                                                        {!isOwnProfile && (
+                                                            <MutualFriendsPreview
+                                                                count={friend.mutualFriends || 0}
+                                                                preview={friend.mutualFriendPreview || []}
+                                                                compact
+                                                            />
+                                                        )}
                                                     </Box>
                                                     {isOwnProfile && (
                                                         <IconButton

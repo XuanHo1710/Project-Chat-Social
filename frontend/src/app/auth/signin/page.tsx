@@ -26,6 +26,7 @@ import { CLIENT_PATH } from "@/constants/paths";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { useTranslation } from "react-i18next";
+import axios from "axios";
 
 // Spark/Particle Component
 interface Particle {
@@ -171,6 +172,13 @@ export default function SigninPage() {
 
         setAccessToken(response.data.access_token);
         setUser(userData);
+
+        if (response.data.session_id) {
+          await axios.post('/api/auth/session', {
+            accessToken: response.data.access_token,
+            sessionId: response.data.session_id,
+          });
+        }
 
         toast.success(t('auth.welcome_user', { name: response.data.payload.fullname }));
         router.push(CLIENT_PATH.HOME);

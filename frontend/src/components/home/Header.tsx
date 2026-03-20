@@ -55,6 +55,11 @@ export default function Header() {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const { t } = useTranslation();
+    const [isHydrated, setIsHydrated] = useState(false);
+
+    useEffect(() => {
+        setIsHydrated(true);
+    }, []);
 
     // Lazy load - only fetch conversations when popup is opened
     const { data: listConversation, isLoading: isLoadingConversations, refetch: refetchConversations } = useConversationByUserId(
@@ -505,6 +510,7 @@ export default function Header() {
                             >
                                 <SearchIcon sx={{ color: 'text.secondary', mr: { xs: 0, sm: 1 } }} />
                                 <Typography
+                                    suppressHydrationWarning
                                     sx={{
                                         color: 'text.secondary',
                                         fontSize: 14,
@@ -512,7 +518,7 @@ export default function Header() {
                                         whiteSpace: 'nowrap'
                                     }}
                                 >
-                                    {t('nav.search_social')}
+                                    {isHydrated ? t('nav.search_social') : ''}
                                 </Typography>
                             </Box>
                         </Link>

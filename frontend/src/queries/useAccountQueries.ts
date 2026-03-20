@@ -15,7 +15,7 @@ interface AccountFilterParams {
 // All accounts to test add Friends
 export function useAccountsByPage(
   userId: string,
-  params: AccountFilterParams = {}
+  params: AccountFilterParams = {},
 ) {
   const { page = 1, size = 12, sort, search } = params;
   const queryParams: Record<string, string | number | boolean> = { page, size };
@@ -27,6 +27,7 @@ export function useAccountsByPage(
   return useQuery<PageResponse<AccountCardFriendType>, Error>({
     queryKey: [QUERY_KEYS.ACCOUNTS_PAGINATED, page, size, sort, search, userId],
     queryFn: () => accountService.getAccountsByPage(queryParams),
+    enabled: !!userId,
   });
 }
 

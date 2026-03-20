@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Box, Typography, IconButton, Divider, List, ListItemButton, ListItemIcon, ListItemText, useTheme } from '@mui/material';
+import { Box, Typography, IconButton, Divider, List, ListItemButton, ListItemIcon, ListItemText, useTheme, Skeleton } from '@mui/material';
 import {
     Home as HomeIcon,
     PersonAdd as PersonAddIcon,
@@ -28,12 +28,14 @@ import { useTranslation } from 'react-i18next';
 
 export default function FriendsPage() {
     const [tabValue, setTabValue] = useState(0);
-    const { user } = useAuthStore();
+    const { user, isLoading: isAuthLoading } = useAuthStore();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const queryClient = useQueryClient();
     const { socketRelationship } = useSocket();
     const { t } = useTranslation();
+    const userId = user?.id || "";
+    const isBootstrappingAuth = isAuthLoading || !userId;
 
     const menuItems = [
         { id: 0, label: t('friends.home'), icon: <HomeIcon /> },
@@ -44,10 +46,10 @@ export default function FriendsPage() {
         { id: 5, label: t('friends.custom_lists'), icon: <SettingsIcon /> },
     ];
 
-    const { data: allAccounts, isLoading: isLoadingAccounts } = useAccountsByPage(user?.id || "", { page: 1, size: 12 });
-    const { data: sentRequests, isLoading: isLoadingSentRequests } = useSentRequestFriends(user?.id || "");
-    const { data: listFriends, isLoading: isLoadingListFriends } = useDisplayListFriends(user?.id || "");
-    const { data: receivedRequests, isLoading: isLoadingReceivedRequests } = useReceivedRequestFriends(user?.id || "");
+    const { data: allAccounts, isLoading: isLoadingAccounts } = useAccountsByPage(userId, { page: 1, size: 12 });
+    const { data: sentRequests, isLoading: isLoadingSentRequests } = useSentRequestFriends(userId);
+    const { data: listFriends, isLoading: isLoadingListFriends } = useDisplayListFriends(userId);
+    const { data: receivedRequests, isLoading: isLoadingReceivedRequests } = useReceivedRequestFriends(userId);
 
     useEffect(() => {
         queryClient.invalidateQueries({
@@ -92,6 +94,25 @@ export default function FriendsPage() {
     }, [socketRelationship, user, queryClient]);
 
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
+
+    const renderFriendSkeletonGrid = (count = 6) => (
+        <Box
+            sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                gap: 2
+            }}
+        >
+            {[...Array(count)].map((_, index) => (
+                <Box key={index} sx={{ borderRadius: 2, p: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                    <Skeleton variant="rounded" width="100%" height={160} sx={{ mb: 1.5 }} />
+                    <Skeleton variant="text" width="70%" height={22} />
+                    <Skeleton variant="text" width="45%" height={18} sx={{ mb: 1.5 }} />
+                    <Skeleton variant="rounded" width="100%" height={32} />
+                </Box>
+            ))}
+        </Box>
+    );
 
     return (
         <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
@@ -186,7 +207,9 @@ export default function FriendsPage() {
                                 </Link>
                             </Box>
 
-                            {!isLoadingReceivedRequests && receivedRequests?.data && receivedRequests.data.length > 0 ? (
+                            {isBootstrappingAuth || isLoadingReceivedRequests ? (
+                                renderFriendSkeletonGrid(4)
+                            ) : receivedRequests?.data && receivedRequests.data.length > 0 ? (
                                 <Box sx={{
                                     display: 'grid',
                                     gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
@@ -226,7 +249,9 @@ export default function FriendsPage() {
                                 </Link>
                             </Box>
 
-                            {!isLoadingAccounts && allAccounts?.items && allAccounts.items.length > 0 ? (
+                            {isBootstrappingAuth || isLoadingAccounts ? (
+                                renderFriendSkeletonGrid(6)
+                            ) : allAccounts?.items && allAccounts.items.length > 0 ? (
                                 <Box sx={{
                                     display: 'grid',
                                     gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
@@ -251,7 +276,9 @@ export default function FriendsPage() {
                                 {t('friends.people_you_may_know')}
                             </Typography>
 
-                            {!isLoadingAccounts && allAccounts?.items && allAccounts.items.length > 0 ? (
+                            {isBootstrappingAuth || isLoadingAccounts ? (
+                                renderFriendSkeletonGrid(8)
+                            ) : allAccounts?.items && allAccounts.items.length > 0 ? (
                                 <Box sx={{
                                     display: 'grid',
                                     gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
@@ -276,7 +303,9 @@ export default function FriendsPage() {
                                 {t('friends.all_friends')} ({listFriends?.data?.length || 0})
                             </Typography>
 
-                            {!isLoadingListFriends && listFriends?.data && listFriends.data.length > 0 ? (
+                            {isBootstrappingAuth || isLoadingListFriends ? (
+                                renderFriendSkeletonGrid(8)
+                            ) : listFriends?.data && listFriends.data.length > 0 ? (
                                 <Box sx={{
                                     display: 'grid',
                                     gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
@@ -313,7 +342,9 @@ export default function FriendsPage() {
                                 {t('friends.sent_requests')}
                             </Typography>
 
-                            {!isLoadingSentRequests && sentRequests?.data && sentRequests.data.length > 0 ? (
+                            {isBootstrappingAuth || isLoadingSentRequests ? (
+                                renderFriendSkeletonGrid(6)
+                            ) : sentRequests?.data && sentRequests.data.length > 0 ? (
                                 <Box sx={{
                                     display: 'grid',
                                     gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',

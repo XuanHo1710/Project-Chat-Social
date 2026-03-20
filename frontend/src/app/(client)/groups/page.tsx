@@ -16,6 +16,7 @@ import {
     IconButton,
     Divider,
     Card,
+    Skeleton,
     useTheme,
     alpha,
 } from '@mui/material';
@@ -31,20 +32,26 @@ import { groupService } from '@/services/group.service';
 import { Group, GroupWithMembership } from '@/types/group';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 export default function GroupsPage() {
     const router = useRouter();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const { user, isLoading: isAuthLoading } = useAuthStore();
     const [suggestedGroups, setSuggestedGroups] = useState<Group[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [myGroups, setMyGroups] = useState<GroupWithMembership[]>([]);
     const { t } = useTranslation();
+    const isBootstrappingAuth = isAuthLoading || !user?.id;
 
     useEffect(() => {
+        if (isBootstrappingAuth) {
+            return;
+        }
         loadGroups();
-    }, []);
+    }, [isBootstrappingAuth]);
 
     const loadGroups = async () => {
         setIsLoading(true);
@@ -96,6 +103,7 @@ export default function GroupsPage() {
 
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : 'action.hover';
     const inputBg = isDark ? 'rgba(255,255,255,0.1)' : 'action.hover';
+    const showLoadingSkeleton = isBootstrappingAuth || isLoading;
 
     return (
         <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
@@ -200,9 +208,17 @@ export default function GroupsPage() {
                             </Button>
                         </Box>
 
-                        {isLoading ? (
-                            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                                <CircularProgress size={24} />
+                        {showLoadingSkeleton ? (
+                            <Box sx={{ py: 2 }}>
+                                {[...Array(4)].map((_, index) => (
+                                    <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                                        <Skeleton variant="rounded" width={48} height={48} />
+                                        <Box sx={{ flex: 1 }}>
+                                            <Skeleton variant="text" width="80%" height={20} />
+                                            <Skeleton variant="text" width="50%" height={16} />
+                                        </Box>
+                                    </Box>
+                                ))}
                             </Box>
                         ) : (
                             <List sx={{ p: 0 }}>
@@ -236,7 +252,26 @@ export default function GroupsPage() {
 
                 {/* Main Content */}
                 <Box sx={{ flex: 1, ml: { xs: 0, md: '360px' }, p: { xs: 2, md: 3 } }}>
-                    {myGroups.length > 0 ? (
+                    {showLoadingSkeleton ? (
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' },
+                                gap: 2,
+                            }}
+                        >
+                            {[...Array(6)].map((_, index) => (
+                                <Card key={index} sx={{ display: 'flex', p: 2 }}>
+                                    <Skeleton variant="rounded" width={80} height={80} sx={{ mr: 2 }} />
+                                    <Box sx={{ flex: 1 }}>
+                                        <Skeleton variant="text" width="75%" height={24} />
+                                        <Skeleton variant="text" width="55%" height={20} sx={{ mb: 1 }} />
+                                        <Skeleton variant="rounded" width="100%" height={32} />
+                                    </Box>
+                                </Card>
+                            ))}
+                        </Box>
+                    ) : myGroups.length > 0 ? (
                         <>
                             {/* Header */}
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>

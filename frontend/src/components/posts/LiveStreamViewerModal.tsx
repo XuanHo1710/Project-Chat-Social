@@ -27,7 +27,6 @@ import {
 import { useSocket } from '@/contexts/SocketContext';
 import SimplePeer, { Instance } from 'simple-peer';
 import { PostType } from '@/types/post';
-import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCommentsByPost } from '@/services/comment.service';
 
@@ -351,7 +350,6 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
 
                         {connectionStatus === 'ended' && (
                             <Box sx={{ textAlign: 'center' }}>
-                                <Typography sx={{ fontSize: 64, mb: 2 }}>📺</Typography>
                                 <Typography variant="h5" sx={{ color: 'white', fontWeight: 600, mb: 1 }}>
                                     Buổi Live đã kết thúc
                                 </Typography>
@@ -409,7 +407,7 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
                         justifyContent: 'space-between'
                     }}>
                         <Typography sx={{ fontWeight: 700, color: textPrimary, fontSize: 16 }}>
-                            💬 Bình luận trực tiếp
+                            Bình luận trực tiếp
                         </Typography>
                         <Chip
                             label={comments.length}
@@ -432,8 +430,7 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
                     }}>
                         {comments.length === 0 ? (
                             <Box sx={{ textAlign: 'center', py: 4, opacity: 0.7 }}>
-                                <Typography sx={{ fontSize: 32, mb: 1 }}>💬</Typography>
-                                <Typography variant="body2" sx={{ color: textSecondary }}>Chưa có bình luận</Typography>
+                                =                                <Typography variant="body2" sx={{ color: textSecondary }}>Chưa có bình luận</Typography>
                             </Box>
                         ) : (
                             <AnimatePresence initial={false}>

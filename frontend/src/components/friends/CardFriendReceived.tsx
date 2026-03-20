@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useSocket } from '@/contexts/SocketContext';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
+import MutualFriendsPreview from '@/components/friends/MutualFriendsPreview';
 
 export default function CardFriendReceivedComponent({ friend }: { friend: FriendType }) {
     const { user } = useAuthStore();
@@ -95,9 +96,10 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
                         {friend.firstName} {friend.lastName}
                     </Typography>
 
-                    <Typography variant="body2" color="text.secondary" fontSize={13} sx={{ mb: 1.5 }}>
-                        {friend.mutualFriends || 0} bạn chung
-                    </Typography>
+                    <MutualFriendsPreview
+                        count={friend.mutualFriends || 0}
+                        preview={friend.mutualFriendPreview || []}
+                    />
 
                     {/* Buttons */}
                     {status === 'pending' ? (

@@ -337,63 +337,61 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             sx={{ width: { xs: 42, sm: 56 }, height: { xs: 42, sm: 56 } }}
                         />
                     ) : notification.senderIds && notification.senderIds.length > 1 ? (
-                        // Multiple senders - simple horizontal overlap (Facebook style)
+                        // Multiple senders - compact cluster layout
                         <Box sx={{
                             position: 'relative',
-                            width: 56,
-                            height: 56,
-                            display: 'flex',
-                            alignItems: 'flex-end',
+                            width: { xs: 44, sm: 56 },
+                            height: { xs: 44, sm: 56 },
                         }}>
-                            {/* Main avatar (latest sender) - larger, on left */}
-                            <Avatar
-                                src={[...notification.senderIds].reverse()[0]?.avatar || ''}
-                                sx={{
-                                    width: { xs: 32, sm: 40 },
-                                    height: { xs: 32, sm: 40 },
-                                    border: `2px solid ${theme.palette.background.paper}`,
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    zIndex: 3,
-                                }}
-                            />
-                            {/* Second avatar - smaller, bottom right */}
-                            {notification.senderIds.length >= 2 && (
-                                <Avatar
-                                    src={[...notification.senderIds].reverse()[1]?.avatar || ''}
-                                    sx={{
-                                        width: { xs: 22, sm: 28 },
-                                        height: { xs: 22, sm: 28 },
-                                        border: `2px solid ${theme.palette.background.paper}`,
-                                        position: 'absolute',
-                                        bottom: 0,
-                                        right: 4,
-                                        zIndex: 2,
-                                    }}
-                                />
-                            )}
-                            {/* +X badge if more than 2 senders */}
-                            {notification.senderIds.length > 2 && (
+                            {notification.senderIds.slice(0, 3).map((sender, idx) => {
+                                const positions = [
+                                    { top: 0, left: 0, sizeXs: 25, sizeSm: 30, z: 3 },
+                                    { top: 0, right: 0, sizeXs: 21, sizeSm: 25, z: 2 },
+                                    { bottom: 0, left: '50%', sizeXs: 21, sizeSm: 25, z: 1 },
+                                ];
+                                const p = positions[idx];
+
+                                return (
+                                    <Avatar
+                                        key={sender._id || `${sender.firstName}-${idx}`}
+                                        src={sender.avatar || ''}
+                                        sx={{
+                                            width: { xs: p.sizeXs, sm: p.sizeSm },
+                                            height: { xs: p.sizeXs, sm: p.sizeSm },
+                                            border: `2px solid ${theme.palette.background.paper}`,
+                                            boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                                            position: 'absolute',
+                                            top: p.top,
+                                            left: p.left,
+                                            right: p.right,
+                                            bottom: p.bottom,
+                                            transform: idx === 2 ? 'translateX(-50%)' : 'none',
+                                            zIndex: p.z,
+                                        }}
+                                    />
+                                );
+                            })}
+
+                            {notification.senderIds.length > 3 && (
                                 <Box
                                     sx={{
                                         position: 'absolute',
-                                        top: 2,
-                                        right: 0,
+                                        bottom: -2,
+                                        right: -3,
                                         minWidth: 22,
                                         height: 22,
                                         borderRadius: '11px',
-                                        bgcolor: isDark ? 'grey.700' : 'grey.200',
+                                        bgcolor: 'primary.main',
                                         border: `2px solid ${theme.palette.background.paper}`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         px: 0.5,
-                                        zIndex: 4,
+                                        zIndex: 5,
                                     }}
                                 >
-                                    <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary' }}>
-                                        +{notification.senderIds.length - 1}
+                                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'white' }}>
+                                        +{notification.senderIds.length - 3}
                                     </Typography>
                                 </Box>
                             )}

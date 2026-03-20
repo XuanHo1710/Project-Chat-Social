@@ -24,10 +24,19 @@ export interface UserLoginType {
   gender?: string;
 }
 
+export interface MutualFriendPreviewType {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  avatar?: string;
+  username?: string;
+}
+
 export interface AccountCardFriendType {
   id: string;
   name: string;
   mutualFriends: number;
+  mutualFriendPreview?: MutualFriendPreviewType[];
   avatar?: string;
   username: string;
   time: string;
@@ -48,6 +57,7 @@ export interface FriendType {
   avatar?: string;
   lastActive?: string;
   mutualFriends?: number;
+  mutualFriendPreview?: MutualFriendPreviewType[];
 }
 
 export interface AccountType {

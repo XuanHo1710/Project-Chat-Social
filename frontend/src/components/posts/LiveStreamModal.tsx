@@ -813,7 +813,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                             justifyContent: 'space-between'
                         }}>
                             <Typography sx={{ fontWeight: 700, color: textPrimary, fontSize: 16 }}>
-                                💬 Bình luận trực tiếp
+                                Bình luận trực tiếp
                             </Typography>
                             <Chip
                                 label={comments.length}
@@ -836,7 +836,6 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                         }}>
                             {comments.length === 0 ? (
                                 <Box sx={{ textAlign: 'center', py: 4, opacity: 0.7 }}>
-                                    <Typography sx={{ fontSize: 32, mb: 1 }}>💬</Typography>
                                     <Typography variant="body2" sx={{ color: textSecondary }}>Chưa có bình luận</Typography>
                                     <Typography variant="caption" sx={{ color: textSecondary }}>Hãy bắt đầu trò chuyện với khán giả!</Typography>
                                 </Box>

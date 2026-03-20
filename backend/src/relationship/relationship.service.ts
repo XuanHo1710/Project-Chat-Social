@@ -43,13 +43,39 @@ export class RelationshipService {
   private async getMutualFriendsMap(
     userId: string,
     candidateIdsInput: Array<string | Types.ObjectId>
-  ): Promise<Map<string, number>> {
+  ): Promise<
+    Map<
+      string,
+      {
+        count: number;
+        mutualFriendPreview: {
+          _id: string;
+          firstName: string;
+          lastName: string;
+          avatar?: string;
+          username?: string;
+        }[];
+      }
+    >
+  > {
     const me = new Types.ObjectId(userId);
     const candidateIds = Array.from(
       new Set(candidateIdsInput.map((id) => id.toString()).filter((id) => id !== me.toString()))
     ).map((id) => new Types.ObjectId(id));
 
-    const mutualFriendsMap = new Map<string, number>();
+    const mutualFriendsMap = new Map<
+      string,
+      {
+        count: number;
+        mutualFriendPreview: {
+          _id: string;
+          firstName: string;
+          lastName: string;
+          avatar?: string;
+          username?: string;
+        }[];
+      }
+    >();
     if (candidateIds.length === 0) return mutualFriendsMap;
 
     const myFriendIds = await this.getAcceptedFriendIds(userId);
@@ -58,6 +84,7 @@ export class RelationshipService {
     const mutualRows = await this.relationshipModel.aggregate<{
       _id: Types.ObjectId;
       count: number;
+      mutualFriendIds: Types.ObjectId[];
     }>([
       {
         $match: {
@@ -79,18 +106,60 @@ export class RelationshipService {
           candidateId: {
             $cond: [{ $in: ['$userId', candidateIds] }, '$userId', '$friendId'],
           },
+          mutualFriendId: {
+            $cond: [{ $in: ['$userId', candidateIds] }, '$friendId', '$userId'],
+          },
         },
       },
       {
         $group: {
           _id: '$candidateId',
           count: { $sum: 1 },
+          mutualFriendIds: { $addToSet: '$mutualFriendId' },
         },
       },
     ]);
 
+    const previewMutualIds = Array.from(
+      new Set(mutualRows.flatMap((row) => row.mutualFriendIds || []).map((id) => id.toString()))
+    ).map((id) => new Types.ObjectId(id));
+
+    const previewUsers = previewMutualIds.length
+      ? await this.accountModel
+          .find({ _id: { $in: previewMutualIds } })
+          .select('_id firstName lastName avatar username')
+          .lean()
+      : [];
+
+    const previewUsersById = new Map(
+      previewUsers.map((u) => [
+        u._id.toString(),
+        {
+          _id: u._id.toString(),
+          firstName: u.firstName,
+          lastName: u.lastName,
+          avatar: u.avatar,
+          username: u.username,
+        },
+      ])
+    );
+
     mutualRows.forEach((row) => {
-      mutualFriendsMap.set(row._id.toString(), row.count);
+      const preview = (row.mutualFriendIds || [])
+        .map((id) => previewUsersById.get(id.toString()))
+        .filter(Boolean)
+        .slice(0, 3) as {
+        _id: string;
+        firstName: string;
+        lastName: string;
+        avatar?: string;
+        username?: string;
+      }[];
+
+      mutualFriendsMap.set(row._id.toString(), {
+        count: row.count,
+        mutualFriendPreview: preview,
+      });
     });
 
     return mutualFriendsMap;
@@ -244,7 +313,8 @@ export class RelationshipService {
 
     return mappedFriends.map((friend: any) => ({
       ...friend,
-      mutualFriends: mutualFriendsMap.get(friend._id.toString()) ?? 0,
+      mutualFriends: mutualFriendsMap.get(friend._id.toString())?.count ?? 0,
+      mutualFriendPreview: mutualFriendsMap.get(friend._id.toString())?.mutualFriendPreview ?? [],
     }));
   }
 
@@ -264,12 +334,13 @@ export class RelationshipService {
 
     return mappedUsers.map((friend: any) => ({
       ...friend,
-      mutualFriends: mutualFriendsMap.get(friend._id.toString()) ?? 0,
+      mutualFriends: mutualFriendsMap.get(friend._id.toString())?.count ?? 0,
+      mutualFriendPreview: mutualFriendsMap.get(friend._id.toString())?.mutualFriendPreview ?? [],
     }));
   }
 
   // Lấy danh sách bạn bè hiện tại của người dùng
-  async getFriendsList(userId: string) {
+  async getFriendsList(userId: string, mutualBaseUserId?: string) {
     const relationships = await this.relationshipModel
       .find({
         $or: [
@@ -299,14 +370,16 @@ export class RelationshipService {
       return friend;
     });
 
+    const mutualSourceUserId = mutualBaseUserId || userId;
     const mutualFriendsMap = await this.getMutualFriendsMap(
-      userId,
+      mutualSourceUserId,
       mappedFriends.map((friend: any) => friend._id)
     );
 
     return mappedFriends.map((friend: any) => ({
       ...friend,
-      mutualFriends: mutualFriendsMap.get(friend._id.toString()) ?? 0,
+      mutualFriends: mutualFriendsMap.get(friend._id.toString())?.count ?? 0,
+      mutualFriendPreview: mutualFriendsMap.get(friend._id.toString())?.mutualFriendPreview ?? [],
     }));
   }
 
@@ -419,7 +492,9 @@ export class RelationshipService {
 
     return blockedUsers.map((blockedUser: any) => ({
       ...blockedUser,
-      mutualFriends: mutualFriendsMap.get(blockedUser._id.toString()) ?? 0,
+      mutualFriends: mutualFriendsMap.get(blockedUser._id.toString())?.count ?? 0,
+      mutualFriendPreview:
+        mutualFriendsMap.get(blockedUser._id.toString())?.mutualFriendPreview ?? [],
     }));
   }
 
@@ -511,7 +586,9 @@ export class RelationshipService {
 
     return restrictedUsers.map((restrictedUser: any) => ({
       ...restrictedUser,
-      mutualFriends: mutualFriendsMap.get(restrictedUser._id.toString()) ?? 0,
+      mutualFriends: mutualFriendsMap.get(restrictedUser._id.toString())?.count ?? 0,
+      mutualFriendPreview:
+        mutualFriendsMap.get(restrictedUser._id.toString())?.mutualFriendPreview ?? [],
     }));
   }
 }

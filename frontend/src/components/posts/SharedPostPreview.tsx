@@ -6,6 +6,7 @@ import { formatPostTime, getAuthorName } from '@/utils/formatPost';
 import { HashtagContent } from '@/utils/hashtagParser';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
+import { useState } from 'react';
 
 interface SharedPostPreviewProps {
     sharedPost: PostType;
@@ -18,6 +19,8 @@ export default function SharedPostPreview({ sharedPost, onHashtagClick, renderPo
     const router = useRouter();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const [expandedContent, setExpandedContent] = useState(false);
+    const isLongContent = (sharedPost.content || '').length > 260 || (sharedPost.content || '').split('\n').length > 5;
 
     const getPrivacyIcon = (privacy: PostPrivacy) => {
         switch (privacy) {
@@ -148,17 +151,49 @@ export default function SharedPostPreview({ sharedPost, onHashtagClick, renderPo
                         </Typography>
                     </Box>
                 ) : sharedPost.content && (
-                    <Typography
-                        sx={{
-                            mb: sharedPost.media && sharedPost.media.length > 0 ? 1.5 : 0,
-                            fontSize: '14px',
-                            lineHeight: 1.4,
-                            whiteSpace: 'pre-wrap',
-                            color: 'text.primary'
-                        }}
-                    >
-                        <HashtagContent content={sharedPost.content} onHashtagClick={handleHashtagClick} />
-                    </Typography>
+                    <Box sx={{ mb: sharedPost.media && sharedPost.media.length > 0 ? 1.5 : 0 }}>
+                        <Box
+                            sx={
+                                !expandedContent && isLongContent
+                                    ? {
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 4,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                    }
+                                    : undefined
+                            }
+                        >
+                            <Typography
+                                sx={{
+                                    fontSize: '14px',
+                                    lineHeight: 1.4,
+                                    whiteSpace: 'pre-wrap',
+                                    color: 'text.primary'
+                                }}
+                            >
+                                <HashtagContent content={sharedPost.content} onHashtagClick={handleHashtagClick} />
+                            </Typography>
+                        </Box>
+                        {isLongContent && (
+                            <Typography
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedContent((prev) => !prev);
+                                }}
+                                sx={{
+                                    mt: 0.5,
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: 'text.secondary',
+                                    cursor: 'pointer',
+                                    '&:hover': { textDecoration: 'underline' },
+                                }}
+                            >
+                                {expandedContent ? 'Ẩn bớt' : 'Xem thêm'}
+                            </Typography>
+                        )}
+                    </Box>
                 )}
 
                 {/* Shared Post Media */}

@@ -133,11 +133,16 @@ export class AccountService {
 
     const candidateIds = items.map((item) => new Types.ObjectId(item._id.toString()));
     const mutualFriendsMap = new Map<string, number>();
+    const mutualFriendPreviewMap = new Map<
+      string,
+      { _id: string; firstName: string; lastName: string; avatar?: string; username?: string }[]
+    >();
 
     if (candidateIds.length > 0 && myFriendIds.length > 0) {
       const mutualRows = await this.relationshipModel.aggregate<{
         _id: Types.ObjectId;
         count: number;
+        mutualFriendIds: Types.ObjectId[];
       }>([
         {
           $match: {
@@ -159,18 +164,59 @@ export class AccountService {
             candidateId: {
               $cond: [{ $in: ['$userId', candidateIds] }, '$userId', '$friendId'],
             },
+            mutualFriendId: {
+              $cond: [{ $in: ['$userId', candidateIds] }, '$friendId', '$userId'],
+            },
           },
         },
         {
           $group: {
             _id: '$candidateId',
             count: { $sum: 1 },
+            mutualFriendIds: { $addToSet: '$mutualFriendId' },
           },
         },
       ]);
 
+      const previewMutualIds = Array.from(
+        new Set(mutualRows.flatMap((row) => row.mutualFriendIds || []).map((id) => id.toString()))
+      ).map((id) => new Types.ObjectId(id));
+
+      const previewUsers = previewMutualIds.length
+        ? await this.accountModel
+            .find({ _id: { $in: previewMutualIds } })
+            .select('_id firstName lastName avatar username')
+            .lean()
+        : [];
+
+      const previewUsersById = new Map(
+        previewUsers.map((u) => [
+          u._id.toString(),
+          {
+            _id: u._id.toString(),
+            firstName: u.firstName,
+            lastName: u.lastName,
+            avatar: u.avatar,
+            username: u.username,
+          },
+        ])
+      );
+
       mutualRows.forEach((row) => {
         mutualFriendsMap.set(row._id.toString(), row.count);
+
+        const preview = (row.mutualFriendIds || [])
+          .map((id) => previewUsersById.get(id.toString()))
+          .filter(Boolean)
+          .slice(0, 3) as {
+          _id: string;
+          firstName: string;
+          lastName: string;
+          avatar?: string;
+          username?: string;
+        }[];
+
+        mutualFriendPreviewMap.set(row._id.toString(), preview);
       });
     }
 
@@ -181,6 +227,7 @@ export class AccountService {
         id: item._id,
         name: item.firstName + ' ' + item.lastName,
         mutualFriends: mutualFriendsMap.get(item._id.toString()) ?? 0,
+        mutualFriendPreview: mutualFriendPreviewMap.get(item._id.toString()) ?? [],
         avatar: item.avatar,
         username: item.username,
         time: '1 ngày',

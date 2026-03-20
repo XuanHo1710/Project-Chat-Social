@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useSocket } from '@/contexts/SocketContext';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
+import MutualFriendsPreview from '@/components/friends/MutualFriendsPreview';
 
 
 export default function CardListFriendComponent({ friend }: { friend: FriendType }) {
@@ -20,7 +21,6 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
 
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
     const cancelBg = isDark ? 'rgba(255,255,255,0.15)' : '#e4e6eb';
-    console.log(friend)
 
     const navigateToProfile = () => {
         if (!friend.username) return;
@@ -55,9 +55,10 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
                     >
                         {friend.firstName + " " + friend.lastName}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" fontSize={13} sx={{ mb: 1.5 }}>
-                        {friend.mutualFriends || 0} bạn chung
-                    </Typography>
+                    <MutualFriendsPreview
+                        count={friend.mutualFriends || 0}
+                        preview={friend.mutualFriendPreview || []}
+                    />
 
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         <Button

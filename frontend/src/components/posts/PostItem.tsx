@@ -60,7 +60,11 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const [reactionListOpen, setReactionListOpen] = useState(false);
+    const [expandedContent, setExpandedContent] = useState(false);
+    const [expandedSharedCaption, setExpandedSharedCaption] = useState(false);
     const { t } = useTranslation();
+
+    const isLongContent = (post.content || '').length > 320 || (post.content || '').split('\n').length > 6;
 
     // Use selector to get specific post reaction state - ensures re-render on change
     const totalReacts = useReactionStore(state => state.postReactions[post._id]?.totalReacts);
@@ -241,17 +245,77 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                             </Typography>
                         </Box>
                     ) : (
-                        <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
-                            <HashtagContent content={post.content || ''} onHashtagClick={handleHashtagClick} />
-                        </Typography>
+                        <Box sx={{ mb: 2 }}>
+                            <Box
+                                sx={
+                                    !expandedContent && isLongContent
+                                        ? {
+                                            display: '-webkit-box',
+                                            WebkitLineClamp: 5,
+                                            WebkitBoxOrient: 'vertical',
+                                            overflow: 'hidden',
+                                        }
+                                        : undefined
+                                }
+                            >
+                                <Typography sx={{ fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
+                                    <HashtagContent content={post.content || ''} onHashtagClick={handleHashtagClick} />
+                                </Typography>
+                            </Box>
+                            {isLongContent && (
+                                <Typography
+                                    onClick={() => setExpandedContent((prev) => !prev)}
+                                    sx={{
+                                        mt: 0.5,
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        color: 'text.secondary',
+                                        cursor: 'pointer',
+                                        '&:hover': { textDecoration: 'underline' },
+                                    }}
+                                >
+                                    {expandedContent ? 'Ẩn bớt' : 'Xem thêm'}
+                                </Typography>
+                            )}
+                        </Box>
                     )
                 ) : (
                     // Shared post - show caption if exists, then shared content
                     <>
                         {post.content && (
-                            <Typography sx={{ mb: 2, fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
-                                <HashtagContent content={post.content} onHashtagClick={handleHashtagClick} />
-                            </Typography>
+                            <Box sx={{ mb: 2 }}>
+                                <Box
+                                    sx={
+                                        !expandedSharedCaption && isLongContent
+                                            ? {
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 4,
+                                                WebkitBoxOrient: 'vertical',
+                                                overflow: 'hidden',
+                                            }
+                                            : undefined
+                                    }
+                                >
+                                    <Typography sx={{ fontSize: '15px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
+                                        <HashtagContent content={post.content} onHashtagClick={handleHashtagClick} />
+                                    </Typography>
+                                </Box>
+                                {isLongContent && (
+                                    <Typography
+                                        onClick={() => setExpandedSharedCaption((prev) => !prev)}
+                                        sx={{
+                                            mt: 0.5,
+                                            fontSize: 14,
+                                            fontWeight: 600,
+                                            color: 'text.secondary',
+                                            cursor: 'pointer',
+                                            '&:hover': { textDecoration: 'underline' },
+                                        }}
+                                    >
+                                        {expandedSharedCaption ? 'Ẩn bớt' : 'Xem thêm'}
+                                    </Typography>
+                                )}
+                            </Box>
                         )}
                         <Box sx={{ mb: 2 }}>
                             {post && post.sharedPostId &&

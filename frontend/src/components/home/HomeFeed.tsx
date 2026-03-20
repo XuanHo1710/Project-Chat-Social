@@ -11,7 +11,7 @@ import {
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { usePostStore } from '@/stores/usePostStore';
-import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useGetNewsFeedInfinite, useDeletePost } from '@/queries/usePostQueries';
 import { PostType, PostPrivacy, MediaItem } from '@/types/post';
@@ -159,7 +159,7 @@ export default function HomeFeed() {
         const newStorePosts = storePosts.filter((p: PostType) => !apiPostIds.has(p._id));
 
         // Merge: new store posts + API posts (using store version if exists)
-        let allPosts: PostType[] = [
+        const allPosts: PostType[] = [
             ...newStorePosts,
             ...apiPosts.map((apiPost: PostType) => {
                 const storePost = storePosts.find((sp: PostType) => sp._id === apiPost._id);
@@ -419,7 +419,7 @@ export default function HomeFeed() {
                             }}
                         />
                         <Chip
-                            label={`📺 ${t('post.replay')}`}
+                            label={`${t('post.replay')}`}
                             size="small"
                             sx={{
                                 position: 'absolute',
@@ -518,7 +518,6 @@ export default function HomeFeed() {
                             </Box>
                         ) : (
                             <>
-                                <Typography sx={{ fontSize: 48, mb: 1 }}>📺</Typography>
                                 <Typography variant="body1" sx={{ color: textSecondary, fontWeight: 500 }}>
                                     {t('post.livestream_ended')}
                                 </Typography>

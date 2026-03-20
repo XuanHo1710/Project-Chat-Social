@@ -73,18 +73,19 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                 );
                 setExistingMemberIds(memberIds);
 
-                // Get pending invites
+                // Only admin/owner can view pending members endpoint to avoid 403 toast for normal members
                 try {
-                    const pendingResponse = await groupService.getPendingMembers(groupId, 1, 100);
-                    console.log('Pending members response:', pendingResponse);
-                    const pendingIds = new Set<string>(
-                        (pendingResponse.members || []).map((m: any) => m.userId?._id || m._id)
-                    );
-                    console.log('Pending invite IDs:', pendingIds);
-                    setPendingInviteIds(pendingIds);
-                    setInvitedIds(pendingIds);
+                    const groupDetail = await groupService.getGroupById(groupId);
+                    if (groupDetail?.myRole === 'ADMIN' || groupDetail?.myRole === 'OWNER') {
+                        const pendingResponse = await groupService.getPendingMembers(groupId, 1, 100);
+                        const pendingIds = new Set<string>(
+                            (pendingResponse.members || []).map((m: any) => m.userId?._id || m._id)
+                        );
+                        setPendingInviteIds(pendingIds);
+                        setInvitedIds(pendingIds);
+                    }
                 } catch {
-                    // Ignore if user doesn't have permission to view pending
+                    // Keep invite dialog usable even if pending list can't be fetched
                 }
             } catch (error) {
                 console.error('Failed to load data:', error);
@@ -187,8 +188,6 @@ export default function InviteFriendsDialog({ open, onClose, groupId, groupName 
                         <List>
                             {filteredFriends.map((friend) => {
                                 const status = getButtonStatus(friend._id);
-
-                                console.log('Rendering friend:', invitedIds);
 
                                 return (
                                     <ListItem

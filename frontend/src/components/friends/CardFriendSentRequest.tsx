@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useSocket } from '@/contexts/SocketContext';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
+import MutualFriendsPreview from '@/components/friends/MutualFriendsPreview';
 
 
 export default function CardFriendSentRequestComponent({ friend }: { friend: FriendType }) {
@@ -57,6 +58,11 @@ export default function CardFriendSentRequestComponent({ friend }: { friend: Fri
                     >
                         {friend.firstName + " " + friend.lastName}
                     </Typography>
+                    <MutualFriendsPreview
+                        count={friend.mutualFriends || 0}
+                        preview={friend.mutualFriendPreview || []}
+                        compact
+                    />
                     <Typography variant="body2" color="text.secondary" fontSize={13} sx={{ mb: 1.5 }}>
                         Đã gửi {timeAgo(friend.time)}
                     </Typography>

@@ -886,7 +886,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             borderRadius: 1
                         }}>
                             <Typography sx={{ color: 'white', fontSize: 12, fontWeight: 600 }}>
-                                📺 Phát lại
+                                Phát lại
                             </Typography>
                         </Box>
                     </Box>
@@ -909,7 +909,6 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                     }}
                 >
                     <Box sx={{ textAlign: 'center', py: 4 }}>
-                        <Typography sx={{ fontSize: 48, mb: 1 }}>📺</Typography>
                         <Typography variant="body1" sx={{ color: textSecondary, fontWeight: 500 }}>
                             Video trực tiếp đã kết thúc
                         </Typography>

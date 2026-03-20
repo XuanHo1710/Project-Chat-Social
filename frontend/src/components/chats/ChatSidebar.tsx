@@ -30,7 +30,7 @@ import {
 import { useAuthStore } from '@/stores/useAuthStore';
 import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
-import { formatTime } from '@/utils/formatDate';
+import { formatChatTimestamp } from '@/utils/formatDate';
 import { ConversationResponseData } from '@/types/conversation';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
@@ -555,7 +555,7 @@ export default function ChatSidebar({
                                                     })()}
                                                 </Typography>
                                                 <Typography variant="caption" color="text.secondary" fontSize={12} sx={{ whiteSpace: 'nowrap' }}>
-                                                    · {conversation.lastMessageAt ? formatTime(conversation.lastMessageAt) : ''}
+                                                    · {conversation.lastMessageAt ? formatChatTimestamp(conversation.lastMessageAt) : ''}
                                                 </Typography>
                                             </Box>
                                         }

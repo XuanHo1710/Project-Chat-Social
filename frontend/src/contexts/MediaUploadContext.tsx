@@ -1,5 +1,5 @@
 "use client";
-import { uploadChatMedia, UploadMediaResult } from '@/services/cloudinary.service';
+import { uploadMedia, UploadMediaResult } from '@/services/cloudinary.service';
 import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 
 export interface MediaUploadResult {
@@ -120,7 +120,7 @@ export function MediaUploadProvider({ children }: { children: ReactNode }) {
             );
 
             // Use backend API for upload (supports both images and videos)
-            const response = await uploadChatMedia(pendingFiles.map((m) => m.file));
+            const response = await uploadMedia(pendingFiles.map((m) => m.file));
 
             if (!response.success) {
                 throw new Error(response.error || 'Upload failed');

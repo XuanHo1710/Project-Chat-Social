@@ -3,10 +3,13 @@ import { Box, Card, CardContent, Typography, Avatar, Button, useTheme } from '@m
 import { FriendType } from '@/types/account';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSocket } from '@/contexts/SocketContext';
+import { useRouter } from 'next/navigation';
+import { CLIENT_PATH } from '@/constants/paths';
 
 
 export default function CardListFriendComponent({ friend }: { friend: FriendType }) {
     const { user } = useAuthStore();
+    const router = useRouter();
     const { socketRelationship } = useSocket();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
@@ -44,6 +47,7 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
 
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         <Button
+                            onClick={() => router.push(CLIENT_PATH.PROFILE_BY_USERNAME(friend.username))}
                             fullWidth
                             variant="contained"
                             sx={{

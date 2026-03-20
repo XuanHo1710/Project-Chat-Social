@@ -14,7 +14,7 @@ export class AccountService {
   constructor(
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
     @InjectModel(Relationship.name) private relationshipModel: Model<Relationship>
-  ) { }
+  ) {}
 
   async saveFcmToken(userId: string, token: string) {
     await this.accountModel.updateOne(
@@ -72,9 +72,9 @@ export class AccountService {
                     { $or: [{ status: 'ACCEPTED' }, { status: 'PENDING' }, { status: 'BLOCKED' }] },
                   ],
                 },
-              ]
-            }
-          ]
+              ],
+            },
+          ],
         },
         { userId: 1, friendId: 1 } // chỉ lấy field cần
       )
@@ -123,6 +123,7 @@ export class AccountService {
         name: item.firstName + ' ' + item.lastName,
         mutualFriends: 0,
         avatar: item.avatar,
+        username: item.username,
         time: '1 ngày',
       })),
       totalItems,
@@ -321,7 +322,7 @@ export class AccountService {
 
     // Kiểm tra xem ngày hôm nay đã được ghi chưa
     const todayStr = today.toISOString().split('T')[0];
-    const existingEntry = account.loginHistory?.find(entry => {
+    const existingEntry = account.loginHistory?.find((entry) => {
       const entryDateStr = new Date(entry.date).toISOString().split('T')[0];
       return entryDateStr === todayStr;
     });
@@ -332,7 +333,7 @@ export class AccountService {
         { _id: userId, 'loginHistory.date': existingEntry.date },
         {
           $inc: { loginCount: 1, 'loginHistory.$.count': 1 },
-          $set: { lastLogin: new Date() }
+          $set: { lastLogin: new Date() },
         }
       );
     } else {
@@ -342,7 +343,7 @@ export class AccountService {
         {
           $inc: { loginCount: 1 },
           $push: { loginHistory: { date: today, count: 1 } },
-          $set: { lastLogin: new Date() }
+          $set: { lastLogin: new Date() },
         }
       );
     }
@@ -351,7 +352,9 @@ export class AccountService {
   /**
    * Lấy thống kê traffic (số lượt đăng nhập) trong 7 ngày gần nhất
    */
-  async getTrafficData(days: number = 7): Promise<Array<{ date: string; logins: number; activeUsers: number }>> {
+  async getTrafficData(
+    days: number = 7
+  ): Promise<Array<{ date: string; logins: number; activeUsers: number }>> {
     const today = new Date();
     today.setHours(23, 59, 59, 999);
 
@@ -374,23 +377,23 @@ export class AccountService {
           $match: {
             'loginHistory.date': {
               $gte: new Date(dateStr + 'T00:00:00.000Z'),
-              $lt: new Date(dateStr + 'T23:59:59.999Z')
-            }
-          }
+              $lt: new Date(dateStr + 'T23:59:59.999Z'),
+            },
+          },
         },
         {
           $group: {
             _id: null,
             totalLogins: { $sum: '$loginHistory.count' },
-            uniqueUsers: { $addToSet: '$_id' }
-          }
-        }
+            uniqueUsers: { $addToSet: '$_id' },
+          },
+        },
       ]);
 
       result.push({
         date: dateStr,
         logins: loginStats[0]?.totalLogins || 0,
-        activeUsers: loginStats[0]?.uniqueUsers?.length || 0
+        activeUsers: loginStats[0]?.uniqueUsers?.length || 0,
       });
     }
 

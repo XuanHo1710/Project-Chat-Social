@@ -29,6 +29,7 @@ export interface AccountCardFriendType {
   name: string;
   mutualFriends: number;
   avatar?: string;
+  username: string;
   time: string;
 }
 

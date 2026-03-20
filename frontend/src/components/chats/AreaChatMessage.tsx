@@ -204,6 +204,32 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     const [isUploading, setIsUploading] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
     const fileDocInputRef = useRef<HTMLInputElement>(null);
+    const MAX_CHAT_UPLOAD_SIZE_MB = 5;
+    const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
+
+    const validateFileSize = (files: File[]): File[] => {
+        const validFiles: File[] = [];
+        const oversizedNames: string[] = [];
+
+        files.forEach((file) => {
+            if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+                oversizedNames.push(file.name);
+                return;
+            }
+            validFiles.push(file);
+        });
+
+        if (oversizedNames.length > 0) {
+            const fileList = oversizedNames.slice(0, 3).join(', ');
+            const suffix = oversizedNames.length > 3 ? '...' : '';
+            toast.error(t('chat.upload_limit_exceeded', {
+                maxSize: MAX_CHAT_UPLOAD_SIZE_MB,
+                fileNames: `${fileList}${suffix}`
+            }));
+        }
+
+        return validFiles;
+    };
 
     // Track current cursor (lastReadMessageId) for optimization
     const currentCursorRef = useRef<string | null>(null);
@@ -1020,8 +1046,14 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         const files = e.target.files;
         if (!files) return;
 
+        const validFiles = validateFileSize(Array.from(files));
+        if (validFiles.length === 0) {
+            e.target.value = '';
+            return;
+        }
+
         const newPreviews: { file: File; url: string; type: 'image' | 'video' }[] = [];
-        Array.from(files).forEach(file => {
+        validFiles.forEach(file => {
             const isVideo = file.type.startsWith('video/');
             newPreviews.push({
                 file,
@@ -1045,8 +1077,14 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         const files = e.target.files;
         if (!files) return;
 
+        const validFiles = validateFileSize(Array.from(files));
+        if (validFiles.length === 0) {
+            e.target.value = '';
+            return;
+        }
+
         const newFiles: { file: File; name: string; size: number; type: string }[] = [];
-        Array.from(files).forEach(file => {
+        validFiles.forEach(file => {
             newFiles.push({
                 file,
                 name: file.name,
@@ -1099,6 +1137,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                     messageType = newMessage.trim() ? 'TEXT' : 'IMAGE';
                 } else {
                     console.error("Upload failed");
+                    toast.error(uploadResult.error || t('chat.upload_failed'));
                     setIsUploading(false);
                     return;
                 }
@@ -1119,6 +1158,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                     messageType = newMessage.trim() ? 'TEXT' : 'FILE';
                 } else {
                     console.error("File upload failed");
+                    toast.error(uploadResult.error || t('chat.upload_failed'));
                     setIsUploading(false);
                     return;
                 }
@@ -1391,7 +1431,13 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             }}
                             onClick={() => {
                                 if (!isGroup) {
-                                    callUser(selectedConversation.otherId, selectedConversation._id, true);
+                                    callUser(
+                                        selectedConversation.otherId,
+                                        selectedConversation._id,
+                                        true,
+                                        selectedConversation.fullName,
+                                        selectedConversation.avatar
+                                    );
                                 } else {
                                     startGroupCall(selectedConversation._id, true);
                                 }
@@ -1403,7 +1449,13 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             size="small"
                             onClick={() => {
                                 if (!isGroup) {
-                                    callUser(selectedConversation.otherId, selectedConversation._id, false);
+                                    callUser(
+                                        selectedConversation.otherId,
+                                        selectedConversation._id,
+                                        false,
+                                        selectedConversation.fullName,
+                                        selectedConversation.avatar
+                                    );
                                 } else {
                                     startGroupCall(selectedConversation._id, false);
                                 }

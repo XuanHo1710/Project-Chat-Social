@@ -1,4 +1,5 @@
 import axios from "@/config/axios";
+import { AxiosError } from "axios";
 
 export interface DeleteMediaItem {
   publicId: string;
@@ -29,12 +30,9 @@ export interface UploadMediaResponse {
   results: UploadMediaResult[];
 }
 
-/**
- * Upload media files to Cloudinary via backend API
- * This is faster and more secure than direct Cloudinary upload
- */
-export const uploadChatMedia = async (
-  files: File[]
+const uploadMediaToEndpoint = async (
+  files: File[],
+  endpoint: string,
 ): Promise<UploadMediaResponse> => {
   if (!files || files.length === 0) {
     return { success: true, message: "No files to upload", results: [] };
@@ -46,7 +44,7 @@ export const uploadChatMedia = async (
       formData.append("files", file);
     });
 
-    const response = await axios.post("/cloudinary/upload", formData, {
+    const response = await axios.post(endpoint, formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
@@ -61,13 +59,42 @@ export const uploadChatMedia = async (
       results: result.results || [],
     };
   } catch (error) {
+    const axiosError = error as AxiosError<{
+      message?: string | string[];
+      error?: string;
+    }>;
+    const rawMessage = axiosError.response?.data?.message;
+    const normalizedMessage = Array.isArray(rawMessage)
+      ? rawMessage.join(", ")
+      : rawMessage;
+    const backendMessage =
+      normalizedMessage || axiosError.response?.data?.error || undefined;
+
     console.error("Failed to upload media:", error);
     return {
       success: false,
-      error: "Upload failed",
+      error: backendMessage || "Upload failed",
       results: [],
     };
   }
+};
+
+/**
+ * Upload media for post/story without chat file-size restriction.
+ */
+export const uploadMedia = async (
+  files: File[],
+): Promise<UploadMediaResponse> => {
+  return uploadMediaToEndpoint(files, "/cloudinary/upload");
+};
+
+/**
+ * Upload media for user-to-user chat with strict backend size limit.
+ */
+export const uploadChatMedia = async (
+  files: File[],
+): Promise<UploadMediaResponse> => {
+  return uploadMediaToEndpoint(files, "/cloudinary/upload/chat");
 };
 
 /**
@@ -75,7 +102,7 @@ export const uploadChatMedia = async (
  * This is the secure way to delete media - uses server-side API secret
  */
 export const deleteCloudinaryMedia = async (
-  media: DeleteMediaItem[]
+  media: DeleteMediaItem[],
 ): Promise<DeleteMediaResponse> => {
   if (!media || media.length === 0) {
     return { success: true, message: "No media to delete", results: [] };
@@ -86,7 +113,7 @@ export const deleteCloudinaryMedia = async (
       "/cloudinary/delete",
       {
         media,
-      }
+      },
     );
     return response.data;
   } catch (error) {

@@ -29,7 +29,7 @@ import {
     IntegrationInstructions as IntegrationInstructionsIcon
 } from '@mui/icons-material';
 import { MessageResponse, EmotionType, AttachmentData } from '@/types/chat';
-import { formatTime } from '@/utils/formatDate';
+import { formatChatTimestamp } from '@/utils/formatDate';
 import { Socket } from 'socket.io-client';
 import { handleDownload } from '@/utils/formatFile';
 import PostShareMessage from "@/components/chat/PostShareMessage";
@@ -576,7 +576,7 @@ export default function MessageItem({
 
                         {/* Time */}
                         <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.3, px: 0.5 }}>
-                            {formatTime(message.createdAt)}
+                            {formatChatTimestamp(message.createdAt)}
                         </Typography>
                     </Box>
 
@@ -801,7 +801,7 @@ export default function MessageItem({
 
                         {/* Time */}
                         <Typography sx={{ fontSize: 11, color: '#65676b', mt: 0.3, px: 0.5 }}>
-                            {formatTime(message.createdAt)}
+                            {formatChatTimestamp(message.createdAt)}
                         </Typography>
                     </Box>
 
@@ -835,7 +835,7 @@ export default function MessageItem({
                             </IconButton>
                         }
                         <Typography variant="caption" color="#65676b" sx={{ fontSize: 11, mx: 0.5, whiteSpace: 'nowrap' }}>
-                            {formatTime(message.createdAt)}
+                            {formatChatTimestamp(message.createdAt)}
                         </Typography>
                     </Box>
                 </Box>
@@ -1158,7 +1158,7 @@ export default function MessageItem({
                                     </IconButton>
                                 }
                                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11, mx: 0.5, whiteSpace: 'nowrap' }}>
-                                    {formatTime(message.createdAt)}
+                                    {formatChatTimestamp(message.createdAt)}
                                 </Typography>
                             </Box>
                         </Box>

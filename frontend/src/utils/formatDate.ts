@@ -28,6 +28,43 @@ export const formatTime = (isoString: Date | string) => {
   });
 };
 
+export const formatChatTimestamp = (isoString: Date | string) => {
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const now = new Date();
+  const diffMs = Math.max(0, now.getTime() - date.getTime());
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const sevenDaysMs = 7 * oneDayMs;
+
+  if (diffMs < oneDayMs) {
+    return date.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  if (diffMs <= sevenDaysMs) {
+    return date.toLocaleString("vi-VN", {
+      weekday: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  return date.toLocaleString("vi-VN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+};
+
 export const timeAgo = (input: Date | string) => {
   const date = new Date(input);
   const now = new Date();

@@ -10,11 +10,14 @@ import { useState } from 'react';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSocket } from '@/contexts/SocketContext';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+import { CLIENT_PATH } from '@/constants/paths';
 
 
 
 export default function CardFriendShowAllComponent({ friend }: { friend: AccountCardFriendType }) {
     const { user } = useAuthStore();
+    const router = useRouter();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const [addFriend, setAddFriend] = useState<boolean>(false);
@@ -68,6 +71,12 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
             <CardContent sx={{ p: 0 }}>
                 <Box sx={{ position: 'relative', pb: '100%', bgcolor: hoverBg, borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
                     <Avatar
+                        onClick={() => {
+                            console.log('navigate to profile of', friend);
+                            router.push(CLIENT_PATH.PROFILE_BY_USERNAME(friend.username));
+
+                        }}
+
                         src={friend.avatar || ""}
                         sx={{
                             position: 'absolute',
@@ -76,6 +85,7 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                             width: '100%',
                             height: '100%',
                             borderRadius: '8px 8px 0 0',
+                            cursor: 'pointer',
                         }}
                     />
                 </Box>

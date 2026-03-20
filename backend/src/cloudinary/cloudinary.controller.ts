@@ -20,6 +20,8 @@ class DeleteMediaRequestDto {
 export class CloudinaryController {
   constructor(private readonly cloudinaryService: CloudinaryService) {}
 
+  private static readonly CHAT_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+
   /**
    * Upload multiple media files to Cloudinary
    * Protected route - requires authentication
@@ -28,6 +30,38 @@ export class CloudinaryController {
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(FilesInterceptor('files', 10))
   async uploadMedia(@UploadedFiles() files: Express.Multer.File[]) {
+    if (!files || files.length === 0) {
+      return { success: false, error: 'No files provided', results: [] };
+    }
+
+    try {
+      const results = await this.cloudinaryService.uploadMultipleMedia(files);
+      return {
+        success: true,
+        message: `Successfully uploaded ${results.length} files`,
+        results,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Upload failed',
+        results: [],
+      };
+    }
+  }
+
+  /**
+   * Upload chat media files with strict 5MB/file limit
+   * This endpoint is only for chat attachments between users.
+   */
+  @Post('upload/chat')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FilesInterceptor('files', 10, {
+      limits: { fileSize: CloudinaryController.CHAT_MAX_FILE_SIZE_BYTES },
+    })
+  )
+  async uploadChatMedia(@UploadedFiles() files: Express.Multer.File[]) {
     if (!files || files.length === 0) {
       return { success: false, error: 'No files provided', results: [] };
     }

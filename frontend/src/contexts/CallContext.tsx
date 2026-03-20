@@ -51,7 +51,7 @@ interface RemoteStream {
 
 interface CallContextType {
     // 1v1
-    callUser: (userId: string, conversationId: string, isTurnOff: boolean) => void;
+    callUser: (userId: string, conversationId: string, isTurnOff: boolean, targetName?: string, targetAvatar?: string) => void;
 
     // Group
     startGroupCall: (conversationId: string, isTurnOff: boolean) => void;
@@ -405,11 +405,18 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }, [stream]);
 
     // 1v1 Call
-    const callUser = async (userId: string, conversationId: string, isTurnOff: boolean) => {
+    const callUser = async (userId: string, conversationId: string, isTurnOff: boolean, targetName?: string, targetAvatar?: string) => {
         if (isTurnOff) {
             setIsVideoOff(true);
         }
         setRecipientInfo({ id: userId, conversationId });
+        setCallerInfo({
+            id: userId,
+            name: targetName || 'Nguoi dung',
+            avatar: targetAvatar || '',
+            conversationId,
+            isGroup: false,
+        });
         setIsInCall(true);
         setIsGroupCall(false);
         setIsCallAccepted(false);

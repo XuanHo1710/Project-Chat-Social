@@ -103,7 +103,7 @@ export class AccountService {
           isDeleted: false,
           isActive: true,
         })
-        .select('_id firstName lastName avatar')
+        .select('_id firstName lastName avatar username')
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -115,13 +115,72 @@ export class AccountService {
       }),
     ]);
 
+    const friendRelationships = await this.relationshipModel
+      .find(
+        {
+          status: 'ACCEPTED',
+          $or: [{ userId: me }, { friendId: me }],
+        },
+        { userId: 1, friendId: 1 }
+      )
+      .lean();
+
+    const myFriendIds = friendRelationships.map((rel) =>
+      rel.userId.toString() === me.toString()
+        ? new Types.ObjectId(rel.friendId.toString())
+        : new Types.ObjectId(rel.userId.toString())
+    );
+
+    const candidateIds = items.map((item) => new Types.ObjectId(item._id.toString()));
+    const mutualFriendsMap = new Map<string, number>();
+
+    if (candidateIds.length > 0 && myFriendIds.length > 0) {
+      const mutualRows = await this.relationshipModel.aggregate<{
+        _id: Types.ObjectId;
+        count: number;
+      }>([
+        {
+          $match: {
+            status: 'ACCEPTED',
+            $or: [
+              {
+                userId: { $in: candidateIds },
+                friendId: { $in: myFriendIds },
+              },
+              {
+                friendId: { $in: candidateIds },
+                userId: { $in: myFriendIds },
+              },
+            ],
+          },
+        },
+        {
+          $project: {
+            candidateId: {
+              $cond: [{ $in: ['$userId', candidateIds] }, '$userId', '$friendId'],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: '$candidateId',
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      mutualRows.forEach((row) => {
+        mutualFriendsMap.set(row._id.toString(), row.count);
+      });
+    }
+
     const totalPages = Math.ceil(totalItems / limit);
 
     return {
       items: items.map((item) => ({
         id: item._id,
         name: item.firstName + ' ' + item.lastName,
-        mutualFriends: 0,
+        mutualFriends: mutualFriendsMap.get(item._id.toString()) ?? 0,
         avatar: item.avatar,
         username: item.username,
         time: '1 ngày',

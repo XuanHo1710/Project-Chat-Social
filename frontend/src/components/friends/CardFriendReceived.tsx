@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useState } from 'react';
 import { useSocket } from '@/contexts/SocketContext';
 import { useRouter } from 'next/navigation';
+import { CLIENT_PATH } from '@/constants/paths';
 
 export default function CardFriendReceivedComponent({ friend }: { friend: FriendType }) {
     const { user } = useAuthStore();
@@ -32,7 +33,8 @@ export default function CardFriendReceivedComponent({ friend }: { friend: Friend
     };
 
     const navigateToProfile = () => {
-        router.push(`/profile/${friend.username}`);
+        if (!friend.username) return;
+        router.push(CLIENT_PATH.PROFILE_BY_USERNAME(friend.username));
     };
 
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';

@@ -4,6 +4,7 @@ export interface FindAllResponse {
     name: string;
     mutualFriends: number;
     avatar: string;
+    username: string;
     time: string;
   }[];
   totalItems: number;

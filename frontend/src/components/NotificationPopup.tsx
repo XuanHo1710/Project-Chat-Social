@@ -316,10 +316,10 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
             key={notification._id}
             onClick={() => handleNotificationClick(notification)}
             sx={{
-                py: 1.5,
-                px: 1.5,
+                py: { xs: 1.1, sm: 1.5 },
+                px: { xs: 1, sm: 1.5 },
                 mx: 1,
-                gap: 1.5,
+                gap: { xs: 1, sm: 1.5 },
                 borderRadius: '8px',
                 bgcolor: notification.status === "UNREAD" ? (isDark ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.primary.main, 0.08)) : 'transparent',
                 '&:hover': {
@@ -327,14 +327,14 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 },
             }}
         >
-            <ListItemAvatar sx={{ minWidth: 72 }}>
-                <Box sx={{ position: 'relative', width: 60, height: 60 }}>
+            <ListItemAvatar sx={{ minWidth: { xs: 56, sm: 72 } }}>
+                <Box sx={{ position: 'relative', width: { xs: 46, sm: 60 }, height: { xs: 46, sm: 60 } }}>
                     {/* Avatar display logic */}
                     {notification.groupId?.avatar ? (
                         // Group notification - show group avatar
                         <Avatar
                             src={notification.groupId.avatar}
-                            sx={{ width: 56, height: 56 }}
+                            sx={{ width: { xs: 42, sm: 56 }, height: { xs: 42, sm: 56 } }}
                         />
                     ) : notification.senderIds && notification.senderIds.length > 1 ? (
                         // Multiple senders - simple horizontal overlap (Facebook style)
@@ -349,8 +349,8 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             <Avatar
                                 src={[...notification.senderIds].reverse()[0]?.avatar || ''}
                                 sx={{
-                                    width: 40,
-                                    height: 40,
+                                    width: { xs: 32, sm: 40 },
+                                    height: { xs: 32, sm: 40 },
                                     border: `2px solid ${theme.palette.background.paper}`,
                                     position: 'absolute',
                                     top: 0,
@@ -363,8 +363,8 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                                 <Avatar
                                     src={[...notification.senderIds].reverse()[1]?.avatar || ''}
                                     sx={{
-                                        width: 28,
-                                        height: 28,
+                                        width: { xs: 22, sm: 28 },
+                                        height: { xs: 22, sm: 28 },
                                         border: `2px solid ${theme.palette.background.paper}`,
                                         position: 'absolute',
                                         bottom: 0,
@@ -402,7 +402,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         // Single sender - show single avatar
                         <Avatar
                             src={notification.senderIds?.[0]?.avatar || ''}
-                            sx={{ width: 56, height: 56 }}
+                            sx={{ width: { xs: 42, sm: 56 }, height: { xs: 42, sm: 56 } }}
                         />
                     )}
                     {/* Notification type icon */}
@@ -436,7 +436,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 primary={
                     <Typography
                         sx={{
-                            fontSize: 15,
+                            fontSize: { xs: 14, sm: 15 },
                             fontWeight: notification.status === "UNREAD" ? 600 : 400,
                             color: 'text.primary',
                             display: '-webkit-box',
@@ -525,7 +525,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                         ) :
                             <Typography
                                 sx={{
-                                    fontSize: 13,
+                                    fontSize: { xs: 12, sm: 13 },
                                     color: notification.status === "UNREAD" ? 'primary.main' : 'text.secondary',
                                     fontWeight: notification.status === "UNREAD" ? 600 : 400,
                                 }}
@@ -555,12 +555,15 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
         <Paper
             elevation={8}
             sx={{
-                position: 'absolute',
-                top: 56,
-                right: 0,
-                width: 400,
-                maxHeight: '70vh',
-                borderRadius: '8px',
+                position: { xs: 'fixed', sm: 'absolute' },
+                top: { xs: 52, sm: 56 },
+                right: { xs: 'auto', sm: 0 },
+                left: { xs: '50%', sm: 'auto' },
+                transform: { xs: 'translateX(-50%)', sm: 'none' },
+                width: { xs: '92vw', sm: 400 },
+                maxWidth: { xs: '92vw', sm: 400 },
+                maxHeight: { xs: '75vh', sm: '70vh' },
+                borderRadius: { xs: '12px', sm: '8px' },
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
@@ -568,9 +571,9 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
             }}
         >
             {/* Header */}
-            <Box sx={{ px: 2, pt: 2.5, pb: 1.5 }}>
+            <Box sx={{ px: { xs: 1.5, sm: 2 }, pt: { xs: 1.5, sm: 2.5 }, pb: { xs: 1, sm: 1.5 } }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography sx={{ fontSize: 24, fontWeight: 700, color: 'text.primary' }}>
+                    <Typography sx={{ fontSize: { xs: 22, sm: 24 }, fontWeight: 700, color: 'text.primary' }}>
                         {t('notifications.notifications')}
                     </Typography>
                     {!isLoading &&
@@ -597,12 +600,12 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                     <Box
                         onClick={() => setActiveTab('all')}
                         sx={{
-                            px: 1.5,
-                            py: 0.75,
+                            px: { xs: 1.2, sm: 1.5 },
+                            py: { xs: 0.6, sm: 0.75 },
                             borderRadius: '20px',
                             bgcolor: activeTab === 'all' ? selectedBg : 'transparent',
                             color: activeTab === 'all' ? 'primary.main' : 'text.secondary',
-                            fontSize: 14,
+                            fontSize: { xs: 13, sm: 14 },
                             fontWeight: 600,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
@@ -614,12 +617,12 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                     <Box
                         onClick={() => setActiveTab('unread')}
                         sx={{
-                            px: 1.5,
-                            py: 0.75,
+                            px: { xs: 1.2, sm: 1.5 },
+                            py: { xs: 0.6, sm: 0.75 },
                             borderRadius: '20px',
                             bgcolor: activeTab === 'unread' ? selectedBg : 'transparent',
                             color: activeTab === 'unread' ? 'primary.main' : 'text.secondary',
-                            fontSize: 14,
+                            fontSize: { xs: 13, sm: 14 },
                             fontWeight: 600,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
@@ -631,12 +634,12 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                     <Box
                         onClick={() => setActiveTab('invitations')}
                         sx={{
-                            px: 1.5,
-                            py: 0.75,
+                            px: { xs: 1.2, sm: 1.5 },
+                            py: { xs: 0.6, sm: 0.75 },
                             borderRadius: '20px',
                             bgcolor: activeTab === 'invitations' ? selectedBg : 'transparent',
                             color: activeTab === 'invitations' ? 'primary.main' : 'text.secondary',
-                            fontSize: 14,
+                            fontSize: { xs: 13, sm: 14 },
                             fontWeight: 600,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
@@ -654,7 +657,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 sx={{
                     flex: 1,
                     overflowY: 'auto',
-                    maxHeight: 'calc(100vh - 250px)',
+                    maxHeight: { xs: 'calc(75vh - 150px)', sm: 'calc(100vh - 250px)' },
                     '&::-webkit-scrollbar': { width: 8 },
                     '&::-webkit-scrollbar-thumb': {
                         backgroundColor: 'rgba(0,0,0,0.2)',

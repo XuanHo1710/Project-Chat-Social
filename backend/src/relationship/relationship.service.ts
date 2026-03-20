@@ -19,7 +19,82 @@ export class RelationshipService {
     @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
     @InjectModel(Account.name) private readonly accountModel: Model<AccountDocument>,
     private readonly notificationEmitter: NotificationEmitterService
-  ) { }
+  ) {}
+
+  private async getAcceptedFriendIds(userId: string): Promise<Types.ObjectId[]> {
+    const me = new Types.ObjectId(userId);
+    const relationships = await this.relationshipModel
+      .find(
+        {
+          status: RelationshipStatus.ACCEPTED,
+          $or: [{ userId: me }, { friendId: me }],
+        },
+        { userId: 1, friendId: 1 }
+      )
+      .lean();
+
+    return relationships.map((rel) =>
+      rel.userId.toString() === me.toString()
+        ? new Types.ObjectId(rel.friendId.toString())
+        : new Types.ObjectId(rel.userId.toString())
+    );
+  }
+
+  private async getMutualFriendsMap(
+    userId: string,
+    candidateIdsInput: Array<string | Types.ObjectId>
+  ): Promise<Map<string, number>> {
+    const me = new Types.ObjectId(userId);
+    const candidateIds = Array.from(
+      new Set(candidateIdsInput.map((id) => id.toString()).filter((id) => id !== me.toString()))
+    ).map((id) => new Types.ObjectId(id));
+
+    const mutualFriendsMap = new Map<string, number>();
+    if (candidateIds.length === 0) return mutualFriendsMap;
+
+    const myFriendIds = await this.getAcceptedFriendIds(userId);
+    if (myFriendIds.length === 0) return mutualFriendsMap;
+
+    const mutualRows = await this.relationshipModel.aggregate<{
+      _id: Types.ObjectId;
+      count: number;
+    }>([
+      {
+        $match: {
+          status: RelationshipStatus.ACCEPTED,
+          $or: [
+            {
+              userId: { $in: candidateIds },
+              friendId: { $in: myFriendIds },
+            },
+            {
+              friendId: { $in: candidateIds },
+              userId: { $in: myFriendIds },
+            },
+          ],
+        },
+      },
+      {
+        $project: {
+          candidateId: {
+            $cond: [{ $in: ['$userId', candidateIds] }, '$userId', '$friendId'],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$candidateId',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    mutualRows.forEach((row) => {
+      mutualFriendsMap.set(row._id.toString(), row.count);
+    });
+
+    return mutualFriendsMap;
+  }
 
   // Tạo lời mời kết bạn
   async addFriend(createRelationshipDto: CreateRelationshipDto) {
@@ -66,7 +141,7 @@ export class RelationshipService {
       await this.notificationEmitter.emitFriendRequest(
         createRelationshipDto.friendId.toString(),
         createRelationshipDto.userId.toString(),
-        `${user.firstName} ${user.lastName} đã gửi lời mời kết bạn`,
+        `${user.firstName} ${user.lastName} đã gửi lời mời kết bạn`
       );
     }
 
@@ -130,7 +205,7 @@ export class RelationshipService {
       await this.notificationEmitter.emitFriendAccepted(
         userId, // Requester
         friendId, // Accepter
-        `${acceptor.firstName} ${acceptor.lastName} đã chấp nhận lời mời kết bạn`,
+        `${acceptor.firstName} ${acceptor.lastName} đã chấp nhận lời mời kết bạn`
       );
     }
 
@@ -161,7 +236,16 @@ export class RelationshipService {
       .exec();
     // Loại bỏ _doc ??
 
-    return friends.map((rel) => ({ ...rel.friendId, time: rel.sendRequestAt }));
+    const mappedFriends = friends.map((rel) => ({ ...rel.friendId, time: rel.sendRequestAt }));
+    const mutualFriendsMap = await this.getMutualFriendsMap(
+      userId,
+      mappedFriends.map((friend: any) => friend._id)
+    );
+
+    return mappedFriends.map((friend: any) => ({
+      ...friend,
+      mutualFriends: mutualFriendsMap.get(friend._id.toString()) ?? 0,
+    }));
   }
 
   // Lấy danh sách mà người dùng nhận được lời mời kết bạn
@@ -171,7 +255,17 @@ export class RelationshipService {
       .populate('userId', '-password -email -createdAt -updatedAt -__v')
       .lean()
       .exec();
-    return users.map((rel) => ({ ...rel.userId, time: rel.sendRequestAt }));
+
+    const mappedUsers = users.map((rel) => ({ ...rel.userId, time: rel.sendRequestAt }));
+    const mutualFriendsMap = await this.getMutualFriendsMap(
+      userId,
+      mappedUsers.map((friend: any) => friend._id)
+    );
+
+    return mappedUsers.map((friend: any) => ({
+      ...friend,
+      mutualFriends: mutualFriendsMap.get(friend._id.toString()) ?? 0,
+    }));
   }
 
   // Lấy danh sách bạn bè hiện tại của người dùng
@@ -187,9 +281,7 @@ export class RelationshipService {
       .lean()
       .exec();
 
-    // Lọc trùng để chỉ trả về bạn bè
-    // Hide status and lastActive if user has showActivityStatus = false
-    return relationships.map((rel: any) => {
+    const mappedFriends = relationships.map((rel: any) => {
       const friend =
         rel.userId._id.toString() === userId
           ? { ...rel.friendId, time: rel.sendRequestAt }
@@ -206,6 +298,16 @@ export class RelationshipService {
 
       return friend;
     });
+
+    const mutualFriendsMap = await this.getMutualFriendsMap(
+      userId,
+      mappedFriends.map((friend: any) => friend._id)
+    );
+
+    return mappedFriends.map((friend: any) => ({
+      ...friend,
+      mutualFriends: mutualFriendsMap.get(friend._id.toString()) ?? 0,
+    }));
   }
 
   // Kiểm tra xem 2 người dùng có phải là bạn bè không
@@ -302,13 +404,23 @@ export class RelationshipService {
       .lean();
 
     // Return the blocked users (not the current user)
-    return blockedRelationships.map((rel: any) => {
+    const blockedUsers = blockedRelationships.map((rel: any) => {
       const blockedUser = rel.userId._id.toString() === userId ? rel.friendId : rel.userId;
       return {
         ...blockedUser,
         blockedAt: rel.block?.blockedAt,
       };
     });
+
+    const mutualFriendsMap = await this.getMutualFriendsMap(
+      userId,
+      blockedUsers.map((user: any) => user._id)
+    );
+
+    return blockedUsers.map((blockedUser: any) => ({
+      ...blockedUser,
+      mutualFriends: mutualFriendsMap.get(blockedUser._id.toString()) ?? 0,
+    }));
   }
 
   // Check if a user is blocked
@@ -382,7 +494,7 @@ export class RelationshipService {
       .populate('userId friendId', 'firstName lastName avatar username')
       .lean();
 
-    return restrictedRelationships.map((rel: any) => {
+    const restrictedUsers = restrictedRelationships.map((rel: any) => {
       // Return the OTHER user (the one being restricted)
       // After populate, userId and friendId are objects with _id
       const restrictedUser = rel.userId._id.toString() === userId ? rel.friendId : rel.userId;
@@ -391,5 +503,15 @@ export class RelationshipService {
         restrictedAt: rel.restrict?.restrictedAt,
       };
     });
+
+    const mutualFriendsMap = await this.getMutualFriendsMap(
+      userId,
+      restrictedUsers.map((user: any) => user._id)
+    );
+
+    return restrictedUsers.map((restrictedUser: any) => ({
+      ...restrictedUser,
+      mutualFriends: mutualFriendsMap.get(restrictedUser._id.toString()) ?? 0,
+    }));
   }
 }

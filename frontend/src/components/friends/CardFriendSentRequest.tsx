@@ -4,11 +4,14 @@ import { FriendType } from '@/types/account';
 import { timeAgo } from '@/utils/formatDate';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSocket } from '@/contexts/SocketContext';
+import { useRouter } from 'next/navigation';
+import { CLIENT_PATH } from '@/constants/paths';
 
 
 export default function CardFriendSentRequestComponent({ friend }: { friend: FriendType }) {
     const { socketRelationship } = useSocket();
     const { user } = useAuthStore();
+    const router = useRouter();
 
     const handleCancel = (friendId: string) => {
         socketRelationship?.emit("friend:cancel", { userId: user?.id, friendId, status: 'CANCELED' });
@@ -19,6 +22,11 @@ export default function CardFriendSentRequestComponent({ friend }: { friend: Fri
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
     const cancelBg = isDark ? 'rgba(255,255,255,0.15)' : '#e4e6eb';
 
+    const navigateToProfile = () => {
+        if (!friend.username) return;
+        router.push(CLIENT_PATH.PROFILE_BY_USERNAME(friend.username));
+    };
+
 
 
     return (
@@ -26,6 +34,7 @@ export default function CardFriendSentRequestComponent({ friend }: { friend: Fri
             <CardContent sx={{ p: 0 }}>
                 <Box sx={{ position: 'relative', pb: '100%', bgcolor: hoverBg, borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
                     <Avatar
+                        onClick={navigateToProfile}
                         src={friend.avatar || ""}
                         sx={{
                             position: 'absolute',
@@ -34,11 +43,18 @@ export default function CardFriendSentRequestComponent({ friend }: { friend: Fri
                             width: '100%',
                             height: '100%',
                             borderRadius: '8px 8px 0 0',
+                            cursor: 'pointer',
                         }}
                     />
                 </Box>
                 <Box sx={{ p: 2 }}>
-                    <Typography fontWeight={600} fontSize={15} color="text.primary" sx={{ mb: 0.5 }}>
+                    <Typography
+                        onClick={navigateToProfile}
+                        fontWeight={600}
+                        fontSize={15}
+                        color="text.primary"
+                        sx={{ mb: 0.5, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                    >
                         {friend.firstName + " " + friend.lastName}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" fontSize={13} sx={{ mb: 1.5 }}>

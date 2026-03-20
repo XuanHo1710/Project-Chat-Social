@@ -20,12 +20,19 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
 
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb';
     const cancelBg = isDark ? 'rgba(255,255,255,0.15)' : '#e4e6eb';
+    console.log(friend)
+
+    const navigateToProfile = () => {
+        if (!friend.username) return;
+        router.push(CLIENT_PATH.PROFILE_BY_USERNAME(friend.username));
+    };
 
     return (
         <Card key={friend._id} sx={{ borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
             <CardContent sx={{ p: 0 }}>
                 <Box sx={{ position: 'relative', pb: '100%', bgcolor: hoverBg, borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
                     <Avatar
+                        onClick={navigateToProfile}
                         src={friend.avatar || ""}
                         sx={{
                             position: 'absolute',
@@ -34,20 +41,27 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
                             width: '100%',
                             height: '100%',
                             borderRadius: '8px 8px 0 0',
+                            cursor: 'pointer',
                         }}
                     />
                 </Box>
                 <Box sx={{ p: 2 }}>
-                    <Typography fontWeight={600} fontSize={15} color="text.primary" sx={{ mb: 0.5 }}>
+                    <Typography
+                        onClick={navigateToProfile}
+                        fontWeight={600}
+                        fontSize={15}
+                        color="text.primary"
+                        sx={{ mb: 0.5, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                    >
                         {friend.firstName + " " + friend.lastName}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" fontSize={13} sx={{ mb: 1.5 }}>
-                        0 bạn chung
+                        {friend.mutualFriends || 0} bạn chung
                     </Typography>
 
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         <Button
-                            onClick={() => router.push(CLIENT_PATH.PROFILE_BY_USERNAME(friend.username))}
+                            onClick={navigateToProfile}
                             fullWidth
                             variant="contained"
                             sx={{

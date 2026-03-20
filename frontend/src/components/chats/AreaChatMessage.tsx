@@ -643,7 +643,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             setTimeout(() => {
                 virtuosoRef.current?.scrollToIndex({
                     index: 'LAST',
-                    behavior: 'smooth',
+                    behavior: 'auto',
                 });
             }, 100);
         };
@@ -1495,8 +1495,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             style={{ height: '100%' }}
                             data={allMessages}
                             firstItemIndex={firstItemIndex}
-                            initialTopMostItemIndex={allMessages.length - 1}
-                            followOutput="smooth"
+                            initialTopMostItemIndex={Math.max(allMessages.length - 1, 0)}
+                            followOutput="auto"
                             startReached={handleStartReached}
                             rangeChanged={(range) => {
                                 // Update cursor based on visible range

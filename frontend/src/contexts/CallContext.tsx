@@ -5,6 +5,45 @@ import SimplePeer, { Instance, SignalData } from 'simple-peer';
 import { useSocket } from '@/contexts/SocketContext';
 import { toast } from 'sonner';
 
+// --- Socket Event Payload Types ---
+interface IncomingCallData {
+    fromUserId: string;
+    callerName: string;
+    callerAvatar: string;
+    conversationId: string;
+    offer: SignalData;
+}
+
+interface CallAcceptedData {
+    fromUserId: string;
+    answer: SignalData;
+}
+
+interface IceCandidateData {
+    candidate: SignalData;
+}
+
+interface GroupCallIncomingData {
+    conversationId: string;
+    callerName: string;
+    callerAvatar: string;
+}
+
+interface GroupCallSignalData {
+    fromUserId: string;
+    signal: SignalData;
+    conversationId: string;
+}
+
+interface GroupCallUserData {
+    userId: string;
+}
+
+interface GroupJoinResponse {
+    success: boolean;
+    users: string[];
+}
+
 interface RemoteStream {
     peerId: string;
     stream: MediaStream;
@@ -12,10 +51,10 @@ interface RemoteStream {
 
 interface CallContextType {
     // 1v1
-    callUser: (userId: string, conversationId: string) => void;
+    callUser: (userId: string, conversationId: string, isTurnOff: boolean) => void;
 
     // Group
-    startGroupCall: (conversationId: string) => void;
+    startGroupCall: (conversationId: string, isTurnOff: boolean) => void;
     joinGroupCall: (conversationId: string) => void;
 
     answerCall: () => void;
@@ -149,7 +188,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     // Helper: Add Peer (Incoming Signal - Group Mesh)
-    const addPeer = (incomingSignal: any, callerId: string, stream: MediaStream, conversationId: string) => {
+    const addPeer = (incomingSignal: SignalData, callerId: string, stream: MediaStream, conversationId: string) => {
         const peer = new SimplePeer({
             initiator: false,
             trickle: true,
@@ -198,11 +237,51 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setRemoteStreams(prev => prev.filter(p => p.peerId !== peerId));
     };
 
+    const leaveCall = (emitEvent = true) => {
+        setIsInCall(false);
+        setIsCallAccepted(false);
+        setCallReceived(false);
+        setRecipientInfo(null);
+        setCallerInfo(null);
+        setCallerSignal(null);
+        setRemoteStreams([]);
+
+        // Stop 1v1 Peer
+        if (connectionRef.current) {
+            connectionRef.current.destroy();
+            connectionRef.current = null;
+        }
+
+        // Stop Group Peers
+        peersRef.current.forEach(peer => peer.destroy());
+        peersRef.current.clear();
+
+        // Stop Local Stream
+        stopStream();
+
+        // Notify
+        if (emitEvent && socket) {
+            if (isGroupCall) {
+                // If group call, we just leave the room
+                const convId = callerInfo?.conversationId || recipientInfo?.conversationId;
+                if (convId) socket.emit('group-call:leave', { conversationId: convId });
+            } else {
+                // 1v1
+                const targetId = callerInfo?.id || recipientInfo?.id;
+                if (targetId) socket.emit('call:end', { toUserId: targetId });
+            }
+        }
+
+        setIsMuted(false);
+        setIsVideoOff(false);
+        setIsGroupCall(false);
+    };
+
     useEffect(() => {
         if (!socket) return;
 
         // --- 1v1 EVENTS ---
-        const handleCallIncoming = (data: any) => {
+        const handleCallIncoming = (data: IncomingCallData) => {
             console.log('Call Incoming:', data);
             if (isInCall) {
                 socket.emit('call:end', { toUserId: data.fromUserId });
@@ -220,25 +299,29 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             setCallerSignal(data.offer);
         };
 
-        const handleCallAccepted = (data: any) => {
+        const handleCallAccepted = (data: CallAcceptedData) => {
             console.log('1v1 Call Accepted by:', data.fromUserId);
             setIsCallAccepted(true);
             connectionRef.current?.signal(data.answer);
         };
 
-        const handleIceCandidate = (data: any) => {
+        const handleIceCandidate = (data: IceCandidateData) => {
             connectionRef.current?.signal(data.candidate);
         };
 
-        const handleCallEnded = (data: any) => {
-            // If 1v1
-            if (!isGroupCall) {
-                leaveCall(false);
+        const handleCallEnded = () => {
+            const handleLeaveCall = () => {
+                // If 1v1
+                if (!isGroupCall) {
+                    leaveCall(false);
+                }
+
             }
+            handleLeaveCall();
         };
 
         // --- GROUP EVENTS ---
-        const handleGroupCallIncoming = (data: any) => {
+        const handleGroupCallIncoming = (data: GroupCallIncomingData) => {
             console.log('Group Call Incoming:', data);
             if (isInCall) return; // Busy
 
@@ -254,7 +337,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             // No single offer, signaling happens after join
         };
 
-        const handleGroupUserJoined = (data: { userId: string }) => {
+        const handleGroupUserJoined = (data: GroupCallUserData) => {
             console.log('User Joined Group Call:', data.userId);
             // Wait for their signal? Or if they join, they will Initiate.
             // If they Initiate, we receive 'call:signal'.
@@ -262,14 +345,14 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             toast.info('New user joined the call');
         };
 
-        const handleGroupUserLeft = (data: { userId: string }) => {
+        const handleGroupUserLeft = (data: GroupCallUserData) => {
             console.log('User Left Group Call:', data.userId);
             removePeer(data.userId);
             toast.info('User left the call');
         };
 
         // Generic Signal Handler (Used for Group Mesh)
-        const handleCallSignal = (data: { fromUserId: string; signal: any; conversationId: string }) => {
+        const handleCallSignal = (data: GroupCallSignalData) => {
             // Only process if in group call mode or upgrading?
             // If we are in the group call:
             if (isInCall && isGroupCall) {
@@ -311,6 +394,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         };
     }, [socket, isInCall, isGroupCall, stream]);
 
+
+
+
     // Ensure 1v1 video element update
     useEffect(() => {
         if (stream && myVideo.current) {
@@ -319,7 +405,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }, [stream]);
 
     // 1v1 Call
-    const callUser = async (userId: string, conversationId: string) => {
+    const callUser = async (userId: string, conversationId: string, isTurnOff: boolean) => {
+        if (isTurnOff) {
+            setIsVideoOff(true);
+        }
         setRecipientInfo({ id: userId, conversationId });
         setIsInCall(true);
         setIsGroupCall(false);
@@ -339,7 +428,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             peer.on('signal', (data) => {
                 if (data.type === 'offer') {
                     socket?.emit('call:start', { toUserId: userId, offer: data, conversationId });
-                } else if (data.candidate) {
+                } else if ("candidate" in data) {
                     socket?.emit('call:ice-candidate', { toUserId: userId, candidate: data, conversationId });
                 }
             });
@@ -363,7 +452,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     // Start Group Call
-    const startGroupCall = async (conversationId: string) => {
+    const startGroupCall = async (conversationId: string, isTurnOff: boolean) => {
+        if (isTurnOff) {
+            setIsVideoOff(true);
+        }
         // Starts the session (Notifies others)
         setRecipientInfo({ id: conversationId, conversationId });
         setIsInCall(true);
@@ -378,7 +470,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             socket?.emit('group-call:start', { conversationId });
 
             // Join myself to activeGroupCalls
-            socket?.emit('group-call:join', { conversationId }, (response: any) => {
+            socket?.emit('group-call:join', { conversationId }, (response: GroupJoinResponse) => {
                 // Should return empty list if I'm first
                 console.log('Joined group call session:', response);
             });
@@ -449,7 +541,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             peer.on('signal', (data) => {
                 if (data.type === 'answer') {
                     socket?.emit('call:answer', { toUserId: callerInfo.id, answer: data, conversationId: callerInfo.conversationId });
-                } else if (data.candidate) {
+                } else if ('candidate' in data) {
                     socket?.emit('call:ice-candidate', { toUserId: callerInfo.id, candidate: data, conversationId: callerInfo.conversationId });
                 }
             });
@@ -466,46 +558,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             console.error('Answer Call Error:', err);
             leaveCall();
         }
-    };
-
-    const leaveCall = (emitEvent = true) => {
-        setIsInCall(false);
-        setIsCallAccepted(false);
-        setCallReceived(false);
-        setRecipientInfo(null);
-        setCallerInfo(null);
-        setCallerSignal(null);
-        setRemoteStreams([]);
-
-        // Stop 1v1 Peer
-        if (connectionRef.current) {
-            connectionRef.current.destroy();
-            connectionRef.current = null;
-        }
-
-        // Stop Group Peers
-        peersRef.current.forEach(peer => peer.destroy());
-        peersRef.current.clear();
-
-        // Stop Local Stream
-        stopStream();
-
-        // Notify
-        if (emitEvent && socket) {
-            if (isGroupCall) {
-                // If group call, we just leave the room
-                const convId = callerInfo?.conversationId || recipientInfo?.conversationId;
-                if (convId) socket.emit('group-call:leave', { conversationId: convId });
-            } else {
-                // 1v1
-                const targetId = callerInfo?.id || recipientInfo?.id;
-                if (targetId) socket.emit('call:end', { toUserId: targetId });
-            }
-        }
-
-        setIsMuted(false);
-        setIsVideoOff(false);
-        setIsGroupCall(false);
     };
 
     const rejectCall = () => {

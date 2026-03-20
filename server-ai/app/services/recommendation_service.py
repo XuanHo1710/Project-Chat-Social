@@ -107,7 +107,7 @@ class RecommendationService:
 
             # 3. Update Vector (Weighted Moving Average Strategy)
             # Alpha controls how fast user preference changes (0.1 = slow, 0.5 = fast)
-            alpha = 0.3 
+            alpha = 0.3
             
             # Normalize inputs
             post_emb = post_emb / np.linalg.norm(post_emb)

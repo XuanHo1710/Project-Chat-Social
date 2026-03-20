@@ -10,4 +10,5 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-CMD ["node", "dist/main"]
+EXPOSE 8080
+CMD ["node", "dist/src/main"]

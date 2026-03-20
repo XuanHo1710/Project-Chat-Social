@@ -1,9 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Box, useMediaQuery, useTheme, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId } from "@/queries/useConversationQueries";
-import AreaChatMessages from "@/components/chats/AreaChatMessage";
 import ChatSidebar from "@/components/chats/ChatSidebar";
 import { useSocket } from "@/contexts/SocketContext";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,13 +28,13 @@ export default function ChatPage() {
     const { socketChat, socketRelationship } = useSocket();
     const queryClient = useQueryClient();
     const router = useRouter();
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
 
     const { data: listConversation, isLoading: isLoadingConversations } = useConversationByUserId(user?.id || "");
 
     // Handle select conversation - navigate to /chat/:id
     const handleSelectConversation = (conv: SelectedConversation) => {
+        setSelectConversation(conv);
         router.push(CLIENT_PATH.CHAT_BY_ID(conv._id));
     };
 
@@ -65,7 +64,7 @@ export default function ChatPage() {
                                         attachments: msg.attachments?.map(a => typeof a === 'string' ? a : a.url),
                                     },
                                     lastMessageAt: new Date(msg.createdAt),
-                                    unreadCount: (msg as any)._unreadCount || conv.unreadCount,
+                                    unreadCount: conv.unreadCount,
                                 };
                             }
                             return conv;

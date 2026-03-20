@@ -499,7 +499,7 @@ export default function MessageItem({
                                         <TypewriterText
                                             text={message.content}
                                             speed={12}
-                                            isNew={Date.now() - new Date(message.createdAt).getTime() < 10000}
+                                            isNew={new Date().getTime() - new Date(message.createdAt).getTime() < 10000}
                                         />
                                     </Box>
 
@@ -1031,7 +1031,7 @@ export default function MessageItem({
                                         {(() => {
                                             const replyData = message.replyTo as MessageResponse;
                                             if (replyData.senderId?._id === userId) {
-                                                return isOwn ? 'chính mình' : 'bạn';
+                                                return isOwn ? 'Người dùng tự trả lời chính mình' : 'Người dùng trả lời bạn';
                                             }
                                             if (replyData.senderId?.firstName && replyData.senderId?.lastName) {
                                                 return `${replyData.senderId.firstName} ${replyData.senderId.lastName}`;

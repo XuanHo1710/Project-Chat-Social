@@ -1,6 +1,11 @@
 import { NotificationPayloadType } from "@/components/FirebaseNotification";
 import { initializeApp } from "firebase/app";
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import {
+  Messaging,
+  getMessaging,
+  getToken,
+  onMessage,
+} from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -14,19 +19,32 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Messaging chỉ hoạt động trên browser environment và cần sw
+// Firebase Messaging requires HTTPS + Service Worker support
+const isMessagingSupported = () =>
+  typeof window !== "undefined" &&
+  "serviceWorker" in navigator &&
+  window.isSecureContext;
+
+let messagingInstance: Messaging | null = null;
+const getMessagingInstance = (): Messaging | null => {
+  if (!isMessagingSupported()) return null;
+  if (!messagingInstance) {
+    messagingInstance = getMessaging(app);
+  }
+  return messagingInstance;
+};
+
 export const getFirebaseToken = async () => {
   try {
-    const messaging = getMessaging(app);
-    const permission = await Notification.requestPermission();
+    const messaging = getMessagingInstance();
+    if (!messaging) return null;
 
+    const permission = await Notification.requestPermission();
     if (permission === "granted") {
       const currentToken = await getToken(messaging, {
         vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
       });
-      if (currentToken) {
-        return currentToken;
-      }
+      if (currentToken) return currentToken;
     }
   } catch (err) {
     console.log("An error occurred while retrieving token. ", err);
@@ -37,7 +55,8 @@ export const getFirebaseToken = async () => {
 export const onMessageListener = (
   callback: (payload: NotificationPayloadType) => void,
 ) => {
-  const messaging = getMessaging(app);
+  const messaging = getMessagingInstance();
+  if (!messaging) return () => {};
   return onMessage(messaging, (payload) => {
     callback(payload);
   });

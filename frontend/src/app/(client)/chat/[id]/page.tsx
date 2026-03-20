@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Box, CircularProgress, Typography, IconButton, useMediaQuery, useTheme } from "@mui/material";
+import { Box, CircularProgress, Typography, useMediaQuery, useTheme } from "@mui/material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId, useConversationDetail } from "@/queries/useConversationQueries";
 import AreaChatMessages from "@/components/chats/AreaChatMessage";
@@ -132,7 +132,7 @@ export default function ChatDetailPage() {
                                         attachments: msg.attachments?.map(a => typeof a === 'string' ? a : a.url),
                                     },
                                     lastMessageAt: new Date(msg.createdAt),
-                                    unreadCount: (msg as any)._unreadCount || conv.unreadCount,
+                                    unreadCount: conv.unreadCount,
                                 };
                             }
                             return conv;
@@ -227,7 +227,7 @@ export default function ChatDetailPage() {
             socketChat.off("conversation:created", handleConversationUpdate);
             socketChat.off("conversation:mute:updated", handleMuteUpdated);
         };
-    }, [socketChat, queryClient, user?.id]);
+    }, [socketChat, queryClient, user?.id, conversationId]);
 
     // Handle real-time restriction/unrestriction
     useEffect(() => {

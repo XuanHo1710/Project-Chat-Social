@@ -79,7 +79,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @Inject('RABBITMQ_SERVICE') private readonly rabbitMQService: ClientProxy,
     private readonly commentService: CommentService,
     private readonly reactionService: ReactionService
-  ) { }
+  ) {}
 
   private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
@@ -892,7 +892,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-
   async handleEmitMessageToClient(
     savedMessage: any,
     data: CreateMessageDto,
@@ -973,7 +972,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // NOTE: FCM notifications are now handled asynchronously by RabbitMQ service
     // This makes the message flow faster as we don't wait for FCM to complete
   }
-
 
   // ============ MESSAGE FEATURES ============
 
@@ -1690,11 +1688,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .select('firstName lastName _id avatar');
       const readByUser = readerUser
         ? {
-          _id: readerUser._id.toString(),
-          firstName: readerUser.firstName,
-          lastName: readerUser.lastName,
-          avatar: readerUser.avatar,
-        }
+            _id: readerUser._id.toString(),
+            firstName: readerUser.firstName,
+            lastName: readerUser.lastName,
+            avatar: readerUser.avatar,
+          }
         : null;
 
       // CRITICAL: Only emit to OTHER users in the conversation, NOT to the user who updated their cursor

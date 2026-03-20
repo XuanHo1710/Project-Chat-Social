@@ -11,11 +11,12 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements first for caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install torch CPU-only first (~250MB vs ~915MB GPU wheel) to avoid timeout
+RUN pip install --no-cache-dir --timeout=120 \
+    torch --index-url https://download.pytorch.org/whl/cpu
 
-# Pre-download embedding model during build (faster startup)
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/paraphrase-multilingual-mpnet-base-v2')"
+# Install remaining dependencies
+RUN pip install --no-cache-dir --timeout=120 -r requirements.txt
 
 # Copy app code
 COPY . .

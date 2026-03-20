@@ -126,7 +126,7 @@ export default function ChatSidebar({
         return () => {
             socketChat.off('conversation:kicked', handleKicked);
         };
-    }, [socketChat, selectedConversationId, router]);
+    }, [socketChat, selectedConversationId, router, t]);
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget);

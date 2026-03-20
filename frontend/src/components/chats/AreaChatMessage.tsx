@@ -37,31 +37,6 @@ import { useQueryClient, InfiniteData } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/constants/query-keys";
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { MessagesResponse, MessageReadStatus } from "@/services/chat.service";
-
-// Type helpers for ID extraction
-type ObjectIdLike = string | { _id: string | ObjectIdLike } | { toString(): string };
-
-
-
-// Helper function to extract string ID from various formats
-function extractId(id: ObjectIdLike | null | undefined): string {
-    if (!id) return '';
-    if (typeof id === 'string') return id;
-    if (typeof id === 'object' && id !== null) {
-        if ('_id' in id) {
-            const innerId = (id as { _id: ObjectIdLike })._id;
-            if (typeof innerId === 'string') return innerId;
-            if (typeof innerId === 'object' && innerId !== null && '_id' in innerId) {
-                return extractId(innerId);
-            }
-            return String(innerId);
-        }
-        if ('toString' in id && typeof id.toString === 'function') {
-            return id.toString();
-        }
-    }
-    return '';
-}
 import { useOnlineStatusStore, formatLastActiveDetailed } from "@/stores/useOnlineStatusStore";
 import { useMessageCacheStore } from "@/stores/useMessageCacheStore";
 import MessageItem from "./MessageItem";
@@ -226,7 +201,6 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     const [replyMsg, setReplyMsg] = useState<MessageResponse | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string; type: 'image' | 'video' }[]>([]);
     const [filePreview, setFilePreview] = useState<{ file: File; name: string; size: number; type: string }[]>([]);
-    const [readStatuses, setReadStatuses] = useState<MessageReadStatus[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
     const fileDocInputRef = useRef<HTMLInputElement>(null);
@@ -364,97 +338,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             currentCursorRef.current = latestMsgId;
         }
 
-        // 1. PRIORITIZE: Load initial read statuses from REST API data (chatData)
-        // This ensures data is immediately available on tab switch/mount without waiting for socket
-        if (chatData?.pages?.[0]?.readStatuses) {
-            const rawStatuses = chatData.pages[0].readStatuses;
-            const currentUserIdStr = extractId(userId as ObjectIdLike);
 
-            // Normalize & Filter immediately
-            const normalizedStatuses = rawStatuses.map((status: MessageReadStatus) => ({
-                ...status,
-                _id: extractId(status._id),
-                conversationId: extractId(status.conversationId),
-                userId: {
-                    ...status.userId,
-                    _id: extractId(status.userId?._id || status.userId)
-                },
-                lastReadMessageId: status.lastReadMessageId ? {
-                    ...status.lastReadMessageId,
-                    _id: extractId(status.lastReadMessageId._id || status.lastReadMessageId)
-                } : null
-            }));
-
-            const filteredStatuses = normalizedStatuses.filter((s: MessageReadStatus) => {
-                const statusUserId = extractId(s.userId?._id || s.userId);
-                // STRICT filtering of current user
-                return statusUserId.toString().trim() !== currentUserIdStr.toString().trim();
-            });
-
-            setReadStatuses(filteredStatuses);
-        }
-
-        // 2. Fetch fresh status from socket (Background update)
-        // Request read statuses from socket when opening conversation (ALWAYS fetch fresh data)
-        if (socketChat && selectedConversation._id) {
-            socketChat.emit("message:read:status", { conversationId: selectedConversation._id }, (response: { success: boolean; lastMessage?: MessageReadStatus[] }) => {
-                if (response.success && response.lastMessage) {
-                    // Normalize readStatuses
-                    const getId = (id: unknown): string => {
-                        if (!id) return '';
-                        if (typeof id === 'string') return id;
-                        if (typeof id === 'object' && id !== null && '_id' in id) {
-                            const objId = (id as { _id: unknown })._id;
-                            if (typeof objId === 'string') return objId;
-                            if (objId && typeof objId === 'object' && '_id' in objId) {
-                                return String((objId as { _id: unknown })._id);
-                            }
-                            return String(objId);
-                        }
-                        if (typeof id === 'object' && id !== null && 'toString' in id && typeof id.toString === 'function') {
-                            return id.toString();
-                        }
-                        return '';
-                    };
-
-                    const normalizedStatuses: MessageReadStatus[] = response.lastMessage.map(status => {
-                        let normalizedLastReadMessageId: { _id: string; createdAt: string } | null = null;
-                        if (status.lastReadMessageId) {
-                            if (typeof status.lastReadMessageId === 'object' && status.lastReadMessageId !== null) {
-                                const msgId = getId((status.lastReadMessageId as { _id: unknown })._id);
-                                const createdAt = (status.lastReadMessageId as { createdAt?: string }).createdAt || '';
-                                if (msgId) {
-                                    normalizedLastReadMessageId = { _id: msgId, createdAt };
-                                }
-                            }
-                        }
-                        return {
-                            ...status,
-                            _id: getId(status._id),
-                            conversationId: getId(status.conversationId),
-                            userId: {
-                                ...status.userId,
-                                _id: getId(status.userId._id)
-                            },
-                            lastReadMessageId: normalizedLastReadMessageId
-                        };
-                    });
-
-                    // Filter out current user's read status
-                    const currentUserIdStr = extractId(userId as ObjectIdLike);
-                    const filteredStatuses = normalizedStatuses.filter((s: MessageReadStatus) => {
-                        const statusUserId = typeof s.userId._id === 'string'
-                            ? s.userId._id
-                            : extractId(s.userId._id as ObjectIdLike);
-                        return statusUserId.toString().trim() !== currentUserIdStr.toString().trim();
-                    });
-
-                    // Update state with fresh data from socket
-                    setReadStatuses(filteredStatuses);
-                }
-                // DO NOT reset to [] if socket fails, keep REST data
-            });
-        }
     }, [chatData, allMessages, socketChat, selectedConversation._id, userId]);
 
     // Optimized cursor update function with debounce - ONLY via socket
@@ -918,21 +802,6 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                     }
                     return; // CRITICAL: Don't add current user's read status to readStatuses
                 }
-
-                setReadStatuses(prev => {
-                    // Check if we already have a status for this user
-                    const existsIndex = prev.findIndex(s => getId(s.userId._id).toString().trim() === incomingUserId.toString().trim());
-
-                    if (existsIndex !== -1) {
-                        // Update existing
-                        const newStatuses = [...prev];
-                        newStatuses[existsIndex] = normalizedStatus;
-                        return newStatuses;
-                    } else {
-                        // Add new (only if not current user)
-                        return [...prev, normalizedStatus];
-                    }
-                });
 
                 // CRITICAL: Update React Query Cache to persist between tab switches
                 // This updates the 'chatData' for the NEXT mount
@@ -1520,6 +1389,13 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
                                 "&:hover": { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : '#e4e6eb' },
                             }}
+                            onClick={() => {
+                                if (!isGroup) {
+                                    callUser(selectedConversation.otherId, selectedConversation._id, true);
+                                } else {
+                                    startGroupCall(selectedConversation._id, true);
+                                }
+                            }}
                         >
                             <CallIcon fontSize="small" />
                         </IconButton>
@@ -1527,9 +1403,9 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             size="small"
                             onClick={() => {
                                 if (!isGroup) {
-                                    callUser(selectedConversation.otherId, selectedConversation._id);
+                                    callUser(selectedConversation.otherId, selectedConversation._id, false);
                                 } else {
-                                    startGroupCall(selectedConversation._id);
+                                    startGroupCall(selectedConversation._id, false);
                                 }
                             }}
                             sx={{

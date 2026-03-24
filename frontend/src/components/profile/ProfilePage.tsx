@@ -1333,11 +1333,14 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             </Box>
                         </Box>
 
-                        <Divider sx={{ mx: 4 }} />
+                        <Divider sx={{ mx: { xs: 1, sm: 2, md: 4 } }} />
 
                         {/* Tabs */}
-                        <Box sx={{ px: 4 }}>
+                        <Box sx={{ px: { xs: 1, sm: 2, md: 4 } }}>
                             <Tabs
+                                variant="scrollable"
+                                scrollButtons="auto"
+                                allowScrollButtonsMobile
                                 value={activeTab}
                                 onChange={(_, v) => setActiveTab(v)}
                                 sx={{

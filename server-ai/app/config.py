@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     
     # LLM - Docker Model Runner (ai/qwen3:0.6B-Q4_0 ~441MB)
     # Ref: https://hub.docker.com/r/ai/qwen3
-    llm_base_url: str = "http://model-runner.docker.internal/engines/llm"
+    llm_base_url: str = "http://model-runner.docker.internal/engines"
     llm_model: str = "ai/qwen3:0.6B-Q4_0"
 
     search_top_k: int = 20

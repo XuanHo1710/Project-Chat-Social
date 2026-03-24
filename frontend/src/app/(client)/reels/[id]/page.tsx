@@ -204,8 +204,8 @@ export default function ReelDetailPage() {
                     {/* Video Container - Contains video and all overlays */}
                     <Box sx={{
                         width: '100%',
-                        maxWidth: 420,
-                        height: 'calc(100vh - 56px)',
+                        maxWidth: { xs: '100%', sm: 420 },
+                        height: { xs: 'calc(100vh - 56px - 56px)', md: 'calc(100vh - 56px)' },
                         position: 'relative',
                         borderRadius: 3,
                         bgcolor: '#000',
@@ -454,16 +454,20 @@ export default function ReelDetailPage() {
                 {/* Right Panel - Comments (chỉ hiện khi bấm nút comment) */}
                 {showComments && post && (
                     <Box sx={{
-                        width: 420,
-                        minWidth: 420,
-                        maxWidth: 420,
+                        width: { xs: '100%', md: 420 },
+                        minWidth: { xs: '100%', md: 420 },
+                        maxWidth: { xs: '100%', md: 420 },
                         bgcolor: 'background.paper',
                         display: 'flex',
                         flexDirection: 'column',
-                        height: 'calc(100vh - 56px)',
-                        borderLeft: 1,
+                        height: { xs: 'calc(100vh - 56px - 56px)', md: 'calc(100vh - 56px)' },
+                        borderLeft: { xs: 0, md: 1 },
                         borderColor: 'divider',
                         flexShrink: 0,
+                        position: { xs: 'fixed', md: 'relative' },
+                        top: { xs: 56, md: 'auto' },
+                        left: { xs: 0, md: 'auto' },
+                        zIndex: { xs: 1200, md: 'auto' },
                     }}>
                         {/* Post Header */}
                         <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>

@@ -122,16 +122,17 @@ export default function CreateGroupPage() {
                 {/* Left Sidebar - Form */}
                 <Box
                     sx={{
-                        width: 360,
-                        height: 'calc(100vh - 56px)',
+                        width: { xs: '100%', md: 360 },
+                        height: { xs: 'auto', md: 'calc(100vh - 56px)' },
                         bgcolor: 'background.paper',
-                        borderRight: `1px solid ${theme.palette.divider}`,
-                        position: 'fixed',
-                        left: 0,
-                        top: 56,
+                        borderRight: { xs: 'none', md: `1px solid ${theme.palette.divider}` },
+                        position: { xs: 'relative', md: 'fixed' },
+                        left: { xs: 'auto', md: 0 },
+                        top: { xs: 'auto', md: 56 },
                         overflowY: 'auto',
                         display: 'flex',
                         flexDirection: 'column',
+                        pb: { xs: '72px', md: 0 },
                     }}
                 >
                     {/* Sidebar Header */}
@@ -371,7 +372,7 @@ export default function CreateGroupPage() {
                 </Box>
 
                 {/* Right Content - Preview */}
-                <Box sx={{ flex: 1, ml: '360px', p: 3 }}>
+                <Box sx={{ flex: 1, ml: { xs: 0, md: '360px' }, p: { xs: 2, md: 3 }, display: { xs: 'none', md: 'block' } }}>
                     <Card sx={{ borderRadius: 2, overflow: 'hidden' }}>
                         {/* Preview Header */}
                         <Box sx={{

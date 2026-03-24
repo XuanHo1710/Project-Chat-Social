@@ -15,11 +15,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     const isProfile = pathname?.startsWith('/profile');
     const isGroups = pathname?.startsWith('/groups');
     const isSettins = pathname?.startsWith('/settings');
+    const isNotifications = pathname?.startsWith('/notifications');
 
 
     // If it's a standalone page like Chat or Reels (full screen), just render children
     // But still provide mobile bottom nav for navigation
-    if (isChat || isReels || isFriends || isProfile || isGroups || isSettins) {
+    if (isChat || isReels || isFriends || isProfile || isGroups || isSettins || isNotifications) {
         return (
             <>
                 {children}

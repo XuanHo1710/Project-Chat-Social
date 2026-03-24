@@ -17,22 +17,22 @@ export class AuthSessionService implements OnModuleDestroy {
     });
   }
 
-  private buildKey(userId: string): string {
-    return `auth:refresh:${userId}`;
+  private buildKey(sessionId: string): string {
+    return `auth:refresh:${sessionId}`;
   }
 
-  async setRefreshToken(userId: string, refreshToken: string, ttlMs: number): Promise<void> {
-    const key = this.buildKey(userId);
+  async setRefreshToken(sessionId: string, refreshToken: string, ttlMs: number): Promise<void> {
+    const key = this.buildKey(sessionId);
     const ttlSeconds = Math.max(1, Math.floor(ttlMs / 1000));
     await this.redis.set(key, refreshToken, 'EX', ttlSeconds);
   }
 
-  async getRefreshToken(userId: string): Promise<string | null> {
-    return this.redis.get(this.buildKey(userId));
+  async getRefreshToken(sessionId: string): Promise<string | null> {
+    return this.redis.get(this.buildKey(sessionId));
   }
 
-  async removeRefreshToken(userId: string): Promise<void> {
-    await this.redis.del(this.buildKey(userId));
+  async removeRefreshToken(sessionId: string): Promise<void> {
+    await this.redis.del(this.buildKey(sessionId));
   }
 
   async onModuleDestroy() {

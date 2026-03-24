@@ -1,15 +1,12 @@
-# AI Server Dependencies
+# AI Server Dependencies (Lightweight)
 
 fastapi
 uvicorn[standard]
-ollama
 sentence-transformers
-# torch is installed separately in Dockerfile with CPU-only wheel to avoid 915MB GPU download
+# torch is installed separately in Dockerfile with CPU-only wheel
 # torch
 transformers
-accelerate
-datasets
-chromadb
+qdrant-client
 pymongo
 python-dotenv
 pydantic>=2.0.0
@@ -18,11 +15,9 @@ loguru
 httpx
 python-multipart
 tqdm
-janus
 
 # Hybrid Recommendation System
 scikit-learn
 scipy
 pandas
 numpy
-nltk

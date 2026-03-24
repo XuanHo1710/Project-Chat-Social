@@ -92,16 +92,48 @@ services:
 
   # ── Application Services ────────────────────────────────────────────
 
+  llm:
+    # Ollama container — serves qwen3:0.6b via OpenAI-compatible API
+    # Accessible from other containers at http://llm:11434
+    image: ollama/ollama:latest
+    volumes:
+      - llm_models:/root/.ollama
+    networks:
+      - app-net
+    restart: unless-stopped
+    # Auto-pull model on startup then keep serving
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        sleep 5
+        echo '⬇️ Pulling qwen3:0.6b...'
+        ollama pull qwen3:0.6b
+        echo '✅ Model ready!'
+        wait
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 10
+
   server-ai:
-    # FastAPI — listens on :8000 (hardcoded in Dockerfile CMD)
-    # Routes: /api/v1/search  /api/v1/recommend/:id  /api/v1/similar/:id
-    # Health: GET /health  |  Docs: GET /docs
+    # FastAPI — Recommendation + Chatbot
+    # Vectors: Qdrant Cloud
+    # LLM: Ollama container (qwen3:0.6b)
+    build:
+      context: ./server-ai
+      dockerfile: Dockerfile
     image: project-chat-social-server-ai:latest
     env_file: ./server-ai/.env
-    # PORT is baked into Dockerfile CMD (uvicorn --port 8000), no need to override
-    volumes:
-      - ai_chroma_data:/app/chroma_db
-      - ai_models:/app/models
+    environment:
+      # Ollama accessible inside Docker network
+      LLM_BASE_URL: http://llm:11434
+      LLM_MODEL: qwen3:0.6b
+    depends_on:
+      llm:
+        condition: service_healthy
     networks:
       - app-net
     restart: unless-stopped
@@ -117,7 +149,9 @@ services:
     # HTTP prefix: app.setGlobalPrefix('api') → all routes under /api/v1/* and /api/v2/*
     # WebSocket: /socket.io/ (Socket.IO on same port)
     # Also subscribes to RabbitMQ queue: backend_queue (Transport.RMQ)
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: project-chat-social-backend:latest
     ports:
       - "${BACKEND_PORT:-5000}:8080"
@@ -155,6 +189,9 @@ services:
     # NestJS Hybrid — HTTP :3002 (internal, no public routes) + Kafka consumer
     # Consumer groupId: newsfeed-consumer-group
     # NOT routed through nginx — internal processing only
+    build:
+      context: ./kafka-server
+      dockerfile: Dockerfile
     image: project-chat-social-kafka-server:latest
     env_file: ./kafka-server/.env
     environment:
@@ -173,6 +210,9 @@ services:
     # NO HTTP server, NO exposed port
     # Subscribes to RabbitMQ queue: social_queue (env RABBITMQ_QUEUE_NAME)
     # Calls server-ai for AI features via HTTP: /api/v1/...
+    build:
+      context: ./rabbitmq
+      dockerfile: Dockerfile
     image: project-chat-social-rabbitmq-worker:latest
     env_file: ./rabbitmq/.env
     environment:
@@ -195,8 +235,7 @@ volumes:
   zookeeper_data:
   kafka_data:
   rabbitmq_data:
-  ai_chroma_data:
-  ai_models:
+  llm_models:
 
 networks:
   app-net:

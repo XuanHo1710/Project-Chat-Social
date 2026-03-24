@@ -61,7 +61,7 @@ interface CallContextType {
     leaveCall: () => void;
     rejectCall: () => void;
     toggleAudio: () => void;
-    toggleVideo: () => void;
+    toggleVideo: () => Promise<void>;
 
     callReceived: boolean;
     isInCall: boolean;
@@ -106,6 +106,7 @@ export const useCall = () => {
 export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     // Local Stream
     const [stream, setStream] = useState<MediaStream>();
+    const streamRef = useRef<MediaStream | undefined>(undefined);
 
     // Call States
     const [isInCall, setIsInCall] = useState(false);
@@ -133,15 +134,20 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     // Group Streams State
     const [remoteStreams, setRemoteStreams] = useState<RemoteStream[]>([]);
 
+    // Refs to avoid stale closures in socket handlers
+    const isInCallRef = useRef(false);
+    const isGroupCallRef = useRef(false);
+
     const { socket } = useSocket();
 
     // Helper to stop all tracks
     const stopStream = () => {
-        if (stream) {
-            stream.getTracks().forEach(track => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => {
                 track.stop();
                 track.enabled = false;
             });
+            streamRef.current = undefined;
             setStream(undefined);
         }
     };
@@ -170,7 +176,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
         peer.on('stream', remoteStream => {
             setRemoteStreams(prev => {
-                if (prev.find(p => p.peerId === userToSignal)) return prev;
+                const existingIndex = prev.findIndex(p => p.peerId === userToSignal);
+                if (existingIndex !== -1) {
+                    const next = [...prev];
+                    next[existingIndex] = { peerId: userToSignal, stream: remoteStream };
+                    return next;
+                }
                 return [...prev, { peerId: userToSignal, stream: remoteStream }];
             });
         });
@@ -211,7 +222,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
         peer.on('stream', remoteStream => {
             setRemoteStreams(prev => {
-                if (prev.find(p => p.peerId === callerId)) return prev;
+                const existingIndex = prev.findIndex(p => p.peerId === callerId);
+                if (existingIndex !== -1) {
+                    const next = [...prev];
+                    next[existingIndex] = { peerId: callerId, stream: remoteStream };
+                    return next;
+                }
                 return [...prev, { peerId: callerId, stream: remoteStream }];
             });
         });
@@ -275,7 +291,14 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIsMuted(false);
         setIsVideoOff(false);
         setIsGroupCall(false);
+        // Sync refs
+        isInCallRef.current = false;
+        isGroupCallRef.current = false;
     };
+
+    // Keep refs in sync with state
+    useEffect(() => { isInCallRef.current = isInCall; }, [isInCall]);
+    useEffect(() => { isGroupCallRef.current = isGroupCall; }, [isGroupCall]);
 
     useEffect(() => {
         if (!socket) return;
@@ -283,7 +306,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         // --- 1v1 EVENTS ---
         const handleCallIncoming = (data: IncomingCallData) => {
             console.log('Call Incoming:', data);
-            if (isInCall) {
+            if (isInCallRef.current) {
                 socket.emit('call:end', { toUserId: data.fromUserId });
                 return;
             }
@@ -310,20 +333,16 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         };
 
         const handleCallEnded = () => {
-            const handleLeaveCall = () => {
-                // If 1v1
-                if (!isGroupCall) {
-                    leaveCall(false);
-                }
-
+            // If 1v1 (use ref to avoid stale closure)
+            if (!isGroupCallRef.current) {
+                leaveCall(false);
             }
-            handleLeaveCall();
         };
 
         // --- GROUP EVENTS ---
         const handleGroupCallIncoming = (data: GroupCallIncomingData) => {
             console.log('Group Call Incoming:', data);
-            if (isInCall) return; // Busy
+            if (isInCallRef.current) return; // Busy
 
             setCallReceived(true);
             setIsGroupCall(true);
@@ -355,16 +374,17 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         const handleCallSignal = (data: GroupCallSignalData) => {
             // Only process if in group call mode or upgrading?
             // If we are in the group call:
-            if (isInCall && isGroupCall) {
+            if (isInCallRef.current && isGroupCallRef.current) {
                 const peerId = data.fromUserId;
                 if (peersRef.current.has(peerId)) {
                     // Existing peer (e.g. answer or ice)
                     peersRef.current.get(peerId)?.signal(data.signal);
                 } else {
                     // New peer offering (Incoming connection)
-                    if (!stream) return; // Should have stream if in call
+                    const localStream = streamRef.current;
+                    if (!localStream) return;
 
-                    const newPeer = addPeer(data.signal, peerId, stream, data.conversationId);
+                    const newPeer = addPeer(data.signal, peerId, localStream, data.conversationId);
                     peersRef.current.set(peerId, newPeer);
                 }
             }
@@ -392,7 +412,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             socket.off('group-call:user-left', handleGroupUserLeft);
             socket.off('call:signal', handleCallSignal);
         };
-    }, [socket, isInCall, isGroupCall, stream]);
+    }, [socket]);
 
 
 
@@ -403,6 +423,24 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             myVideo.current.srcObject = stream;
         }
     }, [stream]);
+
+    // Helper: get media stream with optional video (camera not mandatory)
+    const getMediaStream = async (wantVideo: boolean): Promise<MediaStream> => {
+        if (wantVideo) {
+            try {
+                // Try to get both audio + video
+                return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+            } catch {
+                // Camera denied or unavailable – fall back to audio-only
+                console.warn('Camera not available, falling back to audio-only');
+                toast.info('Không thể truy cập Camera – tiếp tục với âm thanh');
+                setIsVideoOff(true);
+                return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            }
+        }
+        // Audio-only requested
+        return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    };
 
     // 1v1 Call
     const callUser = async (userId: string, conversationId: string, isTurnOff: boolean, targetName?: string, targetAvatar?: string) => {
@@ -422,8 +460,15 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIsCallAccepted(false);
 
         try {
-            const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            // Camera is optional – only request if not turned off
+            const currentStream = await getMediaStream(!isTurnOff);
+            streamRef.current = currentStream;
             setStream(currentStream);
+
+            // If camera was requested but not obtained, mark video off
+            if (!isTurnOff && currentStream.getVideoTracks().length === 0) {
+                setIsVideoOff(true);
+            }
 
             const peer = new SimplePeer({
                 initiator: true,
@@ -453,7 +498,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             connectionRef.current = peer;
         } catch (err) {
             console.error('Failed to get media:', err);
-            toast.error('Không thể truy cập Camera/Microphone');
+            toast.error('Không thể truy cập Microphone');
             setIsInCall(false);
         }
     };
@@ -470,8 +515,14 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIsCallAccepted(true); // You are in immediately
 
         try {
-            const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            // Camera is optional – only request if not turned off
+            const currentStream = await getMediaStream(!isTurnOff);
+            streamRef.current = currentStream;
             setStream(currentStream);
+
+            if (!isTurnOff && currentStream.getVideoTracks().length === 0) {
+                setIsVideoOff(true);
+            }
 
             // Notify others to join
             socket?.emit('group-call:start', { conversationId });
@@ -484,6 +535,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
         } catch (err) {
             console.error(err);
+            toast.error('Không thể truy cập Microphone');
             setIsInCall(false);
         }
     };
@@ -496,7 +548,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIsCallAccepted(true);
 
         try {
-            const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            // Start with audio-only, camera is optional
+            const currentStream = await getMediaStream(false);
+            setIsVideoOff(true);
+            streamRef.current = currentStream;
             setStream(currentStream);
 
             // Join and get existing users
@@ -513,7 +568,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
         } catch (err) {
             console.error(err);
-            toast.error('Không thể tham gia');
+            toast.error('Không thể tham gia – kiểm tra quyền Microphone');
             leaveCall(false);
         }
     };
@@ -535,7 +590,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIsCallAccepted(true);
 
         try {
-            const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            // Start with audio-only when answering, camera is optional
+            const currentStream = await getMediaStream(false);
+            setIsVideoOff(true);
+            streamRef.current = currentStream;
             setStream(currentStream);
 
             const peer = new SimplePeer({
@@ -563,6 +621,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
         } catch (err) {
             console.error('Answer Call Error:', err);
+            toast.error('Không thể truy cập Microphone');
             leaveCall();
         }
     };
@@ -581,12 +640,50 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
-    const toggleVideo = () => {
-        if (stream) {
-            const videoTrack = stream.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.enabled = !videoTrack.enabled;
-                setIsVideoOff(!videoTrack.enabled);
+    const toggleVideo = async () => {
+        if (!streamRef.current) return;
+
+        const currentStream = streamRef.current;
+        const existingVideoTrack = currentStream.getVideoTracks()[0];
+
+        if (existingVideoTrack) {
+            // Already have a video track – just toggle enabled
+            existingVideoTrack.enabled = !existingVideoTrack.enabled;
+            setIsVideoOff(!existingVideoTrack.enabled);
+        } else {
+            // No video track yet – request camera permission now
+            try {
+                const videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                const newVideoTrack = videoStream.getVideoTracks()[0];
+                if (newVideoTrack) {
+                    // Add the new video track to the existing stream
+                    currentStream.addTrack(newVideoTrack);
+
+                    // Also add to all active peer connections so remote sees video
+                    // 1v1 peer
+                    if (connectionRef.current) {
+                        try {
+                            connectionRef.current.addTrack(newVideoTrack, currentStream);
+                        } catch {
+                            // Some SimplePeer versions may not support addTrack
+                            console.warn('Could not add video track to 1v1 peer');
+                        }
+                    }
+                    // Group peers
+                    peersRef.current.forEach((peer) => {
+                        try {
+                            peer.addTrack(newVideoTrack, currentStream);
+                        } catch {
+                            console.warn('Could not add video track to group peer');
+                        }
+                    });
+
+                    setStream(currentStream);
+                    setIsVideoOff(false);
+                    toast.success('Camera đã được bật');
+                }
+            } catch {
+                toast.error('Không thể truy cập Camera. Vui lòng cấp quyền trong cài đặt trình duyệt.');
             }
         }
     };

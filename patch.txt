@@ -1,0 +1,3612 @@
+﻿diff --git a/backend/src/auth/auth-session.service.ts b/backend/src/auth/auth-session.service.ts
+index f9a4a31..52b5b2a 100644
+--- a/backend/src/auth/auth-session.service.ts
++++ b/backend/src/auth/auth-session.service.ts
+@@ -17,22 +17,22 @@ export class AuthSessionService implements OnModuleDestroy {
+     });
+   }
+ 
+-  private buildKey(userId: string): string {
+-    return `auth:refresh:${userId}`;
++  private buildKey(sessionId: string): string {
++    return `auth:refresh:${sessionId}`;
+   }
+ 
+-  async setRefreshToken(userId: string, refreshToken: string, ttlMs: number): Promise<void> {
+-    const key = this.buildKey(userId);
++  async setRefreshToken(sessionId: string, refreshToken: string, ttlMs: number): Promise<void> {
++    const key = this.buildKey(sessionId);
+     const ttlSeconds = Math.max(1, Math.floor(ttlMs / 1000));
+     await this.redis.set(key, refreshToken, 'EX', ttlSeconds);
+   }
+ 
+-  async getRefreshToken(userId: string): Promise<string | null> {
+-    return this.redis.get(this.buildKey(userId));
++  async getRefreshToken(sessionId: string): Promise<string | null> {
++    return this.redis.get(this.buildKey(sessionId));
+   }
+ 
+-  async removeRefreshToken(userId: string): Promise<void> {
+-    await this.redis.del(this.buildKey(userId));
++  async removeRefreshToken(sessionId: string): Promise<void> {
++    await this.redis.del(this.buildKey(sessionId));
+   }
+ 
+   async onModuleDestroy() {
+diff --git a/backend/src/auth/auth.service.ts b/backend/src/auth/auth.service.ts
+index 16f98fc..af70e9b 100644
+--- a/backend/src/auth/auth.service.ts
++++ b/backend/src/auth/auth.service.ts
+@@ -5,6 +5,7 @@ import { AccountService } from 'src/account/account.service';
+ import { AccountGoogleDto } from 'src/account/dto/account-google-dto';
+ import { Account } from 'src/account/entities/account.entity';
+ import { AuthSessionService } from './auth-session.service';
++import { randomUUID } from 'crypto';
+ // import ms from 'ms';
+ 
+ const bcrypt = require('bcrypt');
+@@ -63,6 +64,8 @@ export class AuthService {
+ 
+     await this.accountService.recordLogin(account._id.toString(), today);
+ 
++    const sessionId = randomUUID();
++
+     const payload = {
+       fullname: account.firstName + ' ' + account.lastName,
+       gender: account.gender,
+@@ -75,13 +78,19 @@ export class AuthService {
+ 
+     const access_token = this.createAccessToken(payload);
+ 
+-    const refresh_token = this.jwtService.sign(payload, {
+-      secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
+-      expiresIn: ms(this.configService.get<string>('JWT_REFRESH_EXPIRE')),
+-    });
++    const refresh_token = this.jwtService.sign(
++      {
++        ...payload,
++        sid: sessionId,
++      },
++      {
++        secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
++        expiresIn: ms(this.configService.get<string>('JWT_REFRESH_EXPIRE')),
++      }
++    );
+ 
+     await this.authSessionService.setRefreshToken(
+-      account._id.toString(),
++      sessionId,
+       refresh_token,
+       ms(this.configService.get<string>('JWT_REFRESH_EXPIRE'))
+     );
+@@ -90,7 +99,7 @@ export class AuthService {
+ 
+     return {
+       access_token,
+-      session_id: account._id.toString(),
++      session_id: sessionId,
+       payload,
+     };
+   }
+@@ -121,7 +130,7 @@ export class AuthService {
+         secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
+       });
+ 
+-      if (detailPayload?._id?.toString() !== sessionId.toString()) {
++      if (detailPayload?.sid && detailPayload.sid !== sessionId) {
+         throw new BadRequestException('Session kh├┤ng hß╗úp lß╗ç');
+       }
+ 
+diff --git a/docker-compose.yml b/docker-compose.yml
+index b20bb4e..21f5598 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -93,15 +93,19 @@ services:
+   # ΓöÇΓöÇ Application Services ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+   server-ai:
+-    # FastAPI ΓÇö listens on :8000 (hardcoded in Dockerfile CMD)
+-    # Routes: /api/v1/search  /api/v1/recommend/:id  /api/v1/similar/:id
+-    # Health: GET /health  |  Docs: GET /docs
++    # FastAPI ΓÇö Recommendation + Chatbot
++    # Vectors: Qdrant Cloud
++    # LLM: Docker Model Runner (ai/qwen3:0.6B-Q4_0)
++    # Requires: docker model pull ai/qwen3:0.6B-Q4_0
++    build:
++      context: ./server-ai
++      dockerfile: Dockerfile
+     image: project-chat-social-server-ai:latest
+     env_file: ./server-ai/.env
+-    # PORT is baked into Dockerfile CMD (uvicorn --port 8000), no need to override
+-    volumes:
+-      - ai_chroma_data:/app/chroma_db
+-      - ai_models:/app/models
++    environment:
++      # Docker Model Runner accessible from containers
++      LLM_BASE_URL: http://model-runner.docker.internal
++      LLM_MODEL: ai/qwen3:0.6B-Q4_0
+     networks:
+       - app-net
+     restart: unless-stopped
+@@ -117,7 +121,9 @@ services:
+     # HTTP prefix: app.setGlobalPrefix('api') ΓåÆ all routes under /api/v1/* and /api/v2/*
+     # WebSocket: /socket.io/ (Socket.IO on same port)
+     # Also subscribes to RabbitMQ queue: backend_queue (Transport.RMQ)
+-    build: ./backend
++    build:
++      context: ./backend
++      dockerfile: Dockerfile
+     image: project-chat-social-backend:latest
+     ports:
+       - "${BACKEND_PORT:-5000}:8080"
+@@ -155,6 +161,9 @@ services:
+     # NestJS Hybrid ΓÇö HTTP :3002 (internal, no public routes) + Kafka consumer
+     # Consumer groupId: newsfeed-consumer-group
+     # NOT routed through nginx ΓÇö internal processing only
++    build:
++      context: ./kafka-server
++      dockerfile: Dockerfile
+     image: project-chat-social-kafka-server:latest
+     env_file: ./kafka-server/.env
+     environment:
+@@ -173,6 +182,9 @@ services:
+     # NO HTTP server, NO exposed port
+     # Subscribes to RabbitMQ queue: social_queue (env RABBITMQ_QUEUE_NAME)
+     # Calls server-ai for AI features via HTTP: /api/v1/...
++    build:
++      context: ./rabbitmq
++      dockerfile: Dockerfile
+     image: project-chat-social-rabbitmq-worker:latest
+     env_file: ./rabbitmq/.env
+     environment:
+@@ -195,8 +207,6 @@ volumes:
+   zookeeper_data:
+   kafka_data:
+   rabbitmq_data:
+-  ai_chroma_data:
+-  ai_models:
+ 
+ networks:
+   app-net:
+diff --git a/frontend/src/app/api/auth/logout/route.ts b/frontend/src/app/api/auth/logout/route.ts
+index 5324756..a451dcb 100644
+--- a/frontend/src/app/api/auth/logout/route.ts
++++ b/frontend/src/app/api/auth/logout/route.ts
+@@ -9,6 +9,8 @@ export async function POST() {
+     const accessToken = cookieStore.get("access_token")?.value;
+ 
+     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
++
++    // Call backend logout to invalidate the session
+     if (sessionId) {
+       try {
+         await axios.post(
+@@ -25,8 +27,25 @@ export async function POST() {
+       }
+     }
+ 
+-    cookieStore.delete("access_token");
+-    cookieStore.delete("session_id");
++    // Clear cookies with matching attributes to ensure proper deletion
++    // Must match the same path, httpOnly, secure, sameSite used when setting
++    const isProduction = process.env.NODE_ENV === "production";
++
++    cookieStore.set("access_token", "", {
++      httpOnly: true,
++      secure: isProduction,
++      sameSite: "lax",
++      path: "/",
++      maxAge: 0,
++    });
++
++    cookieStore.set("session_id", "", {
++      httpOnly: true,
++      secure: isProduction,
++      sameSite: "lax",
++      path: "/",
++      maxAge: 0,
++    });
+ 
+     return NextResponse.json({ success: true });
+   } catch {
+diff --git a/frontend/src/components/AvatarMenu.tsx b/frontend/src/components/AvatarMenu.tsx
+index 010b0ee..0cbd0bb 100644
+--- a/frontend/src/components/AvatarMenu.tsx
++++ b/frontend/src/components/AvatarMenu.tsx
+@@ -60,14 +60,15 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
+     const handleLogout = async () => {
+         onClose();
+         const response = await authService.logout();
+-        if (response.statusCode === 201) {
+-            logout();
++        if (response?.success) {
+             logout();
+             toast.success(t('avatar_menu.logout_success'));
+-            router.push(CLIENT_PATH.LOGIN);
+         } else {
++            // Still clear local state even on API failure
++            logout();
+             toast.error(t('avatar_menu.logout_failed'));
+         }
++        router.push(CLIENT_PATH.LOGIN);
+     };
+ 
+     const handleViewProfile = () => {
+diff --git a/frontend/src/components/call/VideoCall.tsx b/frontend/src/components/call/VideoCall.tsx
+index 9d6fd3b..4822ca5 100644
+--- a/frontend/src/components/call/VideoCall.tsx
++++ b/frontend/src/components/call/VideoCall.tsx
+@@ -51,7 +51,15 @@ export default function VideoCall() {
+                     item.stream ? (
+                         <div key={item.peerId || idx} className="relative bg-gray-800 rounded-xl overflow-hidden shadow-lg border border-gray-700 min-h-[200px] flex items-center justify-center">
+                             <video
+-                                ref={(el) => { if (el) el.srcObject = item.stream! }}
++                                ref={(el) => {
++                                    if (!el) return;
++                                    if (el.srcObject !== item.stream) {
++                                        el.srcObject = item.stream!;
++                                    }
++                                    void el.play().catch(() => {
++                                        // Playback can be blocked transiently; user interaction will resume.
++                                    });
++                                }}
+                                 muted={item.peerId === 'me'} // Always mute self
+                                 className="w-full h-full object-cover"
+                                 autoPlay
+@@ -72,7 +80,7 @@ export default function VideoCall() {
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+-            className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center overflow-hidden"
++            className="fixed inset-0 z-9999 bg-black flex flex-col items-center justify-center overflow-hidden"
+         >
+             {isGroupCall ? (
+                 // --- GROUP CALL UI ---
+@@ -90,6 +98,11 @@ export default function VideoCall() {
+                                 className="w-full h-full object-cover"
+                                 autoPlay
+                                 playsInline
++                                onLoadedMetadata={(event) => {
++                                    void event.currentTarget.play().catch(() => {
++                                        // Ignore autoplay race; controls remain available.
++                                    });
++                                }}
+                             />
+                         ) : (
+                             <div className="flex flex-col items-center animate-pulse">
+@@ -120,6 +133,11 @@ export default function VideoCall() {
+                                 className={`w-full h-full object-cover ${isVideoOff ? 'opacity-0' : 'opacity-100'}`}
+                                 autoPlay
+                                 playsInline
++                                onLoadedMetadata={(event) => {
++                                    void event.currentTarget.play().catch(() => {
++                                        // Ignore autoplay race for local preview.
++                                    });
++                                }}
+                             />
+                             {isVideoOff && (
+                                 <div className="absolute inset-0 flex items-center justify-center bg-gray-600 text-white text-xs">
+diff --git a/frontend/src/components/chats/ChatSidebar.tsx b/frontend/src/components/chats/ChatSidebar.tsx
+index 6c151ad..2bcd71b 100644
+--- a/frontend/src/components/chats/ChatSidebar.tsx
++++ b/frontend/src/components/chats/ChatSidebar.tsx
+@@ -139,13 +139,15 @@ export default function ChatSidebar({
+     const handleLogout = async () => {
+         handleMenuClose();
+         const response = await authService.logout();
+-        if (response.statusCode === 201) {
++        if (response?.success) {
+             logout();
+             toast.success(t('auth.logout_success'));
+-            router.push(CLIENT_PATH.LOGIN);
+         } else {
++            // Still clear local state even on API failure
++            logout();
+             toast.error(t('auth.logout_failed'));
+         }
++        router.push(CLIENT_PATH.LOGIN);
+     };
+ 
+     const filteredConversations = conversations.filter((conversation) => {
+diff --git a/frontend/src/contexts/CallContext.tsx b/frontend/src/contexts/CallContext.tsx
+index aaf21db..32760c2 100644
+--- a/frontend/src/contexts/CallContext.tsx
++++ b/frontend/src/contexts/CallContext.tsx
+@@ -61,7 +61,7 @@ interface CallContextType {
+     leaveCall: () => void;
+     rejectCall: () => void;
+     toggleAudio: () => void;
+-    toggleVideo: () => void;
++    toggleVideo: () => Promise<void>;
+ 
+     callReceived: boolean;
+     isInCall: boolean;
+@@ -106,6 +106,7 @@ export const useCall = () => {
+ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+     // Local Stream
+     const [stream, setStream] = useState<MediaStream>();
++    const streamRef = useRef<MediaStream | undefined>(undefined);
+ 
+     // Call States
+     const [isInCall, setIsInCall] = useState(false);
+@@ -137,11 +138,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+ 
+     // Helper to stop all tracks
+     const stopStream = () => {
+-        if (stream) {
+-            stream.getTracks().forEach(track => {
++        if (streamRef.current) {
++            streamRef.current.getTracks().forEach(track => {
+                 track.stop();
+                 track.enabled = false;
+             });
++            streamRef.current = undefined;
+             setStream(undefined);
+         }
+     };
+@@ -170,7 +172,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+ 
+         peer.on('stream', remoteStream => {
+             setRemoteStreams(prev => {
+-                if (prev.find(p => p.peerId === userToSignal)) return prev;
++                const existingIndex = prev.findIndex(p => p.peerId === userToSignal);
++                if (existingIndex !== -1) {
++                    const next = [...prev];
++                    next[existingIndex] = { peerId: userToSignal, stream: remoteStream };
++                    return next;
++                }
+                 return [...prev, { peerId: userToSignal, stream: remoteStream }];
+             });
+         });
+@@ -211,7 +218,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+ 
+         peer.on('stream', remoteStream => {
+             setRemoteStreams(prev => {
+-                if (prev.find(p => p.peerId === callerId)) return prev;
++                const existingIndex = prev.findIndex(p => p.peerId === callerId);
++                if (existingIndex !== -1) {
++                    const next = [...prev];
++                    next[existingIndex] = { peerId: callerId, stream: remoteStream };
++                    return next;
++                }
+                 return [...prev, { peerId: callerId, stream: remoteStream }];
+             });
+         });
+@@ -362,9 +374,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+                     peersRef.current.get(peerId)?.signal(data.signal);
+                 } else {
+                     // New peer offering (Incoming connection)
+-                    if (!stream) return; // Should have stream if in call
++                    const localStream = streamRef.current;
++                    if (!localStream) return; // Avoid dropping valid offers while state is not yet committed
+ 
+-                    const newPeer = addPeer(data.signal, peerId, stream, data.conversationId);
++                    const newPeer = addPeer(data.signal, peerId, localStream, data.conversationId);
+                     peersRef.current.set(peerId, newPeer);
+                 }
+             }
+@@ -404,6 +417,24 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+         }
+     }, [stream]);
+ 
++    // Helper: get media stream with optional video (camera not mandatory)
++    const getMediaStream = async (wantVideo: boolean): Promise<MediaStream> => {
++        if (wantVideo) {
++            try {
++                // Try to get both audio + video
++                return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
++            } catch {
++                // Camera denied or unavailable ΓÇô fall back to audio-only
++                console.warn('Camera not available, falling back to audio-only');
++                toast.info('Kh├┤ng thß╗â truy cß║¡p Camera ΓÇô tiß║┐p tß╗Ñc vß╗¢i ├óm thanh');
++                setIsVideoOff(true);
++                return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
++            }
++        }
++        // Audio-only requested
++        return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
++    };
++
+     // 1v1 Call
+     const callUser = async (userId: string, conversationId: string, isTurnOff: boolean, targetName?: string, targetAvatar?: string) => {
+         if (isTurnOff) {
+@@ -422,9 +453,16 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+         setIsCallAccepted(false);
+ 
+         try {
+-            const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
++            // Camera is optional ΓÇô only request if not turned off
++            const currentStream = await getMediaStream(!isTurnOff);
++            streamRef.current = currentStream;
+             setStream(currentStream);
+ 
++            // If camera was requested but not obtained, mark video off
++            if (!isTurnOff && currentStream.getVideoTracks().length === 0) {
++                setIsVideoOff(true);
++            }
++
+             const peer = new SimplePeer({
+                 initiator: true,
+                 trickle: true,
+@@ -453,7 +491,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+             connectionRef.current = peer;
+         } catch (err) {
+             console.error('Failed to get media:', err);
+-            toast.error('Kh├┤ng thß╗â truy cß║¡p Camera/Microphone');
++            toast.error('Kh├┤ng thß╗â truy cß║¡p Microphone');
+             setIsInCall(false);
+         }
+     };
+@@ -470,9 +508,15 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+         setIsCallAccepted(true); // You are in immediately
+ 
+         try {
+-            const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
++            // Camera is optional ΓÇô only request if not turned off
++            const currentStream = await getMediaStream(!isTurnOff);
++            streamRef.current = currentStream;
+             setStream(currentStream);
+ 
++            if (!isTurnOff && currentStream.getVideoTracks().length === 0) {
++                setIsVideoOff(true);
++            }
++
+             // Notify others to join
+             socket?.emit('group-call:start', { conversationId });
+ 
+@@ -484,6 +528,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+ 
+         } catch (err) {
+             console.error(err);
++            toast.error('Kh├┤ng thß╗â truy cß║¡p Microphone');
+             setIsInCall(false);
+         }
+     };
+@@ -496,7 +541,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+         setIsCallAccepted(true);
+ 
+         try {
+-            const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
++            // Start with audio-only, camera is optional
++            const currentStream = await getMediaStream(false);
++            setIsVideoOff(true);
++            streamRef.current = currentStream;
+             setStream(currentStream);
+ 
+             // Join and get existing users
+@@ -513,7 +561,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+ 
+         } catch (err) {
+             console.error(err);
+-            toast.error('Kh├┤ng thß╗â tham gia');
++            toast.error('Kh├┤ng thß╗â tham gia ΓÇô kiß╗âm tra quyß╗ün Microphone');
+             leaveCall(false);
+         }
+     };
+@@ -535,7 +583,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+         setIsCallAccepted(true);
+ 
+         try {
+-            const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
++            // Start with audio-only when answering, camera is optional
++            const currentStream = await getMediaStream(false);
++            setIsVideoOff(true);
++            streamRef.current = currentStream;
+             setStream(currentStream);
+ 
+             const peer = new SimplePeer({
+@@ -563,6 +614,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+ 
+         } catch (err) {
+             console.error('Answer Call Error:', err);
++            toast.error('Kh├┤ng thß╗â truy cß║¡p Microphone');
+             leaveCall();
+         }
+     };
+@@ -581,12 +633,50 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
+         }
+     };
+ 
+-    const toggleVideo = () => {
+-        if (stream) {
+-            const videoTrack = stream.getVideoTracks()[0];
+-            if (videoTrack) {
+-                videoTrack.enabled = !videoTrack.enabled;
+-                setIsVideoOff(!videoTrack.enabled);
++    const toggleVideo = async () => {
++        if (!streamRef.current) return;
++
++        const currentStream = streamRef.current;
++        const existingVideoTrack = currentStream.getVideoTracks()[0];
++
++        if (existingVideoTrack) {
++            // Already have a video track ΓÇô just toggle enabled
++            existingVideoTrack.enabled = !existingVideoTrack.enabled;
++            setIsVideoOff(!existingVideoTrack.enabled);
++        } else {
++            // No video track yet ΓÇô request camera permission now
++            try {
++                const videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
++                const newVideoTrack = videoStream.getVideoTracks()[0];
++                if (newVideoTrack) {
++                    // Add the new video track to the existing stream
++                    currentStream.addTrack(newVideoTrack);
++
++                    // Also add to all active peer connections so remote sees video
++                    // 1v1 peer
++                    if (connectionRef.current) {
++                        try {
++                            connectionRef.current.addTrack(newVideoTrack, currentStream);
++                        } catch {
++                            // Some SimplePeer versions may not support addTrack
++                            console.warn('Could not add video track to 1v1 peer');
++                        }
++                    }
++                    // Group peers
++                    peersRef.current.forEach((peer) => {
++                        try {
++                            peer.addTrack(newVideoTrack, currentStream);
++                        } catch {
++                            console.warn('Could not add video track to group peer');
++                        }
++                    });
++
++                    setStream(currentStream);
++                    setIsVideoOff(false);
++                    toast.success('Camera ─æ├ú ─æ╞░ß╗úc bß║¡t');
++                }
++            } catch {
++                toast.error('Kh├┤ng thß╗â truy cß║¡p Camera. Vui l├▓ng cß║Ñp quyß╗ün trong c├ái ─æß║╖t tr├¼nh duyß╗çt.');
+             }
+         }
+     };
+diff --git a/frontend/src/services/auth.service.ts b/frontend/src/services/auth.service.ts
+index d20d8f7..8d05448 100644
+--- a/frontend/src/services/auth.service.ts
++++ b/frontend/src/services/auth.service.ts
+@@ -1,4 +1,5 @@
+-import axios from "@/config/axios";
++import axiosInstance from "@/config/axios";
++import rawAxios from "axios";
+ import { LoginRequest, LoginResponseData } from "@/types/auth";
+ import { APIResponse } from "@/types/common";
+ 
+@@ -6,7 +7,7 @@ class AuthService {
+   async login(
+     loginData: LoginRequest,
+   ): Promise<APIResponse<LoginResponseData>> {
+-    const response = await axios.post<APIResponse<LoginResponseData>>(
++    const response = await axiosInstance.post<APIResponse<LoginResponseData>>(
+       "/auth/login",
+       loginData,
+     );
+@@ -19,7 +20,7 @@ class AuthService {
+     firstName: string;
+     lastName: string;
+   }): Promise<APIResponse<LoginResponseData>> {
+-    const response = await axios.post<APIResponse<LoginResponseData>>(
++    const response = await axiosInstance.post<APIResponse<LoginResponseData>>(
+       "/auth/signup",
+       signupData,
+     );
+@@ -28,15 +29,17 @@ class AuthService {
+ 
+   async logout() {
+     try {
+-      const response = await axios.post("/api/auth/logout", {});
++      // Use raw axios (no baseURL) to call the Next.js API route directly
++      const response = await rawAxios.post("/api/auth/logout", {});
+       return response.data;
+     } catch (error) {
+       console.error("Logout error:", error);
++      return { success: false };
+     }
+   }
+ 
+   async getProfile() {
+-    const response = await axios.get("/auth/profile");
++    const response = await axiosInstance.get("/auth/profile");
+     return response.data;
+   }
+ 
+@@ -44,7 +47,7 @@ class AuthService {
+   async forgotPassword(
+     email: string,
+   ): Promise<{ success: boolean; message: string; expiresAt?: string }> {
+-    const response = await axios.post<
++    const response = await axiosInstance.post<
+       APIResponse<{ success: boolean; message: string; expiresAt?: string }>
+     >("/auth/password/forgot", { email });
+     return response.data.data;
+@@ -54,7 +57,7 @@ class AuthService {
+     email: string,
+     otp: string,
+   ): Promise<{ success: boolean; message: string }> {
+-    const response = await axios.post<
++    const response = await axiosInstance.post<
+       APIResponse<{ success: boolean; message: string }>
+     >("/auth/password/verify-otp", { email, otp });
+     return response.data.data;
+@@ -64,7 +67,7 @@ class AuthService {
+     email: string,
+     newPassword: string,
+   ): Promise<{ success: boolean; message: string }> {
+-    const response = await axios.post<
++    const response = await axiosInstance.post<
+       APIResponse<{ success: boolean; message: string }>
+     >("/auth/password/reset", { email, newPassword });
+     return response.data.data;
+@@ -73,7 +76,7 @@ class AuthService {
+   async resendOtp(
+     email: string,
+   ): Promise<{ success: boolean; message: string; expiresAt?: string }> {
+-    const response = await axios.post<
++    const response = await axiosInstance.post<
+       APIResponse<{ success: boolean; message: string; expiresAt?: string }>
+     >("/auth/password/resend-otp", { email });
+     return response.data.data;
+diff --git a/server-ai/Dockerfile b/server-ai/Dockerfile
+index 47f62b8..c69a4d3 100644
+--- a/server-ai/Dockerfile
++++ b/server-ai/Dockerfile
+@@ -11,25 +11,24 @@ RUN apt-get update && apt-get install -y \
+ # Copy requirements first for caching
+ COPY requirements.txt .
+ 
+-# Install torch CPU-only first (~250MB vs ~915MB GPU wheel) to avoid timeout
++# Install torch CPU-only (~250MB vs ~915MB GPU wheel)
+ RUN pip install --no-cache-dir --timeout=120 \
+     torch --index-url https://download.pytorch.org/whl/cpu
+ 
+ # Install remaining dependencies
+ RUN pip install --no-cache-dir --timeout=120 -r requirements.txt
+ 
++# Pre-download embedding model (~470MB, cached in image layer)
++RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')"
++
+ # Copy app code
+ COPY . .
+ 
+-# Create directories
+-RUN mkdir -p logs models chroma_db
++RUN mkdir -p logs
+ 
+-# Expose port (change based on platform)
+ EXPOSE 8000
+ 
+-# Health check
+ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+     CMD curl -f http://localhost:8000/health || exit 1
+ 
+-# Start server
+ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+diff --git a/server-ai/app/config.py b/server-ai/app/config.py
+index 2258286..2c27792 100644
+--- a/server-ai/app/config.py
++++ b/server-ai/app/config.py
+@@ -1,5 +1,5 @@
+ """
+-Configuration: Hybrid Model & Local ChromaDB
++Configuration: Qdrant Cloud + Docker Model Runner (Qwen3)
+ """
+ 
+ from pydantic_settings import BaseSettings
+@@ -11,27 +11,20 @@ class Settings(BaseSettings):
+     port: int = 8000
+     debug: bool = True
+     
+-    mongodb_uri: str = "mongodb+srv://xuanhodcbas:0984232310ho.@cluster0.f7sbfkn.mongodb.net/project-chat-social"
++    mongodb_uri: str = ""
+     mongodb_database: str = "project-chat-social"
+     
+-    # Model Config (HYBRID TRAINED MODEL)
+-    embedding_provider: str = "custom"
+-    custom_model_path: str = "./models/social-hybrid-model-v1"
++    # Embedding Model
++    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+     
+-    # ChromaDB (Local)
+-    chroma_persist_dir: str = "./chroma_db"
+-    chroma_host: Optional[str] = None  # Optional remote host
+-    chroma_port: int = 8000
+-    chroma_ssl: bool = False
+-    chroma_api_token: Optional[str] = None
++    # Qdrant Cloud
++    qdrant_url: str = ""
++    qdrant_api_key: str = ""
++    qdrant_collection_posts: str = "posts"
+     
+-    chroma_collection_posts: str = "posts_embeddings"
+-    chroma_collection_hashtags: str = "hashtags_embeddings"
+-    
+-    # Fallback/Auxiliary
+-    ollama_host: str = "http://localhost:11434"
+-    ollama_model: str = "llama3.2" # Chß╗ë d├╣ng nß║┐u cß║ºn sinh text, kh├┤ng d├╣ng cho search ch├¡nh
+-    ollama_embedding_model: str = "nomic-embed-text" 
++    # LLM - Docker Model Runner
++    llm_base_url: str = "http://localhost:12434"
++    llm_model: str = "ai/qwen3:0.6B-Q4_0"
+ 
+     search_top_k: int = 20
+     recommendation_limit: int = 20
+@@ -41,7 +34,7 @@ class Settings(BaseSettings):
+         env_file = ".env"
+         env_file_encoding = "utf-8"
+         case_sensitive = False
+-        extra = "ignore"  # Ignore extra fields from .env
++        extra = "ignore"
+ 
+ @lru_cache()
+ def get_settings() -> Settings:
+diff --git a/server-ai/app/services/ollama_service.py b/server-ai/app/services/ollama_service.py
+index 38d8a1b..a08f11f 100644
+--- a/server-ai/app/services/ollama_service.py
++++ b/server-ai/app/services/ollama_service.py
+@@ -1,75 +1,70 @@
+ """
+-Unified AI Service
+-Support Ollama LLM and Custom SentenceTransformer Embeddings
++LLM Service ΓÇö Docker Model Runner (ai/qwen3)
++==============================================
++Uses OpenAI-compatible API provided by Docker Model Runner.
++No Ollama dependency needed.
++
++Docker Model Runner endpoints:
++- Local:  http://localhost:12434/v1/chat/completions
++- Docker: http://model-runner.docker.internal/v1/chat/completions
+ """
+ 
+-import ollama
+-from sentence_transformers import SentenceTransformer
++import httpx
++import json
+ from typing import List, Dict, Optional, Any
+ from loguru import logger
+-import os
+ 
+ from app.config import get_settings
+ 
+-class OllamaService:
++
++class LLMService:
++    """LLM Service using Docker Model Runner (OpenAI-compatible API)"""
++    
+     def __init__(self):
+         self.settings = get_settings()
+-        self._client: Optional[ollama.Client] = None
+-        self._custom_model = None # For custom trained model
+         self._is_available: bool = False
+-        
++    
+     @property
+-    def client(self) -> ollama.Client:
+-        if self._client is None:
+-            # Increase timeout for vision models (llava takes longer)
+-            self._client = ollama.Client(
+-                host=self.settings.ollama_host,
+-                timeout=120.0  # 2 minutes timeout for large model responses
+-            )
+-        return self._client
++    def base_url(self) -> str:
++        return self.settings.llm_base_url.rstrip("/")
+     
+     @property
+-    def custom_model(self):
+-        if self._custom_model is None and self.settings.embedding_provider == "custom":
+-            path = self.settings.custom_model_path
+-            if os.path.exists(path):
+-                logger.info(f"≡ƒºá Loading custom trained model from {path}")
+-                self._custom_model = SentenceTransformer(path)
+-            else:
+-                logger.warning(f"ΓÜá∩╕Å Custom model not found at {path}. Have you run 'train_embedding.py'?")
+-                logger.info("Falling back to base model: sentence-transformers/all-MiniLM-L6-v2")
+-                self._custom_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+-        return self._custom_model
+-
+-
+-    def chat_messages(self, messages: List[Dict[str, str]], temperature=0.7, max_tokens=500) -> str:
+-        """Basic chat without post suggestions"""
++    def model(self) -> str:
++        return self.settings.llm_model
++    
++    def _chat(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 1000) -> str:
++        """Call Docker Model Runner's OpenAI-compatible chat API."""
+         try:
+-            prompt_msgs = """
+-You are a friendly social media assistant named "AI Assistant".  
+-You can help with questions in both English and Vietnamese (UTF-8).
+-Be helpful, concise, and engaging.
+-"""
+-            messages.insert(0, {"role": "system", "content": prompt_msgs})
+-
+-            resp = self.client.chat(
+-                model=self.settings.ollama_model,
+-                messages=messages,
+-                options={"temperature": temperature, "num_predict": 1000}
++            response = httpx.post(
++                f"{self.base_url}/v1/chat/completions",
++                json={
++                    "model": self.model,
++                    "messages": messages,
++                    "temperature": temperature,
++                    "max_tokens": max_tokens,
++                },
++                timeout=120.0
+             )
+-            return resp.get("message", {}).get("content", "")
++            response.raise_for_status()
++            data = response.json()
++            return data["choices"][0]["message"]["content"]
+         except Exception as e:
+-            logger.error(f"Chat messages error: {e}")
++            logger.error(f"LLM chat error: {e}")
+             return ""
+-    
++
++    def chat_messages(self, messages: List[Dict[str, str]], temperature=0.7, max_tokens=500) -> str:
++        """Basic chat"""
++        system_msg = {
++            "role": "system",
++            "content": 'You are a friendly social media assistant named "AI Assistant". '
++                       'You can help with questions in both English and Vietnamese (UTF-8). '
++                       'Be helpful, concise, and engaging.'
++        }
++        all_msgs = [system_msg] + messages
++        return self._chat(all_msgs, temperature, max_tokens)
++
+     def analyze_chat_intent(self, message: str) -> Dict[str, Any]:
+-        """
+-        Analyze user's chat message to determine:
+-        1. Should we suggest posts? 
+-        2. What search query to use?
+-        
+-        Returns: {"should_suggest_post": bool, "search_query": str, "topic": str}
+-        """
++        """Analyze user message intent ΓÇö should we suggest posts?"""
+         try:
+             system_prompt = """You are an intent analyzer for a social media chatbot.
+ Analyze the user's message and determine:
+@@ -85,25 +80,14 @@ RESPOND IN JSON ONLY:
+ 
+ Examples:
+ - "c├│ b├ái viß║┐t n├áo vß╗ü du lß╗ïch kh├┤ng?" ΓåÆ {"should_suggest_post": true, "search_query": "du lß╗ïch", "topic": "du lß╗ïch"}
+-- "cho xem mß║Ñy post vß╗ü c├┤ng nghß╗ç" ΓåÆ {"should_suggest_post": true, "search_query": "c├┤ng nghß╗ç technology", "topic": "c├┤ng nghß╗ç"}
+ - "xin ch├áo" ΓåÆ {"should_suggest_post": false, "search_query": "", "topic": ""}
+-- "h├┤m nay thß╗¥i tiß║┐t thß║┐ n├áo" ΓåÆ {"should_suggest_post": false, "search_query": "", "topic": ""}
+ - "c├│ ai ─æ─âng g├¼ vß╗ü AI ch╞░a" ΓåÆ {"should_suggest_post": true, "search_query": "AI artificial intelligence", "topic": "AI"}
+-- "gß╗úi ├╜ b├ái viß║┐t vß╗ü ß║⌐m thß╗▒c" ΓåÆ {"should_suggest_post": true, "search_query": "ß║⌐m thß╗▒c food", "topic": "ß║⌐m thß╗▒c"}
+ """
+-            resp = self.client.chat(
+-                model=self.settings.ollama_model,
+-                messages=[
+-                    {"role": "system", "content": system_prompt},
+-                    {"role": "user", "content": message}
+-                ],
+-                options={"temperature": 0.3, "num_predict": 500}
++            response_text = self._chat(
++                [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}],
++                temperature=0.3, max_tokens=500
+             )
+             
+-            response_text = resp.get("message", {}).get("content", "")
+-            
+-            # Parse JSON from response
+-            import json
+             start = response_text.find("{")
+             end = response_text.rfind("}") + 1
+             if start != -1 and end > start:
+@@ -114,262 +98,98 @@ Examples:
+                     "topic": result.get("topic", "")
+                 }
+             return {"should_suggest_post": False, "search_query": "", "topic": ""}
+-            
+         except Exception as e:
+             logger.error(f"Analyze intent error: {e}")
+             return {"should_suggest_post": False, "search_query": "", "topic": ""}
+-    
++
+     def generate_chat_response_with_context(
+-        self, 
+-        message: str, 
+-        has_post: bool = False,
+-        post_preview: str = "",
+-        temperature: float = 0.7
++        self, message: str, has_post: bool = False,
++        post_preview: str = "", temperature: float = 0.7
+     ) -> str:
+-        """
+-        Generate a chat response, optionally mentioning that a post is being shared.
+-        """
+-        try:
+-            if has_post and post_preview:
+-                system_prompt = f"""You are a friendly social media assistant named "AI Assistant".
+-You found a relevant post to share with the user.
+-
+-The post preview: "{post_preview[:200]}..."
+-
+-Respond naturally to the user's question and mention that you found a related post they might like.
+-Keep your response friendly and concise (2-3 sentences max).
+-Respond in the same language as the user (Vietnamese if they speak Vietnamese).
+-"""
+-            else:
+-                system_prompt = """You are a friendly social media assistant named "AI Assistant".
+-You can help with questions in both English and Vietnamese (UTF-8).
+-Be helpful, concise, and engaging. Keep responses under 3 sentences unless more detail is needed.
+-"""
+-            
+-            resp = self.client.chat(
+-                model=self.settings.ollama_model,
+-                messages=[
+-                    {"role": "system", "content": system_prompt},
+-                    {"role": "user", "content": message}
+-                ],
+-                options={"temperature": temperature, "num_predict": 1000}
++        """Generate a chat response, optionally mentioning a post."""
++        if has_post and post_preview:
++            system_prompt = (
++                f'You are a friendly social media assistant named "AI Assistant". '
++                f'You found a relevant post to share. Post preview: "{post_preview[:200]}...". '
++                f'Respond naturally and mention the related post. '
++                f'Respond in the same language as the user. Keep it concise.'
+             )
+-            return resp.get("message", {}).get("content", "")
+-        except Exception as e:
+-            logger.error(f"Generate response error: {e}")
+-            return "Xin lß╗ùi, t├┤i gß║╖p sß╗▒ cß╗æ. Vui l├▓ng thß╗¡ lß║íi!"
+-    
+-    def analyze_images(self, image_urls: List[str]) -> str:
+-        """
+-        Analyze images using vision model (llava).
+-        Returns a description of what's in the images.
+-        """
+-        if not image_urls:
+-            return ""
+-        
+-        try:
+-            import base64
+-            import httpx
+-            
+-            # Check available vision models
+-            available_models = self.list_models()
+-            logger.info(f"Available models: {available_models}")
+-            
+-            # Find llava model (could be 'llava', 'llava:latest', 'llava:7b', etc.)
+-            vision_model = None
+-            for m in available_models:
+-                if "llava" in m.lower():
+-                    vision_model = m
+-                    break
+-            
+-            if not vision_model:
+-                logger.warning(f"Vision model (llava) not found in: {available_models}")
+-                return ""
+-            
+-            logger.info(f"Using vision model: {vision_model}")
+-            
+-            # Download and convert image to base64
+-            image_url = image_urls[0]
+-            logger.info(f"Downloading image from: {image_url}")
+-            
+-            # Download image
+-            with httpx.Client(timeout=30.0) as http_client:
+-                response = http_client.get(image_url)
+-                response.raise_for_status()
+-                image_bytes = response.content
+-            
+-            # Convert to base64
+-            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+-            logger.info(f"Image downloaded and encoded, size: {len(image_bytes)} bytes")
+-            
+-            prompt = """Analyze this image in GREAT DETAIL. Provide a comprehensive description including:
+-
+-1. **Main Subject**: What is the primary focus? Describe it thoroughly.
+-2. **Scene/Setting**: Where is this? Indoor/outdoor? What environment?
+-3. **Objects & Elements**: List ALL visible objects, people, animals, items.
+-4. **Colors & Lighting**: Dominant colors, lighting conditions, shadows, atmosphere.
+-5. **Text/Writing**: Any text, signs, labels, watermarks visible? Transcribe them.
+-6. **Style/Type**: Is this a photo, screenshot, artwork, meme, game, etc.?
+-7. **Mood/Emotion**: What feeling does the image convey?
+-8. **Notable Details**: Any interesting or unusual elements?
+-
+-Be thorough and descriptive. Write in Vietnamese. Minimum 200 words."""
+-            
+-            resp = self.client.chat(
+-                model=vision_model,
+-                messages=[{
+-                    "role": "user",
+-                    "content": prompt,
+-                    "images": [image_base64]  # Send base64 encoded image
+-                }],
+-                options={"temperature": 0.4, "num_predict": 1500}  # ~500 words Vietnamese
++        else:
++            system_prompt = (
++                'You are a friendly social media assistant named "AI Assistant". '
++                'You can help in both English and Vietnamese. Be helpful and concise.'
+             )
+-            
+-            # Handle both dict and object response
+-            if hasattr(resp, 'message'):
+-                description = resp.message.content if hasattr(resp.message, 'content') else ""
+-            else:
+-                description = resp.get("message", {}).get("content", "")
+-            
+-            logger.info(f"Image analysis result: {description[:100]}...")
+-            return description
+-            
+-        except Exception as e:
+-            logger.error(f"Image analysis error: {e}")
+-            return ""
+-    
++        return self._chat(
++            [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}],
++            temperature
++        )
++
+     def generate_chat_response_with_full_context(
+-        self,
+-        message: str,
+-        chat_history: List[Dict[str, str]] = None,
+-        image_description: str = "",
+-        has_post: bool = False,
+-        post_preview: str = "",
+-        temperature: float = 0.7
++        self, message: str, chat_history: List[Dict[str, str]] = None,
++        image_description: str = "", has_post: bool = False,
++        post_preview: str = "", temperature: float = 0.7
+     ) -> str:
+-        """
+-        Generate AI response with full conversation context.
+-        
+-        Args:
+-            message: Current user message
+-            chat_history: List of previous messages [{role, content}, ...]
+-            image_description: Description of attached images (if any)
+-            has_post: Whether we're suggesting posts
+-            post_preview: Preview of first suggested post
+-        """
++        """Generate AI response with full conversation context."""
+         try:
+-            # Build system prompt
+             system_parts = [
+                 'You are a friendly social media assistant named "AI Assistant".',
+                 "You help users in both English and Vietnamese (UTF-8).",
+                 "Be helpful, concise, and engaging.",
+             ]
+-            
+             if image_description:
+                 system_parts.append(f"\nThe user has shared an image: {image_description}")
+-            
+             if has_post and post_preview:
+-                system_parts.append(f"\nYou found related posts to suggest. First post preview: \"{post_preview[:150]}...\"")
+-                system_parts.append("Mention that you found some relevant posts they might like.")
+-            
+-            system_prompt = " ".join(system_parts)
+-            
+-            # Build messages array with history
+-            messages = [{"role": "system", "content": system_prompt}]
+-            
+-            # Add chat history (last 10 messages)
++                system_parts.append(f'\nYou found related posts. First post preview: "{post_preview[:150]}..."')
++                system_parts.append("Mention that you found some relevant posts.")
++
++            messages = [{"role": "system", "content": " ".join(system_parts)}]
+             if chat_history:
+                 for msg in chat_history[-10:]:
+-                    messages.append({
+-                        "role": msg.get("role", "user"),
+-                        "content": msg.get("content", "")
+-                    })
+-            
+-            # Add current message
++                    messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+             messages.append({"role": "user", "content": message})
+-            
+-            logger.info(f"Generating response with {len(messages)} messages in context")
+-            
+-            resp = self.client.chat(
+-                model=self.settings.ollama_model,
+-                messages=messages,
+-                options={"temperature": temperature, "num_predict": 1000}
+-            )
+-            
+-            return resp.get("message", {}).get("content", "")
+-            
++
++            return self._chat(messages, temperature)
+         except Exception as e:
+             logger.error(f"Generate full context response error: {e}")
+             return "Xin lß╗ùi, t├┤i gß║╖p sß╗▒ cß╗æ. Vui l├▓ng thß╗¡ lß║íi!"
+ 
++    def analyze_images(self, image_urls: List[str]) -> str:
++        """Image analysis ΓÇö Qwen3 0.6B doesn't support vision, return empty."""
++        if not image_urls:
++            return ""
++        logger.info("ΓÜá∩╕Å Image analysis not supported with current LLM model")
++        return ""
++
+     def is_available(self) -> bool:
++        """Check if Docker Model Runner is accessible."""
+         try:
+-            # Check Ollama for Generation
+-            self.client.list() 
+-            self._is_available = True
+-            return True
++            response = httpx.get(f"{self.base_url}/v1/models", timeout=5.0)
++            self._is_available = response.status_code == 200
++            return self._is_available
+         except:
+             self._is_available = False
+             return False
+ 
+     def list_models(self) -> List[str]:
++        """List available models from Docker Model Runner."""
+         try:
+-            response = self.client.list()
+-            # New Ollama API uses object-based response
+-            if hasattr(response, 'models'):
+-                return [m.model for m in response.models]
+-            # Fallback for dict-based response (older API)
+-            return [m["name"] for m in response.get("models", [])]
+-        except: return []
+-
+-    # ==================== EMBEDDINGS (AUTO SWITCH) ====================
+-
+-    def get_embedding(self, text: str) -> List[float]:
+-        if self.settings.embedding_provider == "custom":
+-            # Use Python SentenceTransformer
+-            return self.custom_model.encode(text).tolist()
+-        else:
+-            # Use Ollama
+-            try:
+-                if not text: return []
+-                resp = self.client.embeddings(model=self.settings.ollama_embedding_model, prompt=text)
+-                return resp.get("embedding", [])
+-            except: 
+-                return []
+-
+-    def get_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
+-        if self.settings.embedding_provider == "custom":
+-            # Batch encode with SentenceTransformer (Very fast on GPU)
+-            return self.custom_model.encode(texts).tolist()
+-        else:
+-            # Sequential Ollama calls (Slower)
+-            embeddings = []
+-            for t in texts:
+-                embeddings.append(self.get_embedding(t))
+-            return embeddings
++            response = httpx.get(f"{self.base_url}/v1/models", timeout=5.0)
++            if response.status_code == 200:
++                data = response.json()
++                return [m.get("id", "") for m in data.get("data", [])]
++            return []
++        except:
++            return []
+ 
+-    # ==================== GENERATION (OLLAMA ONLY) ====================
+-    # (Giß╗» nguy├¬n logic generation c┼⌐)
+-    
+     def generate(self, prompt, system=None, temperature=0.7, max_tokens=500):
+-        try:
+-            msgs = []
+-            if system: msgs.append({"role": "system", "content": system})
+-            msgs.append({"role": "user", "content": prompt})
+-            
+-            resp = self.client.chat(
+-                model=self.settings.ollama_model,
+-                messages=msgs,
+-                options={"temperature": temperature, "num_predict": 1000}
+-            )
+-            return resp.get("message", {}).get("content", "")
+-        except Exception as e:
+-            logger.error(f"Generate error: {e}")
+-            return ""
++        msgs = []
++        if system: msgs.append({"role": "system", "content": system})
++        msgs.append({"role": "user", "content": prompt})
++        return self._chat(msgs, temperature, max_tokens)
+ 
+     def analyze_post_content(self, content, available_hashtags):
+-        # (Giß╗» nguy├¬n logic c┼⌐)
+-        if not content.strip(): return {"sentiment": "neutral", "topics": [], "suggested_hashtags": [], "summary": "", "is_appropriate": True}
++        if not content.strip():
++            return {"sentiment": "neutral", "topics": [], "suggested_hashtags": [], "summary": "", "is_appropriate": True}
+         
+         hashtags_list = ", ".join(available_hashtags[:50])
+         system = """You are a social media content analyzer. 
+@@ -382,37 +202,41 @@ Analyze and provide JSON:
+   "is_appropriate": true
+ }"""
+         user = f"Analyze:\n{content}\n\nChoose hashtags from: {hashtags_list}"
+-        
+         try:
+             resp = self.generate(user, system, 0.3, 300)
+-            import json
+             start = resp.find("{")
+             end = resp.rfind("}") + 1
+             if start != -1:
+                 result = json.loads(resp[start:end])
+-                # Filter valid hashtags
+-                valid = [h for h in result.get("suggested_hashtags", []) 
++                valid = [h for h in result.get("suggested_hashtags", [])
+                         if h.lower() in [ah.lower() for ah in available_hashtags]]
+                 result["suggested_hashtags"] = valid
+                 return result
+-            return {"sentiment": "neutral", "topics": [], "suggested_hashtags": [], "summary": "", "is_appropriate": True}
+         except:
+-            return {"sentiment": "neutral", "topics": [], "suggested_hashtags": [], "summary": "", "is_appropriate": True}
++            pass
++        return {"sentiment": "neutral", "topics": [], "suggested_hashtags": [], "summary": "", "is_appropriate": True}
+ 
+     def generate_search_query_expansion(self, query):
+-        # (Giß╗» nguy├¬n logic c┼⌐)
+         user = f"Generate 3 related search terms for: {query}. Respond JSON array only."
+         try:
+             resp = self.generate(user, None, 0.5, 100)
+-            import json
+             start = resp.find("[")
+             end = resp.rfind("]") + 1
+             if start != -1: return json.loads(resp[start:end])
+-            return [query]
+-        except: return [query]
++        except:
++            pass
++        return [query]
++
++
++# Singleton
++_llm_service = None
++
++def get_llm_service():
++    global _llm_service
++    if _llm_service is None:
++        _llm_service = LLMService()
++    return _llm_service
+ 
+-_ollama_service = None
++# Backward compatibility alias
+ def get_ollama_service():
+-    global _ollama_service
+-    if _ollama_service is None: _ollama_service = OllamaService()
+-    return _ollama_service
++    return get_llm_service()
+diff --git a/server-ai/app/services/recommendation_service.py b/server-ai/app/services/recommendation_service.py
+index 8e9dd55..056eeef 100644
+--- a/server-ai/app/services/recommendation_service.py
++++ b/server-ai/app/services/recommendation_service.py
+@@ -1,305 +1,197 @@
+ """
+-RECOMMENDATION SERVICE - OPTIMIZED
+-===================================
+-Chß╗ë giß╗» c├íc h├ám cß║ºn thiß║┐t:
++RECOMMENDATION SERVICE ΓÇö QDRANT CLOUD
++=======================================
+ 1. search(query, ...) - T├¼m posts theo query
+-2. recommend(user_id, ...) - Gß╗úi ├╜ cho user dß╗▒a tr├¬n interactions tß╗½ MongoDB
++2. recommend(user_id, ...) - Gß╗úi ├╜ cho user
+ 3. similar(post_id, ...) - T├¼m posts t╞░╞íng tß╗▒
+ 4. get_newsfeed(user_id, ...) - Alias cho recommend
+-
+-Sß╗¡ dß╗Ñng COSINE SIMILARITY (g├│c tß╗ìa ─æß╗Ö):
+-- Cosine = 1: C├╣ng h╞░ß╗¢ng (giß╗æng nhau ho├án to├án)
+-- Cosine = 0: Vu├┤ng g├│c (kh├┤ng li├¬n quan)
+-- Cosine = -1: Ng╞░ß╗úc h╞░ß╗¢ng (─æß╗æi lß║¡p)
+ """
+ 
+-import os
++import uuid
+ import hashlib
+ import random
+ from typing import List, Dict, Optional, Tuple
+ from loguru import logger
+-import chromadb
+-from chromadb.config import Settings as ChromaSettings
+ from sentence_transformers import SentenceTransformer
+ from pymongo import MongoClient
+ from bson import ObjectId
++from qdrant_client import QdrantClient
++from qdrant_client.models import PointStruct
+ import numpy as np
+ from datetime import datetime
+ from dotenv import load_dotenv
++import os
+ 
+-# Load environment variables
+ load_dotenv()
+ 
+-# ─É╞░ß╗¥ng dß║½n tuyß╗çt ─æß╗æi ─æß║┐n th╞░ mß╗Ñc chß╗⌐a chroma_db
+-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+-CHROMA_PATH = os.getenv("CHROMA_PERSIST_DIR", os.path.join(BASE_DIR, "chroma_db"))
+-# Nß║┐u CHROMA_PATH l├á relative path, convert th├ánh absolute path
+-if not os.path.isabs(CHROMA_PATH):
+-    CHROMA_PATH = os.path.join(BASE_DIR, CHROMA_PATH)
+-    
+-COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_POSTS", "posts")
+-MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
+-
+-# MongoDB Config tß╗½ .env
++MODEL_NAME = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+ MONGO_URI = os.getenv("MONGODB_URI")
+ DB_NAME = os.getenv("MONGODB_DATABASE")
++QDRANT_URL = os.getenv("QDRANT_URL")
++QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
++COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_POSTS", "posts")
++USER_COLLECTION = os.getenv("QDRANT_COLLECTION_USERS", "user_vectors")
+ 
+-# Weights cho c├íc interaction types
+ INTERACTION_WEIGHTS = {
+-    "SHARE": 2.5,      # Chia sß║╗ = quan t├óm nhß║Ñt
+-    "COMMENT": 1.5,    # B├¼nh luß║¡n = quan t├óm cao
+-    "LOVE": 1.3,
+-    "LIKE": 1.0,
+-    "HAHA": 0.8,
+-    "WOW": 0.7,
+-    "SAD": 0.3,
+-    "ANGRY": -0.5
++    "SHARE": 2.5, "COMMENT": 1.5, "LOVE": 1.3, "LIKE": 1.0,
++    "HAHA": 0.8, "WOW": 0.7, "SAD": 0.3, "ANGRY": -0.5
+ }
++RECENT_DAYS = 20
++RECENT_BOOST_MAX = 1.5
++VIEWED_PENALTY = 0.3
+ 
+-# Recency boost config
+-RECENT_DAYS = 20  # Posts within this many days get boosted
+-RECENT_BOOST_MAX = 1.5  # Max boost for very recent posts (today)
+-VIEWED_PENALTY = 0.3  # Reduce score by this factor for already viewed posts
++
++def mongo_id_to_uuid(mongo_id: str) -> str:
++    return str(uuid.uuid5(uuid.NAMESPACE_DNS, mongo_id))
+ 
+ 
+ class RecommendationService:
+     def __init__(self):
+-        self._collection = None
++        self._qdrant = None
+         self._model = None
+         self._mongo_client = None
+-        # IN-MEMORY CACHE
+         self.user_vectors_cache: Dict[str, np.ndarray] = {}
+         self.user_interaction_counts: Dict[str, int] = {}
+ 
+-    def update_realtime_vector(self, user_id: str, post_id: str, interaction_type: str) -> bool:
+-        """
+-        ΓÜí REAL-TIME VECTOR UPDATE
+-        Called by Kafka Consumer -> API when user interact.
+-        Updates user vector immediately in memory without DB query.
+-        """
+-        try:
+-            # 1. Get post embedding
+-            if not self.is_ready(): return False
+-            
+-            result = self.collection.get(ids=[post_id], include=["embeddings"])
+-            embeddings = result.get('embeddings')
+-            
+-            # Explicit None check for Numpy safety
+-            if embeddings is None or len(embeddings) == 0:
+-                logger.warning(f"Post {post_id} not found for realtime update")
+-                return False
+-                
+-            post_emb = np.array(embeddings[0])
+-            weight = INTERACTION_WEIGHTS.get(interaction_type, 1.0)
+-            
+-            # 2. Get current user vector (from cache or DB)
+-            current_vector = self.user_vectors_cache.get(user_id)
+-            if current_vector is None:
+-                # Cold start or cache miss: fetching from DB once
+-                current_vector, count = self.get_user_vector(user_id)
+-                if current_vector is None:
+-                    # New user interaction
+-                    current_vector = post_emb
+-                    self.user_vectors_cache[user_id] = current_vector
+-                    self.user_interaction_counts[user_id] = 1
+-                    logger.info(f"ΓÜí User {user_id}: Init vector from realtime interaction")
+-                    return True
+-
+-            # 3. Update Vector (Weighted Moving Average Strategy)
+-            # Alpha controls how fast user preference changes (0.1 = slow, 0.5 = fast)
+-            alpha = 0.3
+-            
+-            # Normalize inputs
+-            post_emb = post_emb / np.linalg.norm(post_emb)
+-            
+-            # Formula: NewVector = (1-alpha)*OldVector + alpha*(Weight * PostVector)
+-            new_vector = (1 - alpha) * current_vector + alpha * (weight * post_emb)
+-            
+-            # Normalize result
+-            norm = np.linalg.norm(new_vector)
+-            if norm > 0:
+-                new_vector = new_vector / norm
+-                
+-            # 4. Save to Cache
+-            self.user_vectors_cache[user_id] = new_vector
+-            self.user_interaction_counts[user_id] = self.user_interaction_counts.get(user_id, 0) + 1
+-            
+-            # 5. Persist to DB (for restart durability)
+-            self._save_user_vector_to_db(user_id, new_vector, self.user_interaction_counts[user_id])
+-            
+-            logger.info(f"ΓÜí User {user_id}: Vector updated realtime & saved (Total: {self.user_interaction_counts[user_id]})")
+-            return True
+-            
+-        except Exception as e:
+-            logger.error(f"Realtime update error: {e}")
+-            return False
+-    
+     @property
+-    def collection(self):
+-        """Lazy load ChromaDB collection"""
+-        if self._collection is None:
+-            if not os.path.exists(CHROMA_PATH):
+-                logger.error("Γ¥î Ch╞░a train! Chß║íy: python train.py")
+-                return None
+-            client = chromadb.PersistentClient(
+-                path=CHROMA_PATH, 
+-                settings=ChromaSettings(anonymized_telemetry=False)
+-            )
+-            try:
+-                self._collection = client.get_collection(COLLECTION_NAME)
+-                logger.info(f"Γ£à Loaded {self._collection.count()} posts tß╗½ ChromaDB")
+-            except:
+-                logger.error("Γ¥î Collection kh├┤ng tß╗ôn tß║íi! Chß║íy: python train.py")
+-                return None
+-        return self._collection
+-    
++    def qdrant(self):
++        if self._qdrant is None:
++            self._qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=120)
++        return self._qdrant
++
+     @property
+     def model(self):
+-        """Lazy load SentenceTransformer model"""
+         if self._model is None:
+             logger.info(f"Γ¼ç∩╕Å Loading model {MODEL_NAME}...")
+             self._model = SentenceTransformer(MODEL_NAME)
+             logger.info("Γ£à Model loaded!")
+         return self._model
+-    
++
+     @property
+     def mongo_client(self):
+-        """Lazy load MongoDB client - reuse connection"""
+         if self._mongo_client is None:
+             self._mongo_client = MongoClient(MONGO_URI, maxPoolSize=10)
+         return self._mongo_client
+-    
++
+     def is_ready(self) -> bool:
+-        return self.collection is not None and self.collection.count() > 0
+-    
++        try:
++            info = self.qdrant.get_collection(COLLECTION_NAME)
++            return info.points_count > 0
++        except Exception as e:
++            logger.error(f"Qdrant not ready: {e}")
++            return False
++
+     def get_total_posts(self) -> int:
+-        if not self.is_ready():
++        try:
++            info = self.qdrant.get_collection(COLLECTION_NAME)
++            return info.points_count
++        except:
+             return 0
+-        return self.collection.count()
+-    
++
+     # ========================================
+-    # CORE: Lß║Ñy User Vector
++    # User Vector Management
+     # ========================================
+     def get_user_vector(self, user_id: str) -> Tuple[Optional[np.ndarray], int]:
+-        """
+-        Lß║Ñy preference vector. 
+-        ╞»u ti├¬n 1: Memory Cache
+-        ╞»u ti├¬n 2: Collection 'ai_user_vectors' (Pre-computed)
+-        Fallback: T├¡nh to├ín tß╗½ ─æß║ºu (Migration only)
+-        """
+-        # 1. Cache HIT
+         if user_id in self.user_vectors_cache:
+             return self.user_vectors_cache[user_id], self.user_interaction_counts.get(user_id, 0)
+ 
+-        # 2. Storage HIT (ai_user_vectors)
++        # 1. Try Qdrant user_vectors collection first
++        try:
++            point_uuid = mongo_id_to_uuid(user_id)
++            results = self.qdrant.retrieve(
++                collection_name=USER_COLLECTION,
++                ids=[point_uuid],
++                with_vectors=True
++            )
++            if results and results[0].vector:
++                vector = np.array(results[0].vector)
++                count = results[0].payload.get("interaction_count", 0)
++                self.user_vectors_cache[user_id] = vector
++                self.user_interaction_counts[user_id] = count
++                logger.debug(f"User vector loaded from Qdrant: {user_id}")
++                return vector, count
++        except Exception as e:
++            logger.debug(f"Qdrant user vector not found: {e}")
++
++        # 2. Fallback: MongoDB
+         try:
+             db = self.mongo_client[DB_NAME]
+-            stored_vector = db.ai_user_vectors.find_one({"user_id": user_id})
+-            
+-            if stored_vector and "vector" in stored_vector:
+-                logger.info(f"≡ƒÆ╛ Loaded vector from DB for user {user_id}")
+-                vector = np.array(stored_vector["vector"])
+-                count = stored_vector.get("count", 0)
+-                
+-                # Update Cache
++            stored = db.ai_user_vectors.find_one({"user_id": user_id})
++            if stored and "vector" in stored:
++                vector = np.array(stored["vector"])
++                count = stored.get("count", 0)
+                 self.user_vectors_cache[user_id] = vector
+                 self.user_interaction_counts[user_id] = count
+                 return vector, count
+-                
+         except Exception as e:
+-            logger.error(f"Error loading user vector: {e}")
++            logger.error(f"Error loading user vector from MongoDB: {e}")
+ 
+-        # 3. Fallback (Migration): Calculate from scratch ONCE and save
+-        logger.warning(f"ΓÜá∩╕Å User {user_id} vector missing. Building from raw interactions (MIGRATION)...")
++        # 3. Build from scratch
+         return self._build_and_save_vector_from_scratch(user_id)
+ 
+     def _build_and_save_vector_from_scratch(self, user_id: str) -> Tuple[Optional[np.ndarray], int]:
+-        """
+-        H├ám n├áy chß╗ë chß║íy 1 lß║ºn duy nhß║Ñt khi User ch╞░a c├│ vector trong 'ai_user_vectors'.
+-        N├│ sß║╜ qu├⌐t bß║úng reactions, t├¡nh to├ín, v├á L╞»U v├áo 'ai_user_vectors'.
+-        """
+         try:
+             db = self.mongo_client[DB_NAME]
+             user_oid = ObjectId(user_id)
+             post_weights: Dict[str, float] = {}
+-            
+-            # --- START RAW QUERY (ONLY RUN ONCE) ---
+-            # 1. REACTIONS
+-            reactions = db.reactions.find({
+-                "userId": user_oid,
+-                "typeFactor": "POST"
+-            }, {"factorId": 1, "type": 1})
+-            
+-            for r in reactions:
+-                post_id = str(r.get('factorId', ''))
+-                if not post_id: continue
+-                weight = INTERACTION_WEIGHTS.get(r.get('type', 'LIKE'), 0.5)
+-                post_weights[post_id] = max(post_weights.get(post_id, 0), weight)
+-            
+-            # 2. COMMENTS
+-            comments = db.comments.find({"userId": user_oid}, {"postId": 1})
+-            for c in comments:
+-                post_id = str(c.get('postId', ''))
+-                if not post_id: continue
+-                post_weights[post_id] = max(post_weights.get(post_id, 0), INTERACTION_WEIGHTS["COMMENT"])
+-            # --- END RAW QUERY ---
+-            
++
++            for r in db.reactions.find({"userId": user_oid, "typeFactor": "POST"}, {"factorId": 1, "type": 1}):
++                pid = str(r.get('factorId', ''))
++                if pid:
++                    post_weights[pid] = max(post_weights.get(pid, 0), INTERACTION_WEIGHTS.get(r.get('type', 'LIKE'), 0.5))
++
++            for c in db.comments.find({"userId": user_oid}, {"postId": 1}):
++                pid = str(c.get('postId', ''))
++                if pid:
++                    post_weights[pid] = max(post_weights.get(pid, 0), INTERACTION_WEIGHTS["COMMENT"])
++
+             if not post_weights:
+                 return None, 0
+-                
+-            # Fetch embeddings
+-            post_ids = list(post_weights.keys())
++
++            # Get embeddings from Qdrant
++            point_ids = [mongo_id_to_uuid(pid) for pid in post_weights.keys()]
+             try:
+-                result = self.collection.get(ids=post_ids, include=["embeddings"])
+-            except: 
++                results = self.qdrant.retrieve(
++                    collection_name=COLLECTION_NAME,
++                    ids=point_ids,
++                    with_vectors=True
++                )
++            except:
+                 return None, 0
+ 
+-            embeddings = result.get('embeddings')
+-            # Fix Numpy Ambiguous Error: Explicitly check None or len
+-            if embeddings is None or len(embeddings) == 0: 
++            if not results:
+                 return None, 0
+-            
+-            # Calculate Weighted Average
++
+             weighted_sum = None
+             total_weight = 0.0
+             found_count = 0
+-            
+-            ids_map = {id: i for i, id in enumerate(result['ids'])}
+-            
+-            for pid, weight in post_weights.items():
+-                if pid in ids_map:
+-                    idx = ids_map[pid]
+-                    emb = np.array(embeddings[idx])
+-                    
+-                    # Fix Numpy check for None
+-                    if weighted_sum is None: 
++
++            for point in results:
++                post_id = point.payload.get("post_id", "")
++                if post_id in post_weights:
++                    weight = post_weights[post_id]
++                    emb = np.array(point.vector)
++                    if weighted_sum is None:
+                         weighted_sum = emb * weight
+-                    else: 
++                    else:
+                         weighted_sum += emb * weight
+-                    
+                     total_weight += abs(weight)
+                     found_count += 1
+-            
+-            # Fix Numpy check
+-            if weighted_sum is None or total_weight == 0: 
++
++            if weighted_sum is None or total_weight == 0:
+                 return None, 0
+-            
+-            # Normalize
++
+             user_vector = weighted_sum / total_weight
+             norm = np.linalg.norm(user_vector)
+             if norm > 0: user_vector = user_vector / norm
+-            
+-            # SAVE TO PERSISTENT STORAGE
++
+             self._save_user_vector_to_db(user_id, user_vector, found_count)
+-            
+-            # Cache
+             self.user_vectors_cache[user_id] = user_vector
+             self.user_interaction_counts[user_id] = found_count
+-            
+             return user_vector, found_count
+-            
++
+         except Exception as e:
+-            logger.error(f"Migration error: {e}")
++            logger.error(f"Build vector error: {e}")
+             return None, 0
+ 
+     def _save_user_vector_to_db(self, user_id: str, vector: np.ndarray, count: int):
+@@ -307,441 +199,255 @@ class RecommendationService:
+             db = self.mongo_client[DB_NAME]
+             db.ai_user_vectors.replace_one(
+                 {"user_id": user_id},
+-                {
+-                    "user_id": user_id,
+-                    "vector": vector.tolist(),
+-                    "count": count,
+-                    "last_updated": datetime.now()
+-                },
++                {"user_id": user_id, "vector": vector.tolist(), "count": count, "last_updated": datetime.now()},
+                 upsert=True
+             )
+-            logger.info(f"≡ƒÆ╛ Saved User {user_id} vector to 'ai_user_vectors'")
+         except Exception as e:
+-            logger.error(f"Failed to save user vector: {e}")
+-    
++            logger.error(f"Save vector error: {e}")
++
++    def update_realtime_vector(self, user_id: str, post_id: str, interaction_type: str) -> bool:
++        try:
++            if not self.is_ready(): return False
++            point_uuid = mongo_id_to_uuid(post_id)
++            results = self.qdrant.retrieve(collection_name=COLLECTION_NAME, ids=[point_uuid], with_vectors=True)
++            if not results: return False
++
++            post_emb = np.array(results[0].vector)
++            weight = INTERACTION_WEIGHTS.get(interaction_type, 1.0)
++
++            current_vector = self.user_vectors_cache.get(user_id)
++            if current_vector is None:
++                current_vector, _ = self.get_user_vector(user_id)
++                if current_vector is None:
++                    self.user_vectors_cache[user_id] = post_emb / np.linalg.norm(post_emb)
++                    self.user_interaction_counts[user_id] = 1
++                    self._save_user_vector_to_db(user_id, self.user_vectors_cache[user_id], 1)
++                    return True
++
++            alpha = 0.3
++            post_emb = post_emb / np.linalg.norm(post_emb)
++            new_vector = (1 - alpha) * current_vector + alpha * (weight * post_emb)
++            norm = np.linalg.norm(new_vector)
++            if norm > 0: new_vector = new_vector / norm
++
++            self.user_vectors_cache[user_id] = new_vector
++            self.user_interaction_counts[user_id] = self.user_interaction_counts.get(user_id, 0) + 1
++            self._save_user_vector_to_db(user_id, new_vector, self.user_interaction_counts[user_id])
++            return True
++        except Exception as e:
++            logger.error(f"Realtime update error: {e}")
++            return False
++
+     # ========================================
+-    # Privacy Filter
++    # Privacy & Helpers
+     # ========================================
+-    def _filter_privacy(
+-        self, 
+-        posts: List[Dict], 
+-        user_id: str, 
+-        friend_ids: List[str]
+-    ) -> List[Dict]:
+-        """Filter posts theo privacy rules"""
++    def _filter_privacy(self, posts: List[Dict], user_id: str, friend_ids: List[str]) -> List[Dict]:
+         friend_set = set(friend_ids) if friend_ids else set()
+         filtered = []
+-        
+         for post in posts:
+             privacy = post.get('privacy', 'PUBLIC')
+             owner = post.get('user_id', '')
+             group_id = post.get('group_id', '')
+-            
+-            # Own posts
+-            if owner == user_id:
+-                filtered.append(post)
+-            # PUBLIC
+-            elif privacy == 'PUBLIC':
++            if owner == user_id or privacy == 'PUBLIC':
+                 filtered.append(post)
+-            # FRIEND - chß╗ë nß║┐u owner l├á bß║ín
+             elif privacy == 'FRIEND' and owner in friend_set:
+                 filtered.append(post)
+-            # GROUP - c├│ groupId
+             elif privacy == 'GROUP' and group_id and group_id != 'no_group':
+                 filtered.append(post)
+-        
+         return filtered
+-    
++
+     def _get_user_interacted_post_ids(self, user_id: str) -> set:
+-        """
+-        Get set of post IDs that user has already interacted with.
+-        Used to reduce score for already-seen posts.
+-        """
+         try:
+             db = self.mongo_client[DB_NAME]
+             user_oid = ObjectId(user_id)
+-            interacted_ids = set()
+-            
+-            # Get reactions
+-            reactions = db.reactions.find(
+-                {"userId": user_oid, "typeFactor": "POST"},
+-                {"factorId": 1}
+-            )
+-            for r in reactions:
+-                if r.get('factorId'):
+-                    interacted_ids.add(str(r['factorId']))
+-            
+-            # Get comments
+-            comments = db.comments.find(
+-                {"userId": user_oid},
+-                {"postId": 1}
+-            )
+-            for c in comments:
+-                if c.get('postId'):
+-                    interacted_ids.add(str(c['postId']))
+-            
+-            # Get shares
+-            shares = db.posts.find(
+-                {"userId": user_oid, "sharedPostId": {"$exists": True, "$ne": None}},
+-                {"sharedPostId": 1}
+-            )
+-            for s in shares:
+-                if s.get('sharedPostId'):
+-                    interacted_ids.add(str(s['sharedPostId']))
+-            
+-            return interacted_ids
+-        except Exception as e:
+-            logger.warning(f"Failed to get interacted posts: {e}")
++            ids = set()
++            for r in db.reactions.find({"userId": user_oid, "typeFactor": "POST"}, {"factorId": 1}):
++                if r.get('factorId'): ids.add(str(r['factorId']))
++            for c in db.comments.find({"userId": user_oid}, {"postId": 1}):
++                if c.get('postId'): ids.add(str(c['postId']))
++            for s in db.posts.find({"userId": user_oid, "sharedPostId": {"$exists": True, "$ne": None}}, {"sharedPostId": 1}):
++                if s.get('sharedPostId'): ids.add(str(s['sharedPostId']))
++            return ids
++        except:
+             return set()
+-    
++
+     def _calculate_recency_boost(self, created_at_str: str) -> float:
+-        """
+-        Calculate recency boost based on post creation date.
+-        Posts within RECENT_DAYS get boosted, newer = higher boost.
+-        Returns multiplier between 1.0 and RECENT_BOOST_MAX
+-        """
+-        if not created_at_str:
+-            return 1.0
+-        
++        if not created_at_str: return 1.0
+         try:
+-            from datetime import datetime, timedelta
+-            
+-            # Parse created_at (ISO format or timestamp)
+             if isinstance(created_at_str, str):
+-                # Try ISO format first
+-                try:
+-                    created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
++                try: created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                 except:
+-                    # Try timestamp
+-                    try:
+-                        created_at = datetime.fromtimestamp(float(created_at_str))
+-                    except:
+-                        return 1.0
+-            else:
+-                return 1.0
++                    try: created_at = datetime.fromtimestamp(float(created_at_str))
++                    except: return 1.0
++            else: return 1.0
+             
+             now = datetime.now(created_at.tzinfo) if created_at.tzinfo else datetime.now()
+-            days_old = (now - created_at).days
+-            
+-            if days_old < 0:
+-                days_old = 0
+-            
+-            if days_old >= RECENT_DAYS:
+-                return 1.0  # No boost for old posts
+-            
+-            # Linear interpolation: 0 days -> RECENT_BOOST_MAX, RECENT_DAYS days -> 1.0
+-            boost = 1.0 + (RECENT_BOOST_MAX - 1.0) * (1 - days_old / RECENT_DAYS)
+-            return boost
+-            
+-        except Exception as e:
+-            logger.warning(f"Recency boost calculation error: {e}")
++            days_old = max(0, (now - created_at).days)
++            if days_old >= RECENT_DAYS: return 1.0
++            return 1.0 + (RECENT_BOOST_MAX - 1.0) * (1 - days_old / RECENT_DAYS)
++        except:
+             return 1.0
+-    
++
+     # ========================================
+-    # 1. SEARCH - T├¼m posts theo query
++    # 1. SEARCH
+     # ========================================
+-    def search(
+-        self, 
+-        query: str, 
+-        current_user_id: str = "",
+-        friend_ids: List[str] = None,
+-        limit: int = 20, 
+-        page: int = 1,
+-        media_type: Optional[str] = None
+-    ) -> Tuple[List[Dict], int]:
+-        """
+-        T├¼m posts theo query sß╗¡ dß╗Ñng cosine similarity.
+-        """
+-        if not self.is_ready():
+-            return [], 0
+-        
++    def search(self, query: str, current_user_id: str = "", friend_ids: List[str] = None,
++               limit: int = 20, page: int = 1, media_type: Optional[str] = None) -> Tuple[List[Dict], int]:
++        if not self.is_ready(): return [], 0
+         try:
+-            # Encode query
+             query_emb = self.model.encode(query, convert_to_numpy=True)
+-            
+-            # Prepare filter
+-            where_filter = {}
+-            if media_type:
+-                where_filter["media_type"] = media_type
+-            
+-            # ChromaDB query (─æ├ú d├╣ng cosine distance internally)
+-            n_results = min(200, self.collection.count())
+-            results = self.collection.query(
+-                query_embeddings=[query_emb.tolist()],
+-                n_results=n_results,
+-                where=where_filter if where_filter else None,
+-                include=["metadatas", "distances"]
+-            )
+-            
++            results = self.qdrant.query_points(
++                collection_name=COLLECTION_NAME,
++                query=query_emb.tolist(),
++                limit=min(200, self.get_total_posts()),
++                with_payload=True
++            ).points
+             posts = []
+-            if results['ids'] and results['ids'][0]:
+-                for i, post_id in enumerate(results['ids'][0]):
+-                    # ChromaDB distance = 1 - cosine_similarity
+-                    distance = results['distances'][0][i] if results['distances'] else 0
+-                    similarity = 1 - distance  # Convert back to similarity
+-                    
+-                    meta = results['metadatas'][0][i]
+-                    posts.append({
+-                        "post_id": post_id,
+-                        "score": round(similarity, 4),
+-                        "user_id": meta.get('user_id', ''),
+-                        "group_id": meta.get('group_id', ''),
+-                        "privacy": meta.get('privacy', 'PUBLIC'),
+-                        "media_type": meta.get('media_type', 'TEXT')
+-                    })
+-            
+-            # Privacy filter
++            for hit in results:
++                p = hit.payload
++                posts.append({
++                    "post_id": p.get("post_id", ""),
++                    "score": round(hit.score, 4),
++                    "user_id": p.get("user_id", ""),
++                    "group_id": p.get("group_id", ""),
++                    "privacy": p.get("privacy", "PUBLIC"),
++                })
++
+             if current_user_id:
+                 posts = self._filter_privacy(posts, current_user_id, friend_ids or [])
+-            
++
+             total = len(posts)
+-            
+-            # Paginate
+             offset = (page - 1) * limit
+             return posts[offset:offset + limit], total
+-            
+         except Exception as e:
+             logger.error(f"Search error: {e}")
+             return [], 0
+-    
+-    def recommend(
+-        self, 
+-        user_id: str, 
+-        friend_ids: List[str] = None,
+-        limit: int = 20, 
+-        page: int = 1,
+-        media_type: Optional[str] = None
+-    ) -> Tuple[List[Dict], int]:
+-        """
+-        Gß╗úi ├╜ posts cho user dß╗▒a tr├¬n cosine similarity vß╗¢i user vector.
+-        """
+-        if not self.is_ready():
+-            return [], 0
+-        
++
++    # ========================================
++    # 2. RECOMMEND
++    # ========================================
++    def recommend(self, user_id: str, friend_ids: List[str] = None,
++                  limit: int = 20, page: int = 1, media_type: Optional[str] = None) -> Tuple[List[Dict], int]:
++        if not self.is_ready(): return [], 0
+         try:
+             friend_set = set(friend_ids) if friend_ids else set()
+-            
+-            # Lß║Ñy user vector
+             user_vector, interaction_count = self.get_user_vector(user_id)
+-            
+-            # Get posts user has already interacted with
+             interacted_post_ids = self._get_user_interacted_post_ids(user_id)
+-            logger.info(f"≡ƒæñ User {user_id}: {len(interacted_post_ids)} previously interacted posts")
+-            
+-            # Nß║┐u kh├┤ng c├│ interactions, tß║ío random vector unique cho user
++
+             if user_vector is None:
+-                logger.info(f"≡ƒæñ User {user_id}: No interactions, using random preference")
+-                # Lß║Ñy sample posts ─æß╗â tß║ío random preference
+-                sample = self.collection.get(include=["embeddings"], limit=50)
+-                sample_embeddings = sample.get('embeddings', [])
+-                if sample_embeddings is not None and len(sample_embeddings) > 0:
+-                    user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+-                    np.random.seed(user_hash % (2**32))
+-                    
+-                    emb_array = np.array(sample_embeddings)
+-                    n = min(10, len(emb_array))
+-                    indices = np.random.choice(len(emb_array), size=n, replace=False)
+-                    user_vector = emb_array[indices].mean(axis=0)
+-                    
+-                    norm = np.linalg.norm(user_vector)
+-                    if norm > 0:
+-                        user_vector = user_vector / norm
+-                    np.random.seed(None)
+-                else:
+-                    return [], 0
+-            
+-            # Prepare filter
+-            where_filter = {}
+-            if media_type:
+-                where_filter["media_type"] = media_type
+-
+-            # Query ChromaDB vß╗¢i user vector
+-            n_results = min(500, self.collection.count())  # Query more for better selection
+-            results = self.collection.query(
+-                query_embeddings=[user_vector.tolist()],
+-                n_results=n_results,
+-                where=where_filter if where_filter else None,
+-                include=["metadatas", "distances"]
+-            )
+-            
++                # Random preference for new user
++                user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
++                np.random.seed(user_hash % (2**32))
++                dim = self.model.get_sentence_embedding_dimension()
++                user_vector = np.random.randn(dim)
++                user_vector = user_vector / np.linalg.norm(user_vector)
++                np.random.seed(None)
++
++            results = self.qdrant.query_points(
++                collection_name=COLLECTION_NAME,
++                query=user_vector.tolist(),
++                limit=min(500, self.get_total_posts()),
++                with_payload=True
++            ).points
++
+             posts = []
+-            if results['ids'] and results['ids'][0]:
+-                for i, post_id in enumerate(results['ids'][0]):
+-                    distance = results['distances'][0][i] if results['distances'] else 0
+-                    # Cosine similarity (g├│c nhß╗Å = giß╗æng = score cao)
+-                    similarity = 1 - distance
+-                    
+-                    meta = results['metadatas'][0][i]
+-                    owner = meta.get('user_id', '')
+-                    created_at = meta.get('created_at', '')
+-                    
+-                    # Score base = cosine similarity
+-                    score = similarity
+-                    
+-                    # 1. Boost 20% cho posts tß╗½ bß║ín b├¿
+-                    if owner in friend_set:
+-                        score *= 1.2
+-                    
+-                    # 2. Giß║úm 50% cho posts cß╗ºa ch├¡nh m├¼nh
+-                    if owner == user_id:
+-                        score *= 0.5
+-                    
+-                    # 3. Boost b├ái post gß║ºn ─æ├óy (trong 20 ng├áy)
+-                    recency_boost = self._calculate_recency_boost(created_at)
+-                    score *= recency_boost
+-                    
+-                    # 4. Giß║úm score cho posts ─æ├ú xem/t╞░╞íng t├íc
+-                    if post_id in interacted_post_ids:
+-                        score *= (1.0 - VIEWED_PENALTY)
+-                    
+-                    posts.append({
+-                        "post_id": post_id,
+-                        "score": round(score, 4),
+-                        "user_id": owner,
+-                        "group_id": meta.get('group_id', ''),
+-                        "privacy": meta.get('privacy', 'PUBLIC'),
+-                        "media_type": meta.get('media_type', 'TEXT'),
+-                        "is_viewed": post_id in interacted_post_ids,
+-                        "recency_boost": round(recency_boost, 2)
+-                    })
+-            
+-            # Privacy filter
++            for hit in results:
++                p = hit.payload
++                post_id = p.get("post_id", "")
++                owner = p.get("user_id", "")
++                created_at = p.get("created_at", "")
++                
++                score = hit.score
++                if owner in friend_set: score *= 1.2
++                if owner == user_id: score *= 0.5
++                score *= self._calculate_recency_boost(created_at)
++                if post_id in interacted_post_ids: score *= (1.0 - VIEWED_PENALTY)
++
++                posts.append({
++                    "post_id": post_id,
++                    "score": round(score, 4),
++                    "user_id": owner,
++                    "group_id": p.get("group_id", ""),
++                    "privacy": p.get("privacy", "PUBLIC"),
++                    "is_viewed": post_id in interacted_post_ids,
++                    "recency_boost": round(self._calculate_recency_boost(created_at), 2)
++                })
++
+             posts = self._filter_privacy(posts, user_id, friend_ids or [])
+-            
+             total = len(posts)
+-            
+-            # ========================================
+-            # WEIGHTED RANDOM SELECTION
+-            # Posts vß╗¢i score cao h╞ín c├│ x├íc suß║Ñt ─æ╞░ß╗úc chß╗ìn cao h╞ín
+-            # Nh╞░ng vß║½n c├│ c╞í hß╗Öi cho posts score thß║Ñp h╞ín
+-            # ========================================
++
++            # Weighted random shuffle
+             if len(posts) > 5:
+-                # Separate into tiers for better diversity
+-                high_score = [p for p in posts if p['score'] >= 0.6]
+-                medium_score = [p for p in posts if 0.4 <= p['score'] < 0.6]
+-                low_score = [p for p in posts if p['score'] < 0.4]
+-                
+-                # Weighted random shuffle each tier
+-                def weighted_shuffle(post_list):
+-                    if not post_list:
+-                        return []
+-                    # Convert scores to probabilities
+-                    scores = np.array([p['score'] for p in post_list])
+-                    scores = np.maximum(scores, 0.01)  # Avoid zero
++                high = [p for p in posts if p['score'] >= 0.6]
++                mid = [p for p in posts if 0.4 <= p['score'] < 0.6]
++                low = [p for p in posts if p['score'] < 0.4]
++
++                def weighted_shuffle(lst):
++                    if not lst: return []
++                    scores = np.array([max(p['score'], 0.01) for p in lst])
+                     probs = scores / scores.sum()
+-                    
+-                    # Sample without replacement based on probabilities
+                     try:
+-                        indices = np.random.choice(
+-                            len(post_list), 
+-                            size=len(post_list), 
+-                            replace=False, 
+-                            p=probs
+-                        )
+-                        return [post_list[i] for i in indices]
++                        indices = np.random.choice(len(lst), size=len(lst), replace=False, p=probs)
++                        return [lst[i] for i in indices]
+                     except:
+-                        # Fallback to simple shuffle
+-                        random.shuffle(post_list)
+-                        return post_list
+-                
+-                high_score = weighted_shuffle(high_score)
+-                medium_score = weighted_shuffle(medium_score)
+-                # Low score just shuffle normally
+-                random.shuffle(low_score)
+-                
+-                # Combine: high first, then medium, then low
+-                posts = high_score + medium_score + low_score
+-            
+-            # Paginate
++                        random.shuffle(lst)
++                        return lst
++
++                posts = weighted_shuffle(high) + weighted_shuffle(mid)
++                random.shuffle(low)
++                posts += low
++
+             offset = (page - 1) * limit
+             paginated = posts[offset:offset + limit]
+-            
+-            logger.info(f"≡ƒô░ Recommend {user_id}: {interaction_count} interactions, {total} posts, page {page}, type={media_type}")
++            logger.info(f"≡ƒô░ Recommend {user_id}: {interaction_count} interactions, {total} posts, page {page}")
+             return paginated, total
+-            
+         except Exception as e:
+             logger.error(f"Recommend error: {e}")
+-            import traceback
+-            traceback.print_exc()
++            import traceback; traceback.print_exc()
+             return [], 0
+-    
+-    # Alias
+-    def get_newsfeed(
+-        self,
+-        user_id: str,
+-        friend_ids: List[str] = None,
+-        limit: int = 20,
+-        page: int = 1,
+-        media_type: Optional[str] = None
+-    ) -> Tuple[List[Dict], int]:
+-        """Alias cho recommend()"""
++
++    def get_newsfeed(self, user_id: str, friend_ids: List[str] = None,
++                     limit: int = 20, page: int = 1, media_type: Optional[str] = None) -> Tuple[List[Dict], int]:
+         return self.recommend(user_id, friend_ids, limit, page, media_type)
+-    
++
+     # ========================================
+-    # 3. SIMILAR - T├¼m posts t╞░╞íng tß╗▒
++    # 3. SIMILAR
+     # ========================================
+-    def similar(
+-        self, 
+-        post_id: str, 
+-        limit: int = 10, 
+-        page: int = 1
+-    ) -> Tuple[List[Dict], int]:
+-        """
+-        T├¼m posts t╞░╞íng tß╗▒ vß╗¢i post_id dß╗▒a tr├¬n cosine similarity.
+-        """
+-        if not self.is_ready():
+-            return [], 0
+-        
++    def similar(self, post_id: str, limit: int = 10, page: int = 1) -> Tuple[List[Dict], int]:
++        if not self.is_ready(): return [], 0
+         try:
+-            # Lß║Ñy embedding cß╗ºa post
+-            result = self.collection.get(ids=[post_id], include=["embeddings"])
+-            embeddings = result.get('embeddings')
+-            
+-            if embeddings is None or len(embeddings) == 0:
+-                logger.warning(f"Post {post_id} kh├┤ng tß╗ôn tß║íi")
+-                return [], 0
+-            
+-            source_emb = embeddings[0]
+-            
+-            # Query similar posts
+-            n_results = min(100, self.collection.count())
+-            results = self.collection.query(
+-                query_embeddings=[source_emb],
+-                n_results=n_results,
+-                include=["metadatas", "distances"]
+-            )
+-            
++            point_uuid = mongo_id_to_uuid(post_id)
++            results = self.qdrant.retrieve(collection_name=COLLECTION_NAME, ids=[point_uuid], with_vectors=True)
++            if not results: return [], 0
++
++            source_emb = results[0].vector
++            search_results = self.qdrant.query_points(
++                collection_name=COLLECTION_NAME,
++                query=source_emb,
++                limit=min(100, self.get_total_posts()),
++                with_payload=True
++            ).points
++
+             posts = []
+-            if results['ids'] and results['ids'][0]:
+-                for i, pid in enumerate(results['ids'][0]):
+-                    if pid == post_id:  # Skip ch├¡nh n├│
+-                        continue
+-                    
+-                    distance = results['distances'][0][i] if results['distances'] else 0
+-                    similarity = 1 - distance
+-                    
+-                    meta = results['metadatas'][0][i]
+-                    posts.append({
+-                        "post_id": pid,
+-                        "score": round(similarity, 4),
+-                        "user_id": meta.get('user_id', ''),
+-                        "group_id": meta.get('group_id', ''),
+-                        "privacy": meta.get('privacy', 'PUBLIC')
+-                    })
+-            
+-            # Sort by similarity
+-            posts.sort(key=lambda x: x['score'], reverse=True)
+-            
++            for hit in search_results:
++                pid = hit.payload.get("post_id", "")
++                if pid == post_id: continue
++                posts.append({
++                    "post_id": pid,
++                    "score": round(hit.score, 4),
++                    "user_id": hit.payload.get("user_id", ""),
++                    "group_id": hit.payload.get("group_id", ""),
++                    "privacy": hit.payload.get("privacy", "PUBLIC")
++                })
++
+             total = len(posts)
+             offset = (page - 1) * limit
+             return posts[offset:offset + limit], total
+-            
+         except Exception as e:
+             logger.error(f"Similar error: {e}")
+             return [], 0
+ 
+ 
+-# Singleton
+ _service: Optional[RecommendationService] = None
+ 
+ def get_recommendation_service() -> RecommendationService:
+diff --git a/server-ai/app/services/vector_db.py b/server-ai/app/services/vector_db.py
+index ba63075..9b745ab 100644
+--- a/server-ai/app/services/vector_db.py
++++ b/server-ai/app/services/vector_db.py
+@@ -1,239 +1,114 @@
+ """
+-Vector Database Service
+-Support Local (Embedded) and Cloud (Client) ChromaDB
++Vector Database Service ΓÇö Qdrant Cloud
+ """
+ 
+-import chromadb
+-from chromadb.config import Settings as ChromaSettings
+-from typing import Optional
++from qdrant_client import QdrantClient
++from qdrant_client.models import PointStruct
++from typing import Optional, List, Dict
++import uuid
+ import os
+ from loguru import logger
+ 
+ from app.config import get_settings
+ 
++
++def mongo_id_to_uuid(mongo_id: str) -> str:
++    return str(uuid.uuid5(uuid.NAMESPACE_DNS, mongo_id))
++
++
+ class VectorDBService:
+     def __init__(self):
+         self.settings = get_settings()
+-        self._client: Optional[chromadb.Client] = None
+-        self._posts_collection = None
+-        self._hashtags_collection = None
++        self._client: Optional[QdrantClient] = None
+         self._is_syncing: bool = False
+-    
++
+     @property
+     def client(self):
+         if self._client is None:
+-            # Check if Remote configuration exists
+-            if self.settings.chroma_host:
+-                logger.info(f"≡ƒöî Connecting to Chroma Cloud: {self.settings.chroma_host}:{self.settings.chroma_port}")
+-                
+-                # Auth setting
+-                headers = {}
+-                if self.settings.chroma_api_token:
+-                    headers["X-Chroma-Token"] = self.settings.chroma_api_token
+-                
+-                self._client = chromadb.HttpClient(
+-                    host=self.settings.chroma_host,
+-                    port=self.settings.chroma_port,
+-                    ssl=self.settings.chroma_ssl,
+-                    headers=headers,
+-                    settings=ChromaSettings(anonymized_telemetry=False)
+-                )
+-            else:
+-                # Fallback to Local Persistent
+-                logger.info(f"≡ƒôé Using Local ChromaDB at {self.settings.chroma_persist_dir}")
+-                os.makedirs(self.settings.chroma_persist_dir, exist_ok=True)
+-                self._client = chromadb.PersistentClient(
+-                    path=self.settings.chroma_persist_dir,
+-                    settings=ChromaSettings(anonymized_telemetry=False)
+-                )
+-        return self._client
+-    
+-    @property
+-    def posts_collection(self):
+-        if self._posts_collection is None:
+-            self._posts_collection = self.client.get_or_create_collection(
+-                name=self.settings.chroma_collection_posts,
+-                metadata={"description": "Post embeddings"}
++            logger.info(f"≡ƒöî Connecting to Qdrant: {self.settings.qdrant_url}")
++            self._client = QdrantClient(
++                url=self.settings.qdrant_url,
++                api_key=self.settings.qdrant_api_key,
++                timeout=30
+             )
+-        return self._posts_collection
+-
+-    @property
+-    def hashtags_collection(self):
+-        if self._hashtags_collection is None:
+-            self._hashtags_collection = self.client.get_or_create_collection(
+-                name=self.settings.chroma_collection_hashtags,
+-                metadata={"description": "Hashtag embeddings"}
+-            )
+-        return self._hashtags_collection
++        return self._client
+ 
+-    # ... (Giß╗» nguy├¬n logic sync/search c┼⌐) ...
+-    # ─Éß╗â tiß║┐t kiß╗çm token, t├┤i sß║╜ chß╗ë override phß║ºn init client, 
+-    # phß║ºn methods kh├íc logic y hß╗çt file c┼⌐ n├¬n t├┤i sß║╜ paste lß║íi logic get/search/sync
+-    
+     def is_ready(self) -> bool:
+         try:
+-            self.client.heartbeat()
+-            return True
+-        except Exception:
++            info = self.client.get_collection(self.settings.qdrant_collection_posts)
++            return info.points_count > 0
++        except:
+             return False
+ 
+     def get_posts_count(self) -> int:
+-        return self.posts_collection.count()
+-    
+-    def get_hashtags_count(self) -> int:
+-        return self.hashtags_collection.count()
+-        
+-    async def sync_posts_from_mongodb(self, embedding_func, batch_size=100) -> int:
+-        from app.services.mongodb_service import get_mongodb_service
+-        from datetime import datetime
+-        
+-        if self._is_syncing: return 0
+-        self._is_syncing = True
+-        synced_count = 0
+-        
+-        try:
+-            mongodb = get_mongodb_service()
+-            total = mongodb.get_posts_count()
+-            skip = 0
+-            
+-            while skip < total:
+-                posts = mongodb.get_all_posts(skip=skip, limit=batch_size)
+-                if not posts: break
+-                
+-                ids, docs, metas = [], [], []
+-                for post in posts:
+-                    content = post.get("content", "")
+-                    if len(content) < 5: continue
+-                    
+-                    ids.append(str(post["_id"]))
+-                    docs.append(content)
+-                    
+-                    hashtags = mongodb.extract_hashtags_from_content(content)
+-                    metas.append({
+-                        "user_id": str(post.get("userId", "")),
+-                        "total_reacts": post.get("totalReacts", 0),
+-                        "hashtags": ",".join(hashtags)
+-                    })
+-                
+-                if ids:
+-                    embeddings = embedding_func(docs)
+-                    self.posts_collection.upsert(
+-                        ids=ids,
+-                        documents=docs,
+-                        embeddings=embeddings,
+-                        metadatas=metas
+-                    )
+-                    synced_count += len(ids)
+-                    logger.info(f"Synced {synced_count}/{total}")
+-                
+-                skip += batch_size
+-                
+-        finally:
+-            self._is_syncing = False
+-        return synced_count
+-
+-    async def sync_hashtags_from_mongodb(self, embedding_func) -> int:
+-        from app.services.mongodb_service import get_mongodb_service
+         try:
+-            mongodb = get_mongodb_service()
+-            hashtags = mongodb.get_all_hashtags(limit=2000)
+-            
+-            ids, docs, metas = [], [], []
+-            for tag in hashtags:
+-                if not tag.get("displayText"): continue
+-                ids.append(str(tag["_id"]))
+-                docs.append(tag["displayText"])
+-                metas.append({"display_text": tag["displayText"], "usage": tag.get("usageCount", 0)})
+-            
+-            if ids:
+-                embeddings = embedding_func(docs)
+-                self.hashtags_collection.upsert(ids=ids, documents=docs, embeddings=embeddings, metadatas=metas)
+-                return len(ids)
+-            return 0
+-        except Exception as e:
+-            logger.error(f"Sync hashtags error: {e}")
++            info = self.client.get_collection(self.settings.qdrant_collection_posts)
++            return info.points_count
++        except:
+             return 0
+ 
+-    def search_posts(self, query_embedding, n_results=20, where=None):
++    def search_posts(self, query_embedding, n_results=20, where=None) -> List[Dict]:
+         try:
+-            results = self.posts_collection.query(
+-                query_embeddings=[query_embedding], 
+-                n_results=n_results, 
+-                where=where,
+-                include=["documents", "metadatas", "distances"]
+-            )
++            results = self.client.query_points(
++                collection_name=self.settings.qdrant_collection_posts,
++                query=query_embedding if isinstance(query_embedding, list) else query_embedding.tolist(),
++                limit=n_results,
++                with_payload=True
++            ).points
+             posts = []
+-            if results["ids"] and results["ids"][0]:
+-                for i, pid in enumerate(results["ids"][0]):
+-                    score = 1 - (results["distances"][0][i] if results["distances"] else 0)
+-                    posts.append({
+-                        "post_id": pid,
+-                        "content": results["documents"][0][i],
+-                        "score": score,
+-                        "metadata": results["metadatas"][0][i]
+-                    })
++            for hit in results:
++                posts.append({
++                    "post_id": hit.payload.get("post_id", ""),
++                    "score": hit.score,
++                    "metadata": hit.payload
++                })
+             return posts
+-        except Exception:
++        except Exception as e:
++            logger.error(f"Search error: {e}")
+             return []
+ 
+-    def search_hashtags(self, query_embedding, n_results=10):
++    def get_similar_posts(self, post_id, n_results=10) -> List[Dict]:
+         try:
+-            results = self.hashtags_collection.query(
+-                query_embeddings=[query_embedding], n_results=n_results,
+-                include=["documents", "metadatas", "distances"]
++            point_uuid = mongo_id_to_uuid(post_id)
++            results = self.client.retrieve(
++                collection_name=self.settings.qdrant_collection_posts,
++                ids=[point_uuid],
++                with_vectors=True
+             )
+-            tags = []
+-            if results["ids"] and results["ids"][0]:
+-                for i, tid in enumerate(results["ids"][0]):
+-                    score = 1 - (results["distances"][0][i] if results["distances"] else 0)
+-                    meta = results["metadatas"][0][i]
+-                    tags.append({
+-                        "tag": results["documents"][0][i],
+-                        "display_text": meta.get("display_text"),
+-                        "usage_count": meta.get("usage"),
+-                        "score": score
+-                    })
+-            return tags
+-        except Exception:
+-            return []
++            if not results: return []
+ 
+-    def get_similar_posts(self, post_id, n_results=10):
+-        try:
+-            # 1. Get embedding
+-            got = self.posts_collection.get(ids=[post_id], include=["embeddings"])
+-            if not got["embeddings"]: return []
+-            emb = got["embeddings"][0]
+-            
+-            # 2. Query
+-            results = self.posts_collection.query(
+-                query_embeddings=[emb], n_results=n_results+1,
+-                include=["documents", "metadatas", "distances"]
+-            )
+-            
+-            sim = []
+-            if results["ids"] and results["ids"][0]:
+-                for i, pid in enumerate(results["ids"][0]):
+-                    if pid == post_id: continue
+-                    score = 1 - results["distances"][0][i]
+-                    sim.append({
+-                        "post_id": pid,
+-                        "content": results["documents"][0][i],
+-                        "score": score,
+-                        "metadata": results["metadatas"][0][i]
+-                    })
+-            return sim
+-        except Exception:
++            search_results = self.client.query_points(
++                collection_name=self.settings.qdrant_collection_posts,
++                query=results[0].vector,
++                limit=n_results + 1,
++                with_payload=True
++            ).points
++
++            similar = []
++            for hit in search_results:
++                pid = hit.payload.get("post_id", "")
++                if pid == post_id: continue
++                similar.append({
++                    "post_id": pid,
++                    "score": hit.score,
++                    "metadata": hit.payload
++                })
++            return similar
++        except Exception as e:
++            logger.error(f"Similar error: {e}")
+             return []
+-            
++
+     def get_sync_status(self):
+         return {
+             "posts_synced": self.get_posts_count(),
+-            "hashtags_synced": self.get_hashtags_count(),
+             "is_syncing": self._is_syncing
+         }
+ 
++
+ _vector_db = None
++
+ def get_vector_db_service():
+     global _vector_db
+-    if _vector_db is None: _vector_db = VectorDBService()
++    if _vector_db is None:
++        _vector_db = VectorDBService()
+     return _vector_db
+diff --git a/server-ai/chroma_db/friend_graph.json b/server-ai/chroma_db/friend_graph.json
+deleted file mode 100644
+index 9344263..0000000
+--- a/server-ai/chroma_db/friend_graph.json
++++ /dev/null
+@@ -1 +0,0 @@
+-{"69241cbe006d259dc5ee4382": ["69241d0d006d259dc5ee4387", "6926c64fc8133a1f254b6a0f"], "6926c64fc8133a1f254b6a0f": ["69241d0d006d259dc5ee4387", "69241cbe006d259dc5ee4382", "69437ae22bd45e4acf5fd509"], "69241d0d006d259dc5ee4387": ["69437ae22bd45e4acf5fd509", "69241cbe006d259dc5ee4382", "6926c64fc8133a1f254b6a0f"], "69437ae22bd45e4acf5fd509": ["69241d0d006d259dc5ee4387", "6926c64fc8133a1f254b6a0f"]}
+\ No newline at end of file
+diff --git a/server-ai/chroma_db/metrics.json b/server-ai/chroma_db/metrics.json
+deleted file mode 100644
+index ab6e2d4..0000000
+--- a/server-ai/chroma_db/metrics.json
++++ /dev/null
+@@ -1,9 +0,0 @@
+-{
+-  "user_coverage": 1.0,
+-  "avg_similarity": 0.5002278089523315,
+-  "max_similarity": 1.000000238418579,
+-  "min_similarity": 0.24787470698356628,
+-  "sample_size": 1000,
+-  "friend_avg_similarity": 0.4952564119049083,
+-  "non_friend_avg_similarity": 0.48726843619346616
+-}
+\ No newline at end of file
+diff --git a/server-ai/main.py b/server-ai/main.py
+index 37460e9..3769b96 100644
+--- a/server-ai/main.py
++++ b/server-ai/main.py
+@@ -1,10 +1,15 @@
+ """
+-AI SERVER - HYBRID RECOMMENDATION
+-==================================
+-Chß╗ë c├│ 3 API:
++AI SERVER ΓÇö QDRANT CLOUD + DOCKER MODEL RUNNER (Qwen3)
++=======================================================
++Endpoints:
+ - GET /api/v1/search?q=...
+ - GET /api/v1/recommend/{user_id}
+ - GET /api/v1/similar/{post_id}
++- POST /retrain
++
++Vector DB: Qdrant Cloud
++LLM: Docker Model Runner (ai/qwen3:0.6B-Q4_0)
++Embedding: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+ """
+ 
+ from contextlib import asynccontextmanager
+@@ -24,46 +29,71 @@ os.makedirs("logs", exist_ok=True)
+ logger.add("logs/server.log", rotation="10 MB", level="DEBUG")
+ 
+ 
++def run_auto_train():
++    try:
++        from train import train
++        logger.info("≡ƒöä Auto-training started...")
++        train()
++        logger.info("Γ£à Auto-training completed!")
++        return True
++    except Exception as e:
++        logger.error(f"Γ¥î Auto-training failed: {e}")
++        import traceback
++        traceback.print_exc()
++        return False
++
++
+ @asynccontextmanager
+ async def lifespan(app: FastAPI):
++    settings = get_settings()
+     logger.info("≡ƒÜÇ Starting AI Server...")
++    logger.info(f"   Qdrant: {settings.qdrant_url}")
++    logger.info(f"   LLM: {settings.llm_base_url} ({settings.llm_model})")
+     
+-    # Check recommendation service
++    # 1. Check Qdrant
+     service = get_recommendation_service()
+     if service.is_ready():
+-        logger.info(f"Γ£à Ready! {service.collection.count()} posts indexed")
++        logger.info(f"Γ£à Qdrant Ready! {service.get_total_posts()} posts indexed")
+     else:
+-        logger.warning("ΓÜá∩╕Å Ch╞░a train! Chß║íy: python train.py")
++        logger.warning("ΓÜá∩╕Å Qdrant ch╞░a c├│ data ΓåÆ auto-train...")
++        success = run_auto_train()
++        if success and service.is_ready():
++            logger.info(f"Γ£à Auto-train xong! {service.get_total_posts()} posts")
++        else:
++            logger.error("Γ¥î Auto-train thß║Ñt bß║íi!")
++    
++    # 2. Check LLM (Docker Model Runner)
++    from app.services.ollama_service import get_llm_service
++    llm = get_llm_service()
++    if llm.is_available():
++        models = llm.list_models()
++        logger.info(f"Γ£à LLM Ready! Models: {models}")
++    else:
++        logger.warning(f"ΓÜá∩╕Å LLM not available at {settings.llm_base_url}")
++        logger.warning("   Pull model: docker model pull ai/qwen3:0.6B-Q4_0")
+     
+-    settings = get_settings()
+     logger.info(f"≡ƒôû API Docs: http://localhost:{settings.port}/docs")
+     
+     yield
+-    
+     logger.info("≡ƒ¢æ Shutting down...")
+ 
+ 
+ app = FastAPI(
+     title="AI Recommendation Server",
+     description="""
+-## Hybrid Recommendation API
++## Qdrant Cloud + Docker Model Runner (Qwen3)
+ 
+ ### Endpoints:
+-- ≡ƒöì **GET /api/v1/search?q=...** - T├¼m posts theo query
++- ≡ƒöì **GET /api/v1/search?q=...** - T├¼m posts
+ - ≡ƒÄ» **GET /api/v1/recommend/{user_id}** - Gß╗úi ├╜ cho user  
+ - ≡ƒôÄ **GET /api/v1/similar/{post_id}** - Posts t╞░╞íng tß╗▒
+-
+-### C├ích d├╣ng:
+-1. Chß║íy training: `python train.py`
+-2. Chß║íy server: `python main.py`
+-3. Test: http://localhost:8000/docs
++- ≡ƒñû **POST /api/v1/chat/bot** - Chatbot AI
+     """,
+-    version="3.0.0",
++    version="4.0.0",
+     lifespan=lifespan,
+     docs_url="/docs"
+ )
+ 
+-# CORS
+ app.add_middleware(
+     CORSMiddleware,
+     allow_origins=["*"],
+@@ -72,17 +102,21 @@ app.add_middleware(
+     allow_headers=["*"],
+ )
+ 
+-# Routes
+ from app.routes.api import router as api_router
+ app.include_router(api_router, prefix="/api/v1")
+ 
+ 
+ @app.get("/")
+ async def root():
++    service = get_recommendation_service()
++    ready = service.is_ready()
+     return {
+         "name": "AI Recommendation Server",
+-        "version": "3.0.0",
+-        "docs": "/docs"
++        "version": "4.0.0",
++        "vector_db": "Qdrant Cloud",
++        "llm": "Docker Model Runner (Qwen3)",
++        "status": "ready" if ready else "not_ready",
++        "total_posts": service.get_total_posts() if ready else 0,
+     }
+ 
+ 
+@@ -90,13 +124,20 @@ async def root():
+ async def health():
+     service = get_recommendation_service()
+     ready = service.is_ready()
+-    
+     return {
+         "status": "ok" if ready else "not_ready",
+-        "posts": service.collection.count() if ready else 0
++        "posts": service.get_total_posts() if ready else 0
+     }
+ 
+ 
++@app.post("/retrain")
++async def retrain():
++    success = run_auto_train()
++    service = get_recommendation_service()
++    count = service.get_total_posts() if service.is_ready() else 0
++    return {"success": success, "total_posts": count}
++
++
+ if __name__ == "__main__":
+     import uvicorn
+     settings = get_settings()
+diff --git a/server-ai/requirements.txt b/server-ai/requirements.txt
+index 7782a33..03e239c 100644
+--- a/server-ai/requirements.txt
++++ b/server-ai/requirements.txt
+@@ -1,15 +1,12 @@
+-# AI Server Dependencies
++# AI Server Dependencies (Lightweight)
+ 
+ fastapi
+ uvicorn[standard]
+-ollama
+ sentence-transformers
+-# torch is installed separately in Dockerfile with CPU-only wheel to avoid 915MB GPU download
++# torch is installed separately in Dockerfile with CPU-only wheel
+ # torch
+ transformers
+-accelerate
+-datasets
+-chromadb
++qdrant-client
+ pymongo
+ python-dotenv
+ pydantic>=2.0.0
+@@ -18,11 +15,9 @@ loguru
+ httpx
+ python-multipart
+ tqdm
+-janus
+ 
+ # Hybrid Recommendation System
+ scikit-learn
+ scipy
+ pandas
+ numpy
+-nltk
+diff --git a/server-ai/train.py b/server-ai/train.py
+index 9d818f9..682bc4d 100644
+--- a/server-ai/train.py
++++ b/server-ai/train.py
+@@ -1,35 +1,18 @@
+ """
+-TRAIN HYBRID MODEL
+-==================
+-- Lß║Ñy posts tß╗½ MongoDB
+-- Lß║Ñy reactions, shares, relationships ─æß╗â t├¡nh user vectors
+-- Chuß║⌐n h├│a dß╗» liß╗çu (bao gß╗ôm privacy)
+-- Train vß╗¢i BGE-M3 (model xß╗ïn nhß║Ñt)
+-- T├¡nh hybrid score = content + collaborative filtering + user preference
+-- L╞░u ChromaDB (posts + user vectors + friend relationships)
+-- ─É├ính gi├í model vß╗¢i metrics
+-"""
++TRAIN HYBRID MODEL ΓåÆ QDRANT CLOUD
++===================================
++- Lß║Ñy posts + reactions + shares + relationships tß╗½ MongoDB
++- Embed bß║▒ng paraphrase-multilingual-MiniLM-L12-v2 (~470MB, nhanh)
++- Upload vectors l├¬n Qdrant Cloud
++- T├¡nh user vectors v├á l╞░u v├áo MongoDB
+ 
+-import inspect
+-if not hasattr(inspect, 'formatargspec'):
+-    def formatargspec(args, varargs=None, varkwargs=None, defaults=None,
+-                      kwonlyargs=(), kwonlydefaults={}, annotations={},
+-                      formatvalue=lambda value: '=' + repr(value)):
+-        specs = []
+-        if args:
+-            for i, arg in enumerate(args):
+-                if defaults and i >= len(args) - len(defaults):
+-                    specs.append(arg + formatvalue(defaults[i - (len(args) - len(defaults))]))
+-                else:
+-                    specs.append(arg)
+-        if varargs: specs.append('*' + varargs)
+-        if varkwargs: specs.append('**' + varkwargs)
+-        return '(' + ', '.join(specs) + ')'
+-    inspect.formatargspec = formatargspec
++Chß║íy: python train.py
++"""
+ 
+ import os
+ import re
+-import json
++import uuid
++import hashlib
+ import numpy as np
+ import pandas as pd
+ from datetime import datetime
+@@ -40,34 +23,38 @@ from sklearn.metrics.pairwise import cosine_similarity
+ from scipy.sparse import csr_matrix
+ from sentence_transformers import SentenceTransformer
+ from pymongo import MongoClient
+-import chromadb
+-from chromadb.config import Settings as ChromaSettings
++from qdrant_client import QdrantClient
++from qdrant_client.models import Distance, VectorParams, PointStruct, UpdateStatus
+ from loguru import logger
++from dotenv import load_dotenv
+ import warnings
+ warnings.filterwarnings('ignore')
+ 
+-# Config
+-MODEL_NAME = "BAAI/bge-m3"  # Model xß╗ïn nhß║Ñt
+-MONGO_URI = "mongodb+srv://xuanhodcbas:0984232310ho.@cluster0.f7sbfkn.mongodb.net/project-chat-social"
+-DB_NAME = "project-chat-social"
+-CHROMA_PATH = "./chroma_db"
+-COLLECTION_NAME = "posts"
+-USER_VECTORS_COLLECTION = "user_vectors"
+-FRIEND_GRAPH_COLLECTION = "friend_graph"
+-LIMIT = 100000  # Giß╗¢i hß║ín posts ─æß╗â train
++load_dotenv()
+ 
+-# Weights cho c├íc interaction types
++# Config from .env
++MODEL_NAME = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
++MONGO_URI = os.getenv("MONGODB_URI")
++DB_NAME = os.getenv("MONGODB_DATABASE", "project-chat-social")
++QDRANT_URL = os.getenv("QDRANT_URL")
++QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
++COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_POSTS", "posts")
++USER_COLLECTION = os.getenv("QDRANT_COLLECTION_USERS", "user_vectors")
++LIMIT = 100000
++
++# Weights
+ REACTION_WEIGHTS = {
+-    "LIKE": 1.0,
+-    "LOVE": 1.5,
+-    "HAHA": 0.8,
+-    "WOW": 0.7,
+-    "SAD": 0.3,
+-    "ANGRY": -0.5
++    "LIKE": 1.0, "LOVE": 1.5, "HAHA": 0.8,
++    "WOW": 0.7, "SAD": 0.3, "ANGRY": -0.5
+ }
++SHARE_WEIGHT = 2.0
++FRIEND_INTERACTION_BOOST = 1.3
++
++
++def mongo_id_to_uuid(mongo_id: str) -> str:
++    """Convert MongoDB ObjectID string to deterministic UUID for Qdrant."""
++    return str(uuid.uuid5(uuid.NAMESPACE_DNS, mongo_id))
+ 
+-SHARE_WEIGHT = 2.0  # Share c├│ weight cao v├¼ user thß╗▒c sß╗▒ quan t├óm
+-FRIEND_INTERACTION_BOOST = 1.3  # Boost cho posts tß╗½ bß║ín b├¿
+ 
+ def clean_text(text):
+     if not isinstance(text, str): return ""
+@@ -75,237 +62,110 @@ def clean_text(text):
+     text = re.sub(r'\s+', ' ', text).strip()
+     return text
+ 
++
+ def normalize_privacy(privacy):
+-    """Chuß║⌐n h├│a gi├í trß╗ï privacy"""
+-    if not privacy:
+-        return "PUBLIC"
++    if not privacy: return "PUBLIC"
+     privacy = str(privacy).upper()
+-    if privacy in ["PUBLIC", "FRIEND", "PRIVATE", "GROUP"]:
+-        return privacy
+-    return "PUBLIC"
++    return privacy if privacy in ["PUBLIC", "FRIEND", "PRIVATE", "GROUP"] else "PUBLIC"
++
+ 
+ def build_friend_graph(relationships_df):
+-    """
+-    X├óy dß╗▒ng ─æß╗ô thß╗ï bß║ín b├¿ tß╗½ relationships.
+-    Trß║ú vß╗ü dict: user_id -> set of friend_ids
+-    """
+     friend_graph = defaultdict(set)
+-    
+     for _, rel in relationships_df.iterrows():
+         user_id = str(rel['userId'])
+         friend_id = str(rel['friendId'])
+-        # Quan hß╗ç 2 chiß╗üu
+         friend_graph[user_id].add(friend_id)
+         friend_graph[friend_id].add(user_id)
+-    
+     return dict(friend_graph)
+ 
++
+ def build_user_vectors(reactions_df, shares_df, post_embeddings_dict, post_owners_dict, friend_graph, embedding_dim):
+-    """
+-    X├óy dß╗▒ng user vectors dß╗▒a tr├¬n:
+-    1. Reactions cß╗ºa user
+-    2. Shares cß╗ºa user
+-    3. Friend relationships (boost cho posts tß╗½ bß║ín b├¿)
++    user_interactions = defaultdict(list)
+     
+-    User vector = weighted average cß╗ºa c├íc post embeddings
+-    """
+-    user_interactions = defaultdict(list)  # user_id -> [(post_id, weight)]
+-    
+-    # 1. Th├¬m reactions
+     if not reactions_df.empty:
+         for _, reaction in reactions_df.iterrows():
+             user_id = str(reaction['userId'])
+             post_id = str(reaction['factorId'])
+             reaction_type = reaction.get('type', 'LIKE')
+-            
+             if post_id in post_embeddings_dict:
+                 weight = REACTION_WEIGHTS.get(reaction_type, 0.5)
+-                
+-                # Boost nß║┐u post tß╗½ bß║ín b├¿
+                 post_owner = post_owners_dict.get(post_id)
+-                if post_owner and user_id in friend_graph:
+-                    if post_owner in friend_graph[user_id]:
+-                        weight *= FRIEND_INTERACTION_BOOST
+-                
++                if post_owner and user_id in friend_graph and post_owner in friend_graph[user_id]:
++                    weight *= FRIEND_INTERACTION_BOOST
+                 user_interactions[user_id].append((post_id, weight))
+     
+-    # 2. Th├¬m shares (weight cao h╞ín)
+     if not shares_df.empty:
+         for _, share in shares_df.iterrows():
+             user_id = str(share['userId'])
+             shared_post_id = str(share['sharedPostId'])
+-            
+             if shared_post_id in post_embeddings_dict:
+                 weight = SHARE_WEIGHT
+-                
+-                # Boost nß║┐u share post tß╗½ bß║ín b├¿
+                 post_owner = post_owners_dict.get(shared_post_id)
+-                if post_owner and user_id in friend_graph:
+-                    if post_owner in friend_graph[user_id]:
+-                        weight *= FRIEND_INTERACTION_BOOST
+-                
++                if post_owner and user_id in friend_graph and post_owner in friend_graph[user_id]:
++                    weight *= FRIEND_INTERACTION_BOOST
+                 user_interactions[user_id].append((shared_post_id, weight))
+     
+-    # 3. T├¡nh user vectors
+     user_vectors = {}
+     for user_id, interactions in user_interactions.items():
+-        if not interactions:
+-            continue
+-        
++        if not interactions: continue
+         weighted_embeddings = []
+         total_weight = 0
+-        
+         for post_id, weight in interactions:
+             if post_id in post_embeddings_dict:
+                 weighted_embeddings.append(post_embeddings_dict[post_id] * weight)
+                 total_weight += abs(weight)
+-        
+         if weighted_embeddings and total_weight > 0:
+             user_vector = np.sum(weighted_embeddings, axis=0) / total_weight
+-            # Normalize vector
+             norm = np.linalg.norm(user_vector)
+-            if norm > 0:
+-                user_vector = user_vector / norm
++            if norm > 0: user_vector = user_vector / norm
+             user_vectors[user_id] = user_vector
+     
+     return user_vectors
+ 
+-def evaluate_model(embeddings, df, user_vectors, friend_graph):
+-    """
+-    ─É├ính gi├í chß║Ñt l╞░ß╗úng model (vß╗¢i sampling ─æß╗â tr├ính OOM):
+-    1. Coverage: % users c├│ vector
+-    2. Embedding Quality: average cosine similarity (sampled)
+-    3. Friend Correlation: posts tß╗½ bß║ín b├¿ c├│ similarity cao h╞ín kh├┤ng
+-    """
+-    metrics = {}
+-    
+-    # 1. Coverage
+-    unique_users = df['userId'].unique()
+-    users_with_vectors = len([u for u in unique_users if u in user_vectors])
+-    metrics['user_coverage'] = users_with_vectors / len(unique_users) if len(unique_users) > 0 else 0
+-    
+-    # 2. Embedding Quality - Sample ─æß╗â tr├ính OOM
+-    # Vß╗¢i 100k posts, full matrix = 100k x 100k = 40GB RAM
+-    # Sample 1000 posts th├¼ chß╗ë cß║ºn 1k x 1k = 4MB
+-    SAMPLE_SIZE = min(1000, len(embeddings))
+-    
+-    if len(embeddings) > 1:
+-        # Random sample indices
+-        np.random.seed(42)
+-        sample_indices = np.random.choice(len(embeddings), size=SAMPLE_SIZE, replace=False)
+-        sample_embeddings = embeddings[sample_indices]
+-        
+-        sim_matrix = cosine_similarity(sample_embeddings)
+-        np.fill_diagonal(sim_matrix, 0)
+-        metrics['avg_similarity'] = float(sim_matrix.mean())
+-        metrics['max_similarity'] = float(sim_matrix.max())
+-        metrics['min_similarity'] = float(sim_matrix[sim_matrix > 0].min()) if (sim_matrix > 0).any() else 0.0
+-        metrics['sample_size'] = SAMPLE_SIZE
+-    
+-    # 3. Friend Correlation - Sample ─æß╗â tr├ính OOM
+-    # Chß╗ë lß║Ñy 500 users c├│ friend graph ─æß╗â t├¡nh
+-    friend_sims = []
+-    non_friend_sims = []
+-    
+-    users_with_friends = [u for u in df['userId'].unique() if u in friend_graph]
+-    sample_users = users_with_friends[:min(100, len(users_with_friends))]
+-    
+-    if sample_users:
+-        sample_df = df[df['userId'].isin(sample_users)].head(500).reset_index(drop=True)
+-        sample_emb_indices = sample_df.index.tolist()
+-        
+-        for idx, (i, row) in enumerate(sample_df.iterrows()):
+-            user_id = row['userId']
+-            if user_id not in friend_graph:
+-                continue
+-            
+-            friends = friend_graph[user_id]
+-            
+-            # Chß╗ë so s├ính vß╗¢i 50 posts kh├íc ─æß╗â tiß║┐t kiß╗çm thß╗¥i gian
+-            other_samples = sample_df.sample(min(50, len(sample_df))).iterrows()
+-            for j, other_row in other_samples:
+-                if i == j:
+-                    continue
+-                
+-                other_user = other_row['userId']
+-                # Chß╗ë t├¡nh similarity cho cß║╖p n├áy
+-                sim = float(np.dot(embeddings[i], embeddings[j]) / 
+-                           (np.linalg.norm(embeddings[i]) * np.linalg.norm(embeddings[j]) + 1e-8))
+-                
+-                if other_user in friends:
+-                    friend_sims.append(sim)
+-                else:
+-                    non_friend_sims.append(sim)
+-    
+-    if friend_sims:
+-        metrics['friend_avg_similarity'] = float(np.mean(friend_sims))
+-    if non_friend_sims:
+-        metrics['non_friend_avg_similarity'] = float(np.mean(non_friend_sims[:1000]))  # Limit
+-    
+-    return metrics
+ 
+ def train():
+     logger.info("=" * 50)
+-    logger.info("≡ƒöÑ TRAIN HYBRID MODEL WITH USER VECTORS")
++    logger.info("≡ƒöÑ TRAIN ΓåÆ QDRANT CLOUD (Lightweight Model)")
++    logger.info(f"   Model: {MODEL_NAME}")
++    logger.info(f"   Qdrant: {QDRANT_URL}")
+     logger.info("=" * 50)
+     
+-    # 1. Lß║Ñy dß╗» liß╗çu tß╗½ MongoDB
+-    logger.info(f"≡ƒôÑ Lß║Ñy {LIMIT} posts tß╗½ MongoDB...")
++    # 1. Connect to Qdrant
++    logger.info("≡ƒöî Connecting to Qdrant Cloud...")
++    qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=120)
++    logger.info("   Γ£à Connected!")
++    
++    # 2. Fetch data from MongoDB
++    logger.info(f"≡ƒôÑ Lß║Ñy posts tß╗½ MongoDB...")
+     client = MongoClient(MONGO_URI)
+     db = client[DB_NAME]
+     
+-    # Lß║Ñy posts vß╗¢i th├¬m tr╞░ß╗¥ng privacy v├á createdAt
+-    cursor = db.posts.find(
++    data = list(db.posts.find(
+         {"isDeleted": {"$ne": True}},
+         {"_id": 1, "userId": 1, "groupId": 1, "content": 1, "privacy": 1, "sharedPostId": 1, "createdAt": 1}
+-    )
++    ))
++    logger.info(f"   Γ£à {len(data)} posts")
+     
+-    data = list(cursor)
+-    logger.info(f"   Γ£à ─É├ú lß║Ñy {len(data)} posts")
+-    
+-    # 2. Lß║Ñy reactions (chß╗ë reactions cho POST)
+-    logger.info("≡ƒôÑ Lß║Ñy reactions tß╗½ MongoDB...")
+-    post_ids = [doc['_id'] for doc in data]
+-    reactions_cursor = db.reactions.find(
+-        {
+-            "factorId": {"$in": post_ids},
+-            "typeFactor": "POST"
+-        },
+-        {"_id": 1, "factorId": 1, "typeFactor": 1, "userId": 1, "type": 1}
+-    )
+-    reactions_data = list(reactions_cursor)
+-    logger.info(f"   Γ£à ─É├ú lß║Ñy {len(reactions_data)} reactions")
+-    
+-    # 3. Lß║Ñy shares (posts c├│ sharedPostId)
+-    logger.info("≡ƒôÑ Lß║Ñy shares tß╗½ MongoDB...")
+-    shares_cursor = db.posts.find(
+-        {
+-            "sharedPostId": {"$ne": None},
+-            "isDeleted": {"$ne": True}
+-        },
++    reactions_data = list(db.reactions.find(
++        {"factorId": {"$in": [doc['_id'] for doc in data]}, "typeFactor": "POST"},
++        {"_id": 1, "factorId": 1, "userId": 1, "type": 1}
++    ))
++    logger.info(f"   Γ£à {len(reactions_data)} reactions")
++    
++    shares_data = list(db.posts.find(
++        {"sharedPostId": {"$ne": None}, "isDeleted": {"$ne": True}},
+         {"_id": 1, "userId": 1, "sharedPostId": 1}
+-    )
+-    shares_data = list(shares_cursor)
+-    logger.info(f"   Γ£à ─É├ú lß║Ñy {len(shares_data)} shares")
+-    
+-    # 4. Lß║Ñy relationships (chß╗ë ACCEPTED)
+-    logger.info("≡ƒôÑ Lß║Ñy relationships tß╗½ MongoDB...")
+-    relationships_cursor = db.relationships.find(
+-        {"status": "ACCEPTED"},
+-        {"_id": 1, "userId": 1, "friendId": 1}
+-    )
+-    relationships_data = list(relationships_cursor)
+-    logger.info(f"   Γ£à ─É├ú lß║Ñy {len(relationships_data)} friend relationships")
+-    
+-    # 5. Lß║Ñy Tß║ñT Cß║ó accounts tß╗½ MongoDB
+-    logger.info("≡ƒôÑ Lß║Ñy tß║Ñt cß║ú accounts tß╗½ MongoDB...")
+-    accounts_cursor = db.accounts.find(
+-        {},
+-        {"_id": 1}
+-    )
+-    all_accounts = list(accounts_cursor)
++    ))
++    logger.info(f"   Γ£à {len(shares_data)} shares")
++    
++    relationships_data = list(db.relationships.find(
++        {"status": "ACCEPTED"}, {"_id": 1, "userId": 1, "friendId": 1}
++    ))
++    logger.info(f"   Γ£à {len(relationships_data)} relationships")
++    
++    all_accounts = list(db.accounts.find({}, {"_id": 1}))
+     all_user_ids = [str(acc['_id']) for acc in all_accounts]
+-    logger.info(f"   Γ£à ─É├ú lß║Ñy {len(all_user_ids)} accounts")
++    logger.info(f"   Γ£à {len(all_user_ids)} accounts")
+     
+     client.close()
+     
+@@ -313,253 +173,220 @@ def train():
+         logger.error("Γ¥î Kh├┤ng c├│ dß╗» liß╗çu!")
+         return
+     
+-    # 5. Chuß║⌐n h├│a posts
+-    logger.info("≡ƒöº Chuß║⌐n h├│a dß╗» liß╗çu posts...")
++    # 3. Chuß║⌐n h├│a
++    logger.info("≡ƒöº Chuß║⌐n h├│a dß╗» liß╗çu...")
+     df = pd.DataFrame(data)
+     df['_id'] = df['_id'].astype(str)
+     df['userId'] = df['userId'].apply(lambda x: str(x) if pd.notna(x) and x else "unknown")
+     df['groupId'] = df['groupId'].apply(lambda x: str(x) if pd.notna(x) and x else "no_group") if 'groupId' in df.columns else "no_group"
+     df['content'] = df['content'].fillna("").apply(clean_text)
+     df['privacy'] = df['privacy'].apply(normalize_privacy) if 'privacy' in df.columns else "PUBLIC"
+-    # Chuß║⌐n h├│a createdAt
+     df['createdAt'] = df['createdAt'].apply(lambda x: x.isoformat() if pd.notna(x) and hasattr(x, 'isoformat') else "") if 'createdAt' in df.columns else ""
+     
+-    # Lß╗ìc content qu├í ngß║»n
+     df = df[df['content'].str.len() > 0].reset_index(drop=True)
+-    logger.info(f"   Γ£à C├▓n {len(df)} posts sau khi lß╗ìc")
++    logger.info(f"   Γ£à {len(df)} posts sau khi lß╗ìc")
+     
+-    # 6. Chuß║⌐n h├│a reactions
+-    logger.info("≡ƒöº Chuß║⌐n h├│a dß╗» liß╗çu reactions...")
++    # Process reactions, shares, relationships
+     reactions_df = pd.DataFrame(reactions_data) if reactions_data else pd.DataFrame()
+     if not reactions_df.empty:
+         reactions_df['_id'] = reactions_df['_id'].astype(str)
+         reactions_df['factorId'] = reactions_df['factorId'].astype(str)
+         reactions_df['userId'] = reactions_df['userId'].astype(str)
+         reactions_df['type'] = reactions_df['type'].fillna("LIKE")
+-        logger.info(f"   Γ£à ─É├ú chuß║⌐n h├│a {len(reactions_df)} reactions")
+     
+-    # 7. Chuß║⌐n h├│a shares
+-    logger.info("≡ƒöº Chuß║⌐n h├│a dß╗» liß╗çu shares...")
+     shares_df = pd.DataFrame(shares_data) if shares_data else pd.DataFrame()
+     if not shares_df.empty:
+         shares_df['_id'] = shares_df['_id'].astype(str)
+         shares_df['userId'] = shares_df['userId'].astype(str)
+         shares_df['sharedPostId'] = shares_df['sharedPostId'].astype(str)
+-        logger.info(f"   Γ£à ─É├ú chuß║⌐n h├│a {len(shares_df)} shares")
+     
+-    # 8. Build friend graph
+-    logger.info("≡ƒöº Building friend graph...")
+     relationships_df = pd.DataFrame(relationships_data) if relationships_data else pd.DataFrame()
+     friend_graph = {}
+     if not relationships_df.empty:
+         relationships_df['userId'] = relationships_df['userId'].astype(str)
+         relationships_df['friendId'] = relationships_df['friendId'].astype(str)
+         friend_graph = build_friend_graph(relationships_df)
+-        logger.info(f"   Γ£à Friend graph vß╗¢i {len(friend_graph)} users")
++        logger.info(f"   Γ£à Friend graph: {len(friend_graph)} users")
+     
+-    # Label Encoding
+-    user_encoder = LabelEncoder()
+-    df['user_enc'] = user_encoder.fit_transform(df['userId'])
+-    n_users = len(user_encoder.classes_)
+-    n_posts = len(df)
+-    
+-    # Tß║ío dict post_id -> user_id (owner)
+     post_owners_dict = {df.loc[i, '_id']: df.loc[i, 'userId'] for i in range(len(df))}
+     
+-    # 9. Load model v├á tß║ío embeddings
++    # 4. Load model & generate embeddings
+     logger.info(f"≡ƒºá Loading model {MODEL_NAME}...")
+-    logger.info("   (Lß║ºn ─æß║ºu sß║╜ tß║úi ~2.3GB, chß╗¥ 5-10 ph├║t)")
+     model = SentenceTransformer(MODEL_NAME)
+-    logger.info("   Γ£à Model loaded!")
++    embedding_dim = model.get_sentence_embedding_dimension()
++    logger.info(f"   Γ£à Model loaded! Dimension: {embedding_dim}")
+     
+     logger.info("≡ƒôè Generating embeddings...")
+-    embeddings = model.encode(df['content'].tolist(), show_progress_bar=True, batch_size=8)
+-    embedding_dim = embeddings.shape[1]
++    embeddings = model.encode(df['content'].tolist(), show_progress_bar=True, batch_size=32)
+     
+-    # Tß║ío dict post_id -> embedding ─æß╗â build user vectors
+     post_embeddings_dict = {df.loc[i, '_id']: embeddings[i] for i in range(len(df))}
+     
+-    # 10. T├¡nh Content Score
+-    logger.info("≡ƒöó T├¡nh Content Score...")
++    # 5. Hybrid scores
++    logger.info("≡ƒöó T├¡nh scores...")
+     mean_emb = embeddings.mean(axis=0)
+     content_scores = cosine_similarity(embeddings, mean_emb.reshape(1, -1)).flatten()
+     content_scores = (content_scores - content_scores.min()) / (content_scores.max() - content_scores.min() + 1e-8)
+     
+-    # 11. T├¡nh CF Score (Collaborative Filtering)
+-    logger.info("≡ƒñ¥ T├¡nh CF Score...")
++    n_users = df['userId'].nunique()
++    n_posts = len(df)
++    user_encoder = LabelEncoder()
++    df['user_enc'] = user_encoder.fit_transform(df['userId'])
++    
+     interaction_matrix = csr_matrix(
+         (np.ones(n_posts), (df['user_enc'].values, np.arange(n_posts))),
+         shape=(n_users, n_posts)
+     )
+-    
+     n_factors = min(20, min(n_users, n_posts) - 1)
+     svd = TruncatedSVD(n_components=n_factors, n_iter=10, random_state=42)
+     user_factors = svd.fit_transform(interaction_matrix)
+     item_factors = svd.components_.T
+-    
+     cf_matrix = np.dot(user_factors, item_factors.T)
+     cf_scores = cf_matrix.max(axis=0)
+     cf_scores = (cf_scores - cf_scores.min()) / (cf_scores.max() - cf_scores.min() + 1e-8)
+     
+-    # 12. Build User Vectors tß╗½ reactions + shares + friend relationships
+-    logger.info("≡ƒæñ Building User Vectors tß╗½ reactions, shares, relationships...")
++    hybrid_scores = 0.6 * content_scores + 0.4 * cf_scores
++    
++    # 6. Build user vectors
++    logger.info("≡ƒæñ Building User Vectors...")
+     user_vectors = build_user_vectors(
+-        reactions_df, 
+-        shares_df, 
+-        post_embeddings_dict, 
+-        post_owners_dict,
+-        friend_graph,
+-        embedding_dim
++        reactions_df, shares_df, post_embeddings_dict, 
++        post_owners_dict, friend_graph, embedding_dim
+     )
+-    logger.info(f"   Γ£à ─É├ú tß║ío {len(user_vectors)} user vectors tß╗½ interactions")
+-    
+-    # 13. Tß║ío DEFAULT User Vectors cho users ch╞░a c├│ t╞░╞íng t├íc
+-    # QUAN TRß╗îNG: Mß╗ùi user cß║ºn vector KH├üC NHAU ─æß╗â c├│ feed kh├íc nhau
+-    logger.info("≡ƒæñ Tß║ío default vectors cho users ch╞░a c├│ t╞░╞íng t├íc...")
+-    mean_embedding = embeddings.mean(axis=0)  # Base vector
+-    
+-    import hashlib
++    logger.info(f"   Γ£à {len(user_vectors)} user vectors from interactions")
+     
+-    users_without_vectors = 0
++    # Default vectors for users without interactions
++    mean_embedding = embeddings.mean(axis=0)
++    users_without = 0
+     for user_id in all_user_ids:
+         if user_id not in user_vectors:
+-            # Tß║ío noise dß╗▒a tr├¬n hash cß╗ºa user_id ─æß╗â mß╗ùi user c├│ vector kh├íc nhau
+             user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+             np.random.seed(user_hash % (2**32))
+-            
+-            # Th├¬m small noise v├áo mean embedding (┬▒5% mß╗ùi dimension)
+             noise = np.random.uniform(-0.05, 0.05, embedding_dim)
+             user_vector = mean_embedding + noise
+-            
+-            # Normalize vector
+             norm = np.linalg.norm(user_vector)
+-            if norm > 0:
+-                user_vector = user_vector / norm
+-            
++            if norm > 0: user_vector = user_vector / norm
+             user_vectors[user_id] = user_vector
+-            users_without_vectors += 1
+-    
+-    # Reset random seed
++            users_without += 1
+     np.random.seed(None)
++    logger.info(f"   Γ£à {users_without} default vectors created")
+     
+-    logger.info(f"   Γ£à ─É├ú tß║ío default vectors cho {users_without_vectors} users")
+-    logger.info(f"   ≡ƒôè Tß╗òng: {len(user_vectors)} user vectors")
++    # 7. Upload to Qdrant Cloud
++    logger.info("Γÿü∩╕Å Uploading posts to Qdrant Cloud...")
+     
+-    # 14. Hybrid Score
+-    logger.info("≡ƒöÇ T├¡nh Hybrid Score...")
+-    hybrid_scores = 0.6 * content_scores + 0.4 * cf_scores
++    # Recreate collection
++    try:
++        qdrant.delete_collection(COLLECTION_NAME)
++        logger.info(f"   ≡ƒùæ∩╕Å Old collection '{COLLECTION_NAME}' deleted")
++    except: pass
+     
+-    # 15. Evaluate Model
+-    logger.info("≡ƒôê ─É├ính gi├í Model...")
+-    metrics = evaluate_model(embeddings, df, user_vectors, friend_graph)
+-    for key, value in metrics.items():
+-        logger.info(f"   {key}: {value:.4f}" if isinstance(value, float) else f"   {key}: {value}")
+-    
+-    # 16. L╞░u ChromaDB
+-    logger.info("≡ƒÆ╛ L╞░u Posts v├áo ChromaDB...")
+-    os.makedirs(CHROMA_PATH, exist_ok=True)
+-    chroma = chromadb.PersistentClient(path=CHROMA_PATH, settings=ChromaSettings(anonymized_telemetry=False))
+-    
+-    # X├│a collections c┼⌐ nß║┐u c├│
+-    for coll_name in [COLLECTION_NAME, USER_VECTORS_COLLECTION, FRIEND_GRAPH_COLLECTION]:
+-        try:
+-            chroma.delete_collection(coll_name)
+-        except:
+-            pass
+-    
+-    # Tß║ío collection posts
+-    collection = chroma.create_collection(name=COLLECTION_NAME)
+-    
+-    ids = df['_id'].tolist()
+-    documents = df['content'].tolist()
+-    metadatas = [{
+-        "user_id": str(df.loc[i, 'userId']),
+-        "group_id": str(df.loc[i, 'groupId']),
+-        "privacy": str(df.loc[i, 'privacy']),
+-        "created_at": str(df.loc[i, 'createdAt']) if 'createdAt' in df.columns else "",
+-        "score": float(hybrid_scores[i])
+-    } for i in range(len(df))]
+-    
+-    # Add posts in batches (ChromaDB max batch size is 5461)
+-    BATCH_SIZE = 5000
+-    total_posts = len(ids)
+-    num_batches = (total_posts + BATCH_SIZE - 1) // BATCH_SIZE
+-    
+-    logger.info(f"   ≡ƒôª Adding {total_posts} posts in {num_batches} batches...")
+-    
+-    for batch_idx in range(num_batches):
+-        start_idx = batch_idx * BATCH_SIZE
+-        end_idx = min(start_idx + BATCH_SIZE, total_posts)
+-        
+-        batch_ids = ids[start_idx:end_idx]
+-        batch_embeddings = embeddings[start_idx:end_idx].tolist()
+-        batch_documents = documents[start_idx:end_idx]
+-        batch_metadatas = metadatas[start_idx:end_idx]
+-        
+-        collection.add(
+-            ids=batch_ids,
+-            embeddings=batch_embeddings,
+-            documents=batch_documents,
+-            metadatas=batch_metadatas
+-        )
++    qdrant.create_collection(
++        collection_name=COLLECTION_NAME,
++        vectors_config=VectorParams(size=embedding_dim, distance=Distance.COSINE)
++    )
++    logger.info(f"   Γ£à Collection '{COLLECTION_NAME}' created (dim={embedding_dim})")
++    
++    # Upload in batches
++    BATCH_SIZE = 100
++    total = len(df)
++    for batch_start in range(0, total, BATCH_SIZE):
++        batch_end = min(batch_start + BATCH_SIZE, total)
++        points = []
++        for i in range(batch_start, batch_end):
++            point_id = mongo_id_to_uuid(df.loc[i, '_id'])
++            points.append(PointStruct(
++                id=point_id,
++                vector=embeddings[i].tolist(),
++                payload={
++                    "post_id": df.loc[i, '_id'],
++                    "user_id": str(df.loc[i, 'userId']),
++                    "group_id": str(df.loc[i, 'groupId']),
++                    "privacy": str(df.loc[i, 'privacy']),
++                    "created_at": str(df.loc[i, 'createdAt']) if 'createdAt' in df.columns else "",
++                    "score": float(hybrid_scores[i]),
++                }
++            ))
+         
+-        logger.info(f"   Γ£à Batch {batch_idx + 1}/{num_batches}: Added {len(batch_ids)} posts ({end_idx}/{total_posts})")
++        qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
++        logger.info(f"   Γ£à Uploaded {batch_end}/{total} posts")
+     
+-    # 17. L╞░u User Vectors v├áo ChromaDB (batch to avoid size limit)
+-    if user_vectors:
+-        logger.info("≡ƒÆ╛ L╞░u User Vectors v├áo ChromaDB...")
+-        user_collection = chroma.create_collection(name=USER_VECTORS_COLLECTION)
+-        
+-        user_ids = list(user_vectors.keys())
+-        user_embeddings = [user_vectors[uid].tolist() for uid in user_ids]
+-        user_docs = [f"user_vector_{uid}" for uid in user_ids]
+-        user_metas = [{"user_id": uid} for uid in user_ids]
+-        
+-        # Add in batches
+-        total_users = len(user_ids)
+-        num_user_batches = (total_users + BATCH_SIZE - 1) // BATCH_SIZE
+-        
+-        logger.info(f"   ≡ƒôª Adding {total_users} user vectors in {num_user_batches} batches...")
+-        
+-        for batch_idx in range(num_user_batches):
+-            start_idx = batch_idx * BATCH_SIZE
+-            end_idx = min(start_idx + BATCH_SIZE, total_users)
+-            
+-            user_collection.add(
+-                ids=user_ids[start_idx:end_idx],
+-                embeddings=user_embeddings[start_idx:end_idx],
+-                documents=user_docs[start_idx:end_idx],
+-                metadatas=user_metas[start_idx:end_idx]
+-            )
+-            
+-            logger.info(f"   Γ£à User Batch {batch_idx + 1}/{num_user_batches}: Added {end_idx - start_idx} vectors")
+-    
+-    # 17. L╞░u Friend Graph v├áo file JSON (─æß╗â service d├╣ng)
+-    if friend_graph:
+-        logger.info("≡ƒÆ╛ L╞░u Friend Graph...")
+-        friend_graph_path = os.path.join(CHROMA_PATH, "friend_graph.json")
+-        # Convert sets to lists for JSON serialization
+-        friend_graph_json = {k: list(v) for k, v in friend_graph.items()}
+-        with open(friend_graph_path, 'w') as f:
+-            json.dump(friend_graph_json, f)
+-    
+-    # 18. L╞░u metrics
+-    metrics_path = os.path.join(CHROMA_PATH, "metrics.json")
+-    # Convert numpy float32 to Python float for JSON serialization
+-    metrics_serializable = {k: float(v) if isinstance(v, (np.floating, np.integer)) else v for k, v in metrics.items()}
+-    with open(metrics_path, 'w') as f:
+-        json.dump(metrics_serializable, f, indent=2)
++    # 8. Upload user vectors to Qdrant Cloud
++    logger.info("Γÿü∩╕Å Uploading user vectors to Qdrant Cloud...")
+     
++    # Recreate user_vectors collection
++    try:
++        qdrant.delete_collection(USER_COLLECTION)
++        logger.info(f"   ≡ƒùæ∩╕Å Old '{USER_COLLECTION}' deleted")
++    except: pass
++    
++    qdrant.create_collection(
++        collection_name=USER_COLLECTION,
++        vectors_config=VectorParams(size=embedding_dim, distance=Distance.COSINE)
++    )
++    logger.info(f"   Γ£à Collection '{USER_COLLECTION}' created (dim={embedding_dim})")
++    
++    # Upload user vectors in batches
++    user_list = list(user_vectors.items())
++    BATCH_SIZE = 100
++    for batch_start in range(0, len(user_list), BATCH_SIZE):
++        batch_end = min(batch_start + BATCH_SIZE, len(user_list))
++        points = []
++        for uid, vec in user_list[batch_start:batch_end]:
++            point_id = mongo_id_to_uuid(uid)
++            points.append(PointStruct(
++                id=point_id,
++                vector=vec.tolist(),
++                payload={
++                    "user_id": uid,
++                    "interaction_count": len([
++                        x for x in (
++                            list(reactions_df[reactions_df['userId'] == uid].iterrows()) if not reactions_df.empty else []
++                        )
++                    ]),
++                }
++            ))
++        qdrant.upsert(collection_name=USER_COLLECTION, points=points)
++        logger.info(f"   Γ£à Uploaded {batch_end}/{len(user_list)} user vectors")
++    
++    # 9. Also save to MongoDB (backup + fast access)
++    logger.info("≡ƒÆ╛ Saving user vectors to MongoDB (backup)...")
++    mongo_client = MongoClient(MONGO_URI)
++    mongo_db = mongo_client[DB_NAME]
++    
++    bulk_ops = []
++    from pymongo import UpdateOne
++    for uid, vec in user_vectors.items():
++        bulk_ops.append(UpdateOne(
++            {"user_id": uid},
++            {"$set": {
++                "user_id": uid,
++                "vector": vec.tolist(),
++                "count": 0,
++                "last_updated": datetime.now()
++            }},
++            upsert=True
++        ))
++        if len(bulk_ops) >= 500:
++            mongo_db.ai_user_vectors.bulk_write(bulk_ops)
++            bulk_ops = []
++    
++    if bulk_ops:
++        mongo_db.ai_user_vectors.bulk_write(bulk_ops)
++    
++    mongo_client.close()
++    logger.info(f"   Γ£à {len(user_vectors)} user vectors saved to MongoDB")
++    
++    # 10. Verify
++    posts_info = qdrant.get_collection(COLLECTION_NAME)
++    users_info = qdrant.get_collection(USER_COLLECTION)
+     logger.info("=" * 50)
+     logger.info("≡ƒÄë TRAINING HO├ÇN Tß║ñT!")
+-    logger.info(f"   ≡ƒôè Posts: {len(df)}")
+-    logger.info(f"   ≡ƒæñ User Vectors: {len(user_vectors)}")
+-    logger.info(f"   ≡ƒöä Reactions: {len(reactions_df) if not reactions_df.empty else 0}")
+-    logger.info(f"   ≡ƒôñ Shares: {len(shares_df) if not shares_df.empty else 0}")
+-    logger.info(f"   ≡ƒæÑ Friend Relationships: {len(relationships_df) if not relationships_df.empty else 0}")
+-    logger.info(f"   ≡ƒÆ╛ ChromaDB: {CHROMA_PATH}")
++    logger.info(f"   ≡ƒôè Posts: {posts_info.points_count} (Qdrant)")
++    logger.info(f"   ≡ƒæñ User Vectors: {users_info.points_count} (Qdrant)")
++    logger.info(f"   ≡ƒºá Model: {MODEL_NAME}")
++    logger.info(f"   Γÿü∩╕Å Qdrant: {QDRANT_URL}")
+     logger.info("   ≡ƒæë Chß║íy: python main.py")
+     logger.info("=" * 50)
+ 
++
+ if __name__ == "__main__":
+     train()

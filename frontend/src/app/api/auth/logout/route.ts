@@ -9,6 +9,8 @@ export async function POST() {
     const accessToken = cookieStore.get("access_token")?.value;
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+
+    // Call backend logout to invalidate the session
     if (sessionId) {
       try {
         await axios.post(
@@ -25,8 +27,25 @@ export async function POST() {
       }
     }
 
-    cookieStore.delete("access_token");
-    cookieStore.delete("session_id");
+    // Clear cookies with matching attributes to ensure proper deletion
+    // Must match the same path, httpOnly, secure, sameSite used when setting
+    const isProduction = process.env.NODE_ENV === "production";
+
+    cookieStore.set("access_token", "", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+
+    cookieStore.set("session_id", "", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
 
     return NextResponse.json({ success: true });
   } catch {

@@ -51,7 +51,15 @@ export default function VideoCall() {
                     item.stream ? (
                         <div key={item.peerId || idx} className="relative bg-gray-800 rounded-xl overflow-hidden shadow-lg border border-gray-700 min-h-[200px] flex items-center justify-center">
                             <video
-                                ref={(el) => { if (el) el.srcObject = item.stream! }}
+                                ref={(el) => {
+                                    if (!el) return;
+                                    if (el.srcObject !== item.stream) {
+                                        el.srcObject = item.stream!;
+                                    }
+                                    void el.play().catch(() => {
+                                        // Playback can be blocked transiently; user interaction will resume.
+                                    });
+                                }}
                                 muted={item.peerId === 'me'} // Always mute self
                                 className="w-full h-full object-cover"
                                 autoPlay
@@ -90,6 +98,11 @@ export default function VideoCall() {
                                 className="w-full h-full object-cover"
                                 autoPlay
                                 playsInline
+                                onLoadedMetadata={(event) => {
+                                    void event.currentTarget.play().catch(() => {
+                                        // Ignore autoplay race; controls remain available.
+                                    });
+                                }}
                             />
                         ) : (
                             <div className="flex flex-col items-center animate-pulse">
@@ -120,6 +133,11 @@ export default function VideoCall() {
                                 className={`w-full h-full object-cover ${isVideoOff ? 'opacity-0' : 'opacity-100'}`}
                                 autoPlay
                                 playsInline
+                                onLoadedMetadata={(event) => {
+                                    void event.currentTarget.play().catch(() => {
+                                        // Ignore autoplay race for local preview.
+                                    });
+                                }}
                             />
                             {isVideoOff && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-gray-600 text-white text-xs">

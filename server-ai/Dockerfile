@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
@@ -11,25 +11,24 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements first for caching
 COPY requirements.txt .
 
-# Install torch CPU-only first (~250MB vs ~915MB GPU wheel) to avoid timeout
+# Install torch CPU-only (~250MB vs ~915MB GPU wheel)
 RUN pip install --no-cache-dir --timeout=120 \
     torch --index-url https://download.pytorch.org/whl/cpu
 
 # Install remaining dependencies
 RUN pip install --no-cache-dir --timeout=120 -r requirements.txt
 
+# Pre-download embedding model (~470MB, cached in image layer)
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')"
+
 # Copy app code
 COPY . .
 
-# Create directories
-RUN mkdir -p logs models chroma_db
+RUN mkdir -p logs
 
-# Expose port (change based on platform)
 EXPOSE 8000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Start server
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

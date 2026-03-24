@@ -1,75 +1,70 @@
 """
-Unified AI Service
-Support Ollama LLM and Custom SentenceTransformer Embeddings
+LLM Service — Ollama (qwen3:0.6b)
+==================================
+Uses OpenAI-compatible API provided by Ollama.
+Works both locally and inside Docker via ollama/ollama container.
+
+Ollama endpoints:
+- Local:  http://localhost:11434/v1/chat/completions
+- Docker: http://llm:11434/v1/chat/completions
 """
 
-import ollama
-from sentence_transformers import SentenceTransformer
+import httpx
+import json
 from typing import List, Dict, Optional, Any
 from loguru import logger
-import os
 
 from app.config import get_settings
 
-class OllamaService:
+
+class LLMService:
+    """LLM Service using Docker Model Runner (OpenAI-compatible API)"""
+    
     def __init__(self):
         self.settings = get_settings()
-        self._client: Optional[ollama.Client] = None
-        self._custom_model = None # For custom trained model
         self._is_available: bool = False
-        
-    @property
-    def client(self) -> ollama.Client:
-        if self._client is None:
-            # Increase timeout for vision models (llava takes longer)
-            self._client = ollama.Client(
-                host=self.settings.ollama_host,
-                timeout=120.0  # 2 minutes timeout for large model responses
-            )
-        return self._client
     
     @property
-    def custom_model(self):
-        if self._custom_model is None and self.settings.embedding_provider == "custom":
-            path = self.settings.custom_model_path
-            if os.path.exists(path):
-                logger.info(f"🧠 Loading custom trained model from {path}")
-                self._custom_model = SentenceTransformer(path)
-            else:
-                logger.warning(f"⚠️ Custom model not found at {path}. Have you run 'train_embedding.py'?")
-                logger.info("Falling back to base model: sentence-transformers/all-MiniLM-L6-v2")
-                self._custom_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-        return self._custom_model
-
+    def base_url(self) -> str:
+        return self.settings.llm_base_url.rstrip("/")
+    
+    @property
+    def model(self) -> str:
+        return self.settings.llm_model
+    
+    def _chat(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 1000) -> str:
+        """Call Docker Model Runner's OpenAI-compatible chat API."""
+        try:
+            response = httpx.post(
+                f"{self.base_url}/v1/chat/completions",
+                json={
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                },
+                timeout=120.0
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            logger.error(f"LLM chat error: {e}")
+            return ""
 
     def chat_messages(self, messages: List[Dict[str, str]], temperature=0.7, max_tokens=500) -> str:
-        """Basic chat without post suggestions"""
-        try:
-            prompt_msgs = """
-You are a friendly social media assistant named "AI Assistant".  
-You can help with questions in both English and Vietnamese (UTF-8).
-Be helpful, concise, and engaging.
-"""
-            messages.insert(0, {"role": "system", "content": prompt_msgs})
+        """Basic chat"""
+        system_msg = {
+            "role": "system",
+            "content": 'You are a friendly social media assistant named "AI Assistant". '
+                       'You can help with questions in both English and Vietnamese (UTF-8). '
+                       'Be helpful, concise, and engaging.'
+        }
+        all_msgs = [system_msg] + messages
+        return self._chat(all_msgs, temperature, max_tokens)
 
-            resp = self.client.chat(
-                model=self.settings.ollama_model,
-                messages=messages,
-                options={"temperature": temperature, "num_predict": 1000}
-            )
-            return resp.get("message", {}).get("content", "")
-        except Exception as e:
-            logger.error(f"Chat messages error: {e}")
-            return ""
-    
     def analyze_chat_intent(self, message: str) -> Dict[str, Any]:
-        """
-        Analyze user's chat message to determine:
-        1. Should we suggest posts? 
-        2. What search query to use?
-        
-        Returns: {"should_suggest_post": bool, "search_query": str, "topic": str}
-        """
+        """Analyze user message intent — should we suggest posts?"""
         try:
             system_prompt = """You are an intent analyzer for a social media chatbot.
 Analyze the user's message and determine:
@@ -85,25 +80,14 @@ RESPOND IN JSON ONLY:
 
 Examples:
 - "có bài viết nào về du lịch không?" → {"should_suggest_post": true, "search_query": "du lịch", "topic": "du lịch"}
-- "cho xem mấy post về công nghệ" → {"should_suggest_post": true, "search_query": "công nghệ technology", "topic": "công nghệ"}
 - "xin chào" → {"should_suggest_post": false, "search_query": "", "topic": ""}
-- "hôm nay thời tiết thế nào" → {"should_suggest_post": false, "search_query": "", "topic": ""}
 - "có ai đăng gì về AI chưa" → {"should_suggest_post": true, "search_query": "AI artificial intelligence", "topic": "AI"}
-- "gợi ý bài viết về ẩm thực" → {"should_suggest_post": true, "search_query": "ẩm thực food", "topic": "ẩm thực"}
 """
-            resp = self.client.chat(
-                model=self.settings.ollama_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": message}
-                ],
-                options={"temperature": 0.3, "num_predict": 500}
+            response_text = self._chat(
+                [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}],
+                temperature=0.3, max_tokens=500
             )
             
-            response_text = resp.get("message", {}).get("content", "")
-            
-            # Parse JSON from response
-            import json
             start = response_text.find("{")
             end = response_text.rfind("}") + 1
             if start != -1 and end > start:
@@ -114,262 +98,98 @@ Examples:
                     "topic": result.get("topic", "")
                 }
             return {"should_suggest_post": False, "search_query": "", "topic": ""}
-            
         except Exception as e:
             logger.error(f"Analyze intent error: {e}")
             return {"should_suggest_post": False, "search_query": "", "topic": ""}
-    
+
     def generate_chat_response_with_context(
-        self, 
-        message: str, 
-        has_post: bool = False,
-        post_preview: str = "",
-        temperature: float = 0.7
+        self, message: str, has_post: bool = False,
+        post_preview: str = "", temperature: float = 0.7
     ) -> str:
-        """
-        Generate a chat response, optionally mentioning that a post is being shared.
-        """
-        try:
-            if has_post and post_preview:
-                system_prompt = f"""You are a friendly social media assistant named "AI Assistant".
-You found a relevant post to share with the user.
-
-The post preview: "{post_preview[:200]}..."
-
-Respond naturally to the user's question and mention that you found a related post they might like.
-Keep your response friendly and concise (2-3 sentences max).
-Respond in the same language as the user (Vietnamese if they speak Vietnamese).
-"""
-            else:
-                system_prompt = """You are a friendly social media assistant named "AI Assistant".
-You can help with questions in both English and Vietnamese (UTF-8).
-Be helpful, concise, and engaging. Keep responses under 3 sentences unless more detail is needed.
-"""
-            
-            resp = self.client.chat(
-                model=self.settings.ollama_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": message}
-                ],
-                options={"temperature": temperature, "num_predict": 1000}
+        """Generate a chat response, optionally mentioning a post."""
+        if has_post and post_preview:
+            system_prompt = (
+                f'You are a friendly social media assistant named "AI Assistant". '
+                f'You found a relevant post to share. Post preview: "{post_preview[:200]}...". '
+                f'Respond naturally and mention the related post. '
+                f'Respond in the same language as the user. Keep it concise.'
             )
-            return resp.get("message", {}).get("content", "")
-        except Exception as e:
-            logger.error(f"Generate response error: {e}")
-            return "Xin lỗi, tôi gặp sự cố. Vui lòng thử lại!"
-    
-    def analyze_images(self, image_urls: List[str]) -> str:
-        """
-        Analyze images using vision model (llava).
-        Returns a description of what's in the images.
-        """
-        if not image_urls:
-            return ""
-        
-        try:
-            import base64
-            import httpx
-            
-            # Check available vision models
-            available_models = self.list_models()
-            logger.info(f"Available models: {available_models}")
-            
-            # Find llava model (could be 'llava', 'llava:latest', 'llava:7b', etc.)
-            vision_model = None
-            for m in available_models:
-                if "llava" in m.lower():
-                    vision_model = m
-                    break
-            
-            if not vision_model:
-                logger.warning(f"Vision model (llava) not found in: {available_models}")
-                return ""
-            
-            logger.info(f"Using vision model: {vision_model}")
-            
-            # Download and convert image to base64
-            image_url = image_urls[0]
-            logger.info(f"Downloading image from: {image_url}")
-            
-            # Download image
-            with httpx.Client(timeout=30.0) as http_client:
-                response = http_client.get(image_url)
-                response.raise_for_status()
-                image_bytes = response.content
-            
-            # Convert to base64
-            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-            logger.info(f"Image downloaded and encoded, size: {len(image_bytes)} bytes")
-            
-            prompt = """Analyze this image in GREAT DETAIL. Provide a comprehensive description including:
-
-1. **Main Subject**: What is the primary focus? Describe it thoroughly.
-2. **Scene/Setting**: Where is this? Indoor/outdoor? What environment?
-3. **Objects & Elements**: List ALL visible objects, people, animals, items.
-4. **Colors & Lighting**: Dominant colors, lighting conditions, shadows, atmosphere.
-5. **Text/Writing**: Any text, signs, labels, watermarks visible? Transcribe them.
-6. **Style/Type**: Is this a photo, screenshot, artwork, meme, game, etc.?
-7. **Mood/Emotion**: What feeling does the image convey?
-8. **Notable Details**: Any interesting or unusual elements?
-
-Be thorough and descriptive. Write in Vietnamese. Minimum 200 words."""
-            
-            resp = self.client.chat(
-                model=vision_model,
-                messages=[{
-                    "role": "user",
-                    "content": prompt,
-                    "images": [image_base64]  # Send base64 encoded image
-                }],
-                options={"temperature": 0.4, "num_predict": 1500}  # ~500 words Vietnamese
+        else:
+            system_prompt = (
+                'You are a friendly social media assistant named "AI Assistant". '
+                'You can help in both English and Vietnamese. Be helpful and concise.'
             )
-            
-            # Handle both dict and object response
-            if hasattr(resp, 'message'):
-                description = resp.message.content if hasattr(resp.message, 'content') else ""
-            else:
-                description = resp.get("message", {}).get("content", "")
-            
-            logger.info(f"Image analysis result: {description[:100]}...")
-            return description
-            
-        except Exception as e:
-            logger.error(f"Image analysis error: {e}")
-            return ""
-    
+        return self._chat(
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}],
+            temperature
+        )
+
     def generate_chat_response_with_full_context(
-        self,
-        message: str,
-        chat_history: List[Dict[str, str]] = None,
-        image_description: str = "",
-        has_post: bool = False,
-        post_preview: str = "",
-        temperature: float = 0.7
+        self, message: str, chat_history: List[Dict[str, str]] = None,
+        image_description: str = "", has_post: bool = False,
+        post_preview: str = "", temperature: float = 0.7
     ) -> str:
-        """
-        Generate AI response with full conversation context.
-        
-        Args:
-            message: Current user message
-            chat_history: List of previous messages [{role, content}, ...]
-            image_description: Description of attached images (if any)
-            has_post: Whether we're suggesting posts
-            post_preview: Preview of first suggested post
-        """
+        """Generate AI response with full conversation context."""
         try:
-            # Build system prompt
             system_parts = [
                 'You are a friendly social media assistant named "AI Assistant".',
                 "You help users in both English and Vietnamese (UTF-8).",
                 "Be helpful, concise, and engaging.",
             ]
-            
             if image_description:
                 system_parts.append(f"\nThe user has shared an image: {image_description}")
-            
             if has_post and post_preview:
-                system_parts.append(f"\nYou found related posts to suggest. First post preview: \"{post_preview[:150]}...\"")
-                system_parts.append("Mention that you found some relevant posts they might like.")
-            
-            system_prompt = " ".join(system_parts)
-            
-            # Build messages array with history
-            messages = [{"role": "system", "content": system_prompt}]
-            
-            # Add chat history (last 10 messages)
+                system_parts.append(f'\nYou found related posts. First post preview: "{post_preview[:150]}..."')
+                system_parts.append("Mention that you found some relevant posts.")
+
+            messages = [{"role": "system", "content": " ".join(system_parts)}]
             if chat_history:
                 for msg in chat_history[-10:]:
-                    messages.append({
-                        "role": msg.get("role", "user"),
-                        "content": msg.get("content", "")
-                    })
-            
-            # Add current message
+                    messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
             messages.append({"role": "user", "content": message})
-            
-            logger.info(f"Generating response with {len(messages)} messages in context")
-            
-            resp = self.client.chat(
-                model=self.settings.ollama_model,
-                messages=messages,
-                options={"temperature": temperature, "num_predict": 1000}
-            )
-            
-            return resp.get("message", {}).get("content", "")
-            
+
+            return self._chat(messages, temperature)
         except Exception as e:
             logger.error(f"Generate full context response error: {e}")
             return "Xin lỗi, tôi gặp sự cố. Vui lòng thử lại!"
 
+    def analyze_images(self, image_urls: List[str]) -> str:
+        """Image analysis — Qwen3 0.6B doesn't support vision, return empty."""
+        if not image_urls:
+            return ""
+        logger.info("⚠️ Image analysis not supported with current LLM model")
+        return ""
+
     def is_available(self) -> bool:
+        """Check if Docker Model Runner is accessible."""
         try:
-            # Check Ollama for Generation
-            self.client.list() 
-            self._is_available = True
-            return True
+            response = httpx.get(f"{self.base_url}/v1/models", timeout=5.0)
+            self._is_available = response.status_code == 200
+            return self._is_available
         except:
             self._is_available = False
             return False
 
     def list_models(self) -> List[str]:
+        """List available models from Docker Model Runner."""
         try:
-            response = self.client.list()
-            # New Ollama API uses object-based response
-            if hasattr(response, 'models'):
-                return [m.model for m in response.models]
-            # Fallback for dict-based response (older API)
-            return [m["name"] for m in response.get("models", [])]
-        except: return []
+            response = httpx.get(f"{self.base_url}/v1/models", timeout=5.0)
+            if response.status_code == 200:
+                data = response.json()
+                return [m.get("id", "") for m in data.get("data", [])]
+            return []
+        except:
+            return []
 
-    # ==================== EMBEDDINGS (AUTO SWITCH) ====================
-
-    def get_embedding(self, text: str) -> List[float]:
-        if self.settings.embedding_provider == "custom":
-            # Use Python SentenceTransformer
-            return self.custom_model.encode(text).tolist()
-        else:
-            # Use Ollama
-            try:
-                if not text: return []
-                resp = self.client.embeddings(model=self.settings.ollama_embedding_model, prompt=text)
-                return resp.get("embedding", [])
-            except: 
-                return []
-
-    def get_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
-        if self.settings.embedding_provider == "custom":
-            # Batch encode with SentenceTransformer (Very fast on GPU)
-            return self.custom_model.encode(texts).tolist()
-        else:
-            # Sequential Ollama calls (Slower)
-            embeddings = []
-            for t in texts:
-                embeddings.append(self.get_embedding(t))
-            return embeddings
-
-    # ==================== GENERATION (OLLAMA ONLY) ====================
-    # (Giữ nguyên logic generation cũ)
-    
     def generate(self, prompt, system=None, temperature=0.7, max_tokens=500):
-        try:
-            msgs = []
-            if system: msgs.append({"role": "system", "content": system})
-            msgs.append({"role": "user", "content": prompt})
-            
-            resp = self.client.chat(
-                model=self.settings.ollama_model,
-                messages=msgs,
-                options={"temperature": temperature, "num_predict": 1000}
-            )
-            return resp.get("message", {}).get("content", "")
-        except Exception as e:
-            logger.error(f"Generate error: {e}")
-            return ""
+        msgs = []
+        if system: msgs.append({"role": "system", "content": system})
+        msgs.append({"role": "user", "content": prompt})
+        return self._chat(msgs, temperature, max_tokens)
 
     def analyze_post_content(self, content, available_hashtags):
-        # (Giữ nguyên logic cũ)
-        if not content.strip(): return {"sentiment": "neutral", "topics": [], "suggested_hashtags": [], "summary": "", "is_appropriate": True}
+        if not content.strip():
+            return {"sentiment": "neutral", "topics": [], "suggested_hashtags": [], "summary": "", "is_appropriate": True}
         
         hashtags_list = ", ".join(available_hashtags[:50])
         system = """You are a social media content analyzer. 
@@ -382,37 +202,41 @@ Analyze and provide JSON:
   "is_appropriate": true
 }"""
         user = f"Analyze:\n{content}\n\nChoose hashtags from: {hashtags_list}"
-        
         try:
             resp = self.generate(user, system, 0.3, 300)
-            import json
             start = resp.find("{")
             end = resp.rfind("}") + 1
             if start != -1:
                 result = json.loads(resp[start:end])
-                # Filter valid hashtags
-                valid = [h for h in result.get("suggested_hashtags", []) 
+                valid = [h for h in result.get("suggested_hashtags", [])
                         if h.lower() in [ah.lower() for ah in available_hashtags]]
                 result["suggested_hashtags"] = valid
                 return result
-            return {"sentiment": "neutral", "topics": [], "suggested_hashtags": [], "summary": "", "is_appropriate": True}
         except:
-            return {"sentiment": "neutral", "topics": [], "suggested_hashtags": [], "summary": "", "is_appropriate": True}
+            pass
+        return {"sentiment": "neutral", "topics": [], "suggested_hashtags": [], "summary": "", "is_appropriate": True}
 
     def generate_search_query_expansion(self, query):
-        # (Giữ nguyên logic cũ)
         user = f"Generate 3 related search terms for: {query}. Respond JSON array only."
         try:
             resp = self.generate(user, None, 0.5, 100)
-            import json
             start = resp.find("[")
             end = resp.rfind("]") + 1
             if start != -1: return json.loads(resp[start:end])
-            return [query]
-        except: return [query]
+        except:
+            pass
+        return [query]
 
-_ollama_service = None
+
+# Singleton
+_llm_service = None
+
+def get_llm_service():
+    global _llm_service
+    if _llm_service is None:
+        _llm_service = LLMService()
+    return _llm_service
+
+# Backward compatibility alias
 def get_ollama_service():
-    global _ollama_service
-    if _ollama_service is None: _ollama_service = OllamaService()
-    return _ollama_service
+    return get_llm_service()

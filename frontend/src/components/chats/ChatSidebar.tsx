@@ -139,13 +139,15 @@ export default function ChatSidebar({
     const handleLogout = async () => {
         handleMenuClose();
         const response = await authService.logout();
-        if (response.statusCode === 201) {
+        if (response?.success) {
             logout();
             toast.success(t('auth.logout_success'));
-            router.push(CLIENT_PATH.LOGIN);
         } else {
+            // Still clear local state even on API failure
+            logout();
             toast.error(t('auth.logout_failed'));
         }
+        router.push(CLIENT_PATH.LOGIN);
     };
 
     const filteredConversations = conversations.filter((conversation) => {

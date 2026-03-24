@@ -60,14 +60,15 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
     const handleLogout = async () => {
         onClose();
         const response = await authService.logout();
-        if (response.statusCode === 201) {
-            logout();
+        if (response?.success) {
             logout();
             toast.success(t('avatar_menu.logout_success'));
-            router.push(CLIENT_PATH.LOGIN);
         } else {
+            // Still clear local state even on API failure
+            logout();
             toast.error(t('avatar_menu.logout_failed'));
         }
+        router.push(CLIENT_PATH.LOGIN);
     };
 
     const handleViewProfile = () => {

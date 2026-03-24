@@ -1,10 +1,15 @@
 """
-AI SERVER - HYBRID RECOMMENDATION
-==================================
-Chỉ có 3 API:
+AI SERVER — QDRANT CLOUD + DOCKER MODEL RUNNER (Qwen3)
+=======================================================
+Endpoints:
 - GET /api/v1/search?q=...
 - GET /api/v1/recommend/{user_id}
 - GET /api/v1/similar/{post_id}
+- POST /retrain
+
+Vector DB: Qdrant Cloud
+LLM: Docker Model Runner (ai/qwen3:0.6B-Q4_0)
+Embedding: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 """
 
 from contextlib import asynccontextmanager
@@ -24,46 +29,71 @@ os.makedirs("logs", exist_ok=True)
 logger.add("logs/server.log", rotation="10 MB", level="DEBUG")
 
 
+def run_auto_train():
+    try:
+        from train import train
+        logger.info("🔄 Auto-training started...")
+        train()
+        logger.info("✅ Auto-training completed!")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Auto-training failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings = get_settings()
     logger.info("🚀 Starting AI Server...")
+    logger.info(f"   Qdrant: {settings.qdrant_url}")
+    logger.info(f"   LLM: {settings.llm_base_url} ({settings.llm_model})")
     
-    # Check recommendation service
+    # 1. Check Qdrant
     service = get_recommendation_service()
     if service.is_ready():
-        logger.info(f"✅ Ready! {service.collection.count()} posts indexed")
+        logger.info(f"✅ Qdrant Ready! {service.get_total_posts()} posts indexed")
     else:
-        logger.warning("⚠️ Chưa train! Chạy: python train.py")
+        logger.warning("⚠️ Qdrant chưa có data → auto-train...")
+        success = run_auto_train()
+        if success and service.is_ready():
+            logger.info(f"✅ Auto-train xong! {service.get_total_posts()} posts")
+        else:
+            logger.error("❌ Auto-train thất bại!")
     
-    settings = get_settings()
+    # 2. Check LLM (Ollama)
+    from app.services.ollama_service import get_llm_service
+    llm = get_llm_service()
+    if llm.is_available():
+        models = llm.list_models()
+        logger.info(f"✅ LLM Ready! Models: {models}")
+    else:
+        logger.warning(f"⚠️ LLM not available at {settings.llm_base_url}")
+        logger.warning("   Ensure Ollama is running with qwen3:0.6b model")
+    
     logger.info(f"📖 API Docs: http://localhost:{settings.port}/docs")
     
     yield
-    
     logger.info("🛑 Shutting down...")
 
 
 app = FastAPI(
     title="AI Recommendation Server",
     description="""
-## Hybrid Recommendation API
+## Qdrant Cloud + Docker Model Runner (Qwen3)
 
 ### Endpoints:
-- 🔍 **GET /api/v1/search?q=...** - Tìm posts theo query
+- 🔍 **GET /api/v1/search?q=...** - Tìm posts
 - 🎯 **GET /api/v1/recommend/{user_id}** - Gợi ý cho user  
 - 📎 **GET /api/v1/similar/{post_id}** - Posts tương tự
-
-### Cách dùng:
-1. Chạy training: `python train.py`
-2. Chạy server: `python main.py`
-3. Test: http://localhost:8000/docs
+- 🤖 **POST /api/v1/chat/bot** - Chatbot AI
     """,
-    version="3.0.0",
+    version="4.0.0",
     lifespan=lifespan,
     docs_url="/docs"
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -72,17 +102,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes
 from app.routes.api import router as api_router
 app.include_router(api_router, prefix="/api/v1")
 
 
 @app.get("/")
 async def root():
+    service = get_recommendation_service()
+    ready = service.is_ready()
     return {
         "name": "AI Recommendation Server",
-        "version": "3.0.0",
-        "docs": "/docs"
+        "version": "4.0.0",
+        "vector_db": "Qdrant Cloud",
+        "llm": "Docker Model Runner (Qwen3)",
+        "status": "ready" if ready else "not_ready",
+        "total_posts": service.get_total_posts() if ready else 0,
     }
 
 
@@ -90,11 +124,18 @@ async def root():
 async def health():
     service = get_recommendation_service()
     ready = service.is_ready()
-    
     return {
         "status": "ok" if ready else "not_ready",
-        "posts": service.collection.count() if ready else 0
+        "posts": service.get_total_posts() if ready else 0
     }
+
+
+@app.post("/retrain")
+async def retrain():
+    success = run_auto_train()
+    service = get_recommendation_service()
+    count = service.get_total_posts() if service.is_ready() else 0
+    return {"success": success, "total_posts": count}
 
 
 if __name__ == "__main__":

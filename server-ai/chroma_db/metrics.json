@@ -1,9 +1,0 @@
-{
-  "user_coverage": 1.0,
-  "avg_similarity": 0.5002278089523315,
-  "max_similarity": 1.000000238418579,
-  "min_similarity": 0.24787470698356628,
-  "sample_size": 1000,
-  "friend_avg_similarity": 0.4952564119049083,
-  "non_friend_avg_similarity": 0.48726843619346616
-}

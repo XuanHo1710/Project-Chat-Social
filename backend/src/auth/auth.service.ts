@@ -5,6 +5,7 @@ import { AccountService } from 'src/account/account.service';
 import { AccountGoogleDto } from 'src/account/dto/account-google-dto';
 import { Account } from 'src/account/entities/account.entity';
 import { AuthSessionService } from './auth-session.service';
+import { randomUUID } from 'crypto';
 // import ms from 'ms';
 
 const bcrypt = require('bcrypt');
@@ -63,6 +64,8 @@ export class AuthService {
 
     await this.accountService.recordLogin(account._id.toString(), today);
 
+    const sessionId = randomUUID();
+
     const payload = {
       fullname: account.firstName + ' ' + account.lastName,
       gender: account.gender,
@@ -75,13 +78,19 @@ export class AuthService {
 
     const access_token = this.createAccessToken(payload);
 
-    const refresh_token = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
-      expiresIn: ms(this.configService.get<string>('JWT_REFRESH_EXPIRE')),
-    });
+    const refresh_token = this.jwtService.sign(
+      {
+        ...payload,
+        sid: sessionId,
+      },
+      {
+        secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
+        expiresIn: ms(this.configService.get<string>('JWT_REFRESH_EXPIRE')),
+      }
+    );
 
     await this.authSessionService.setRefreshToken(
-      account._id.toString(),
+      sessionId,
       refresh_token,
       ms(this.configService.get<string>('JWT_REFRESH_EXPIRE'))
     );
@@ -90,7 +99,7 @@ export class AuthService {
 
     return {
       access_token,
-      session_id: account._id.toString(),
+      session_id: sessionId,
       payload,
     };
   }
@@ -121,7 +130,7 @@ export class AuthService {
         secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
       });
 
-      if (detailPayload?._id?.toString() !== sessionId.toString()) {
+      if (detailPayload?.sid && detailPayload.sid !== sessionId) {
         throw new BadRequestException('Session không hợp lệ');
       }
 

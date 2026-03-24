@@ -1,5 +1,5 @@
 """
-Configuration: Hybrid Model & Local ChromaDB
+Configuration: Qdrant Cloud + Ollama LLM (Qwen3)
 """
 
 from pydantic_settings import BaseSettings
@@ -11,27 +11,20 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = True
     
-    mongodb_uri: str = "mongodb+srv://xuanhodcbas:0984232310ho.@cluster0.f7sbfkn.mongodb.net/project-chat-social"
+    mongodb_uri: str = ""
     mongodb_database: str = "project-chat-social"
     
-    # Model Config (HYBRID TRAINED MODEL)
-    embedding_provider: str = "custom"
-    custom_model_path: str = "./models/social-hybrid-model-v1"
+    # Embedding Model
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     
-    # ChromaDB (Local)
-    chroma_persist_dir: str = "./chroma_db"
-    chroma_host: Optional[str] = None  # Optional remote host
-    chroma_port: int = 8000
-    chroma_ssl: bool = False
-    chroma_api_token: Optional[str] = None
+    # Qdrant Cloud
+    qdrant_url: str = ""
+    qdrant_api_key: str = ""
+    qdrant_collection_posts: str = "posts"
     
-    chroma_collection_posts: str = "posts_embeddings"
-    chroma_collection_hashtags: str = "hashtags_embeddings"
-    
-    # Fallback/Auxiliary
-    ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2" # Chỉ dùng nếu cần sinh text, không dùng cho search chính
-    ollama_embedding_model: str = "nomic-embed-text" 
+    # LLM - Ollama
+    llm_base_url: str = "http://localhost:11434"
+    llm_model: str = "qwen3:0.6b"
 
     search_top_k: int = 20
     recommendation_limit: int = 20
@@ -41,7 +34,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
-        extra = "ignore"  # Ignore extra fields from .env
+        extra = "ignore"
 
 @lru_cache()
 def get_settings() -> Settings:

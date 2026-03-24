@@ -528,7 +528,7 @@ export default function Header() {
                     <Box
                         sx={{
                             display: { xs: 'none', md: 'flex' },
-                            gap: 1,
+                            gap: { md: 0.5, lg: 1 },
                             flex: 2,
                             justifyContent: 'center'
                         }}
@@ -537,7 +537,7 @@ export default function Header() {
                             <Link href={CLIENT_PATH.HOME} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
-                                        px: 4,
+                                        px: { md: 2.5, lg: 4 },
                                         py: 1.5,
                                         borderRadius: pathname === CLIENT_PATH.HOME ? 0 : 2,
                                         borderBottom: pathname === CLIENT_PATH.HOME ? '3px solid' : 'none',
@@ -553,7 +553,7 @@ export default function Header() {
                             <Link href="/friends" style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
-                                        px: 4,
+                                        px: { md: 2.5, lg: 4 },
                                         py: 1.5,
                                         borderRadius: pathname === CLIENT_PATH.FRIENDS ? 0 : 2,
                                         borderBottom: pathname === CLIENT_PATH.FRIENDS ? '3px solid' : 'none',
@@ -569,7 +569,7 @@ export default function Header() {
                             <Link href={CLIENT_PATH.REELS} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
-                                        px: 4,
+                                        px: { md: 2.5, lg: 4 },
                                         py: 1.5,
                                         borderRadius: pathname === CLIENT_PATH.REELS ? 0 : 2,
                                         borderBottom: pathname === CLIENT_PATH.REELS ? '3px solid' : 'none',
@@ -585,7 +585,7 @@ export default function Header() {
                             <Link href={CLIENT_PATH.GROUPS} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
-                                        px: 4,
+                                        px: { md: 2.5, lg: 4 },
                                         py: 1.5,
                                         borderRadius: pathname?.startsWith(CLIENT_PATH.GROUPS) ? 0 : 2,
                                         borderBottom: pathname?.startsWith(CLIENT_PATH.GROUPS) ? '3px solid' : 'none',
@@ -601,7 +601,7 @@ export default function Header() {
                             <Link href={CLIENT_PATH.GAMES} style={{ textDecoration: 'none' }}>
                                 <IconButton
                                     sx={{
-                                        px: 4,
+                                        px: { md: 2.5, lg: 4 },
                                         py: 1.5,
                                         borderRadius: pathname === CLIENT_PATH.GAMES ? 0 : 2,
                                         borderBottom: pathname === CLIENT_PATH.GAMES ? '3px solid' : 'none',
@@ -621,7 +621,7 @@ export default function Header() {
                         sx={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 1,
+                            gap: { xs: 0.5, sm: 1 },
                             flex: 1,
                             justifyContent: 'flex-end',
                             position: 'relative'
@@ -630,8 +630,9 @@ export default function Header() {
                         <IconButton
                             sx={{
                                 bgcolor: iconBg,
-                                width: 40,
-                                height: 40,
+                                width: { xs: 36, sm: 40 },
+                                height: { xs: 36, sm: 40 },
+                                display: { xs: 'none', sm: 'flex' },
                             }}
                         >
                             <AppsIcon sx={{ color: 'text.primary' }} />
@@ -647,8 +648,8 @@ export default function Header() {
                                     bgcolor: showChatPopup
                                         ? iconActiveBg
                                         : iconBg,
-                                    width: 40,
-                                    height: 40,
+                                    width: { xs: 36, sm: 40 },
+                                    height: { xs: 36, sm: 40 },
                                 }}
                             >
                                 <Badge badgeContent={chatUnreadCount > 0 ? chatUnreadCount : undefined} color="error">
@@ -679,8 +680,8 @@ export default function Header() {
                                     bgcolor: showNotificationPopup
                                         ? iconActiveBg
                                         : iconBg,
-                                    width: 40,
-                                    height: 40,
+                                    width: { xs: 36, sm: 40 },
+                                    height: { xs: 36, sm: 40 },
                                 }}
                             >
                                 <Badge badgeContent={notificationUnreadCount > 0 ? notificationUnreadCount : undefined} color="error">
@@ -705,8 +706,8 @@ export default function Header() {
                                     setShowNotificationPopup(false);
                                 }}
                                 sx={{
-                                    width: 40,
-                                    height: 40,
+                                    width: { xs: 32, sm: 40 },
+                                    height: { xs: 32, sm: 40 },
                                     cursor: 'pointer',
                                     border: showAvatarMenu ? `2px solid ${theme.palette.primary.main}` : 'none'
                                 }}

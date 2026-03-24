@@ -4,6 +4,7 @@ import Header from '@/components/home/Header';
 import Sidebar from '@/components/home/Sidebar';
 
 import RightSidebar from '@/components/home/RightSidebar';
+import MobileBottomNav from '@/components/home/MobileBottomNav';
 import { Box, CircularProgress, useTheme } from '@mui/material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRouter } from 'next/navigation';
@@ -55,6 +56,7 @@ export default function Home() {
             flex: 1,
             ml: { xs: 0, md: '280px' },
             mr: { xs: 0, lg: '280px' },
+            pb: { xs: '64px', md: 0 },
           }}
         >
           <HomeFeed />
@@ -62,6 +64,8 @@ export default function Home() {
 
         <RightSidebar />
       </Box>
+
+      <MobileBottomNav />
     </Box>
   );
 }

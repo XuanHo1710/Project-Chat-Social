@@ -106,14 +106,14 @@ export default function GroupsPage() {
     const showLoadingSkeleton = isBootstrappingAuth || isLoading;
 
     return (
-        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', pb: { xs: '64px', md: 0 } }}>
             <Header />
 
             <Box sx={{ display: 'flex', pt: '56px', flexDirection: { xs: 'column', md: 'row' } }}>
                 {/* Left Sidebar */}
                 <Box
                     sx={{
-                        width: { xs: '100%', md: 360 },
+                        width: { xs: '100%', md: 300, lg: 360 },
                         height: { xs: 'auto', md: 'calc(100vh - 56px)' },
                         bgcolor: 'background.paper',
                         borderRight: { xs: 'none', md: `1px solid ${theme.palette.divider}` },
@@ -122,7 +122,7 @@ export default function GroupsPage() {
                         left: 0,
                         top: 56,
                         overflowY: 'auto',
-                        p: 2,
+                        p: { xs: 1.5, md: 2 },
                         zIndex: 10,
                     }}
                 >
@@ -251,7 +251,7 @@ export default function GroupsPage() {
                 </Box>
 
                 {/* Main Content */}
-                <Box sx={{ flex: 1, ml: { xs: 0, md: '360px' }, p: { xs: 2, md: 3 } }}>
+                <Box sx={{ flex: 1, ml: { xs: 0, md: '300px', lg: '360px' }, p: { xs: 1.5, md: 3 }, pb: { xs: '72px', md: 3 } }}>
                     {showLoadingSkeleton ? (
                         <Box
                             sx={{

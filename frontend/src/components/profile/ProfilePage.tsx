@@ -1029,7 +1029,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
 
     return (
-        <Box sx={{ bgcolor: mainBg, minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: mainBg, minHeight: '100vh', pb: { xs: '64px', md: 0 } }}>
             {/* Header */}
             <Header />
 

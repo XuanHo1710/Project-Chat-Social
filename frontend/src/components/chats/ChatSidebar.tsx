@@ -393,6 +393,7 @@ export default function ChatSidebar({
                 sx={{
                     flex: 1,
                     overflow: 'auto',
+                    pb: { xs: '64px', md: 0 },
                     '&::-webkit-scrollbar': { width: '8px' },
                     '&::-webkit-scrollbar-thumb': {
                         backgroundColor: scrollbarColor,

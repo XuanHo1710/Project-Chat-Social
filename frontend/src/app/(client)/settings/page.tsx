@@ -181,7 +181,7 @@ export default function SettingsPage() {
     }
 
     return (
-        <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+        <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pb: { xs: '64px', md: 0 } }}>
             {/* Header */}
             <Box sx={{
                 bgcolor: 'background.paper',

@@ -293,7 +293,7 @@ export default function ReelsPage() {
             <Header />
 
             {/* Main Content - Fullscreen by default */}
-            <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', mt: '56px' }}>
+            <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', mt: '56px', pb: { xs: '56px', md: 0 } }}>
                 {/* Video Area - Full width khi không show comments */}
                 <Box sx={{
                     flex: 1,
@@ -312,10 +312,10 @@ export default function ReelsPage() {
                     {/* Video Container - Contains video and all overlays */}
                     <Box sx={{
                         width: '100%',
-                        maxWidth: 420,
-                        height: 'calc(100vh - 56px)',
+                        maxWidth: { xs: '100%', sm: 420 },
+                        height: { xs: 'calc(100vh - 56px - 56px)', md: 'calc(100vh - 56px)' },
                         position: 'relative',
-                        borderRadius: 3,
+                        borderRadius: { xs: 0, sm: 3 },
                         bgcolor: '#000',
                         mx: 'auto',
                     }}>

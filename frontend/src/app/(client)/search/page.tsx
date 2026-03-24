@@ -477,11 +477,11 @@ function SearchContent() {
             {/* Header */}
             <Header />
 
-            <Box sx={{ display: 'flex' }}>
+            <Box sx={{ display: 'flex', pt: '56px' }}>
                 {/* Left Sidebar - Like Home Sidebar */}
                 <Box
                     sx={{
-                        width: 360,
+                        width: { md: 300, lg: 360 },
                         bgcolor: cardBg,
                         borderRight: `1px solid ${borderColor}`,
                         height: 'calc(100vh - 56px)',
@@ -670,8 +670,9 @@ function SearchContent() {
                 <Box
                     sx={{
                         flex: 1,
-                        ml: { xs: 0, md: '80px' },
-                        p: 3,
+                        ml: { xs: 0, md: '300px', lg: '360px' },
+                        p: { xs: 1.5, sm: 3 },
+                        pb: { xs: '72px', md: 3 },
                         width: "100%",
                         mx: 'auto'
                     }}

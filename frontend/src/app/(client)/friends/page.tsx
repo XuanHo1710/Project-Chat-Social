@@ -115,20 +115,21 @@ export default function FriendsPage() {
     );
 
     return (
-        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', pb: { xs: '64px', md: 0 } }}>
             <Header />
 
             <Box sx={{ pt: '56px', display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
                 {/* Left Sidebar */}
                 <Box
                     sx={{
-                        width: { xs: '100%', md: 360 },
+                        width: { xs: '100%', md: 300, lg: 360 },
                         height: { xs: 'auto', md: 'calc(100vh - 56px)' },
-                        position: { xs: 'sticky', md: 'sticky' },
-                        top: 56,
+                        position: { xs: 'relative', md: 'sticky' },
+                        top: { md: 56 },
                         bgcolor: 'background.paper',
                         boxShadow: isDark ? 'none' : '2px 0 4px rgba(0,0,0,0.1)',
                         zIndex: 10,
+                        flexShrink: 0,
                     }}
                 >
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, py: 1.5 }}>
@@ -185,7 +186,7 @@ export default function FriendsPage() {
                 </Box>
 
                 {/* Main Content */}
-                <Box sx={{ flex: 1, p: { xs: 2, md: 3 }, overflowY: 'auto' }}>
+                <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 }, overflowY: 'auto', pb: { xs: '72px', md: 3 } }}>
                     {/* Tab 0 & 1: Lời mời kết bạn */}
                     {(tabValue === 0 || tabValue === 1) && (
                         <Box sx={{ mb: 4 }}>

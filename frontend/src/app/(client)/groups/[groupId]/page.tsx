@@ -418,7 +418,7 @@ export default function GroupDetailPage() {
     }
 
     return (
-        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', pb: { xs: '64px', md: 0 } }}>
             <Header />
             <Box sx={{ maxWidth: 1250, mx: 'auto', pt: 8, px: { xs: 0, md: 2 } }}>
                 {/* Cover Image */}

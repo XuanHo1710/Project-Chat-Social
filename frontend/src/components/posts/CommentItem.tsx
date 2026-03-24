@@ -610,6 +610,7 @@ export default function CommentItem({
     activeReplyId,
     onReplyClick,
     onReplySuccess,
+    isHighlighted = false,
 }: {
     comment: Comment;
     postId: string;
@@ -617,6 +618,7 @@ export default function CommentItem({
     activeReplyId: string | null;
     onReplyClick: (commentId: string, parentId: string, userId: string, userName: string) => void;
     onReplySuccess: () => void;
+    isHighlighted?: boolean;
 }) {
     const { user } = useAuthStore();
     const [showReplies, setShowReplies] = useState(false);
@@ -625,6 +627,7 @@ export default function CommentItem({
     const [imageViewerOpen, setImageViewerOpen] = useState(false);
     const [imageViewerIndex, setImageViewerIndex] = useState(0);
     const [reactionListOpen, setReactionListOpen] = useState(false);
+    const highlightRef = React.useRef<HTMLDivElement>(null);
     const deleteComment = useDeleteComment();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
@@ -682,8 +685,31 @@ export default function CommentItem({
             ? [{ mediaType: 'IMAGE' as const, url: comment.image, publicId: '' }]
             : [];
 
+    // Scroll to and highlight this comment if it matches highlightCommentId
+    React.useEffect(() => {
+        if (isHighlighted && highlightRef.current) {
+            setTimeout(() => {
+                highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        }
+    }, [isHighlighted]);
+
     return (
-        <Box sx={{ display: "flex", gap: 1, mb: 1.5 }}>
+        <Box
+            ref={isHighlighted ? highlightRef : undefined}
+            sx={{
+                display: "flex", gap: 1, mb: 1.5,
+                ...(isHighlighted && {
+                    animation: 'commentHighlight 3s ease-out',
+                    borderRadius: 2,
+                    '@keyframes commentHighlight': {
+                        '0%': { bgcolor: 'rgba(24,119,242,0.2)' },
+                        '70%': { bgcolor: 'rgba(24,119,242,0.1)' },
+                        '100%': { bgcolor: 'transparent' },
+                    },
+                }),
+            }}
+        >
             <Avatar
                 src={comment?.userId?.avatar || ""}
                 sx={{ width: isReply ? 28 : 32, height: isReply ? 28 : 32 }}

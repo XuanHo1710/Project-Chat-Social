@@ -25,13 +25,15 @@ interface CommentContentModalProps {
     commentingPost: PostType | null;
     renderPostMedia: (post: PostType) => React.ReactNode;
     handleOpenShare: (post: PostType) => void;
+    highlightCommentId?: string;
 }
 
 export default function CommentContentModal({
     setOpenCommentModal,
     commentingPost,
     renderPostMedia,
-    handleOpenShare
+    handleOpenShare,
+    highlightCommentId,
 }: CommentContentModalProps) {
     const { user } = useAuthStore();
     const theme = useTheme();
@@ -200,7 +202,7 @@ export default function CommentContentModal({
 
                 {/* Comment Section - only show if comments are allowed */}
                 {commentingPost && allowComments ? (
-                    <CommentSection onChangeTotalComments={setTotalComments} postId={commentingPost._id} />
+                    <CommentSection onChangeTotalComments={setTotalComments} postId={commentingPost._id} highlightCommentId={highlightCommentId} />
                 ) : (
                     <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
                         <LockIcon sx={{ fontSize: 48, mb: 1 }} />

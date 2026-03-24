@@ -145,8 +145,20 @@ export default function NotificationsPage() {
 
     const handleClick = (n: Notification) => {
         if (n.status === 'UNREAD') handleMarkAsRead(n._id);
-        if (n.groupId) router.push(`/groups/${n.groupId._id}`);
-        else if (n.postId) router.push(`/?postId=${n.postId}`);
+        if (n.groupId) {
+            router.push(`/groups/${n.groupId._id}`);
+        } else if (n.postId) {
+            // Build URL with postId and optionally commentId for comment-type notifications
+            const isCommentType = ['POST_COMMENTED', 'COMMENT_REPLIED', 'COMMENT_REACTED'].includes(n.type);
+            const params = new URLSearchParams({ postId: n.postId });
+            if (isCommentType && n.commentId) {
+                params.set('commentId', n.commentId);
+            }
+            if (isCommentType) {
+                params.set('openComments', '1');
+            }
+            router.push(`/?${params.toString()}`);
+        }
     };
 
     const handleRespondInvitation = async (accept: boolean, id: string) => {

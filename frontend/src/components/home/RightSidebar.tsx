@@ -36,8 +36,9 @@ export default function RightSidebar() {
                     } else if (friend.status === 'HIDDEN') {
                         // User has hidden activity status - show as offline without lastActive
                         setUserOffline(friend._id, undefined);
-                    } else if (friend.lastActive) {
-                        setUserOffline(friend._id, friend.lastActive);
+                    } else {
+                        // DEACTIVE or any other status — mark as offline
+                        setUserOffline(friend._id, friend.lastActive || undefined);
                     }
                 }
             });
@@ -198,8 +199,20 @@ export default function RightSidebar() {
                                     >
                                         {friend.firstName + " " + friend.lastName}
                                     </Typography>
-                                    {/* Show "X phút" or "X giờ" if offline */}
-                                    {lastActiveLabel ? (
+                                    {/* Show "X phút" or "X giờ" if offline, "Đang hoạt động" only if truly online */}
+                                    {status.isOnline ? (
+                                        <Typography
+                                            sx={{
+                                                fontSize: '12px',
+                                                color: theme.palette.success.main,
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {t('chat.online')}
+                                        </Typography>
+                                    ) : lastActiveLabel ? (
                                         <Typography
                                             sx={{
                                                 fontSize: '12px',
@@ -211,19 +224,7 @@ export default function RightSidebar() {
                                         >
                                             {lastActiveLabel}
                                         </Typography>
-                                    ) : (
-                                        <Typography
-                                            sx={{
-                                                fontSize: '12px',
-                                                color: 'text.secondary',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                            }}
-                                        >
-                                            {t('chat.online')}
-                                        </Typography>
-                                    )}
+                                    ) : null}
                                 </Box>
                             </Box>
                         );

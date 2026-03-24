@@ -15,6 +15,7 @@ Optimized:
 import uuid
 import hashlib
 import random
+import time
 from typing import List, Dict, Optional, Tuple
 from loguru import logger
 from sentence_transformers import SentenceTransformer
@@ -71,6 +72,13 @@ class RecommendationService:
         self._mongo_client = None
         self.user_vectors_cache: Dict[str, np.ndarray] = {}
         self.user_interaction_counts: Dict[str, int] = {}
+        # Cache for collection info to avoid repeated Qdrant RPCs
+        self._collection_cache: Dict[str, any] = {}
+        self._collection_cache_ts: float = 0
+        self._CACHE_TTL = 60  # seconds
+        # Cache for user interacted post IDs (per request lifecycle)
+        self._interacted_cache: Dict[str, set] = {}
+        self._interacted_cache_ts: Dict[str, float] = {}
 
     @property
     def qdrant(self):
@@ -92,20 +100,27 @@ class RecommendationService:
             self._mongo_client = MongoClient(MONGO_URI, maxPoolSize=10)
         return self._mongo_client
 
-    def is_ready(self) -> bool:
+    def _get_collection_info(self):
+        """Cached Qdrant collection info to avoid repeated RPCs."""
+        now = time.time()
+        if now - self._collection_cache_ts < self._CACHE_TTL and COLLECTION_NAME in self._collection_cache:
+            return self._collection_cache[COLLECTION_NAME]
         try:
             info = self.qdrant.get_collection(COLLECTION_NAME)
-            return info.points_count > 0
+            self._collection_cache[COLLECTION_NAME] = info
+            self._collection_cache_ts = now
+            return info
         except Exception as e:
-            logger.error(f"Qdrant not ready: {e}")
-            return False
+            logger.error(f"Qdrant collection error: {e}")
+            return None
+
+    def is_ready(self) -> bool:
+        info = self._get_collection_info()
+        return info is not None and info.points_count > 0
 
     def get_total_posts(self) -> int:
-        try:
-            info = self.qdrant.get_collection(COLLECTION_NAME)
-            return info.points_count
-        except:
-            return 0
+        info = self._get_collection_info()
+        return info.points_count if info else 0
 
     # ========================================
     # User Vector Management
@@ -301,22 +316,32 @@ class RecommendationService:
         return filtered
 
     def _get_user_interacted_post_ids(self, user_id: str) -> set:
+        # Short TTL cache (30s) to avoid repeated MongoDB queries within the same session
+        now = time.time()
+        cached_ts = self._interacted_cache_ts.get(user_id, 0)
+        if now - cached_ts < 30 and user_id in self._interacted_cache:
+            return self._interacted_cache[user_id]
         try:
             db = self.mongo_client[DB_NAME]
             user_oid = ObjectId(user_id)
             ids = set()
-            for r in db.reactions.find({"userId": user_oid, "typeFactor": "POST"}, {"factorId": 1}):
-                if r.get('factorId'): ids.add(str(r['factorId']))
-            for c in db.comments.find({"userId": user_oid}, {"postId": 1}):
-                if c.get('postId'): ids.add(str(c['postId']))
-            for s in db.posts.find({"userId": user_oid, "sharedPostId": {"$exists": True, "$ne": None}}, {"sharedPostId": 1}):
-                if s.get('sharedPostId'): ids.add(str(s['sharedPostId']))
-            # Include interactions tracked via Kafka (views, saves, hides, etc.)
+            # Single aggregated query for userinteractions (covers most signals)
             for ui in db.userinteractions.find(
                 {"userId": user_oid, "targetType": "POST"},
                 {"targetId": 1}
             ):
                 if ui.get('targetId'): ids.add(str(ui['targetId']))
+            # Reactions not tracked by Kafka
+            for r in db.reactions.find({"userId": user_oid, "typeFactor": "POST"}, {"factorId": 1}):
+                if r.get('factorId'): ids.add(str(r['factorId']))
+            # Comments
+            for c in db.comments.find({"userId": user_oid}, {"postId": 1}):
+                if c.get('postId'): ids.add(str(c['postId']))
+            # Shares
+            for s in db.posts.find({"userId": user_oid, "sharedPostId": {"$exists": True, "$ne": None}}, {"sharedPostId": 1}):
+                if s.get('sharedPostId'): ids.add(str(s['sharedPostId']))
+            self._interacted_cache[user_id] = ids
+            self._interacted_cache_ts[user_id] = now
             return ids
         except:
             return set()
@@ -410,7 +435,7 @@ class RecommendationService:
             results = self.qdrant.query_points(
                 collection_name=COLLECTION_NAME,
                 query=user_vector.tolist(),
-                limit=min(500, self.get_total_posts()),
+                limit=min(200, self.get_total_posts()),
                 with_payload=True
             ).points
 

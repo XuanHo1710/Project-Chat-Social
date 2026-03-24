@@ -37,11 +37,12 @@ interface CommentSectionProps {
     totalComments?: number;
     onCommentCountChange?: (count: number) => void;
     onChangeTotalComments?: (count: number) => void;
+    highlightCommentId?: string;
 }
 
 
 
-export default function CommentSection({ postId, totalComments, onCommentCountChange, onChangeTotalComments }: CommentSectionProps) {
+export default function CommentSection({ postId, totalComments, onCommentCountChange, onChangeTotalComments, highlightCommentId }: CommentSectionProps) {
     const { user } = useAuthStore();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
@@ -181,6 +182,7 @@ export default function CommentSection({ postId, totalComments, onCommentCountCh
                             activeReplyId={activeReplyId}
                             onReplyClick={handleReplyClick}
                             onReplySuccess={handleReplySuccess}
+                            isHighlighted={comment._id === highlightCommentId}
                         />
                     ))}
                     {hasNextPage && (

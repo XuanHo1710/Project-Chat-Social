@@ -41,6 +41,8 @@ export default function HomeFeed() {
 
     // Get highlighted post ID from URL query
     const highlightedPostIdFromUrl = searchParams.get('postId');
+    const openCommentsFromUrl = searchParams.get('openComments');
+    const commentIdFromUrl = searchParams.get('commentId');
 
     // Store highlighted post ID in ref to persist even after URL change
     const persistedHighlightedPostId = useRef<string | null>(null);
@@ -222,10 +224,19 @@ export default function HomeFeed() {
         const scrollTimer = setTimeout(() => {
             if (highlightedPostRef.current) {
                 highlightedPostRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            } else {
-                console.log('⚠️ Ref not attached to element');
             }
         }, 500);
+
+        // Auto-open comment modal after scroll if requested from notification
+        const commentTimer = openCommentsFromUrl ? setTimeout(() => {
+            if (postExists) {
+                const hasVideo = postExists.media?.some(m => m.mediaType === 'VIDEO');
+                if (!hasVideo) {
+                    setCommentingPost(postExists);
+                    setOpenCommentModal(true);
+                }
+            }
+        }, 1200) : null;
 
         // Turn off highlight animation after 4 seconds
         const highlightTimer = setTimeout(() => {
@@ -239,10 +250,11 @@ export default function HomeFeed() {
 
         return () => {
             clearTimeout(scrollTimer);
+            if (commentTimer) clearTimeout(commentTimer);
             clearTimeout(highlightTimer);
             clearTimeout(clearTimer);
         };
-    }, [highlightedPostIdFromUrl, isLoadingPosts, posts]);
+    }, [highlightedPostIdFromUrl, isLoadingPosts, posts, openCommentsFromUrl]);
 
     // Infinite scroll: Intersection Observer to load more when reaching bottom
     useEffect(() => {
@@ -777,12 +789,13 @@ export default function HomeFeed() {
             </Menu>
 
             {/* Comment Modal */}
-            <Modal open={openCommentModal} onClose={() => setOpenCommentModal(false)}>
+            <Modal open={openCommentModal} onClose={() => { setOpenCommentModal(false); }}>
                 <CommentContentModal
                     setOpenCommentModal={setOpenCommentModal}
                     commentingPost={commentingPost}
                     renderPostMedia={renderPostMedia}
                     handleOpenShare={handleOpenShare}
+                    highlightCommentId={commentIdFromUrl || undefined}
                 />
             </Modal>
 

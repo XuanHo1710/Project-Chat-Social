@@ -1,5 +1,6 @@
 """
 Configuration: Qdrant Cloud + Ollama LLM (Qwen3)
+All values loaded from environment / .env file — no hardcoded credentials.
 """
 
 from pydantic_settings import BaseSettings
@@ -9,7 +10,7 @@ from typing import Optional
 class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
-    debug: bool = True
+    debug: bool = False
     
     mongodb_uri: str = ""
     mongodb_database: str = "project-chat-social"
@@ -21,10 +22,12 @@ class Settings(BaseSettings):
     qdrant_url: str = ""
     qdrant_api_key: str = ""
     qdrant_collection_posts: str = "posts"
+    qdrant_collection_users: str = "user_vectors"
     
-    # LLM - Ollama
-    llm_base_url: str = "http://localhost:11434"
-    llm_model: str = "qwen3:0.6b"
+    # LLM - Docker Model Runner (ai/qwen3:0.6B-Q4_0 ~441MB)
+    # Ref: https://hub.docker.com/r/ai/qwen3
+    llm_base_url: str = "http://model-runner.docker.internal/engines/llm"
+    llm_model: str = "ai/qwen3:0.6B-Q4_0"
 
     search_top_k: int = 20
     recommendation_limit: int = 20

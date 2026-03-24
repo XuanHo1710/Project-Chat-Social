@@ -1,7 +1,7 @@
 """
 TRAIN HYBRID MODEL → QDRANT CLOUD
 ===================================
-- Lấy posts + reactions + shares + relationships từ MongoDB
+- Lấy posts + reactions + shares + relationships + userinteractions từ MongoDB
 - Embed bằng paraphrase-multilingual-MiniLM-L12-v2 (~470MB, nhanh)
 - Upload vectors lên Qdrant Cloud
 - Tính user vectors và lưu vào MongoDB
@@ -32,14 +32,17 @@ warnings.filterwarnings('ignore')
 
 load_dotenv()
 
-# Config from .env
-MODEL_NAME = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
-MONGO_URI = os.getenv("MONGODB_URI")
-DB_NAME = os.getenv("MONGODB_DATABASE", "project-chat-social")
-QDRANT_URL = os.getenv("QDRANT_URL")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_POSTS", "posts")
-USER_COLLECTION = os.getenv("QDRANT_COLLECTION_USERS", "user_vectors")
+# Config from .env (centralized)
+from app.config import get_settings
+_settings = get_settings()
+
+MODEL_NAME = _settings.embedding_model
+MONGO_URI = _settings.mongodb_uri
+DB_NAME = _settings.mongodb_database
+QDRANT_URL = _settings.qdrant_url
+QDRANT_API_KEY = _settings.qdrant_api_key
+COLLECTION_NAME = _settings.qdrant_collection_posts
+USER_COLLECTION = _settings.qdrant_collection_users
 LIMIT = 100000
 
 # Weights
@@ -49,6 +52,20 @@ REACTION_WEIGHTS = {
 }
 SHARE_WEIGHT = 2.0
 FRIEND_INTERACTION_BOOST = 1.3
+
+# Kafka UserInteraction weights (from userinteractions collection)
+UI_WEIGHTS = {
+    "POST_VIEW": 0.3,
+    "POST_LIKE": 1.0,
+    "POST_UNLIKE": -0.5,
+    "POST_COMMENT": 1.5,
+    "POST_SHARE": 2.5,
+    "POST_SAVE": 2.0,
+    "POST_UNSAVE": -0.3,
+    "POST_HIDE": -2.0,
+    "REEL_VIEW": 0.3,
+    "REEL_LIKE": 1.0,
+}
 
 
 def mongo_id_to_uuid(mongo_id: str) -> str:
@@ -79,7 +96,7 @@ def build_friend_graph(relationships_df):
     return dict(friend_graph)
 
 
-def build_user_vectors(reactions_df, shares_df, post_embeddings_dict, post_owners_dict, friend_graph, embedding_dim):
+def build_user_vectors(reactions_df, shares_df, ui_df, post_embeddings_dict, post_owners_dict, friend_graph, embedding_dim):
     user_interactions = defaultdict(list)
     
     if not reactions_df.empty:
@@ -104,6 +121,20 @@ def build_user_vectors(reactions_df, shares_df, post_embeddings_dict, post_owner
                 if post_owner and user_id in friend_graph and post_owner in friend_graph[user_id]:
                     weight *= FRIEND_INTERACTION_BOOST
                 user_interactions[user_id].append((shared_post_id, weight))
+    
+    # userinteractions from Kafka (POST_VIEW, POST_LIKE, POST_SAVE, POST_HIDE, etc.)
+    if not ui_df.empty:
+        post_interactions = ui_df[ui_df['targetType'].isin(['POST', 'REEL'])]
+        for _, row in post_interactions.iterrows():
+            user_id = str(row['userId'])
+            target_id = str(row['targetId'])
+            itype = row.get('interactionType', '')
+            if target_id in post_embeddings_dict and itype in UI_WEIGHTS:
+                weight = UI_WEIGHTS[itype]
+                post_owner = post_owners_dict.get(target_id)
+                if post_owner and user_id in friend_graph and post_owner in friend_graph[user_id]:
+                    weight *= FRIEND_INTERACTION_BOOST
+                user_interactions[user_id].append((target_id, weight))
     
     user_vectors = {}
     for user_id, interactions in user_interactions.items():
@@ -163,6 +194,13 @@ def train():
     ))
     logger.info(f"   ✅ {len(relationships_data)} relationships")
     
+    # UserInteractions from Kafka (POST_VIEW, POST_LIKE, POST_SAVE, etc.)
+    ui_data = list(db.userinteractions.find(
+        {"targetType": {"$in": ["POST", "REEL"]}},
+        {"_id": 1, "userId": 1, "targetId": 1, "interactionType": 1, "targetType": 1}
+    ))
+    logger.info(f"   ✅ {len(ui_data)} userinteractions (Kafka)")
+    
     all_accounts = list(db.accounts.find({}, {"_id": 1}))
     all_user_ids = [str(acc['_id']) for acc in all_accounts]
     logger.info(f"   ✅ {len(all_user_ids)} accounts")
@@ -208,6 +246,15 @@ def train():
         friend_graph = build_friend_graph(relationships_df)
         logger.info(f"   ✅ Friend graph: {len(friend_graph)} users")
     
+    # Process userinteractions
+    ui_df = pd.DataFrame(ui_data) if ui_data else pd.DataFrame()
+    if not ui_df.empty:
+        ui_df['_id'] = ui_df['_id'].astype(str)
+        ui_df['userId'] = ui_df['userId'].astype(str)
+        ui_df['targetId'] = ui_df['targetId'].astype(str)
+        ui_df['interactionType'] = ui_df['interactionType'].fillna("")
+        ui_df['targetType'] = ui_df['targetType'].fillna("")
+    
     post_owners_dict = {df.loc[i, '_id']: df.loc[i, 'userId'] for i in range(len(df))}
     
     # 4. Load model & generate embeddings
@@ -249,7 +296,7 @@ def train():
     # 6. Build user vectors
     logger.info("👤 Building User Vectors...")
     user_vectors = build_user_vectors(
-        reactions_df, shares_df, post_embeddings_dict, 
+        reactions_df, shares_df, ui_df, post_embeddings_dict, 
         post_owners_dict, friend_graph, embedding_dim
     )
     logger.info(f"   ✅ {len(user_vectors)} user vectors from interactions")

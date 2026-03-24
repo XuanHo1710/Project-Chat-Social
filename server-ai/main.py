@@ -1,6 +1,6 @@
 """
-AI SERVER — QDRANT CLOUD + DOCKER MODEL RUNNER (Qwen3)
-=======================================================
+AI SERVER — QDRANT CLOUD + DOCKER MODEL RUNNER (ai/qwen3:0.6B-Q4_0)
+=====================================================================
 Endpoints:
 - GET /api/v1/search?q=...
 - GET /api/v1/recommend/{user_id}
@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
         logger.info(f"✅ LLM Ready! Models: {models}")
     else:
         logger.warning(f"⚠️ LLM not available at {settings.llm_base_url}")
-        logger.warning("   Ensure Ollama is running with qwen3:0.6b model")
+        logger.warning(f"   Ensure Docker Model Runner is running with {settings.llm_model}")
     
     logger.info(f"📖 API Docs: http://localhost:{settings.port}/docs")
     

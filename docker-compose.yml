@@ -26,12 +26,18 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD:-123} --appendonly yes
+    command: redis-server --requirepass ${REDIS_PASSWORD:-123} --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
       - app-net
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-123}", "ping"]
       interval: 10s
@@ -48,6 +54,12 @@ services:
     networks:
       - app-net
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -63,11 +75,18 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
       - app-net
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
 
   rabbitmq:
     image: rabbitmq:4.0-management-alpine
@@ -83,6 +102,12 @@ services:
     networks:
       - app-net
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 15s
@@ -93,47 +118,42 @@ services:
   # ── Application Services ────────────────────────────────────────────
 
   llm:
-    # Ollama container — serves qwen3:0.6b via OpenAI-compatible API
-    # Accessible from other containers at http://llm:11434
-    image: ollama/ollama:latest
-    volumes:
-      - llm_models:/root/.ollama
-    networks:
-      - app-net
-    restart: unless-stopped
-    # Auto-pull model on startup then keep serving
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        ollama serve &
-        sleep 5
-        echo '⬇️ Pulling qwen3:0.6b...'
-        ollama pull qwen3:0.6b
-        echo '✅ Model ready!'
-        wait
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 15s
-      timeout: 5s
-      start_period: 120s
-      retries: 10
+    # Docker Model Runner — ai/qwen3:0.6B-Q4_0 (~441MB)
+    # OpenAI-compatible API at http://llm/v1/...
+    # Ref: https://hub.docker.com/r/ai/qwen3
+    provider:
+      type: model
+      options:
+        model: ai/qwen3:0.6B-Q4_0
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
 
   server-ai:
     # FastAPI — Recommendation + Chatbot
     # Vectors: Qdrant Cloud
-    # LLM: Ollama container (qwen3:0.6b)
+    # LLM: Docker Model Runner (ai/qwen3:0.6B-Q4_0 ~441MB)
     build:
       context: ./server-ai
       dockerfile: Dockerfile
     image: project-chat-social-server-ai:latest
     env_file: ./server-ai/.env
     environment:
-      # Ollama accessible inside Docker network
-      LLM_BASE_URL: http://llm:11434
-      LLM_MODEL: qwen3:0.6b
+      # Docker Model Runner — accessible via model-runner.docker.internal
+      LLM_BASE_URL: http://model-runner.docker.internal/engines/llm
+      LLM_MODEL: ai/qwen3:0.6B-Q4_0
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+        reservations:
+          memory: 512M
     depends_on:
       llm:
-        condition: service_healthy
+        condition: service_started
     networks:
       - app-net
     restart: unless-stopped
@@ -235,7 +255,6 @@ volumes:
   zookeeper_data:
   kafka_data:
   rabbitmq_data:
-  llm_models:
 
 networks:
   app-net:

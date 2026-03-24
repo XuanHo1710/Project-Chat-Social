@@ -12,6 +12,7 @@ Endpoints:
 from typing import Optional, List
 from fastapi import APIRouter, Query, HTTPException
 from loguru import logger
+from qdrant_client.models import PointStruct
 
 from app.services.recommendation_service import get_recommendation_service
 
@@ -179,7 +180,12 @@ async def chat_bot_post(request: ChatBotRequest):
     recommendation = get_recommendation_service()
     
     if not ollama.is_available():
-        raise HTTPException(status_code=503, detail="Kết nối với Ollama thất bại")
+        logger.warning("LLM unavailable — returning fallback for chat/bot")
+        return {
+            "message": request.message,
+            "response": "Xin lỗi, AI đang khởi động hoặc tạm thời không khả dụng. Vui lòng thử lại sau ít phút!",
+            "postIds": []
+        }
     
     message = request.message
     chat_history = request.chatHistory or []
@@ -316,7 +322,7 @@ class EmbedPostRequest(BaseModel):
 @router.post("/embed/post")
 async def embed_single_post(request: EmbedPostRequest):
     """
-    📌 Embed/Upsert a single post into ChromaDB
+    📌 Embed/Upsert a single post into Qdrant
     
     Called by NestJS backend when a post is created or updated.
     """
@@ -334,6 +340,8 @@ async def embed_single_post(request: EmbedPostRequest):
         }
     
     try:
+        from app.services.recommendation_service import mongo_id_to_uuid
+        
         # Generate embedding
         embedding = service.model.encode(request.content, convert_to_numpy=True)
         
@@ -341,21 +349,26 @@ async def embed_single_post(request: EmbedPostRequest):
         from datetime import datetime
         created_at = request.created_at or datetime.now().isoformat()
         
-        # Prepare metadata
-        metadata = {
-            "user_id": request.user_id,
-            "privacy": request.privacy or "PUBLIC",
-            "group_id": request.group_id or "no_group",
-            "media_type": request.media_type or "TEXT",
-            "created_at": created_at
-        }
+        point_id = mongo_id_to_uuid(request.post_id)
+        point = PointStruct(
+            id=point_id,
+            vector=embedding.tolist(),
+            payload={
+                "post_id": request.post_id,
+                "user_id": request.user_id,
+                "privacy": request.privacy or "PUBLIC",
+                "group_id": request.group_id or "no_group",
+                "media_type": request.media_type or "TEXT",
+                "created_at": created_at,
+                "score": 0.5,
+            }
+        )
         
-        # Upsert into ChromaDB
-        service.collection.upsert(
-            ids=[request.post_id],
-            documents=[request.content],
-            embeddings=[embedding.tolist()],
-            metadatas=[metadata]
+        from app.config import get_settings
+        settings = get_settings()
+        service.qdrant.upsert(
+            collection_name=settings.qdrant_collection_posts,
+            points=[point]
         )
         
         logger.info(f"✅ Embedded post {request.post_id} (Type: {request.media_type})")
@@ -364,7 +377,7 @@ async def embed_single_post(request: EmbedPostRequest):
             "success": True,
             "message": "Post embedded successfully",
             "post_id": request.post_id,
-            "total_posts": service.collection.count()
+            "total_posts": service.get_total_posts()
         }
         
     except Exception as e:
@@ -374,9 +387,8 @@ async def embed_single_post(request: EmbedPostRequest):
 
 @router.delete("/embed/post/{post_id}")
 async def delete_post_embedding(post_id: str):
-    # ... (code cũ)
     """
-    🗑️ Delete a post embedding from ChromaDB
+    🗑️ Delete a post embedding from Qdrant
     
     Called by NestJS backend when a post is deleted.
     """
@@ -386,7 +398,15 @@ async def delete_post_embedding(post_id: str):
         raise HTTPException(status_code=503, detail="AI Server chưa sẵn sàng!")
     
     try:
-        service.collection.delete(ids=[post_id])
+        from app.services.recommendation_service import mongo_id_to_uuid
+        from app.config import get_settings
+        settings = get_settings()
+        
+        point_id = mongo_id_to_uuid(post_id)
+        service.qdrant.delete(
+            collection_name=settings.qdrant_collection_posts,
+            points_selector=[point_id]
+        )
         logger.info(f"🗑️ Deleted post embedding {post_id}")
         
         return {
@@ -414,11 +434,10 @@ async def track_interaction(request: InteractionRequest):
     service = get_recommendation_service()
     if not service.is_ready():
         return {"success": False, "message": "Server not ready"}
-        
-    # Mapping interaction type names if needed
-    # Kafka sends: POST_LIKE, POST_COMMENT
-    # Helper: clean type
-    itype = request.interaction_type.replace("POST_", "")
+    
+    # Use full interaction type (POST_LIKE, POST_COMMENT, etc.)
+    # Also support legacy short names (LIKE, COMMENT, SHARE)
+    itype = request.interaction_type
     
     success = service.update_realtime_vector(request.user_id, request.target_id, itype)
     

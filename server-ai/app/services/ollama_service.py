@@ -1,12 +1,12 @@
 """
-LLM Service — Ollama (qwen3:0.6b)
-==================================
-Uses OpenAI-compatible API provided by Ollama.
-Works both locally and inside Docker via ollama/ollama container.
+LLM Service — Docker Model Runner (ai/qwen3:0.6B-Q4_0)
+=======================================================
+Uses OpenAI-compatible API.
+Docker Model Runner serves models via standard /v1/chat/completions.
 
-Ollama endpoints:
-- Local:  http://localhost:11434/v1/chat/completions
-- Docker: http://llm:11434/v1/chat/completions
+Endpoints:
+- Docker:  http://llm/v1/chat/completions
+- Local:   http://localhost:11434/v1/chat/completions (Ollama fallback)
 """
 
 import httpx
@@ -18,7 +18,7 @@ from app.config import get_settings
 
 
 class LLMService:
-    """LLM Service using Docker Model Runner (OpenAI-compatible API)"""
+    """LLM Service using OpenAI-compatible API (Docker Model Runner / Ollama)"""
     
     def __init__(self):
         self.settings = get_settings()

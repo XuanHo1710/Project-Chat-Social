@@ -5,6 +5,11 @@ RECOMMENDATION SERVICE — QDRANT CLOUD
 2. recommend(user_id, ...) - Gợi ý cho user
 3. similar(post_id, ...) - Tìm posts tương tự
 4. get_newsfeed(user_id, ...) - Alias cho recommend
+
+Optimized:
+- Uses `userinteractions` collection (from Kafka) for richer signals
+- Cosine similarity via Qdrant + numpy for scoring
+- Weighted interaction vectors from POST_VIEW, POST_LIKE, POST_COMMENT, etc.
 """
 
 import uuid
@@ -19,22 +24,36 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct
 import numpy as np
 from datetime import datetime
-from dotenv import load_dotenv
-import os
 
-load_dotenv()
+from app.config import get_settings
 
-MODEL_NAME = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
-MONGO_URI = os.getenv("MONGODB_URI")
-DB_NAME = os.getenv("MONGODB_DATABASE")
-QDRANT_URL = os.getenv("QDRANT_URL")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_POSTS", "posts")
-USER_COLLECTION = os.getenv("QDRANT_COLLECTION_USERS", "user_vectors")
+settings = get_settings()
 
+MODEL_NAME = settings.embedding_model
+MONGO_URI = settings.mongodb_uri
+DB_NAME = settings.mongodb_database
+QDRANT_URL = settings.qdrant_url
+QDRANT_API_KEY = settings.qdrant_api_key
+COLLECTION_NAME = settings.qdrant_collection_posts
+USER_COLLECTION = settings.qdrant_collection_users
+
+# Interaction weights — used for building user preference vectors
+# Higher weight = stronger positive signal for recommendation
 INTERACTION_WEIGHTS = {
+    # From reactions collection
     "SHARE": 2.5, "COMMENT": 1.5, "LOVE": 1.3, "LIKE": 1.0,
-    "HAHA": 0.8, "WOW": 0.7, "SAD": 0.3, "ANGRY": -0.5
+    "HAHA": 0.8, "WOW": 0.7, "SAD": 0.3, "ANGRY": -0.5,
+    # From userinteractions collection (Kafka events)
+    "POST_VIEW": 0.3,
+    "POST_LIKE": 1.0,
+    "POST_UNLIKE": -0.5,
+    "POST_COMMENT": 1.5,
+    "POST_SHARE": 2.5,
+    "POST_SAVE": 2.0,
+    "POST_UNSAVE": -0.3,
+    "POST_HIDE": -2.0,
+    "REEL_VIEW": 0.3,
+    "REEL_LIKE": 1.0,
 }
 RECENT_DAYS = 20
 RECENT_BOOST_MAX = 1.5
@@ -135,15 +154,39 @@ class RecommendationService:
             user_oid = ObjectId(user_id)
             post_weights: Dict[str, float] = {}
 
+            # 1. From reactions collection (legacy/direct)
             for r in db.reactions.find({"userId": user_oid, "typeFactor": "POST"}, {"factorId": 1, "type": 1}):
                 pid = str(r.get('factorId', ''))
                 if pid:
-                    post_weights[pid] = max(post_weights.get(pid, 0), INTERACTION_WEIGHTS.get(r.get('type', 'LIKE'), 0.5))
+                    w = INTERACTION_WEIGHTS.get(r.get('type', 'LIKE'), 0.5)
+                    post_weights[pid] = max(post_weights.get(pid, 0), w)
 
             for c in db.comments.find({"userId": user_oid}, {"postId": 1}):
                 pid = str(c.get('postId', ''))
                 if pid:
                     post_weights[pid] = max(post_weights.get(pid, 0), INTERACTION_WEIGHTS["COMMENT"])
+
+            # 2. From userinteractions collection (Kafka events — richer signals)
+            for ui in db.userinteractions.find(
+                {"userId": user_oid, "targetType": {"$in": ["POST", "REEL"]}},
+                {"targetId": 1, "interactionType": 1, "metadata": 1}
+            ):
+                tid = str(ui.get('targetId', ''))
+                itype = ui.get('interactionType', '')
+                if not tid:
+                    continue
+
+                w = INTERACTION_WEIGHTS.get(itype, 0.0)
+                if w == 0.0:
+                    continue
+
+                # For POST_LIKE, check metadata.reactionType for finer weight
+                if itype == 'POST_LIKE' and ui.get('metadata', {}).get('reactionType'):
+                    reaction_type = ui['metadata']['reactionType']
+                    w = INTERACTION_WEIGHTS.get(reaction_type, w)
+
+                # Accumulate: take max weight per post (strongest signal wins)
+                post_weights[tid] = max(post_weights.get(tid, 0), w)
 
             if not post_weights:
                 return None, 0
@@ -213,7 +256,8 @@ class RecommendationService:
             if not results: return False
 
             post_emb = np.array(results[0].vector)
-            weight = INTERACTION_WEIGHTS.get(interaction_type, 1.0)
+            # Support both full (POST_LIKE) and short (LIKE) interaction type names
+            weight = INTERACTION_WEIGHTS.get(interaction_type, INTERACTION_WEIGHTS.get(interaction_type.replace("POST_", ""), 1.0))
 
             current_vector = self.user_vectors_cache.get(user_id)
             if current_vector is None:
@@ -267,6 +311,12 @@ class RecommendationService:
                 if c.get('postId'): ids.add(str(c['postId']))
             for s in db.posts.find({"userId": user_oid, "sharedPostId": {"$exists": True, "$ne": None}}, {"sharedPostId": 1}):
                 if s.get('sharedPostId'): ids.add(str(s['sharedPostId']))
+            # Include interactions tracked via Kafka (views, saves, hides, etc.)
+            for ui in db.userinteractions.find(
+                {"userId": user_oid, "targetType": "POST"},
+                {"targetId": 1}
+            ):
+                if ui.get('targetId'): ids.add(str(ui['targetId']))
             return ids
         except:
             return set()
@@ -334,6 +384,20 @@ class RecommendationService:
             user_vector, interaction_count = self.get_user_vector(user_id)
             interacted_post_ids = self._get_user_interacted_post_ids(user_id)
 
+            # Gather hidden post IDs (POST_HIDE) for strong penalty
+            hidden_post_ids = set()
+            try:
+                db = self.mongo_client[DB_NAME]
+                user_oid = ObjectId(user_id)
+                for ui in db.userinteractions.find(
+                    {"userId": user_oid, "interactionType": "POST_HIDE", "targetType": "POST"},
+                    {"targetId": 1}
+                ):
+                    if ui.get('targetId'):
+                        hidden_post_ids.add(str(ui['targetId']))
+            except:
+                pass
+
             if user_vector is None:
                 # Random preference for new user
                 user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
@@ -356,6 +420,10 @@ class RecommendationService:
                 post_id = p.get("post_id", "")
                 owner = p.get("user_id", "")
                 created_at = p.get("created_at", "")
+
+                # Skip hidden posts entirely
+                if post_id in hidden_post_ids:
+                    continue
                 
                 score = hit.score
                 if owner in friend_set: score *= 1.2

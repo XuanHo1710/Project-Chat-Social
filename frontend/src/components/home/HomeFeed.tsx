@@ -29,6 +29,7 @@ import ShareContentModal from '@/components/posts/ShareContentModal';
 import PostOptionContentMenu from '@/components/posts/PostOptionContentMenu';
 import StoriesBar from '@/components/story/StoriesBar';
 import { useTranslation } from 'react-i18next';
+import { useCallback } from 'react';
 
 
 export default function HomeFeed() {
@@ -83,6 +84,9 @@ export default function HomeFeed() {
     const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
     const [menuPost, setMenuPost] = useState<PostType | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    // Hidden posts (client-side, persisted in session)
+    const [hiddenPostIds, setHiddenPostIds] = useState<Set<string>>(new Set());
 
     // Comment Modal
     const [openCommentModal, setOpenCommentModal] = useState(false);
@@ -161,13 +165,22 @@ export default function HomeFeed() {
         const newStorePosts = storePosts.filter((p: PostType) => !apiPostIds.has(p._id));
 
         // Merge: new store posts + API posts (using store version if exists)
-        const allPosts: PostType[] = [
-            ...newStorePosts,
-            ...apiPosts.map((apiPost: PostType) => {
+        // Deduplicate by _id to prevent "two children with the same key" error
+        const seen = new Set<string>();
+        const allPosts: PostType[] = [];
+        for (const post of newStorePosts) {
+            if (!seen.has(post._id)) {
+                seen.add(post._id);
+                allPosts.push(post);
+            }
+        }
+        for (const apiPost of apiPosts) {
+            if (!seen.has(apiPost._id)) {
+                seen.add(apiPost._id);
                 const storePost = storePosts.find((sp: PostType) => sp._id === apiPost._id);
-                return storePost || apiPost;
-            })
-        ];
+                allPosts.push(storePost || apiPost);
+            }
+        }
 
         // Use URL param directly for sorting (more reliable)
         const postIdToHighlight = highlightedPostIdFromUrl || persistedHighlightedPostId.current;
@@ -405,6 +418,23 @@ export default function HomeFeed() {
             console.error('Error toggling reactions:', error);
         }
     };
+
+    // Hide post from feed + send to Kafka for AI scoring
+    const handleHidePost = useCallback((postId: string) => {
+        setHiddenPostIds(prev => new Set(prev).add(postId));
+        handleCloseMenu();
+        // Send hide event to backend → Kafka → AI (weight: -2.0)
+        postService.hidePost(postId).catch(err =>
+            console.error('Error hiding post:', err),
+        );
+    }, []);
+
+    // Not interested (same as hide - sends to AI to reduce similar posts)
+    const handleNotInterested = useCallback(() => {
+        if (menuPost) {
+            handleHidePost(menuPost._id);
+        }
+    }, [menuPost, handleHidePost]);
 
     // Render media grid for post
     const renderPostMedia = (post: PostType) => {
@@ -651,22 +681,22 @@ export default function HomeFeed() {
                     <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                         <Avatar sx={{ width: 40, height: 40 }} src={user?.avatar} />
                         <Box onClick={() => setOpenCreatePost(true)} sx={{ flex: 1, bgcolor: inputBg, borderRadius: '50px', display: 'flex', alignItems: 'center', px: 2, py: 1.5, cursor: 'pointer', '&:hover': { bgcolor: hoverBg } }}>
-                            <Typography sx={{ color: 'text.secondary', fontSize: 17 }}>{user?.fullName || user?.username || t('common.you')}, {t('post.whats_on_your_mind')}?</Typography>
+                            <Typography sx={{ color: 'text.secondary', fontSize: { xs: 14, sm: 17 } }}>{user?.fullName || user?.username || t('common.you')}, {t('post.whats_on_your_mind')}?</Typography>
                         </Box>
                     </Box>
                     <Divider sx={{ mb: 1 }} />
                     <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
-                        <Box onClick={() => setOpenLiveStudio(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
-                            <VideoIcon sx={{ color: '#f3425f' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.live_video')}</Typography>
+                        <Box onClick={() => setOpenLiveStudio(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: { xs: 1, sm: 2 }, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
+                            <VideoIcon sx={{ color: '#f3425f', fontSize: { xs: 20, sm: 24 } }} />
+                            <Typography sx={{ fontSize: { xs: '12px', sm: '15px' }, fontWeight: 600, color: 'text.secondary' }}>{t('post.live_video')}</Typography>
                         </Box>
-                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
-                            <PhotoIcon sx={{ color: '#45bd62' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.photo_video')}</Typography>
+                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: { xs: 1, sm: 2 }, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
+                            <PhotoIcon sx={{ color: '#45bd62', fontSize: { xs: 20, sm: 24 } }} />
+                            <Typography sx={{ fontSize: { xs: '12px', sm: '15px' }, fontWeight: 600, color: 'text.secondary' }}>{t('post.photo_video')}</Typography>
                         </Box>
-                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 2, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
-                            <MoodIcon sx={{ color: '#f7b928' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.feeling_activity')}</Typography>
+                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: { xs: 1, sm: 2 }, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
+                            <MoodIcon sx={{ color: '#f7b928', fontSize: { xs: 20, sm: 24 } }} />
+                            <Typography sx={{ fontSize: { xs: '12px', sm: '15px' }, fontWeight: 600, color: 'text.secondary' }}>{t('post.feeling_activity')}</Typography>
                         </Box>
                     </Box>
                 </CardContent>
@@ -696,7 +726,7 @@ export default function HomeFeed() {
             )}
 
             {/* Posts */}
-            {posts.map((post) => {
+            {posts.filter(p => !hiddenPostIds.has(p._id)).map((post) => {
                 const PrivacyIconComponent = getPrivacyIcon(post.privacy);
                 const isHighlighted = post._id === showHighlightAnimation; // Use animation state (auto turns off)
                 const isTargetPost = post._id === highlightedPostIdFromUrl; // Same as isHighlighted for ref
@@ -721,6 +751,7 @@ export default function HomeFeed() {
                         groupName={groupInfo?.name}
                         groupAvatar={groupInfo?.avatar}
                         groupId={groupInfo?._id}
+                        onHidePost={handleHidePost}
                     />
                 );
             })}
@@ -785,6 +816,8 @@ export default function HomeFeed() {
                     onToggleComments={handleToggleComments}
                     onToggleShares={handleToggleShares}
                     onToggleReactions={handleToggleReactions}
+                    onHidePost={() => menuPost && handleHidePost(menuPost._id)}
+                    onNotInterested={handleNotInterested}
                 />
             </Menu>
 

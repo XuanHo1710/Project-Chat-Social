@@ -126,6 +126,34 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
         }, 300);
     };
 
+    // Mobile: long-press to show reaction picker
+    const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const touchMovedRef = useRef(false);
+
+    const handleTouchStart = () => {
+        touchMovedRef.current = false;
+        touchTimerRef.current = setTimeout(() => {
+            if (!touchMovedRef.current) {
+                setShowReactions(true);
+            }
+        }, 500);
+    };
+
+    const handleTouchMove = () => {
+        touchMovedRef.current = true;
+        if (touchTimerRef.current) {
+            clearTimeout(touchTimerRef.current);
+            touchTimerRef.current = null;
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (touchTimerRef.current) {
+            clearTimeout(touchTimerRef.current);
+            touchTimerRef.current = null;
+        }
+    };
+
     const handleReactionSelect = useCallback((type: ReactionType) => {
         setShowReactions(false);
 
@@ -270,6 +298,9 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                 sx={{ position: "relative", flex: 1 }}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
             >
                 {/* Reaction Picker Popup */}
                 <Grow in={showReactions}>
@@ -281,7 +312,7 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                             transform: "translateX(-50%)",
                             mb: 1,
                             display: "flex",
-                            gap: 2,
+                            gap: { xs: 1, sm: 2 },
                             bgcolor: "background.paper",
                             borderRadius: 5,
                             px: 1,
@@ -302,10 +333,13 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                                 <Box
                                     onClick={() => handleReactionSelect(reaction.type)}
                                     sx={{
-                                        fontSize: 35,
+                                        fontSize: { xs: 28, sm: 35 },
                                         cursor: "pointer",
                                         transition: "transform 0.2s",
                                         "&:hover": {
+                                            transform: "scale(1.3)",
+                                        },
+                                        "&:active": {
                                             transform: "scale(1.3)",
                                         },
                                     }}
@@ -324,14 +358,15 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: 1,
+                        gap: { xs: 0.5, sm: 1 },
                         py: 1,
-                        px: 2,
+                        px: { xs: 1, sm: 2 },
                         borderRadius: 2,
                         cursor: "pointer",
                         color: currentReactionData?.color || (isDark ? 'text.secondary' : '#65676b'),
                         "&:hover": { bgcolor: hoverBg },
                         userSelect: "none",
+                        WebkitTapHighlightColor: 'transparent',
                     }}
                 >
                     {localReaction ? (
@@ -342,8 +377,9 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                     <Typography
                         sx={{
                             fontWeight: 600,
-                            fontSize: 15,
+                            fontSize: { xs: 13, sm: 15 },
                             color: currentReactionData?.color || (isDark ? 'text.secondary' : '#65676b'),
+                            display: { xs: 'none', sm: 'block' },
                         }}
                     >
                         {currentReactionData?.label || t('post.like')}

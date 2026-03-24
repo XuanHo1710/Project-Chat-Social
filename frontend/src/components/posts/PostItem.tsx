@@ -40,6 +40,7 @@ interface PostItemProps {
     groupName?: string;
     groupAvatar?: string;
     groupId?: string;
+    onHidePost?: (postId: string) => void;
 }
 
 const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
@@ -55,6 +56,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
     groupName,
     groupAvatar,
     groupId,
+    onHidePost,
 }, ref) {
     const router = useRouter();
     const theme = useTheme();
@@ -232,7 +234,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                         )}
                     </Box>
                     <IconButton onClick={(e) => handleOpenMenu(e, post)} sx={{ mt: -0.5 }}><MoreIcon /></IconButton>
-                    <IconButton sx={{ mt: -0.5 }}><CloseIcon /></IconButton>
+                    <IconButton onClick={() => onHidePost?.(post._id)} sx={{ mt: -0.5 }}><CloseIcon /></IconButton>
                 </Box>
 
                 {/* Post Content with Hashtag Highlighting - Only show if not a share or has caption */}
@@ -274,7 +276,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                         '&:hover': { textDecoration: 'underline' },
                                     }}
                                 >
-                                    {expandedContent ? 'Ẩn bớt' : 'Xem thêm'}
+                                    {expandedContent ? t('post.show_less') : t('post.show_more')}
                                 </Typography>
                             )}
                         </Box>
@@ -312,7 +314,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                                             '&:hover': { textDecoration: 'underline' },
                                         }}
                                     >
-                                        {expandedSharedCaption ? 'Ẩn bớt' : 'Xem thêm'}
+                                        {expandedSharedCaption ? t('post.show_less') : t('post.show_more')}
                                     </Typography>
                                 )}
                             </Box>
@@ -386,9 +388,9 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                             <Typography sx={{ fontSize: 15, color: 'text.secondary' }}>{displayTotalReacts}</Typography>
                         )}
                     </Box>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                        <Typography sx={{ fontSize: 15, color: 'text.secondary', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }} onClick={() => handleOpenComments(post)}>{post.totalComments} {t('post.comments_count')}</Typography>
-                        <Typography sx={{ fontSize: 15, color: 'text.secondary' }}>{post.totalShares} {t('post.shares')}</Typography>
+                    <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 } }}>
+                        <Typography sx={{ fontSize: { xs: 13, sm: 15 }, color: 'text.secondary', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }} onClick={() => handleOpenComments(post)}>{post.totalComments} {t('post.comments_count')}</Typography>
+                        <Typography sx={{ fontSize: { xs: 13, sm: 15 }, color: 'text.secondary' }}>{post.totalShares} {t('post.shares')}</Typography>
                     </Box>
                 </Box>
 
@@ -406,16 +408,16 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                         <Box sx={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 1,
+                            gap: { xs: 0.5, sm: 1 },
                             py: 1,
-                            px: 2,
+                            px: { xs: 1, sm: 2 },
                             flex: 1,
                             justifyContent: 'center',
                             opacity: 0.5,
                             cursor: 'not-allowed'
                         }}>
                             <ThumbUpIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
-                            <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.like')}</Typography>
+                            <Typography sx={{ fontSize: { xs: '13px', sm: '15px' }, fontWeight: 600, color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>{t('post.like')}</Typography>
                         </Box>
                     )}
 
@@ -436,7 +438,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                         }}
                     >
                         <CommentIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
-                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.comment')}</Typography>
+                        <Typography sx={{ fontSize: { xs: '13px', sm: '15px' }, fontWeight: 600, color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>{t('post.comment')}</Typography>
                     </Box>
 
                     <Box
@@ -444,9 +446,9 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                         sx={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 1,
+                            gap: { xs: 0.5, sm: 1 },
                             py: 1,
-                            px: 2,
+                            px: { xs: 1, sm: 2 },
                             cursor: post.allowShares !== false ? 'pointer' : 'not-allowed',
                             borderRadius: 2,
                             flex: 1,
@@ -456,7 +458,7 @@ const PostItem = forwardRef<HTMLDivElement, PostItemProps>(function PostItem({
                         }}
                     >
                         <ShareIcon sx={{ fontSize: '20px', color: 'text.secondary' }} />
-                        <Typography sx={{ fontSize: '15px', fontWeight: 600, color: 'text.secondary' }}>{t('post.share')}</Typography>
+                        <Typography sx={{ fontSize: { xs: '13px', sm: '15px' }, fontWeight: 600, color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>{t('post.share')}</Typography>
                     </Box>
                 </Box>
             </CardContent>
@@ -482,6 +484,7 @@ export default memo(PostItem, (prevProps, nextProps) => {
         prevProps.post.reactInfo?.isReact === nextProps.post.reactInfo?.isReact &&
         prevProps.post.reactInfo?.type === nextProps.post.reactInfo?.type &&
         prevProps.isHighlighted === nextProps.isHighlighted &&
-        prevProps.userId === nextProps.userId
+        prevProps.userId === nextProps.userId &&
+        prevProps.onHidePost === nextProps.onHidePost
     );
 });

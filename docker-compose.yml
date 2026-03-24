@@ -218,8 +218,11 @@ services:
       NODE_ENV: production
       PORT: "3002"
       KAFKA_BROKER: kafka:29092
+      AI_SERVER_URL: http://server-ai:8000/api/v1
     depends_on:
       kafka:
+        condition: service_started
+      server-ai:
         condition: service_started
     networks:
       - app-net

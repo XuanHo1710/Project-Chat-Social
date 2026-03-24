@@ -73,12 +73,11 @@ export default function MobileBottomNav() {
 
     // Hide on chat detail pages (already fullscreen with back button)
     const isChatDetail = pathname?.match(/^\/chat\/[^/]+$/);
-    if (isChatDetail) return null;
 
     return (
         <Box
             sx={{
-                display: { xs: 'flex', md: 'none' },
+                display: isChatDetail ? 'none' : { xs: 'flex', md: 'none' },
                 position: 'fixed',
                 bottom: 0,
                 left: 0,

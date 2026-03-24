@@ -115,7 +115,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
 
 
     return (
-        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 550, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 24, overflow: 'hidden', zIndex: 100 }}>
+        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: { xs: '95vw', sm: 550 }, maxHeight: '90vh', bgcolor: 'background.paper', borderRadius: 2, boxShadow: 24, overflow: 'auto', zIndex: 100 }}>
             {/* Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, borderBottom: `1px solid ${theme.palette.divider}`, position: 'relative' }}>
                 <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>{t('share.title')}</Typography>
@@ -252,7 +252,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
             {/* Send via Messenger */}
             <Box sx={{ px: 2, pb: 2 }}>
                 <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary', mb: 1.5 }}>{t('share.share_to_messenger')}</Typography>
-                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', position: 'relative' }}>
+                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', position: 'relative', overflowX: 'auto', pb: 1, '&::-webkit-scrollbar': { height: 0 } }}>
                     <IconButton sx={{ p: 0 }}>
                         <ArrowBackIcon sx={{ color: 'text.secondary' }} />
                     </IconButton>
@@ -290,7 +290,7 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
             {/* Share Options */}
             <Box sx={{ px: 2, pb: 2 }}>
                 <Typography sx={{ fontWeight: 600, fontSize: 15, color: 'text.primary', mb: 1.5 }}>{t('share.share_to')}</Typography>
-                <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1, '&::-webkit-scrollbar': { height: 0 } }}>
                     {shareOptions.map((option) => (
                         <Box
                             key={option.id}

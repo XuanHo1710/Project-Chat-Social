@@ -268,12 +268,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
     // Prevent flash of wrong theme during hydration
     if (!mounted) {
-        return (
-            <MuiThemeProvider theme={createTheme({ palette: { mode: 'light' } })}>
-                <CssBaseline />
-                <div style={{ visibility: 'hidden' }}>{children}</div>
-            </MuiThemeProvider>
-        );
+        return null;
     }
 
     return (

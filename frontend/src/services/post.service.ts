@@ -16,7 +16,7 @@ class PostService {
   async createPost(data: CreatePostRequest) {
     const response = await axios.post<APIResponse<PostType>>(
       `/${PREFIX}`,
-      data
+      data,
     );
     return response.data;
   }
@@ -27,7 +27,7 @@ class PostService {
   async getPosts(params?: { page?: number; limit?: number; userId?: string }) {
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}`,
-      { params }
+      { params },
     );
     return response.data.data;
   }
@@ -47,7 +47,7 @@ class PostService {
     };
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}/news-feed`,
-      { params: queryParams }
+      { params: queryParams },
     );
     return response.data.data;
   }
@@ -69,7 +69,7 @@ class PostService {
     };
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}/search`,
-      { params: queryParams }
+      { params: queryParams },
     );
     return response.data.data;
   }
@@ -78,7 +78,7 @@ class PostService {
    */
   async getPostsByUserId(
     userId: string,
-    params?: { page?: number; limit?: number; friendIds?: string[] }
+    params?: { page?: number; limit?: number; friendIds?: string[] },
   ) {
     const queryParams = {
       page: params?.page,
@@ -87,7 +87,7 @@ class PostService {
     };
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}/user/${userId}`,
-      { params: queryParams }
+      { params: queryParams },
     );
     return response.data.data;
   }
@@ -97,7 +97,7 @@ class PostService {
    */
   async getPostById(postId: string) {
     const response = await axios.get<APIResponse<PostType>>(
-      `/${PREFIX}/${postId}`
+      `/${PREFIX}/${postId}`,
     );
     return response.data.data;
   }
@@ -108,7 +108,7 @@ class PostService {
   async updatePost(postId: string, data: UpdatePostRequest) {
     const response = await axios.patch<APIResponse<PostType>>(
       `/${PREFIX}/${postId}`,
-      data
+      data,
     );
     return response.data;
   }
@@ -118,7 +118,7 @@ class PostService {
    */
   async deletePost(postId: string) {
     const response = await axios.delete<APIResponse<{ message: string }>>(
-      `/${PREFIX}/${postId}`
+      `/${PREFIX}/${postId}`,
     );
     return response.data;
   }
@@ -128,11 +128,11 @@ class PostService {
    */
   async getPostsByGroupId(
     groupId: string,
-    params?: { page?: number; limit?: number }
+    params?: { page?: number; limit?: number },
   ) {
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}/group/${groupId}`,
-      { params }
+      { params },
     );
     return response.data.data;
   }
@@ -152,9 +152,19 @@ class PostService {
     };
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}/reels`,
-      { params: queryParams }
+      { params: queryParams },
     );
     return response.data.data;
+  }
+
+  /**
+   * Hide a post from feed (sends to AI for scoring)
+   */
+  async hidePost(postId: string) {
+    const response = await axios.post<APIResponse<{ message: string }>>(
+      `/${PREFIX}/hide/${postId}`,
+    );
+    return response.data;
   }
 
   /**
@@ -162,10 +172,14 @@ class PostService {
    * Returns created post and stream details
    */
   async startLivestream(data: { description: string; privacy: string }) {
-    const response = await axios.post<APIResponse<{ post: PostType; streamKey: string; RMTPUrl: string; liveStreamId: string }>>(
-      `/${PREFIX}/livestream/start`,
-      data
-    );
+    const response = await axios.post<
+      APIResponse<{
+        post: PostType;
+        streamKey: string;
+        RMTPUrl: string;
+        liveStreamId: string;
+      }>
+    >(`/${PREFIX}/livestream/start`, data);
     return response.data;
   }
 
@@ -175,7 +189,7 @@ class PostService {
   async endLivestream(postId: string) {
     const response = await axios.post<APIResponse<PostType>>(
       `/${PREFIX}/livestream/end`,
-      { postId }
+      { postId },
     );
     return response.data;
   }

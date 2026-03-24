@@ -527,17 +527,16 @@ export default function MessageItem({
                                             </Typography>
                                             <Box sx={{
                                                 display: 'flex',
-                                                flexDirection: 'column',
-                                                gap: 1.5,
-                                                maxHeight: 400,
-                                                overflowY: 'auto',
-                                                pr: 0.5,
+                                                flexDirection: 'row',
+                                                flexWrap: 'wrap',
+                                                gap: 1,
                                             }}>
                                                 {message.postIdsRecommendationfromAI.map((post, index) => (
                                                     <PostShareMessage
                                                         key={post._id || index}
                                                         isOwn={false}
                                                         post={post}
+                                                        compact
                                                     />
                                                 ))}
                                             </Box>

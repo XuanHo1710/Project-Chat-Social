@@ -38,6 +38,12 @@ export class PostController {
     return this.postService.endLivestream(body.postId, user._id);
   }
 
+  @Post('hide/:id')
+  @UseGuards(JwtAuthGuard)
+  hidePost(@Param('id') id: string, @UserInfo() user: any) {
+    return this.postService.hidePost(id, user._id);
+  }
+
   @Get()
   findAll(
     @Query('page') page?: string,

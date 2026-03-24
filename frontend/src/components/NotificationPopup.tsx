@@ -33,6 +33,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { timeAgo } from '@/utils/formatDate';
 import { Notification, NotificationEnum } from '@/types/notification';
 import { useTranslation } from 'react-i18next';
+import { getNotificationMessage } from '@/utils/notification';
 
 interface NotificationPopupProps {
     onUnreadCountChange?: (count: number) => void;
@@ -221,11 +222,20 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
         // Navigate based on notification type
         if (notification.groupId) {
             router.push(`/groups/${notification.groupId._id}`);
+            return;
         }
 
         // Navigate to post if postId exists
         if (notification.postId) {
-            router.push(`/?postId=${notification.postId}`);
+            const isCommentType = ['POST_COMMENTED', 'COMMENT_REPLIED', 'COMMENT_REACTED'].includes(notification.type);
+            const params = new URLSearchParams({ postId: notification.postId });
+            if (isCommentType && notification.commentId) {
+                params.set('commentId', notification.commentId);
+            }
+            if (isCommentType) {
+                params.set('openComments', '1');
+            }
+            router.push(`/?${params.toString()}`);
         }
     };
 
@@ -444,7 +454,7 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                             lineHeight: 1.3,
                         }}
                     >
-                        {notification.message}
+                        {getNotificationMessage(notification, t)}
                     </Typography>
                 }
                 secondary={

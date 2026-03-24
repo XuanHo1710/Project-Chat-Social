@@ -45,8 +45,7 @@ export class PostService {
     private apiVideoService: ApiVideoService,
     private notificationEmitter: NotificationEmitterService,
     private configService: ConfigService,
-    private kafkaProducer: KafkaProducerService,
-
+    private kafkaProducer: KafkaProducerService
   ) {
     this.aiServerUrl = this.configService.get<string>('AI_SERVER_URL') || '';
   }
@@ -168,15 +167,17 @@ export class PostService {
           postShared.userId.toString(),
           createPostDto.userId,
           savedPost._id.toString(),
-          `${user.fullname || 'Ai đó'} đã chia sẻ bài viết của bạn.`,
+          `${user.fullname || 'Ai đó'} đã chia sẻ bài viết của bạn.`
         );
 
         // Emit Kafka Interaction for AI Learning
-        this.kafkaProducer.emitInteractionPostShare(
-          createPostDto.userId,
-          createPostDto.sharedPostId,
-          savedPost._id.toString()
-        ).catch(err => console.warn('Kafka share error:', err));
+        this.kafkaProducer
+          .emitInteractionPostShare(
+            createPostDto.userId,
+            createPostDto.sharedPostId,
+            savedPost._id.toString()
+          )
+          .catch((err) => console.warn('Kafka share error:', err));
       }
     }
 
@@ -189,11 +190,9 @@ export class PostService {
       populate: { path: 'userId', select: 'firstName lastName avatar username' },
     });
 
-
-
     // Emit Kafka event for newsfeed fan-out (async, don't block response)
     // This will push the post to all followers' pre-computed feeds
-    this.emitPostCreatedToKafka(savedPost, createPostDto.userId).catch(() => { });
+    this.emitPostCreatedToKafka(savedPost, createPostDto.userId).catch(() => {});
 
     return savedPost;
   }
@@ -976,10 +975,24 @@ export class PostService {
 
     // Re-embed post to AI server if content changed
     if (updatePostDto.content !== undefined && updatedPost) {
-      this.embedPostToAI(updatedPost).catch(() => { });
+      this.embedPostToAI(updatedPost).catch(() => {});
     }
 
     return updatedPost!;
+  }
+
+  async hidePost(postId: string, userId: string) {
+    const post = await this.postModel.findById(postId);
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    // Emit to Kafka for AI scoring (POST_HIDE has weight -2.0)
+    this.kafkaProducer
+      .emitPostHide(userId, postId)
+      .catch((err) => console.warn('Kafka hide event error:', err));
+
+    return { message: 'Post hidden successfully' };
   }
 
   async remove(id: string, currentUserId: string): Promise<{ message: string }> {
@@ -1022,7 +1035,7 @@ export class PostService {
       deletedAt: new Date(),
     });
 
-    this.deletePostEmbedding(id).catch(() => { });
+    this.deletePostEmbedding(id).catch(() => {});
 
     return { message: 'Post deleted successfully' };
   }

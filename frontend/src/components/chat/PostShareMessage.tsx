@@ -30,6 +30,7 @@ interface PostShareMessageProps {
     avatar?: string;
     themeColor?: string;
     onClick?: () => void;
+    compact?: boolean;
 }
 
 export default function PostShareMessage({
@@ -38,6 +39,7 @@ export default function PostShareMessage({
     avatar,
     themeColor = '#0084ff',
     onClick,
+    compact = false,
 }: PostShareMessageProps) {
     const router = useRouter();
     const theme = useTheme();
@@ -108,15 +110,15 @@ export default function PostShareMessage({
         <Box sx={{
             display: 'flex',
             flexDirection: 'column',
-            alignItems: isOwn ? 'flex-end' : 'flex-start',
-            px: 2,
-            py: 0.3,
+            alignItems: compact ? 'stretch' : (isOwn ? 'flex-end' : 'flex-start'),
+            px: compact ? 0 : 2,
+            py: compact ? 0 : 0.3,
         }}>
             <Box sx={{
                 display: 'flex',
                 alignItems: 'flex-end',
                 gap: 0.5,
-                maxWidth: '70%',
+                maxWidth: compact ? '100%' : '70%',
                 flexDirection: isOwn ? 'row-reverse' : 'row'
             }}>
                 {/* Avatar người gửi */}
@@ -135,7 +137,8 @@ export default function PostShareMessage({
                         bgcolor: cardBg,
                         borderRadius: '12px',
                         overflow: 'hidden',
-                        maxWidth: 300,
+                        maxWidth: compact ? 200 : 300,
+                        width: compact ? 200 : undefined,
                         cursor: 'pointer',
                         animation: `${fadeIn} 0.3s ease-out`,
                         transition: 'all 0.2s ease',
@@ -144,6 +147,7 @@ export default function PostShareMessage({
                         '&:hover': onClick ? {
                             boxShadow: isDark ? '0 2px 8px rgba(255,255,255,0.1)' : '0 2px 8px rgba(0,0,0,0.15)',
                         } : {},
+                        flexShrink: 0,
                     }}
                 >
                     {/* Post header */}
@@ -151,32 +155,35 @@ export default function PostShareMessage({
                         sx={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 1,
-                            p: 1.5,
+                            gap: compact ? 0.5 : 1,
+                            p: compact ? 1 : 1.5,
                             bgcolor: cardBg,
                         }}
                     >
                         <Avatar
                             src={post.userId?.avatar}
                             sx={{
-                                width: 36,
-                                height: 36,
+                                width: compact ? 28 : 36,
+                                height: compact ? 28 : 36,
                             }}
                         />
                         <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography
-                                fontSize={14}
+                                fontSize={compact ? 12 : 14}
                                 fontWeight={600}
                                 sx={{
                                     color: 'text.primary',
                                     lineHeight: 1.2,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
                                 }}
                             >
                                 {authorName}
                             </Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                                <PrivacyIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
-                                <Typography fontSize={12} sx={{ color: 'text.secondary' }}>
+                                <PrivacyIcon sx={{ fontSize: compact ? 10 : 12, color: 'text.secondary' }} />
+                                <Typography fontSize={compact ? 10 : 12} sx={{ color: 'text.secondary' }}>
                                     Bài viết
                                 </Typography>
                             </Box>
@@ -185,12 +192,12 @@ export default function PostShareMessage({
 
                     {/* Post content preview */}
                     {post.content && !post.background && (
-                        <Box sx={{ px: 1.5, pb: 1.5 }}>
+                        <Box sx={{ px: compact ? 1 : 1.5, pb: compact ? 0.5 : 1.5 }}>
                             <Typography
-                                fontSize={14}
+                                fontSize={compact ? 12 : 14}
                                 sx={{
                                     display: '-webkit-box',
-                                    WebkitLineClamp: 3,
+                                    WebkitLineClamp: compact ? 2 : 3,
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden',
                                     lineHeight: 1.4,
@@ -208,7 +215,7 @@ export default function PostShareMessage({
                             sx={{
                                 position: 'relative',
                                 width: '100%',
-                                height: 160,
+                                height: compact ? 100 : 160,
                                 bgcolor: '#000',
                             }}
                         >
@@ -298,46 +305,48 @@ export default function PostShareMessage({
                     )}
 
                     {/* Stats footer */}
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            px: 1.5,
-                            py: 1,
-                            bgcolor: footerBg,
-                            borderTop: `1px solid ${theme.palette.divider}`,
-                        }}
-                    >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Box
-                                sx={{
-                                    width: 18,
-                                    height: 18,
-                                    borderRadius: '50%',
-                                    bgcolor: '#1877f2',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                <ThumbUpIcon sx={{ fontSize: 10, color: 'white' }} />
-                            </Box>
-                            <Typography fontSize={12} sx={{ color: 'text.secondary' }}>
-                                {post.totalReacts || 0}
-                            </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Typography fontSize={12} sx={{ color: 'text.secondary' }}>
-                                {post.totalComments || 0} bình luận
-                            </Typography>
-                            {(post.totalShares || 0) > 0 && (
+                    {!compact && (
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                px: 1.5,
+                                py: 1,
+                                bgcolor: footerBg,
+                                borderTop: `1px solid ${theme.palette.divider}`,
+                            }}
+                        >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Box
+                                    sx={{
+                                        width: 18,
+                                        height: 18,
+                                        borderRadius: '50%',
+                                        bgcolor: '#1877f2',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    <ThumbUpIcon sx={{ fontSize: 10, color: 'white' }} />
+                                </Box>
                                 <Typography fontSize={12} sx={{ color: 'text.secondary' }}>
-                                    {post.totalShares} chia sẻ
+                                    {post.totalReacts || 0}
                                 </Typography>
-                            )}
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Typography fontSize={12} sx={{ color: 'text.secondary' }}>
+                                    {post.totalComments || 0} bình luận
+                                </Typography>
+                                {(post.totalShares || 0) > 0 && (
+                                    <Typography fontSize={12} sx={{ color: 'text.secondary' }}>
+                                        {post.totalShares} chia sẻ
+                                    </Typography>
+                                )}
+                            </Box>
                         </Box>
-                    </Box>
+                    )}
                 </Paper>
             </Box>
         </Box>

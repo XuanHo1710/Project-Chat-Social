@@ -528,7 +528,7 @@ function SearchContent() {
                             <ListItemIcon sx={{ minWidth: 44 }}>
                                 <PeopleIcon sx={{ fontSize: 28, color: 'primary.main' }} />
                             </ListItemIcon>
-                            <ListItemText primary={t('sidebar.friends')} primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                            <ListItemText primary={t('nav.friends')} primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
                         </ListItemButton>
 
                         {/* Groups */}
@@ -540,7 +540,7 @@ function SearchContent() {
                             <ListItemIcon sx={{ minWidth: 44 }}>
                                 <GroupsIcon sx={{ fontSize: 28, color: 'primary.main' }} />
                             </ListItemIcon>
-                            <ListItemText primary={t('sidebar.groups')} primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                            <ListItemText primary={t('nav.groups')} primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
                         </ListItemButton>
 
                         {/* Watch/Reels */}
@@ -552,7 +552,7 @@ function SearchContent() {
                             <ListItemIcon sx={{ minWidth: 44 }}>
                                 <VideoIcon sx={{ fontSize: 28, color: 'primary.main' }} />
                             </ListItemIcon>
-                            <ListItemText primary="Watch" primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                            <ListItemText primary={t('nav.watch')} primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
                         </ListItemButton>
 
                         {/* Saved */}
@@ -564,7 +564,7 @@ function SearchContent() {
                             <ListItemIcon sx={{ minWidth: 44 }}>
                                 <BookmarkIcon sx={{ fontSize: 28, color: '#a333c8' }} />
                             </ListItemIcon>
-                            <ListItemText primary={t('sidebar.saved')} primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
+                            <ListItemText primary={t('nav.saved')} primaryTypographyProps={{ fontWeight: 500, fontSize: 15 }} />
                         </ListItemButton>
                     </List>
 
@@ -673,8 +673,7 @@ function SearchContent() {
                         ml: { xs: 0, md: '300px', lg: '360px' },
                         p: { xs: 1.5, sm: 3 },
                         pb: { xs: '72px', md: 3 },
-                        width: "100%",
-                        mx: 'auto'
+                        maxWidth: { md: 'calc(100% - 300px)', lg: 'calc(100% - 360px)' }
                     }}
                 >
                     {/* Search Box */}

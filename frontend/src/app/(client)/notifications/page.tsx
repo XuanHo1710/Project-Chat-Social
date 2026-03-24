@@ -33,6 +33,7 @@ import { Notification, NotificationEnum } from '@/types/notification';
 import { useTranslation } from 'react-i18next';
 import { useSocket } from '@/contexts/SocketContext';
 import { toast } from 'sonner';
+import { getNotificationMessage } from '@/utils/notification';
 
 export default function NotificationsPage() {
     const router = useRouter();
@@ -257,7 +258,7 @@ export default function NotificationsPage() {
                         display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
                         lineHeight: 1.3,
                     }}>
-                        {n.message}
+                        {getNotificationMessage(n, t)}
                     </Typography>
                 }
                 secondary={

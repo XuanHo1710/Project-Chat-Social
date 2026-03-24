@@ -314,6 +314,7 @@ export default function ChatDetailPage() {
     const handleMobileBack = () => {
         if (isMobile) {
             setShowMobileSidebar(true);
+            router.push(CLIENT_PATH.CHAT);
         }
     };
 

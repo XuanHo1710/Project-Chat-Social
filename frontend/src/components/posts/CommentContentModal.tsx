@@ -65,10 +65,10 @@ export default function CommentContentModal({
     }, [commentingPost, initPostReaction]);
 
     return (
-        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 700, maxHeight: '90vh', bgcolor: 'background.paper', borderRadius: 2, boxShadow: 24, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, borderBottom: `1px solid ${theme.palette.divider}`, position: 'relative' }}>
-                <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>{t('post.post_by', { name: commentingPost ? getAuthorName(commentingPost) : '' })}</Typography>
-                <IconButton onClick={() => setOpenCommentModal(false)} sx={{ position: 'absolute', right: 12, bgcolor: hoverBg, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf' } }}><CloseIcon /></IconButton>
+        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: { xs: '95vw', sm: 600, md: 700 }, maxHeight: { xs: '85vh', sm: '90vh' }, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 24, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: { xs: 1.5, sm: 2 }, borderBottom: `1px solid ${theme.palette.divider}`, position: 'relative' }}>
+                <Typography sx={{ fontSize: { xs: 16, sm: 20 }, fontWeight: 700, color: 'text.primary', px: 4, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('post.post_by', { name: commentingPost ? getAuthorName(commentingPost) : '' })}</Typography>
+                <IconButton onClick={() => setOpenCommentModal(false)} sx={{ position: 'absolute', right: 8, bgcolor: hoverBg, '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : '#d8dadf' } }}><CloseIcon /></IconButton>
             </Box>
 
             <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>

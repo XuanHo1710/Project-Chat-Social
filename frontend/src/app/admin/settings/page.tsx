@@ -45,13 +45,13 @@ import { useSettingsStore, THEME_COLORS } from '@/stores/useSettingsStore';
 import { useTranslation } from 'react-i18next';
 
 // Admin color schemes
-const adminColorSchemes = [
-    { id: 'blue', name: 'Xanh Facebook', primary: '#1877f2', secondary: '#42b72a' },
-    { id: 'purple', name: 'Tím Galaxy', primary: '#7c3aed', secondary: '#a855f7' },
-    { id: 'green', name: 'Xanh Forest', primary: '#059669', secondary: '#10b981' },
-    { id: 'orange', name: 'Cam Sunset', primary: '#ea580c', secondary: '#f97316' },
-    { id: 'pink', name: 'Hồng Rose', primary: '#db2777', secondary: '#ec4899' },
-    { id: 'cyan', name: 'Xanh Ocean', primary: '#0891b2', secondary: '#06b6d4' },
+const adminColorSchemeKeys = [
+    { id: 'blue', nameKey: 'admin.color_blue', primary: '#1877f2', secondary: '#42b72a' },
+    { id: 'purple', nameKey: 'admin.color_purple', primary: '#7c3aed', secondary: '#a855f7' },
+    { id: 'green', nameKey: 'admin.color_green', primary: '#059669', secondary: '#10b981' },
+    { id: 'orange', nameKey: 'admin.color_orange', primary: '#ea580c', secondary: '#f97316' },
+    { id: 'pink', nameKey: 'admin.color_pink', primary: '#db2777', secondary: '#ec4899' },
+    { id: 'cyan', nameKey: 'admin.color_cyan', primary: '#0891b2', secondary: '#06b6d4' },
 ];
 
 export default function SettingsPage() {
@@ -207,8 +207,8 @@ export default function SettingsPage() {
                         {t('admin.admin_color_scheme')}
                     </Typography>
                     <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', gap: 1 }}>
-                        {adminColorSchemes.map((scheme) => (
-                            <Tooltip key={scheme.id} title={scheme.name}>
+                        {adminColorSchemeKeys.map((scheme) => (
+                            <Tooltip key={scheme.id} title={t(scheme.nameKey)}>
                                 <Box
                                     onClick={() => setThemeColor(scheme.id as any)}
                                     sx={{

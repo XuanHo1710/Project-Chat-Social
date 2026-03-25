@@ -151,7 +151,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                         ))}
                         {themes.length === 0 && (
                             <Typography variant="caption" color="text.secondary">
-                                Loading themes...
+                                {t('admin.loading_themes')}
                             </Typography>
                         )}
                     </Stack>

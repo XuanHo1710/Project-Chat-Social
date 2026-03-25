@@ -6,10 +6,12 @@ import AdminHeader from '@/components/admin/AdminHeader';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const { user, isLoading } = useAuthStore();
     const router = useRouter();
+    const { t } = useTranslation();
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -36,7 +38,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (isLoading || !isAuthorized) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', gap: 2 }}>
-                <div>Checking permissions...</div>
+                <div>{t('admin.checking_permissions')}</div>
             </Box>
         );
     }

@@ -182,7 +182,7 @@ export default function PostsManagementPage() {
                 boxShadow: isDark ? 'none' : '0 2px 12px rgba(0,0,0,0.06)'
             }}>
                 {/* Search & Filter Bar */}
-                <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
                     <Paper
                         component="form"
                         onSubmit={(e) => {
@@ -193,7 +193,7 @@ export default function PostsManagementPage() {
                             p: '2px 4px',
                             display: 'flex',
                             alignItems: 'center',
-                            width: 400,
+                            width: { xs: '100%', sm: 300, md: 400 },
                             bgcolor: isDark ? '#3a3b3c' : '#f0f2f5',
                             boxShadow: 'none',
                             borderRadius: 100
@@ -302,7 +302,7 @@ export default function PostsManagementPage() {
                 </Collapse>
 
                 <TableContainer>
-                    <Table sx={{ minWidth: 750 }} aria-labelledby="tableTitle">
+                    <Table sx={{ minWidth: 650 }} aria-labelledby="tableTitle">
                         <TableHead sx={{
                             bgcolor: isDark ? '#18191a' : '#f0f2f5'
                         }}>
@@ -384,7 +384,7 @@ export default function PostsManagementPage() {
                         </TableBody>
                     </Table>
                 </TableContainer>
-                <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                     <Typography variant="body2" color="text.secondary">
                         {pagination ? t('admin.showing_posts', { count: posts.length, total: pagination.total }) : ''}
                     </Typography>

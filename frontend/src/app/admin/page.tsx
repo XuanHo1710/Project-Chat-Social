@@ -215,7 +215,7 @@ export default function AdminDashboard() {
             color: '#1877f2',
             trend: true,
             trendValue: dashboardStats?.userChange || 0,
-            subtitle: `+${dashboardStats?.newUsersToday || 0} ${t('time.today').replace('Today: ', '').replace('Hôm nay: ', '')}` // Hacky but works for now or use t('admin.new_today')
+            subtitle: t('admin.new_today', { count: dashboardStats?.newUsersToday || 0 }) // Hacky but works for now or use t('admin.new_today')
         },
         {
             label: t('admin.total_posts'),
@@ -224,7 +224,7 @@ export default function AdminDashboard() {
             color: '#42b72a',
             trend: true,
             trendValue: 5,
-            subtitle: `+${dashboardStats?.newPostsToday || 0} ${t('time.today').replace('Today: ', '').replace('Hôm nay: ', '')}`
+            subtitle: t('admin.new_today', { count: dashboardStats?.newPostsToday || 0 })
         },
         {
             label: `${t('admin.visits')} ${t('time.today').toLowerCase()}`,
@@ -363,7 +363,7 @@ export default function AdminDashboard() {
                             </IconButton>
                         </Box>
 
-                        <Box sx={{ height: 300, width: '100%' }}>
+                        <Box sx={{ height: { xs: 220, md: 300 }, width: '100%' }}>
                             <LineChart
                                 grid={{ horizontal: true }}
                                 xAxis={[{
@@ -493,7 +493,7 @@ export default function AdminDashboard() {
                                 }}
                             />
                         </Box>
-                        <Box sx={{ height: 200, width: '100%' }}>
+                        <Box sx={{ height: { xs: 180, md: 200 }, width: '100%' }}>
                             <BarChart
                                 grid={{ horizontal: true }}
                                 xAxis={[{
@@ -570,7 +570,7 @@ export default function AdminDashboard() {
                     flex: { xs: '1 1 100%', md: '1 1 calc(33.333% - 16px)' },
                     minWidth: { xs: '100%', md: 'calc(33.333% - 16px)' }
                 }}>
-                    <Paper sx={{ ...cardStyle, height: '600px', display: 'flex', flexDirection: 'column' }}>
+                    <Paper sx={{ ...cardStyle, height: { xs: '400px', md: '600px' }, display: 'flex', flexDirection: 'column' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                             <Typography variant="h6" fontWeight="700" color="text.primary">
                                 {t('admin.recent_comments')}

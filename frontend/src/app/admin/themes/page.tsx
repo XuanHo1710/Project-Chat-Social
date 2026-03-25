@@ -79,7 +79,7 @@ export default function ThemesManagementPage() {
             setThemes(response.data);
         } catch (err) {
             console.error('Failed to fetch themes:', err);
-            setError('Failed to load themes');
+            setError(t('admin.theme_load_failed'));
         } finally {
             setLoading(false);
         }
@@ -121,16 +121,16 @@ export default function ThemesManagementPage() {
         try {
             if (editingTheme) {
                 await themeService.updateTheme(editingTheme._id, formData);
-                setSnackbar({ open: true, message: 'Theme updated successfully', severity: 'success' });
+                setSnackbar({ open: true, message: t('admin.theme_updated'), severity: 'success' });
             } else {
                 await themeService.createTheme(formData);
-                setSnackbar({ open: true, message: 'Theme created successfully', severity: 'success' });
+                setSnackbar({ open: true, message: t('admin.theme_created'), severity: 'success' });
             }
             await fetchThemes();
             handleCloseDialog();
         } catch (err) {
             console.error('Failed to save theme:', err);
-            setSnackbar({ open: true, message: 'Failed to save theme', severity: 'error' });
+            setSnackbar({ open: true, message: t('admin.theme_save_failed'), severity: 'error' });
         }
     };
 
@@ -138,12 +138,12 @@ export default function ThemesManagementPage() {
         if (currentActive) return;
         try {
             await themeService.setActiveTheme(themeItem._id);
-            setSnackbar({ open: true, message: 'Theme applied successfully', severity: 'success' });
+            setSnackbar({ open: true, message: t('admin.theme_applied'), severity: 'success' });
             await fetchThemes();
             setCustomTheme(themeItem);
         } catch (err) {
             console.error('Failed to set active theme:', err);
-            setSnackbar({ open: true, message: 'Failed to apply theme', severity: 'error' });
+            setSnackbar({ open: true, message: t('admin.theme_apply_failed'), severity: 'error' });
         }
     };
 
@@ -156,11 +156,11 @@ export default function ThemesManagementPage() {
         if (themeToDelete) {
             try {
                 await themeService.deleteTheme(themeToDelete._id);
-                setSnackbar({ open: true, message: 'Theme deleted successfully', severity: 'success' });
+                setSnackbar({ open: true, message: t('admin.theme_deleted'), severity: 'success' });
                 await fetchThemes();
             } catch (err) {
                 console.error('Failed to delete theme:', err);
-                setSnackbar({ open: true, message: 'Failed to delete theme', severity: 'error' });
+                setSnackbar({ open: true, message: t('admin.theme_delete_failed'), severity: 'error' });
             }
         }
         setDeleteConfirmOpen(false);
@@ -321,7 +321,7 @@ export default function ThemesManagementPage() {
                                         <EditIcon fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
-                                <Tooltip title="Delete">
+                                <Tooltip title={t('admin.delete_theme')}>
                                     <IconButton
                                         size="small"
                                         color="error"
@@ -492,7 +492,7 @@ export default function ThemesManagementPage() {
                 <DialogActions>
                     <Button onClick={() => setDeleteConfirmOpen(false)}>{t('common.cancel')}</Button>
                     <Button color="error" variant="contained" onClick={handleConfirmDelete}>
-                        Delete
+                        {t('admin.delete')}
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -158,14 +158,14 @@ export default function UsersManagementPage() {
 
     const validateForm = () => {
         const errors: Partial<AddAccountFormData> = {};
-        if (!formData.fullName.trim()) errors.fullName = 'Vui lòng nhập họ tên';
-        if (!formData.username.trim()) errors.username = 'Vui lòng nhập tên đăng nhập';
-        else if (formData.username.includes(' ')) errors.username = 'Tên đăng nhập không được chứa khoảng trắng';
-        if (!formData.email.trim()) errors.email = 'Vui lòng nhập email';
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = 'Email không hợp lệ';
-        if (!formData.password) errors.password = 'Vui lòng nhập mật khẩu';
-        else if (formData.password.length < 6) errors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
-        if (formData.password !== formData.confirmPassword) errors.confirmPassword = 'Mật khẩu không khớp';
+        if (!formData.fullName.trim()) errors.fullName = t('admin.validate_fullname');
+        if (!formData.username.trim()) errors.username = t('admin.validate_username');
+        else if (formData.username.includes(' ')) errors.username = t('admin.validate_username_spaces');
+        if (!formData.email.trim()) errors.email = t('admin.validate_email');
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = t('admin.validate_email_invalid');
+        if (!formData.password) errors.password = t('admin.validate_password');
+        else if (formData.password.length < 6) errors.password = t('admin.validate_password_min');
+        if (formData.password !== formData.confirmPassword) errors.confirmPassword = t('admin.validate_password_mismatch');
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -175,11 +175,11 @@ export default function UsersManagementPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
             handleCloseAddAccount();
-            toast.success('Tạo tài khoản thành công');
+            toast.success(t('admin.create_account_success'));
         },
         onError: (error: any) => {
             console.error(error);
-            toast.error(error?.response?.data?.message || 'Có lỗi xảy ra khi tạo tài khoản');
+            toast.error(error?.response?.data?.message || t('admin.create_account_error'));
         }
     });
 
@@ -191,9 +191,9 @@ export default function UsersManagementPage() {
 
     const getStatusChip = (status: string) => {
         switch (status) {
-            case 'ACTIVE': return <Chip label="Hoạt động" color="success" size="small" variant="outlined" />;
-            case 'BLOCKED': return <Chip label="Đã khóa" color="error" size="small" variant="outlined" />;
-            case 'PENDING': return <Chip label="Chờ duyệt" color="warning" size="small" variant="outlined" />;
+            case 'ACTIVE': return <Chip label={t('admin.status_active')} color="success" size="small" variant="outlined" />;
+            case 'BLOCKED': return <Chip label={t('admin.status_blocked')} color="error" size="small" variant="outlined" />;
+            case 'PENDING': return <Chip label={t('admin.status_pending')} color="warning" size="small" variant="outlined" />;
             default: return <Chip label={status} size="small" />;
         }
     };
@@ -250,7 +250,7 @@ export default function UsersManagementPage() {
 
     return (
         <Box>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={4}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={2} mb={4}>
                 <Typography variant="h5" fontWeight="bold">{t('admin.user_management')}</Typography>
                 <Button
                     variant="contained"
@@ -271,7 +271,7 @@ export default function UsersManagementPage() {
                 boxShadow: isDark ? 'none' : '0 2px 12px rgba(0,0,0,0.06)'
             }}>
                 {/* Search & Filter Bar */}
-                <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
                     <Paper
                         component="form"
                         onSubmit={(e) => {
@@ -282,7 +282,7 @@ export default function UsersManagementPage() {
                             p: '2px 4px',
                             display: 'flex',
                             alignItems: 'center',
-                            width: 400,
+                            width: { xs: '100%', sm: 300, md: 400 },
                             bgcolor: isDark ? '#3a3b3c' : '#f0f2f5',
                             boxShadow: 'none',
                             borderRadius: 100
@@ -319,28 +319,28 @@ export default function UsersManagementPage() {
                         flexWrap: 'wrap',
                         alignItems: 'center'
                     }}>
-                        <FormControl size="small" sx={{ minWidth: 150 }}>
-                            <InputLabel>Trạng thái</InputLabel>
+                        <FormControl size="small" sx={{ minWidth: { xs: 120, sm: 150 } }}>
+                            <InputLabel>{t('admin.filter_status')}</InputLabel>
                             <Select
                                 value={statusFilter}
-                                label="Trạng thái"
+                                label={t('admin.filter_status')}
                                 onChange={(e) => setStatusFilter(e.target.value)}
                             >
-                                <MenuItem value="ALL">Tất cả</MenuItem>
-                                <MenuItem value="ACTIVE">Hoạt động</MenuItem>
-                                <MenuItem value="BLOCKED">Đã khóa</MenuItem>
-                                <MenuItem value="PENDING">Chờ duyệt</MenuItem>
+                                <MenuItem value="ALL">{t('admin.filter_all')}</MenuItem>
+                                <MenuItem value="ACTIVE">{t('admin.status_active')}</MenuItem>
+                                <MenuItem value="BLOCKED">{t('admin.status_blocked')}</MenuItem>
+                                <MenuItem value="PENDING">{t('admin.status_pending')}</MenuItem>
                             </Select>
                         </FormControl>
 
-                        <FormControl size="small" sx={{ minWidth: 150 }}>
-                            <InputLabel>Vai trò</InputLabel>
+                        <FormControl size="small" sx={{ minWidth: { xs: 120, sm: 150 } }}>
+                            <InputLabel>{t('admin.filter_role')}</InputLabel>
                             <Select
                                 value={roleFilter}
-                                label="Vai trò"
+                                label={t('admin.filter_role')}
                                 onChange={(e) => setRoleFilter(e.target.value)}
                             >
-                                <MenuItem value="ALL">Tất cả</MenuItem>
+                                <MenuItem value="ALL">{t('admin.filter_all')}</MenuItem>
                                 <MenuItem value="ADMIN">Admin</MenuItem>
                                 <MenuItem value="EMPLOYEE">Employee</MenuItem>
                                 <MenuItem value="USER">User</MenuItem>
@@ -390,7 +390,7 @@ export default function UsersManagementPage() {
                 </Collapse>
 
                 <TableContainer>
-                    <Table sx={{ minWidth: 750 }} aria-labelledby="tableTitle">
+                    <Table sx={{ minWidth: 650 }} aria-labelledby="tableTitle">
                         <TableHead sx={{
                             bgcolor: isDark ? '#18191a' : '#f0f2f5'
                         }}>
@@ -451,7 +451,7 @@ export default function UsersManagementPage() {
                                         </Typography>
                                     </TableCell>
                                     <TableCell align="right">
-                                        <Tooltip title="Tùy chọn">
+                                        <Tooltip title={t('admin.options')}>
                                             <IconButton onClick={(e) => handleMenuOpen(e, user)}>
                                                 <MoreVertIcon />
                                             </IconButton>
@@ -462,9 +462,9 @@ export default function UsersManagementPage() {
                         </TableBody>
                     </Table>
                 </TableContainer>
-                <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                     <Typography variant="body2" color="text.secondary">
-                        {pagination ? `Hiển thị ${users.length} / ${pagination.total} người dùng` : ''}
+                        {pagination ? t('admin.showing_users', { count: users.length, total: pagination.total }) : ''}
                     </Typography>
                     <Pagination
                         count={pagination?.totalPages || 1}
@@ -483,11 +483,11 @@ export default function UsersManagementPage() {
             >
                 <MenuItem onClick={handleMenuClose}>
                     <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
-                    Xem chi tiết & Sửa
+                    {t('admin.view_edit_user')}
                 </MenuItem>
                 <MenuItem onClick={handleMenuClose} sx={{ color: 'error.main' }}>
                     <ListItemIcon><BlockIcon fontSize="small" color="error" /></ListItemIcon>
-                    Khóa tài khoản
+                    {t('admin.block_account')}
                 </MenuItem>
             </Menu>
 
@@ -496,7 +496,7 @@ export default function UsersManagementPage() {
                 <DialogTitle>
                     <Stack direction="row" alignItems="center" gap={1}>
                         <PersonAddIcon color="primary" />
-                        Thêm tài khoản Admin / Employee
+                        {t('admin.add_account_title')}
                     </Stack>
                 </DialogTitle>
                 <DialogContent dividers>
@@ -504,7 +504,7 @@ export default function UsersManagementPage() {
                         {/* Role Selection */}
                         <Box>
                             <Typography variant="subtitle2" fontWeight="600" gutterBottom>
-                                Chọn vai trò
+                                {t('admin.select_role')}
                             </Typography>
                             <RadioGroup
                                 row
@@ -520,7 +520,7 @@ export default function UsersManagementPage() {
                                             <Box>
                                                 <Typography variant="body2" fontWeight="600">Employee</Typography>
                                                 <Typography variant="caption" color="text.secondary">
-                                                    Quản lý bài viết & Giao diện
+                                                    {t('admin.employee_desc')}
                                                 </Typography>
                                             </Box>
                                         </Stack>
@@ -543,7 +543,7 @@ export default function UsersManagementPage() {
                                             <Box>
                                                 <Typography variant="body2" fontWeight="600">Admin</Typography>
                                                 <Typography variant="caption" color="text.secondary">
-                                                    Toàn quyền hệ thống
+                                                    {t('admin.admin_desc')}
                                                 </Typography>
                                             </Box>
                                         </Stack>
@@ -561,7 +561,7 @@ export default function UsersManagementPage() {
 
                         <TextField
                             fullWidth
-                            label="Họ và tên"
+                            label={t('admin.full_name')}
                             value={formData.fullName}
                             onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                             error={!!formErrors.fullName}
@@ -569,12 +569,12 @@ export default function UsersManagementPage() {
                             InputProps={{
                                 startAdornment: <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
                             }}
-                            placeholder="VD: Nguyễn Văn A"
+                            placeholder={t('admin.full_name_placeholder')}
                         />
 
                         <TextField
                             fullWidth
-                            label="Tên đăng nhập (Username)"
+                            label={t('admin.username_label')}
                             value={formData.username}
                             onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                             error={!!formErrors.username}
@@ -582,7 +582,7 @@ export default function UsersManagementPage() {
                             InputProps={{
                                 startAdornment: <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
                             }}
-                            placeholder="VD: nguyenvan_a"
+                            placeholder={t('admin.username_placeholder')}
                         />
 
                         <TextField
@@ -601,7 +601,7 @@ export default function UsersManagementPage() {
 
                         <TextField
                             fullWidth
-                            label="Mật khẩu"
+                            label={t('admin.password')}
                             type="password"
                             value={formData.password}
                             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -610,12 +610,12 @@ export default function UsersManagementPage() {
                             InputProps={{
                                 startAdornment: <LockIcon sx={{ mr: 1, color: 'text.secondary' }} />
                             }}
-                            placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
+                            placeholder={t('admin.password_placeholder')}
                         />
 
                         <TextField
                             fullWidth
-                            label="Xác nhận mật khẩu"
+                            label={t('admin.confirm_password')}
                             type="password"
                             value={formData.confirmPassword}
                             onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
@@ -624,7 +624,7 @@ export default function UsersManagementPage() {
                             InputProps={{
                                 startAdornment: <LockIcon sx={{ mr: 1, color: 'text.secondary' }} />
                             }}
-                            placeholder="Nhập lại mật khẩu"
+                            placeholder={t('admin.confirm_password_placeholder')}
                         />
 
                         {/* Role permissions info */}
@@ -634,35 +634,35 @@ export default function UsersManagementPage() {
                             borderRadius: 2
                         }}>
                             <Typography variant="subtitle2" fontWeight="600" gutterBottom>
-                                Quyền hạn của {formData.role === 'ADMIN' ? 'Admin' : 'Employee'}:
+                                {t('admin.permissions_of', { role: formData.role === 'ADMIN' ? 'Admin' : 'Employee' })}
                             </Typography>
                             {formData.role === 'EMPLOYEE' ? (
                                 <Stack spacing={0.5}>
-                                    <Typography variant="body2" color="text.secondary">✓ Quản lý bài viết</Typography>
-                                    <Typography variant="body2" color="text.secondary">✓ Quản lý giao diện (Theme)</Typography>
-                                    <Typography variant="body2" color="error.main">✗ Quản lý tài khoản</Typography>
-                                    <Typography variant="body2" color="error.main">✗ Cài đặt hệ thống</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ {t('admin.perm_manage_posts')}</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ {t('admin.perm_manage_themes')}</Typography>
+                                    <Typography variant="body2" color="error.main">✗ {t('admin.perm_no_manage_accounts')}</Typography>
+                                    <Typography variant="body2" color="error.main">✗ {t('admin.perm_no_system_settings')}</Typography>
                                 </Stack>
                             ) : (
                                 <Stack spacing={0.5}>
-                                    <Typography variant="body2" color="success.main">✓ Toàn quyền quản trị</Typography>
-                                    <Typography variant="body2" color="text.secondary">✓ Quản lý bài viết</Typography>
-                                    <Typography variant="body2" color="text.secondary">✓ Quản lý giao diện</Typography>
-                                    <Typography variant="body2" color="text.secondary">✓ Quản lý tài khoản</Typography>
-                                    <Typography variant="body2" color="text.secondary">✓ Cài đặt hệ thống</Typography>
+                                    <Typography variant="body2" color="success.main">✓ {t('admin.perm_full_admin')}</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ {t('admin.perm_manage_posts')}</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ {t('admin.perm_manage_themes')}</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ {t('admin.perm_no_manage_accounts')}</Typography>
+                                    <Typography variant="body2" color="text.secondary">✓ {t('admin.perm_no_system_settings')}</Typography>
                                 </Stack>
                             )}
                         </Paper>
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2 }}>
-                    <Button onClick={handleCloseAddAccount}>Hủy</Button>
+                    <Button onClick={handleCloseAddAccount}>{t('admin.cancel')}</Button>
                     <Button
                         variant="contained"
                         onClick={handleAddAccount}
                         disabled={createAccountMutation.isPending || !formData.fullName || !formData.email || !formData.password}
                     >
-                        {createAccountMutation.isPending ? <CircularProgress size={24} color="inherit" /> : 'Tạo tài khoản'}
+                        {createAccountMutation.isPending ? <CircularProgress size={24} color="inherit" /> : t('admin.create_account')}
                     </Button>
                 </DialogActions>
             </Dialog>

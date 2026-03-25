@@ -111,7 +111,7 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
                                     {user?.fullName || "Administrator"}
                                 </Typography>
                                 <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                                    {user?.role === 'ADMIN' ? 'Super Admin' : 'Employee'}
+                                    {user?.role === 'ADMIN' ? t('admin.super_admin') : t('admin.employee')}
                                 </Typography>
                             </Box>
                             <Avatar

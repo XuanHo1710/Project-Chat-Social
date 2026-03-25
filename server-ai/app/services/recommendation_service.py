@@ -86,6 +86,17 @@ class RecommendationService:
             self._qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=120)
         return self._qdrant
 
+    def _reset_qdrant(self):
+        """Reset Qdrant client to force reconnection on next use."""
+        try:
+            if self._qdrant:
+                self._qdrant.close()
+        except Exception:
+            pass
+        self._qdrant = None
+        self._collection_cache.clear()
+        self._collection_cache_ts = 0
+
     @property
     def model(self):
         if self._model is None:
@@ -112,6 +123,17 @@ class RecommendationService:
             return info
         except Exception as e:
             logger.error(f"Qdrant collection error: {e}")
+            # If cache expired but we had old data, reset connection and retry once
+            if COLLECTION_NAME in self._collection_cache:
+                logger.info("Retrying Qdrant connection...")
+                self._reset_qdrant()
+                try:
+                    info = self.qdrant.get_collection(COLLECTION_NAME)
+                    self._collection_cache[COLLECTION_NAME] = info
+                    self._collection_cache_ts = now
+                    return info
+                except Exception as e2:
+                    logger.error(f"Qdrant retry also failed: {e2}")
             return None
 
     def is_ready(self) -> bool:
@@ -383,34 +405,52 @@ class RecommendationService:
     def search(self, query: str, current_user_id: str = "", friend_ids: List[str] = None,
                limit: int = 20, page: int = 1, media_type: Optional[str] = None) -> Tuple[List[Dict], int]:
         if not self.is_ready(): return [], 0
-        try:
-            query_emb = self.model.encode(query, convert_to_numpy=True)
-            results = self.qdrant.query_points(
-                collection_name=COLLECTION_NAME,
-                query=query_emb.tolist(),
-                limit=min(200, self.get_total_posts()),
-                with_payload=True
-            ).points
-            posts = []
-            for hit in results:
-                p = hit.payload
-                posts.append({
-                    "post_id": p.get("post_id", ""),
-                    "score": round(hit.score, 4),
-                    "user_id": p.get("user_id", ""),
-                    "group_id": p.get("group_id", ""),
-                    "privacy": p.get("privacy", "PUBLIC"),
-                })
 
-            if current_user_id:
-                posts = self._filter_privacy(posts, current_user_id, friend_ids or [])
+        # Retry logic: if Qdrant connection fails, reset and retry once
+        for attempt in range(2):
+            try:
+                query_emb = self.model.encode(query, convert_to_numpy=True)
+                total_posts = self.get_total_posts()
+                if total_posts == 0:
+                    logger.warning("Search: total_posts=0, skipping")
+                    return [], 0
 
-            total = len(posts)
-            offset = (page - 1) * limit
-            return posts[offset:offset + limit], total
-        except Exception as e:
-            logger.error(f"Search error: {e}")
-            return [], 0
+                results = self.qdrant.query_points(
+                    collection_name=COLLECTION_NAME,
+                    query=query_emb.tolist(),
+                    limit=min(200, total_posts),
+                    with_payload=True
+                ).points
+
+                posts = []
+                for hit in results:
+                    p = hit.payload
+                    posts.append({
+                        "post_id": p.get("post_id", ""),
+                        "score": round(hit.score, 4),
+                        "user_id": p.get("user_id", ""),
+                        "group_id": p.get("group_id", ""),
+                        "privacy": p.get("privacy", "PUBLIC"),
+                    })
+
+                if current_user_id:
+                    posts = self._filter_privacy(posts, current_user_id, friend_ids or [])
+
+                total = len(posts)
+                offset = (page - 1) * limit
+                logger.info(f"🔍 Search '{query}': {total} results (page {page})")
+                return posts[offset:offset + limit], total
+
+            except Exception as e:
+                logger.error(f"Search error (attempt {attempt + 1}): {e}")
+                if attempt == 0:
+                    # First failure: reset Qdrant connection and retry
+                    logger.info("Resetting Qdrant connection and retrying...")
+                    self._reset_qdrant()
+                else:
+                    return [], 0
+
+        return [], 0
 
     # ========================================
     # 2. RECOMMEND

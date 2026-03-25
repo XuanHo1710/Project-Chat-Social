@@ -38,9 +38,12 @@ async def search_posts(
     service = get_recommendation_service()
     
     if not service.is_ready():
-        raise HTTPException(status_code=503, detail="Chưa train! Chạy: python train.py")
+        logger.warning("Search called but service not ready")
+        raise HTTPException(status_code=503, detail="Service not ready. Run: python train.py")
     
     friend_list = [fid.strip() for fid in friend_ids.split(",") if fid.strip()] if friend_ids else []
+    
+    logger.info(f"🔍 Search request: q='{q}', page={page}, limit={limit}")
     
     posts, total_count = service.search(
         query=q,

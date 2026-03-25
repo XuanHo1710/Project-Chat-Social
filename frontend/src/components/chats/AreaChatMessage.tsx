@@ -1179,7 +1179,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             // Send message with callback to handle errors
             socketChat.emit("message", payload, (response: { success: boolean; error?: string }) => {
                 if (response && !response.success) {
-                    toast.error(response.error || 'Không thể gửi tin nhắn');
+                    toast.error(response.error || t('chat.cannot_send'));
                 }
             });
             setNewMessage("");
@@ -1343,7 +1343,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             return (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                     <Typography variant="body2" color="text.secondary">
-                        Đã hiển thị tất cả tin nhắn
+                        {t('chat.all_messages_shown')}
                     </Typography>
                 </Box>
             );
@@ -1664,7 +1664,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             </Box>
                         </Box>
                         <Typography fontSize={14} color="text.secondary">
-                            {userTyping.nickname || `${userTyping.user.firstName} ${userTyping.user.lastName}`} đang nhập...
+                            {userTyping.nickname || `${userTyping.user.firstName} ${userTyping.user.lastName}`} {t('chat.typing_indicator')}
                         </Typography>
                     </Box>
                 ))}
@@ -1743,7 +1743,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 fontWeight: 500,
                             }}
                         >
-                            AI đang suy nghĩ...
+                            {t('chat.ai_thinking')}
                         </Typography>
                     </Box>
                 )}
@@ -1780,7 +1780,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: "center", gap: 1, marginBottom: 1 }}>
                             <BlockIcon sx={{ color: 'error.main', fontSize: 20 }} />
                             <Typography color="error.main" fontWeight={500} fontSize={14}>
-                                Bạn đã chặn người dùng này
+                                {t('chat.you_blocked_this_user')}
                             </Typography>
                         </Box>
                         <Box
@@ -1804,7 +1804,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 }
                             }}
                         >
-                            {isUnblocking ? 'Đang xử lý...' : 'Bỏ chặn'}
+                            {isUnblocking ? t('chat.processing') : t('chat.unblock_button')}
                         </Box>
                     </Box>
                 )}
@@ -1813,14 +1813,14 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 {canChat && (
                     <Box
                         sx={{
-                            p: 2,
+                            p: { xs: 1.5, md: 2 },
                             bgcolor: "background.paper",
                             borderTop: `1px solid ${theme.palette.divider}`,
                             position: 'sticky',
                             bottom: 0,
                             zIndex: 10,
                             flexShrink: 0,
-                            pb: { xs: `calc(8px + env(safe-area-inset-bottom, 0px))`, md: 2 },
+                            pb: { xs: `calc(12px + env(safe-area-inset-bottom, 0px))`, md: 2 },
                         }}
                     >
                         {/* Mentions List */}
@@ -1888,7 +1888,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             >
                                 <Box sx={{ minWidth: 0 }}>
                                     <Typography fontSize={12} color="text.secondary">
-                                        Đang trả lời <strong>{replyMsg?.type === 'CHATBOT' ? "AI Assistant" : (replyMsg.senderId._id === userId ? "chính mình" : replyMsg.senderId.firstName + " " + replyMsg.senderId.lastName)}</strong>
+                                        {t('chat.replying_to')} <strong>{replyMsg?.type === 'CHATBOT' ? "AI Assistant" : (replyMsg.senderId._id === userId ? t('chat.yourself') : replyMsg.senderId.firstName + " " + replyMsg.senderId.lastName)}</strong>
                                     </Typography>
                                     <Typography fontSize={13} color="text.primary" noWrap sx={{ opacity: 0.8 }}>
                                         {replyMsg.content}
@@ -2092,13 +2092,13 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 InputProps={{
                                     disableUnderline: true,
                                     sx: {
-                                        color: "#050505",
-                                        fontSize: "15px",
+                                        color: "text.primary",
+                                        fontSize: { xs: '14px', md: '15px' },
                                         "& .MuiInputBase-input": {
                                             py: 0.5,
                                         },
                                         "&::placeholder": {
-                                            color: "#65676b",
+                                            color: "text.secondary",
                                             opacity: 1,
                                         },
                                     },

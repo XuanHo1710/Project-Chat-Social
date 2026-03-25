@@ -339,10 +339,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const conversation = await this.conversationService.findById(data.conversationId);
     const callerProfile = await this.getSenderProfile(userId);
 
-    // Notify all participants in the group
+    // Get users already in the active call (don't re-notify them)
+    const activeParticipants = activeGroupCalls.get(data.conversationId);
+    const alreadyInCall = activeParticipants ? activeParticipants : new Set<string>();
+
+    // Notify only participants NOT already in the call
     conversation.participants.forEach((p) => {
       const pId = p.user._id.toString();
       if (pId === userId) return; // Don't notify self
+      if (alreadyInCall.has(pId)) return; // Don't notify users already in the call
 
       const sockets = userSockets.get(pId);
       if (sockets) {

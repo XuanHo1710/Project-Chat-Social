@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import SimplePeer, { Instance, SignalData } from 'simple-peer';
 import { useSocket } from '@/contexts/SocketContext';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 // ─── Centralized ICE Server Configuration ───
 const ICE_SERVERS: RTCIceServer[] = [
@@ -147,6 +148,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const recipientInfoRef = useRef<RecipientInfo | null>(null);
 
     const { socket } = useSocket();
+    const { t } = useTranslation();
 
     // Sync state → refs
     useEffect(() => { isInCallRef.current = isInCall; }, [isInCall]);
@@ -334,7 +336,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             setIsGroupCall(true);
             setCallerInfo({
                 id: data.conversationId,
-                name: `Cuộc gọi nhóm từ ${data.callerName}`,
+                name: t('call.group_call_from', { name: data.callerName }),
                 avatar: data.callerAvatar,
                 conversationId: data.conversationId,
                 isGroup: true,
@@ -343,13 +345,13 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Group: User joined
         const onGroupUserJoined = () => {
-            toast.info('Có người tham gia cuộc gọi');
+            toast.info(t('call.user_joined'));
         };
 
         // Group: User left
         const onGroupUserLeft = (data: GroupCallUserData) => {
             removePeer(data.userId);
-            toast.info('Có người rời cuộc gọi');
+            toast.info(t('call.user_left'));
         };
 
         // Group: Mesh signaling
@@ -402,7 +404,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             try {
                 return await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode } });
             } catch {
-                toast.info('Không thể truy cập Camera – tiếp tục với âm thanh');
+                toast.info(t('call.camera_fallback_audio'));
                 setIsVideoOff(true);
                 return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
             }
@@ -414,7 +416,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const callUser = async (userId: string, conversationId: string, isTurnOff: boolean, targetName?: string, targetAvatar?: string) => {
         if (isTurnOff) setIsVideoOff(true);
 
-        const info: CallerInfo = { id: userId, name: targetName || 'Người dùng', avatar: targetAvatar || '', conversationId, isGroup: false };
+        const info: CallerInfo = { id: userId, name: targetName || t('call.default_user'), avatar: targetAvatar || '', conversationId, isGroup: false };
         const recipient: RecipientInfo = { id: userId, conversationId };
 
         setRecipientInfo(recipient); recipientInfoRef.current = recipient;
@@ -467,7 +469,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
             peer.on('error', (err) => {
                 console.error('[Call] Peer error:', err);
-                toast.error('Lỗi kết nối cuộc gọi');
+                toast.error(t('call.connection_error'));
             });
 
             peer.on('close', () => leaveCall(false));
@@ -475,7 +477,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             connectionRef.current = peer;
         } catch (err) {
             console.error('[Call] Media error:', err);
-            toast.error('Không thể truy cập Microphone');
+            toast.error(t('call.microphone_error'));
             leaveCall(false);
         }
     };
@@ -485,12 +487,21 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         // Check if a group call is already active — join instead of starting new
         if (socket) {
             try {
-                const checkResult = await new Promise<{ active: boolean; participantCount: number }>((resolve) => {
+                const checkResult = await new Promise<{ active: boolean; participantCount: number }>((resolve, reject) => {
+                    let resolved = false;
                     socket.emit('group-call:check', { conversationId }, (res: { active: boolean; participantCount: number }) => {
-                        resolve(res);
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(res);
+                        }
                     });
-                    // Timeout fallback
-                    setTimeout(() => resolve({ active: false, participantCount: 0 }), 3000);
+                    // Timeout fallback — only resolve if socket didn't respond
+                    setTimeout(() => {
+                        if (!resolved) {
+                            resolved = true;
+                            reject(new Error('timeout'));
+                        }
+                    }, 5000);
                 });
                 if (checkResult.active) {
                     // An active call exists — join it instead
@@ -531,7 +542,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             });
         } catch (err) {
             console.error('[Call] Group call error:', err);
-            toast.error('Không thể truy cập Microphone');
+            toast.error(t('call.microphone_error'));
             leaveCall(false);
         }
     };
@@ -542,6 +553,13 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIsInCall(true); isInCallRef.current = true;
         setIsGroupCall(true); isGroupCallRef.current = true;
         setIsCallAccepted(true);
+
+        // Set recipientInfo so leaveCall can properly emit group-call:leave
+        const recipient: RecipientInfo = { id: conversationId, conversationId };
+        setRecipientInfo(recipient); recipientInfoRef.current = recipient;
+        // Set callerInfo with conversationId so leaveCall fallback works
+        const info: CallerInfo = { id: conversationId, name: '', avatar: '', conversationId, isGroup: true };
+        setCallerInfo(info); callerInfoRef.current = info;
 
         try {
             // Always request video so other peers get a video track from the start
@@ -565,7 +583,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             });
         } catch (err) {
             console.error('[Call] Join error:', err);
-            toast.error('Không thể tham gia – kiểm tra quyền Microphone');
+            toast.error(t('call.join_error'));
             leaveCall(false);
         }
     };
@@ -625,7 +643,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
             peer.on('error', (err) => {
                 console.error('[Call] Answer peer error:', err);
-                toast.error('Lỗi kết nối cuộc gọi');
+                toast.error(t('call.connection_error'));
             });
 
             peer.on('close', () => leaveCall(false));
@@ -645,7 +663,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             pendingSignalsRef.current = [];
         } catch (err) {
             console.error('[Call] Answer error:', err);
-            toast.error('Không thể truy cập Microphone');
+            toast.error(t('call.microphone_error'));
             leaveCall(true);
         }
     };
@@ -688,10 +706,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
                     setStream(currentStream);
                     setIsVideoOff(false);
-                    toast.success('Camera đã được bật');
+                    toast.success(t('call.camera_enabled'));
                 }
             } catch {
-                toast.error('Không thể truy cập Camera');
+                toast.error(t('call.camera_error'));
             }
         }
     };
@@ -732,7 +750,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             setIsFrontCamera(!isFrontCamera);
             setStream(currentStream);
         } catch {
-            toast.error('Không thể chuyển camera');
+            toast.error(t('call.switch_camera_error'));
         }
     };
 

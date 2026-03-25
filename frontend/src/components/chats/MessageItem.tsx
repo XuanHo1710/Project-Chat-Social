@@ -37,6 +37,7 @@ import EmotionListDialog from "@/components/chats/EmotionListDialog";
 import { ConversationParticipantUser, ConversationResponseData } from "@/types/conversation";
 import { renderContentWithMentions } from "@/utils/hashtagParser";
 import TypewriterText from "@/components/chats/TypewriterText";
+import { useTranslation } from 'react-i18next';
 
 const EMOTIONS: { type: EmotionType; emoji: string; label: string }[] = [
     { type: 'LIKE', emoji: '👍', label: 'Thích' },
@@ -74,6 +75,7 @@ export default function MessageItem({
 }: MessageItemProps) {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const { t } = useTranslation();
     const hoverBg = 'action.hover';
     const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
     const [reactionAnchor, setReactionAnchor] = useState<HTMLElement | null>(null);
@@ -144,7 +146,7 @@ export default function MessageItem({
         // SENT status - "Đã gửi" (chưa được nhận)
         return (
             <Typography fontSize={11} color="text.secondary">
-                Đã gửi
+                {t('chat.sent')}
             </Typography>
         );
     };
@@ -342,7 +344,7 @@ export default function MessageItem({
                                         </Typography>
                                     )}
                                     <Typography fontSize={11} sx={{ color: 'text.secondary' }}>
-                                        {fileSize ? ' · ' : ''}Tải về để xem lâu dài
+                                        {fileSize ? ' · ' : ''}{t('chat.download_to_keep')}
                                     </Typography>
                                 </Box>
                             </Box>
@@ -523,7 +525,7 @@ export default function MessageItem({
                                                     gap: 0.5,
                                                 }}
                                             >
-                                                📎 Bài viết gợi ý ({message.postIdsRecommendationfromAI.length})
+                                                📎 {t('chat.suggested_posts')} ({message.postIdsRecommendationfromAI.length})
                                             </Typography>
                                             <Box sx={{
                                                 display: 'flex',
@@ -563,7 +565,7 @@ export default function MessageItem({
                                                     gap: 0.5,
                                                 }}
                                             >
-                                                📎 Bài viết gợi ý
+                                                📎 {t('chat.suggested_posts')}
                                             </Typography>
                                             <PostShareMessage isOwn={false} post={message.postId} />
                                         </Box>
@@ -726,7 +728,7 @@ export default function MessageItem({
                                             fontSize: 11,
                                         }}
                                     >
-                                        Đã trả lời tin của {message.storyReply.storyOwnerName}
+                                        {t('chat.replied_to_story_of', { name: message.storyReply.storyOwnerName })}
                                     </Typography>
                                 </Box>
 
@@ -867,12 +869,12 @@ export default function MessageItem({
                 >
                     {canEdit && (
                         <MenuItem onClick={handleEdit} sx={{ fontSize: 14, color: '#050505', py: 1 }}>
-                            <EditIcon sx={{ mr: 1.5, fontSize: 18, color: '#65676b' }} /> Chỉnh sửa
+                            <EditIcon sx={{ mr: 1.5, fontSize: 18, color: '#65676b' }} /> {t('chat.edit_message')}
                         </MenuItem>
                     )}
                     {isOwn && (
                         <MenuItem onClick={handleDelete} sx={{ fontSize: 14, color: '#e74c3c', py: 1 }}>
-                            <DeleteIcon sx={{ mr: 1.5, fontSize: 18 }} /> Thu hồi
+                            <DeleteIcon sx={{ mr: 1.5, fontSize: 18 }} /> {t('chat.unsend')}
                         </MenuItem>
                     )}
                 </Menu>
@@ -956,7 +958,7 @@ export default function MessageItem({
                     >
                         <BlockIcon sx={{ fontSize: 16, color: '#65676b' }} />
                         <Typography fontSize={14} color="#65676b" fontStyle="italic">
-                            {isOwn ? 'Bạn đã thu hồi tin nhắn' : 'Tin nhắn đã được thu hồi'}
+                            {isOwn ? t('chat.you_unsent_message') : t('chat.message_was_unsent')}
                         </Typography>
                     </Box>
                 </Box>
@@ -993,7 +995,7 @@ export default function MessageItem({
                     display: 'flex',
                     alignItems: 'flex-end',
                     gap: 0.5,
-                    maxWidth: { xs: '88%', sm: '75%', md: '70%' },
+                    maxWidth: { xs: '85%', sm: '75%', md: '70%' },
                     flexDirection: isOwn ? 'row-reverse' : 'row'
                 }}>
                     {!isOwn && (
@@ -1003,7 +1005,7 @@ export default function MessageItem({
                         />
                     )}
 
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isOwn ? 'flex-end' : 'flex-start', minWidth: 0 }}>
                         {/* Reply Quote - Facebook style */}
                         {message.replyTo && (
                             <Box
@@ -1025,17 +1027,17 @@ export default function MessageItem({
                                     }}
                                 >
                                     <ReplyIcon sx={{ fontSize: 14, transform: 'scaleX(-1)' }} />
-                                    <Typography fontSize={12} color="#050505" fontWeight={500}>
-                                        {isOwn ? 'Bạn đã trả lời ' : ''}
+                                    <Typography fontSize={12} color="text.primary" fontWeight={500}>
+                                        {isOwn ? t('chat.you_replied') : ''}
                                         {(() => {
                                             const replyData = message.replyTo as MessageResponse;
                                             if (replyData.senderId?._id === userId) {
-                                                return isOwn ? 'Người dùng tự trả lời chính mình' : 'Người dùng trả lời bạn';
+                                                return isOwn ? t('chat.self_reply') : t('chat.reply_to_you');
                                             }
                                             if (replyData.senderId?.firstName && replyData.senderId?.lastName) {
                                                 return `${replyData.senderId.firstName} ${replyData.senderId.lastName}`;
                                             }
-                                            return 'Người dùng';
+                                            return t('chat.unknown_user');
                                         })()}
                                     </Typography>
                                 </Box>
@@ -1063,7 +1065,7 @@ export default function MessageItem({
                                     noWrap
                                     sx={{ fontStyle: 'italic' }}
                                 >
-                                    {renderContentWithMentions(message.replyTo?.content) || 'Hình ảnh'}
+                                    {renderContentWithMentions(message.replyTo?.content) || t('chat.send_photo')}
                                 </Typography>
                             </Box>
                         )}
@@ -1108,14 +1110,14 @@ export default function MessageItem({
                                                     }}
                                                 />
                                                 <Box sx={{ display: 'flex', gap: 1, mt: 0.5, justifyContent: 'flex-end' }}>
-                                                    <Typography variant="caption" sx={{ cursor: 'pointer', fontWeight: 600, color: 'white' }} onClick={handleSaveEdit}>Lưu</Typography>
-                                                    <Typography variant="caption" sx={{ cursor: 'pointer', color: 'rgba(255,255,255,0.7)' }} onClick={handleCancelEdit}>Hủy</Typography>
+                                                    <Typography variant="caption" sx={{ cursor: 'pointer', fontWeight: 600, color: 'white' }} onClick={handleSaveEdit}>{t('common.save')}</Typography>
+                                                    <Typography variant="caption" sx={{ cursor: 'pointer', color: 'rgba(255,255,255,0.7)' }} onClick={handleCancelEdit}>{t('common.cancel')}</Typography>
                                                 </Box>
                                             </Box>
                                         ) : (
                                             <>
                                                 {message.content && (
-                                                    <Typography component="div" fontSize={15} sx={{ lineHeight: 1.4, wordBreak: 'break-word' }}>
+                                                    <Typography component="div" fontSize={{ xs: 14, md: 15 }} sx={{ lineHeight: 1.4, wordBreak: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                                                         {renderContentWithMentions(message.content)}
                                                     </Typography>
                                                 )}
@@ -1191,12 +1193,12 @@ export default function MessageItem({
                 >
                     {canEdit && (
                         <MenuItem onClick={handleEdit} sx={{ fontSize: 14, color: 'text.primary', py: 1 }}>
-                            <EditIcon sx={{ mr: 1.5, fontSize: 18, color: '#65676b' }} /> Chỉnh sửa
+                            <EditIcon sx={{ mr: 1.5, fontSize: 18, color: '#65676b' }} /> {t('chat.edit_message')}
                         </MenuItem>
                     )}
                     {isOwn && (
                         <MenuItem onClick={handleDelete} sx={{ fontSize: 14, color: '#e74c3c', py: 1 }}>
-                            <DeleteIcon sx={{ mr: 1.5, fontSize: 18 }} /> Thu hồi
+                            <DeleteIcon sx={{ mr: 1.5, fontSize: 18 }} /> {t('chat.unsend')}
                         </MenuItem>
                     )}
                 </Menu>

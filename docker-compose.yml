@@ -68,8 +68,8 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -147,9 +147,6 @@ services:
     # HTTP prefix: app.setGlobalPrefix('api') → all routes under /api/v1/* and /api/v2/*
     # WebSocket: /socket.io/ (Socket.IO on same port)
     # Also subscribes to RabbitMQ queue: backend_queue (Transport.RMQ)
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
     image: project-chat-social-backend:latest
     ports:
       - "${BACKEND_PORT:-5000}:8080"
@@ -163,13 +160,8 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-123}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-user}:${RABBITMQ_PASS:-123123123}@rabbitmq:5672
-      KAFKA_BROKER: kafka:29092
-      # server-ai exposes routes under /api/v1 (FastAPI router prefix)
+      KAFKA_BROKER: kafka:9092
       AI_SERVER_URL: http://server-ai:8000/api/v1
-      # CLIENT_URL: ${CLIENT_URL:-http://localhost:1710}
-      # ── Cần override khi lên VPS ──
-      # GOOGLE_CALLBACK_URL: https://yourdomain.com/api/v1/auth/google/callback
-      # VNPAY_RETURN_URL: https://yourdomain.com/payment/vnpay-return
     depends_on:
       redis:
         condition: service_healthy
@@ -195,7 +187,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3002"
-      KAFKA_BROKER: kafka:29092
+      KAFKA_BROKER: kafka:9092
       AI_SERVER_URL: http://server-ai:8000/api/v1
     depends_on:
       kafka:

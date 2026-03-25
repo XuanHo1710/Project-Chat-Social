@@ -33,6 +33,7 @@ import StoryViewer from '@/components/story/StoryViewer';
 import DraggableCaption from '@/components/story/DraggableCaption';
 import { UserLoginType } from '@/types/account';
 import { StoryPrivacy, CaptionStyle } from '@/types/story';
+import { useTranslation } from 'react-i18next';
 
 const DEFAULT_CAPTION_STYLE: CaptionStyle = {
     x: 50,
@@ -47,6 +48,7 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
     const createStoryMutation = useCreateStory();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const { t } = useTranslation();
 
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -77,7 +79,7 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
             video.onloadedmetadata = () => {
                 window.URL.revokeObjectURL(video.src);
                 if (video.duration > 15) {
-                    setVideoError('Video không được dài quá 15 giây');
+                    setVideoError(t('story.video_too_long'));
                     setSelectedFile(null);
                     setPreviewUrl(null);
                 } else {
@@ -158,13 +160,13 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
     const getPrivacyLabel = (value: StoryPrivacy) => {
         switch (value) {
             case 'PUBLIC':
-                return 'Công khai';
+                return t('story.public');
             case 'FRIENDS':
-                return 'Bạn bè';
+                return t('story.friends');
             case 'PRIVATE':
-                return 'Chỉ mình tôi';
+                return t('story.only_me');
             default:
-                return 'Bạn bè';
+                return t('story.friends');
         }
     };
 
@@ -247,7 +249,7 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                                 <AddIcon sx={{ color: 'white', fontSize: 20 }} />
                             </Box>
                             <Typography fontSize={12} color="text.primary" fontWeight={600} mt={1}>
-                                Tạo tin
+                                {t('story.create_story')}
                             </Typography>
                         </Box>
                     </>
@@ -336,10 +338,17 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                 onClose={handleCloseDialog}
                 maxWidth="sm"
                 fullWidth
+                fullScreen={typeof window !== 'undefined' && window.innerWidth < 600}
+                PaperProps={{
+                    sx: {
+                        borderRadius: { xs: 0, sm: 3 },
+                        maxHeight: { xs: '100vh', sm: '90vh' },
+                    }
+                }}
             >
                 <DialogContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6" fontWeight={700}>Tạo tin</Typography>
+                        <Typography variant="h6" fontWeight={700}>{t('story.create_story')}</Typography>
                         <IconButton onClick={handleCloseDialog} sx={{ color: 'text.secondary' }}>
                             <CloseIcon />
                         </IconButton>
@@ -350,19 +359,36 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                             onClick={() => fileInputRef.current?.click()}
                             sx={{
                                 border: `2px dashed ${theme.palette.divider}`,
-                                borderRadius: 2,
-                                p: 4,
+                                borderRadius: 3,
+                                p: { xs: 4, sm: 6 },
                                 textAlign: 'center',
                                 cursor: 'pointer',
-                                '&:hover': { borderColor: 'primary.main', bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' },
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                    borderColor: 'primary.main',
+                                    bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(24,119,242,0.04)',
+                                    transform: 'scale(1.01)',
+                                },
                             }}
                         >
-                            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 2 }}>
-                                <ImageIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
-                                <VideocamIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mb: 2 }}>
+                                <Box sx={{
+                                    width: 64, height: 64, borderRadius: 2,
+                                    bgcolor: isDark ? 'rgba(255,255,255,0.08)' : '#e7f3ff',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    <ImageIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+                                </Box>
+                                <Box sx={{
+                                    width: 64, height: 64, borderRadius: 2,
+                                    bgcolor: isDark ? 'rgba(255,255,255,0.08)' : '#e7f3ff',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    <VideocamIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+                                </Box>
                             </Box>
-                            <Typography color="text.secondary">
-                                Nhấn để chọn ảnh hoặc video (tối đa 15s)
+                            <Typography color="text.secondary" fontSize={14}>
+                                {t('story.select_media')}
                             </Typography>
                         </Box>
                     ) : (
@@ -442,28 +468,28 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                     {selectedFile?.type.startsWith('video/') && (
                         <TextField
                             fullWidth
-                            placeholder="Viết chú thích..."
+                            placeholder={t('story.write_caption')}
                             value={caption}
                             onChange={(e) => setCaption(e.target.value)}
                             sx={{
                                 mt: 2,
                                 '& .MuiOutlinedInput-root': {
-                                    color: '#050505',
-                                    '& fieldset': { borderColor: '#ccc' },
-                                    '&:hover fieldset': { borderColor: '#1877f2' },
+                                    color: 'text.primary',
+                                    '& fieldset': { borderColor: theme.palette.divider },
+                                    '&:hover fieldset': { borderColor: 'primary.main' },
                                 },
-                                '& .MuiInputBase-input::placeholder': { color: '#65676b' },
+                                '& .MuiInputBase-input::placeholder': { color: 'text.secondary' },
                             }}
                         />
                     )}
 
                     {/* Privacy Selector */}
                     <FormControl fullWidth sx={{ mt: 2 }}>
-                        <InputLabel id="privacy-label">Đối tượng</InputLabel>
+                        <InputLabel id="privacy-label">{t('story.audience')}</InputLabel>
                         <Select
                             labelId="privacy-label"
                             value={privacy}
-                            label="Đối tượng"
+                            label={t('story.audience')}
                             onChange={handlePrivacyChange}
                             renderValue={(value) => (
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -476,9 +502,9 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <PublicIcon />
                                     <Box>
-                                        <Typography>Công khai</Typography>
+                                        <Typography>{t('story.public')}</Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                            Bất kỳ ai trên Facebook
+                                            {t('story.public_desc')}
                                         </Typography>
                                     </Box>
                                 </Box>
@@ -487,9 +513,9 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <PeopleIcon />
                                     <Box>
-                                        <Typography>Bạn bè</Typography>
+                                        <Typography>{t('story.friends')}</Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                            Bạn bè của bạn
+                                            {t('story.friends_desc')}
                                         </Typography>
                                     </Box>
                                 </Box>
@@ -498,9 +524,9 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <LockIcon />
                                     <Box>
-                                        <Typography>Chỉ mình tôi</Typography>
+                                        <Typography>{t('story.only_me')}</Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                            Chỉ bạn có thể xem
+                                            {t('story.only_me_desc')}
                                         </Typography>
                                     </Box>
                                 </Box>
@@ -515,12 +541,17 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                         onClick={handleCreateStory}
                         sx={{
                             mt: 2,
+                            py: 1.2,
+                            fontWeight: 700,
+                            fontSize: 14,
+                            borderRadius: 2,
+                            textTransform: 'none',
                             bgcolor: 'primary.main',
                             '&:hover': { bgcolor: 'primary.dark' },
                             '&:disabled': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb', color: isDark ? 'rgba(255,255,255,0.3)' : '#bcc0c4' },
                         }}
                     >
-                        {isUploading ? <CircularProgress size={24} /> : 'CHIA SẺ LÊN TIN'}
+                        {isUploading ? <CircularProgress size={24} /> : t('story.share_to_story')}
                     </Button>
                 </DialogContent>
             </Dialog>

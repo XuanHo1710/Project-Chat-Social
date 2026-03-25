@@ -13,6 +13,7 @@ import { ConversationResponseData } from "@/types/conversation";
 import { MessageResponse } from "@/types/chat";
 import { useParams, useRouter } from "next/navigation";
 import { CLIENT_PATH } from "@/constants/paths";
+import { useTranslation } from 'react-i18next';
 
 interface SelectedConversation {
     _id: string;
@@ -30,6 +31,7 @@ export default function ChatDetailPage() {
     const conversationId = params.id as string;
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const { t } = useTranslation();
 
     // Mobile sidebar visibility state
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
@@ -110,7 +112,7 @@ export default function ChatDetailPage() {
             // GROUP conversation
             return {
                 _id: conv._id,
-                fullName: conv.nickname || "Nhóm chat",
+                fullName: conv.nickname || t('chat.group_chat_default'),
                 avatar: conv.avatar || `https://ui-avatars.com/api/?name=G&background=1877f2&color=fff`,
                 status: 'online',
                 otherId: '',
@@ -328,13 +330,13 @@ export default function ChatDetailPage() {
                 />
                 <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: theme.palette.background.default, flexDirection: "column", gap: 2, p: 2 }}>
                     <Typography variant="h6" color="error" textAlign="center">
-                        Cuộc trò chuyện không tồn tại hoặc bạn không có quyền truy cập
+                        {t('chat.conversation_not_found')}
                     </Typography>
                     <Typography
                         sx={{ color: "#1877f2", cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
                         onClick={() => router.push(CLIENT_PATH.CHAT)}
                     >
-                        Quay lại trang chat
+                        {t('chat.back_to_chat')}
                     </Typography>
                 </Box>
             </Box>

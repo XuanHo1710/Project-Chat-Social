@@ -17,7 +17,9 @@ import {
     Apps as AppsIcon,
     Message as MessageIcon,
     Notifications as NotificationsIcon,
-    Bookmark as BookmarkIcon
+    Bookmark as BookmarkIcon,
+    SmartToy as SmartToyIcon,
+    SmartToyOutlined as SmartToyOutlinedIcon
 } from '@mui/icons-material';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -364,13 +366,23 @@ export default function Header() {
                     { label: t('nav.groups'), icon: <GroupsOutlinedIcon sx={{ fontSize: 26 }} />, activeIcon: <GroupsIcon sx={{ fontSize: 26 }} />, path: '/groups' },
                     { label: t('nav.gaming'), icon: <GamesOutlinedIcon sx={{ fontSize: 26 }} />, activeIcon: <GamesIcon sx={{ fontSize: 26 }} />, path: '/game' },
                     { label: t('nav.saved'), icon: <BookmarkIcon sx={{ fontSize: 26 }} />, activeIcon: <BookmarkIcon sx={{ fontSize: 26 }} />, path: '/saved' },
+                    { label: t('nav.aiChat'), icon: <SmartToyOutlinedIcon sx={{ fontSize: 26 }} />, activeIcon: <SmartToyIcon sx={{ fontSize: 26 }} />, path: '/ai-chat' },
                 ].map((item) => {
                     const isActive = pathname === item.path || (item.path !== '/' && pathname?.startsWith(item.path));
                     return (
                         <ListItem key={item.label} disablePadding sx={{ mb: 0.5 }}>
                             <ListItemButton
-                                onClick={() => {
-                                    router.push(item.path);
+                                onClick={async () => {
+                                    if (item.path === '/ai-chat') {
+                                        try {
+                                            const conversation = await conversationService.createChatbotConversation();
+                                            router.push(`/chat/${conversation._id}`);
+                                        } catch (error) {
+                                            console.error("Failed to create chatbot conversation", error);
+                                        }
+                                    } else {
+                                        router.push(item.path);
+                                    }
                                     setMobileOpen(false);
                                 }}
                                 sx={{
@@ -451,20 +463,22 @@ export default function Header() {
                                     width: 40,
                                     height: 40,
                                     borderRadius: '50%',
-                                    bgcolor: 'primary.main',
+                                    background: 'linear-gradient(135deg, #1877F2 0%, #0053BF 100%)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    fontSize: '24px',
-                                    fontWeight: 'bold',
-                                    color: 'white',
                                     cursor: 'pointer',
                                     '&:hover': {
                                         opacity: 0.9
                                     }
                                 }}
                             >
-                                f
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                    <path d="M12 2C6.48 2 2 5.82 2 10.5c0 2.78 1.64 5.25 4.17 6.86L5 21l3.64-2c1.07.29 2.2.44 3.36.44 5.52 0 10-3.82 10-8.5S17.52 2 12 2z" fill="white" />
+                                    <circle cx="8.5" cy="10.5" r="1.4" fill="#1877F2" />
+                                    <circle cx="12" cy="10.5" r="1.4" fill="#1877F2" />
+                                    <circle cx="15.5" cy="10.5" r="1.4" fill="#1877F2" />
+                                </svg>
                             </Box>
                         ) : (
                             <Link href={CLIENT_PATH.HOME} style={{ textDecoration: 'none' }}>
@@ -473,20 +487,22 @@ export default function Header() {
                                         width: 40,
                                         height: 40,
                                         borderRadius: '50%',
-                                        bgcolor: 'primary.main',
+                                        background: 'linear-gradient(135deg, #1877F2 0%, #0053BF 100%)',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        fontSize: '24px',
-                                        fontWeight: 'bold',
-                                        color: 'white',
                                         cursor: 'pointer',
                                         '&:hover': {
                                             opacity: 0.9
                                         }
                                     }}
                                 >
-                                    f
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                        <path d="M12 2C6.48 2 2 5.82 2 10.5c0 2.78 1.64 5.25 4.17 6.86L5 21l3.64-2c1.07.29 2.2.44 3.36.44 5.52 0 10-3.82 10-8.5S17.52 2 12 2z" fill="white" />
+                                        <circle cx="8.5" cy="10.5" r="1.4" fill="#1877F2" />
+                                        <circle cx="12" cy="10.5" r="1.4" fill="#1877F2" />
+                                        <circle cx="15.5" cy="10.5" r="1.4" fill="#1877F2" />
+                                    </svg>
                                 </Box>
                             </Link>
                         )}

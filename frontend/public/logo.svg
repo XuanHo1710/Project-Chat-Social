@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1877F2"/>
+      <stop offset="100%" style="stop-color:#0053BF"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- Chat bubble -->
+  <path d="M256 100C160.5 100 83 163.7 83 242c0 46.3 27.2 87.5 69.3 114.2L140 412l60.5-33.2c17.5 4.8 36.2 7.2 55.5 7.2 95.5 0 173-63.7 173-142S351.5 100 256 100z" fill="white"/>
+  <!-- Three dots -->
+  <circle cx="192" cy="242" r="24" fill="#1877F2"/>
+  <circle cx="256" cy="242" r="24" fill="#1877F2"/>
+  <circle cx="320" cy="242" r="24" fill="#1877F2"/>
+</svg>

@@ -86,6 +86,7 @@ interface CallContextType {
     isGroupCall: boolean;
     isCallAccepted: boolean;
     stream: MediaStream | undefined;
+    peerStream: MediaStream | undefined;
     remoteStreams: RemoteStream[];
     userVideo: React.RefObject<HTMLVideoElement | null>;
     myVideo: React.RefObject<HTMLVideoElement | null>;
@@ -129,6 +130,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     const connectionRef = useRef<Instance | null>(null);
     const peersRef = useRef<Map<string, Instance>>(new Map());
     const [remoteStreams, setRemoteStreams] = useState<RemoteStream[]>([]);
+    const [peerStream, setPeerStream] = useState<MediaStream | undefined>();
 
     // FIX: Buffer for ICE candidates arriving before peer is created (callee side)
     const pendingSignalsRef = useRef<SignalData[]>([]);
@@ -199,6 +201,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setCallerInfo(null); callerInfoRef.current = null;
         setCallerSignal(null);
         setRemoteStreams([]);
+        setPeerStream(undefined);
         setIsMuted(false);
         setIsVideoOff(false);
         setIsGroupCall(false); isGroupCallRef.current = false;
@@ -414,11 +417,17 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         pendingSignalsRef.current = [];
 
         try {
-            const currentStream = await getMediaStream(!isTurnOff);
+            // Always request video so remote side gets a video track from the start
+            const currentStream = await getMediaStream(true);
             streamRef.current = currentStream;
             setStream(currentStream);
 
-            if (!isTurnOff && currentStream.getVideoTracks().length === 0) {
+            // If user chose audio-only, disable video track (but keep it in the stream)
+            const vTrack = currentStream.getVideoTracks()[0];
+            if (isTurnOff && vTrack) {
+                vTrack.enabled = false;
+                setIsVideoOff(true);
+            } else if (!vTrack) {
                 setIsVideoOff(true);
             }
 
@@ -438,6 +447,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             });
 
             peer.on('stream', (remoteStream) => {
+                setPeerStream(remoteStream);
                 if (userVideo.current) userVideo.current.srcObject = remoteStream;
             });
 
@@ -467,11 +477,16 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIsCallAccepted(true);
 
         try {
-            const currentStream = await getMediaStream(!isTurnOff);
+            // Always request video so peers get a video track from the start
+            const currentStream = await getMediaStream(true);
             streamRef.current = currentStream;
             setStream(currentStream);
 
-            if (!isTurnOff && currentStream.getVideoTracks().length === 0) {
+            const vTrack = currentStream.getVideoTracks()[0];
+            if (isTurnOff && vTrack) {
+                vTrack.enabled = false;
+                setIsVideoOff(true);
+            } else if (!vTrack) {
                 setIsVideoOff(true);
             }
 
@@ -494,7 +509,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIsCallAccepted(true);
 
         try {
-            const currentStream = await getMediaStream(false);
+            // Always request video so other peers get a video track from the start
+            const currentStream = await getMediaStream(true);
+            const vTrack = currentStream.getVideoTracks()[0];
+            if (vTrack) {
+                vTrack.enabled = false;
+            }
             setIsVideoOff(true);
             streamRef.current = currentStream;
             setStream(currentStream);
@@ -531,7 +551,13 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIsCallAccepted(true);
 
         try {
-            const currentStream = await getMediaStream(false);
+            // Always request video so caller gets a video track from the start
+            // Video track is disabled initially; user can enable via toggleVideo
+            const currentStream = await getMediaStream(true);
+            const vTrack = currentStream.getVideoTracks()[0];
+            if (vTrack) {
+                vTrack.enabled = false;
+            }
             setIsVideoOff(true);
             streamRef.current = currentStream;
             setStream(currentStream);
@@ -552,6 +578,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             });
 
             peer.on('stream', (remoteStream) => {
+                setPeerStream(remoteStream);
                 if (userVideo.current) userVideo.current.srcObject = remoteStream;
             });
 
@@ -632,7 +659,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         <CallContext.Provider value={{
             callUser, startGroupCall, joinGroupCall, answerCall, leaveCall, rejectCall,
             toggleAudio, toggleVideo, callReceived, isInCall, isGroupCall, isCallAccepted,
-            stream, remoteStreams, myVideo, userVideo, callerInfo, recipientInfo,
+            stream, peerStream, remoteStreams, myVideo, userVideo, callerInfo, recipientInfo,
             hasVideo: !isVideoOff, hasAudio: !isMuted, isMuted, isVideoOff,
         }}>
             {children}

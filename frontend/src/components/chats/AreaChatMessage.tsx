@@ -1359,7 +1359,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 display: "flex",
                 flexDirection: "row",
                 bgcolor: "background.paper",
-                height: "100vh",
+                height: { xs: "100dvh", md: "100vh" },
                 overflow: "hidden",
                 width: "100%",
             }}
@@ -1374,6 +1374,10 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         p: { xs: 1.5, md: 2 },
                         borderBottom: `1px solid ${theme.palette.divider}`,
                         bgcolor: 'background.paper',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        flexShrink: 0,
                     }}
                 >
                     <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1, md: 2 } }}>
@@ -1812,7 +1816,11 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             p: 2,
                             bgcolor: "background.paper",
                             borderTop: `1px solid ${theme.palette.divider}`,
-                            position: 'relative'
+                            position: 'sticky',
+                            bottom: 0,
+                            zIndex: 10,
+                            flexShrink: 0,
+                            pb: { xs: `calc(8px + env(safe-area-inset-bottom, 0px))`, md: 2 },
                         }}
                     >
                         {/* Mentions List */}

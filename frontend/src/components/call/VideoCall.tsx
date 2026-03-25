@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     PhoneOff,
@@ -18,6 +18,7 @@ export default function VideoCall() {
         myVideo,
         userVideo,
         stream,
+        peerStream,
         isCallAccepted,
         isMuted,
         isVideoOff,
@@ -27,6 +28,25 @@ export default function VideoCall() {
         remoteStreams,
         isGroupCall
     } = useCall();
+
+    // FIX: Sync peerStream → userVideo whenever peerStream or isCallAccepted changes
+    // This handles the case where peerStream arrives AFTER the video element mounts
+    useEffect(() => {
+        if (peerStream && userVideo.current && userVideo.current.srcObject !== peerStream) {
+            userVideo.current.srcObject = peerStream;
+        }
+    }, [peerStream, isCallAccepted, userVideo]);
+
+    // FIX: Callback ref for the remote video element.
+    // This handles the case where the video element mounts AFTER peerStream is already set.
+    const remoteVideoRef = useCallback((el: HTMLVideoElement | null) => {
+        // Keep the shared ref in sync
+        (userVideo as React.MutableRefObject<HTMLVideoElement | null>).current = el;
+        if (el && peerStream && el.srcObject !== peerStream) {
+            el.srcObject = peerStream;
+            void el.play().catch(() => { /* autoplay race */ });
+        }
+    }, [peerStream, userVideo]);
 
     if (!isInCall) return null;
 
@@ -94,7 +114,7 @@ export default function VideoCall() {
                     <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
                         {isCallAccepted ? (
                             <video
-                                ref={userVideo}
+                                ref={remoteVideoRef}
                                 className="w-full h-full object-cover"
                                 autoPlay
                                 playsInline

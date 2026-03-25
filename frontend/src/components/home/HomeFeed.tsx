@@ -185,10 +185,15 @@ export default function HomeFeed() {
         // Use URL param directly for sorting (more reliable)
         const postIdToHighlight = highlightedPostIdFromUrl || persistedHighlightedPostId.current;
 
-        if (!postIdToHighlight) return allPosts;
+        // Push active LIVE streams to top
+        const livePosts = allPosts.filter((p: PostType) => p.type === 'LIVESTREAM' && p.livestreamStatus === 'LIVE');
+        const nonLivePosts = allPosts.filter((p: PostType) => !(p.type === 'LIVESTREAM' && p.livestreamStatus === 'LIVE'));
+        const sortedPosts = [...livePosts, ...nonLivePosts];
+
+        if (!postIdToHighlight) return sortedPosts;
 
         // First, check if highlighted post exists in list
-        let highlightedPost = allPosts.find((p: PostType) => p._id === postIdToHighlight);
+        let highlightedPost = sortedPosts.find((p: PostType) => p._id === postIdToHighlight);
 
         // If not found, use fetched post (if available)
         if (!highlightedPost && fetchedHighlightedPost && fetchedHighlightedPost._id === postIdToHighlight) {
@@ -196,10 +201,10 @@ export default function HomeFeed() {
         }
 
         if (!highlightedPost) {
-            return allPosts;
+            return sortedPosts;
         }
 
-        const otherPosts = allPosts.filter((p: PostType) => p._id !== postIdToHighlight);
+        const otherPosts = sortedPosts.filter((p: PostType) => p._id !== postIdToHighlight);
         return [highlightedPost, ...otherPosts];
     }, [allApiPosts, storePosts, highlightedPostIdFromUrl, fetchedHighlightedPost]);
 
@@ -483,91 +488,125 @@ export default function HomeFeed() {
                         mb: 2,
                         position: 'relative',
                         cursor: isLive ? 'pointer' : 'default',
-                        height: 260,
-                        bgcolor: isDark ? '#1c1e21' : '#e4e6eb',
-                        borderRadius: 2,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        overflow: 'hidden'
+                        borderRadius: 3,
+                        overflow: 'hidden',
+                        border: isLive ? '2px solid #e41e3f' : 'none',
                     }}
                     onClick={() => {
                         if (isLive) setViewingLivePost(post);
                     }}
                 >
-                    {userAvatar && (
-                        <Box
-                            component="img"
-                            src={userAvatar}
-                            sx={{
+                    {/* Background */}
+                    <Box sx={{
+                        position: 'relative',
+                        height: { xs: 200, sm: 280 },
+                        background: isLive
+                            ? 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)'
+                            : isDark ? '#1c1e21' : '#e4e6eb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}>
+                        {userAvatar && (
+                            <Box
+                                component="img"
+                                src={userAvatar}
+                                sx={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    filter: 'blur(40px) brightness(0.3)',
+                                    opacity: 0.6,
+                                }}
+                            />
+                        )}
+
+                        {isLive && (
+                            <Box sx={{
                                 position: 'absolute',
                                 inset: 0,
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover',
-                                filter: 'blur(30px) brightness(0.4)',
-                                opacity: 0.8
-                            }}
-                        />
-                    )}
+                                background: 'radial-gradient(circle at center, transparent 30%, rgba(228,30,63,0.08) 100%)',
+                                animation: 'livePulse 3s infinite ease-in-out',
+                                '@keyframes livePulse': {
+                                    '0%, 100%': { opacity: 0.5 },
+                                    '50%': { opacity: 1 },
+                                },
+                            }} />
+                        )}
 
-                    <Box sx={{ position: 'relative', textAlign: 'center', zIndex: 1 }}>
-                        {isLive ? (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <Box sx={{
-                                    position: 'relative',
-                                    mb: 2,
-                                    animation: 'pulse 1.5s infinite ease-in-out',
-                                    '@keyframes pulse': {
-                                        '0%': { transform: 'scale(1)' },
-                                        '50%': { transform: 'scale(1.05)' },
-                                        '100%': { transform: 'scale(1)' },
-                                    }
-                                }}>
-                                    <Chip
-                                        icon={<Box sx={{ width: 8, height: 8, bgcolor: 'white', borderRadius: '50%', ml: 0.5 }} />}
-                                        label={t('post.live_video').toUpperCase()}
-                                        sx={{
-                                            bgcolor: '#e41e3f',
-                                            color: 'white',
-                                            fontWeight: 800,
-                                            fontSize: 14,
-                                            px: 1,
-                                            boxShadow: '0 0 15px rgba(228, 30, 63, 0.6)',
-                                            '& .MuiChip-label': { px: 1 }
-                                        }}
-                                    />
+                        <Box sx={{ position: 'relative', textAlign: 'center', zIndex: 1, px: 3 }}>
+                            {isLive ? (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+                                    {/* LIVE badge */}
+                                    <Box sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.8,
+                                        bgcolor: '#e41e3f',
+                                        color: 'white',
+                                        px: 2,
+                                        py: 0.5,
+                                        borderRadius: 1,
+                                        boxShadow: '0 0 20px rgba(228,30,63,0.5)',
+                                        animation: 'badgePulse 2s infinite ease-in-out',
+                                        '@keyframes badgePulse': {
+                                            '0%, 100%': { boxShadow: '0 0 10px rgba(228,30,63,0.4)' },
+                                            '50%': { boxShadow: '0 0 25px rgba(228,30,63,0.7)' },
+                                        },
+                                    }}>
+                                        <Box sx={{ width: 8, height: 8, bgcolor: 'white', borderRadius: '50%' }} />
+                                        <Typography sx={{ fontWeight: 800, fontSize: 13, letterSpacing: 1 }}>LIVE</Typography>
+                                    </Box>
+
+                                    <Typography sx={{
+                                        color: 'white',
+                                        fontWeight: 700,
+                                        fontSize: { xs: 16, sm: 20 },
+                                        textShadow: '0 2px 12px rgba(0,0,0,0.6)',
+                                    }}>
+                                        {post.userId?.firstName} {post.userId?.lastName}
+                                    </Typography>
+
+                                    <Typography sx={{
+                                        color: 'rgba(255,255,255,0.7)',
+                                        fontSize: { xs: 12, sm: 14 },
+                                        fontWeight: 500,
+                                    }}>
+                                        {t('post.is_streaming')}
+                                    </Typography>
+
+                                    {/* Join button */}
+                                    <Box sx={{
+                                        mt: 1,
+                                        bgcolor: '#e41e3f',
+                                        color: 'white',
+                                        px: 3,
+                                        py: 1,
+                                        borderRadius: 2,
+                                        fontWeight: 700,
+                                        fontSize: 14,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        '&:hover': { bgcolor: '#c91836', transform: 'translateY(-1px)', boxShadow: '0 4px 16px rgba(228,30,63,0.4)' },
+                                    }}>
+                                        <Typography sx={{ fontWeight: 700, fontSize: { xs: 13, sm: 14 } }}>
+                                            {t('post.click_to_join')} ▶
+                                        </Typography>
+                                    </Box>
                                 </Box>
-                                <Typography variant="h5" sx={{ color: 'white', fontWeight: 700, mb: 1, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-                                    {post.userId?.firstName + " " + post.userId?.lastName} {t('post.is_streaming')}
-                                </Typography>
-                                <Box sx={{
-                                    mt: 1,
-                                    bgcolor: 'rgba(255,255,255,0.2)',
-                                    px: 2, py: 0.8,
-                                    borderRadius: 50,
-                                    backdropFilter: 'blur(10px)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 1,
-                                    transition: 'all 0.2s',
-                                    '&:hover': { bgcolor: 'rgba(255,255,255,0.3)', transform: 'scale(1.05)' }
-                                }}>
-                                    <Typography sx={{ color: 'white', fontWeight: 600, fontSize: 13 }}>
-                                        {t('post.click_to_join')} ▶
+                            ) : (
+                                <Box sx={{ py: 4 }}>
+                                    <Typography sx={{ color: textSecondary, fontWeight: 500, fontSize: 15 }}>
+                                        {t('post.livestream_ended')}
+                                    </Typography>
+                                    <Typography sx={{ color: textSecondary, mt: 0.5, fontSize: 13, opacity: 0.7 }}>
+                                        {t('post.video_not_saved')}
                                     </Typography>
                                 </Box>
-                            </Box>
-                        ) : (
-                            <>
-                                <Typography variant="body1" sx={{ color: textSecondary, fontWeight: 500 }}>
-                                    {t('post.livestream_ended')}
-                                </Typography>
-                                <Typography variant="body2" sx={{ color: textSecondary, mt: 0.5 }}>
-                                    {t('post.video_not_saved')}
-                                </Typography>
-                            </>
-                        )}
+                            )}
+                        </Box>
                     </Box>
                 </Box>
             );
@@ -681,22 +720,22 @@ export default function HomeFeed() {
                     <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                         <Avatar sx={{ width: 40, height: 40 }} src={user?.avatar} />
                         <Box onClick={() => setOpenCreatePost(true)} sx={{ flex: 1, bgcolor: inputBg, borderRadius: '50px', display: 'flex', alignItems: 'center', px: 2, py: 1.5, cursor: 'pointer', '&:hover': { bgcolor: hoverBg } }}>
-                            <Typography sx={{ color: 'text.secondary', fontSize: { xs: 14, sm: 17 } }}>{user?.fullName || user?.username || t('common.you')}, {t('post.whats_on_your_mind')}?</Typography>
+                            <Typography sx={{ color: 'text.secondary', fontSize: { xs: 13, sm: 17 } }}>{user?.fullName || user?.username || t('common.you')}, {t('post.whats_on_your_mind')}?</Typography>
                         </Box>
                     </Box>
                     <Divider sx={{ mb: 1 }} />
                     <Box sx={{ display: 'flex', justifyContent: 'space-around' }}>
-                        <Box onClick={() => setOpenLiveStudio(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: { xs: 1, sm: 2 }, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
-                            <VideoIcon sx={{ color: '#f3425f', fontSize: { xs: 20, sm: 24 } }} />
-                            <Typography sx={{ fontSize: { xs: '12px', sm: '15px' }, fontWeight: 600, color: 'text.secondary' }}>{t('post.live_video')}</Typography>
+                        <Box onClick={() => setOpenLiveStudio(true)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 1, px: { xs: 0.5, sm: 2 }, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
+                            <VideoIcon sx={{ color: '#f3425f', fontSize: { xs: 18, sm: 24 } }} />
+                            <Typography sx={{ fontSize: { xs: '11px', sm: '15px' }, fontWeight: 600, color: 'text.secondary' }}>{t('post.live_video')}</Typography>
                         </Box>
-                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: { xs: 1, sm: 2 }, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
-                            <PhotoIcon sx={{ color: '#45bd62', fontSize: { xs: 20, sm: 24 } }} />
-                            <Typography sx={{ fontSize: { xs: '12px', sm: '15px' }, fontWeight: 600, color: 'text.secondary' }}>{t('post.photo_video')}</Typography>
+                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 1, px: { xs: 0.5, sm: 2 }, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
+                            <PhotoIcon sx={{ color: '#45bd62', fontSize: { xs: 18, sm: 24 } }} />
+                            <Typography sx={{ fontSize: { xs: '11px', sm: '15px' }, fontWeight: 600, color: 'text.secondary' }}>{t('post.photo_video')}</Typography>
                         </Box>
-                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: { xs: 1, sm: 2 }, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
-                            <MoodIcon sx={{ color: '#f7b928', fontSize: { xs: 20, sm: 24 } }} />
-                            <Typography sx={{ fontSize: { xs: '12px', sm: '15px' }, fontWeight: 600, color: 'text.secondary' }}>{t('post.feeling_activity')}</Typography>
+                        <Box onClick={() => setOpenCreatePost(true)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 1, px: { xs: 0.5, sm: 2 }, cursor: 'pointer', borderRadius: 2, '&:hover': { bgcolor: hoverBg } }}>
+                            <MoodIcon sx={{ color: '#f7b928', fontSize: { xs: 18, sm: 24 } }} />
+                            <Typography sx={{ fontSize: { xs: '11px', sm: '15px' }, fontWeight: 600, color: 'text.secondary' }}>{t('post.feeling_activity')}</Typography>
                         </Box>
                     </Box>
                 </CardContent>

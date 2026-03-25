@@ -46,6 +46,9 @@ export class AuthService {
     if (!account) {
       account = await this.accountService.findByEmail(username);
     }
+    if (!account) {
+      account = await this.accountService.findByPhone(username);
+    }
     const isCorrect = bcrypt.compareSync(passPlainText, account?.password || '');
     if (account && isCorrect) {
       return account;
@@ -109,12 +112,14 @@ export class AuthService {
     password: string;
     firstName: string;
     lastName: string;
+    phone?: string;
   }) {
     const newAccount = await this.accountService.create({
       username: signupData.username,
       password: signupData.password,
       firstName: signupData.firstName,
       lastName: signupData.lastName,
+      phone: signupData.phone,
     });
     return this.login(newAccount);
   }

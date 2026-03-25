@@ -67,6 +67,7 @@ import { postService } from '@/services/post.service';
 import { ProfileType, FriendType } from '@/types/account';
 import { PostType, PostPrivacy, MediaItem } from '@/types/post';
 import { uploadChatMedia, deleteCloudinaryMedia } from '@/services/cloudinary.service';
+import { conversationService } from '@/services/conversation.service';
 import { useRouter } from 'next/navigation';
 import EditProfileModal from '@/components/profile/EditProfileModal';
 import CreatePostModal from '@/components/posts/CreatePostModal';
@@ -286,8 +287,15 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         }
     };
 
-    const handleMessage = () => {
-        router.push(`/chat?username=${userName}`);
+    const handleMessage = async () => {
+        if (!profile?._id) return;
+        try {
+            const conversation = await conversationService.getOrCreateDirectConversation(profile._id);
+            router.push(`/chat/${conversation._id}`);
+        } catch (error) {
+            console.error('Error creating conversation:', error);
+            toast.error(t('common.error'));
+        }
     };
 
     const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

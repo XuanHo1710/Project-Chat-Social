@@ -53,6 +53,11 @@ export class AccountController {
     return this.accountService.saveFcmToken(user._id, token);
   }
 
+  @Delete('fcm-token')
+  async removeFcmToken(@UserInfo() user: any, @Body('token') token: string) {
+    return this.accountService.removeFcmToken(user._id, token);
+  }
+
   // ==================== SETTINGS ====================
 
   // Get user settings

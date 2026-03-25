@@ -60,6 +60,15 @@ export const metadata: Metadata = {
   verification: {
     google: "your-google-verification-code",
   },
+  icons: {
+    icon: [
+      { url: '/icon', type: 'image/png', sizes: '32x32' },
+    ],
+    apple: [
+      { url: '/icon', type: 'image/png', sizes: '32x32' },
+    ],
+  },
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({

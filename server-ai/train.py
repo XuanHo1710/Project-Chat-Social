@@ -372,6 +372,18 @@ def train():
     logger.info(f"   ✅ Collection '{USER_COLLECTION}' created (dim={embedding_dim})")
     
     # Upload user vectors in batches
+    # Pre-compute interaction counts per user
+    user_interaction_counts = {}
+    for uid in user_vectors.keys():
+        count = 0
+        if not reactions_df.empty and 'userId' in reactions_df.columns:
+            count += len(reactions_df[reactions_df['userId'] == uid])
+        if not shares_df.empty and 'userId' in shares_df.columns:
+            count += len(shares_df[shares_df['userId'] == uid])
+        if not ui_df.empty and 'userId' in ui_df.columns:
+            count += len(ui_df[ui_df['userId'] == uid])
+        user_interaction_counts[uid] = count
+    
     user_list = list(user_vectors.items())
     BATCH_SIZE = 100
     for batch_start in range(0, len(user_list), BATCH_SIZE):
@@ -384,11 +396,7 @@ def train():
                 vector=vec.tolist(),
                 payload={
                     "user_id": uid,
-                    "interaction_count": len([
-                        x for x in (
-                            list(reactions_df[reactions_df['userId'] == uid].iterrows()) if not reactions_df.empty else []
-                        )
-                    ]),
+                    "interaction_count": user_interaction_counts.get(uid, 0),
                 }
             ))
         qdrant.upsert(collection_name=USER_COLLECTION, points=points)
@@ -407,7 +415,7 @@ def train():
             {"$set": {
                 "user_id": uid,
                 "vector": vec.tolist(),
-                "count": 0,
+                "count": user_interaction_counts.get(uid, 0),
                 "last_updated": datetime.now()
             }},
             upsert=True

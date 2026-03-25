@@ -18,7 +18,7 @@ export interface UserSettings {
 
 class AccountService {
   async getAccountsByPage(
-    params?: Record<string, string | number | boolean | Array<string>>
+    params?: Record<string, string | number | boolean | Array<string>>,
   ) {
     const response = await axios.get<
       APIResponse<PageResponse<AccountCardFriendType>>
@@ -29,14 +29,22 @@ class AccountService {
   async updateFMCToken(token: string): Promise<{ message: string }> {
     const response = await axios.post<APIResponse<{ message: string }>>(
       `/${PREFIX}/fcm-token`,
-      { token }
+      { token },
+    );
+    return response.data.data;
+  }
+
+  async removeFMCToken(token: string): Promise<{ message: string }> {
+    const response = await axios.delete<APIResponse<{ message: string }>>(
+      `/${PREFIX}/fcm-token`,
+      { data: { token } },
     );
     return response.data.data;
   }
 
   async getAccountById(id: string): Promise<AccountType> {
     const response = await axios.get<APIResponse<AccountType>>(
-      `/${PREFIX}/${id}`
+      `/${PREFIX}/${id}`,
     );
     return response.data.data;
   }
@@ -44,7 +52,7 @@ class AccountService {
   // Get profile by username
   async getProfileByUsername(username: string): Promise<ProfileType> {
     const response = await axios.get<APIResponse<ProfileType>>(
-      `/${PREFIX}/profile/${username}`
+      `/${PREFIX}/profile/${username}`,
     );
     return response.data.data;
   }
@@ -53,7 +61,7 @@ class AccountService {
   async updateProfile(data: UpdateProfileType): Promise<ProfileType> {
     const response = await axios.put<APIResponse<ProfileType>>(
       `/${PREFIX}/profile`,
-      data
+      data,
     );
     return response.data.data;
   }
@@ -63,7 +71,7 @@ class AccountService {
   // Get user settings
   async getSettings(): Promise<UserSettings> {
     const response = await axios.get<APIResponse<UserSettings>>(
-      `/${PREFIX}/settings`
+      `/${PREFIX}/settings`,
     );
     return response.data.data;
   }
@@ -72,7 +80,7 @@ class AccountService {
   async toggleActivityStatus(show: boolean): Promise<ProfileType> {
     const response = await axios.patch<APIResponse<ProfileType>>(
       `/${PREFIX}/settings/activity-status`,
-      { show }
+      { show },
     );
     return response.data.data;
   }
@@ -96,7 +104,7 @@ class AccountService {
   // Cancel self-block
   async unblockSelfAccount(): Promise<{ message: string }> {
     const response = await axios.delete<APIResponse<{ message: string }>>(
-      `/${PREFIX}/settings/self-block`
+      `/${PREFIX}/settings/self-block`,
     );
     return response.data.data;
   }

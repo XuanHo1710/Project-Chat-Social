@@ -113,9 +113,12 @@ const SocialParticles = () => {
 export default function SigninPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { setUser, setAccessToken } = useAuthStore();
   const { t } = useTranslation();
@@ -149,15 +152,31 @@ export default function SigninPage() {
   const handleSign = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!username || !password || !firstName || !lastName) {
+    if (!username || !password || !firstName || !lastName || !phone) {
       toast.error(t('auth.fill_all_info'));
+      return;
+    }
+
+    if (password.length < 8) {
+      toast.error(t('auth.password_min_length'));
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast.error(t('auth.password_mismatch'));
+      return;
+    }
+
+    const phoneRegex = /^(0[3-9]\d{8}|\+84[3-9]\d{8})$/;
+    if (!phoneRegex.test(phone)) {
+      toast.error(t('auth.invalid_phone'));
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await authService.signup({ username, password, firstName, lastName });
+      const response = await authService.signup({ username, password, firstName, lastName, phone });
 
       if (response.data?.payload) {
         const userData = {
@@ -259,7 +278,7 @@ export default function SigninPage() {
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
-          p: 4,
+          p: { xs: 2, sm: 4 },
           perspective: "1000px",
           zIndex: 2
         }}
@@ -273,18 +292,18 @@ export default function SigninPage() {
             transition={{ type: "spring", stiffness: 100, delay: 0.2 }}
             elevation={3}
             sx={{
-              p: 4,
+              p: { xs: 3, sm: 4 },
               borderRadius: 3,
               bgcolor: 'background.paper',
               boxShadow: isDark ? '0 10px 40px rgba(0,0,0,0.4)' : '0 10px 40px rgba(0,0,0,0.1)',
-              marginTop: { xs: 8, md: 0 }
+              marginTop: { xs: 0, md: 0 }
             }}
           >
-            <Box sx={{ mb: 4, textAlign: 'center', display: { md: 'none' } }}>
-              <Typography variant="h4" fontWeight={800} sx={{ color: theme.palette.primary.main }}>Social Chat</Typography>
+            <Box sx={{ mb: 3, textAlign: 'center', display: { md: 'none' } }}>
+              <Typography variant="h4" fontWeight={800} sx={{ color: theme.palette.primary.main, fontSize: { xs: '1.6rem', sm: '2rem' } }}>Social Chat</Typography>
             </Box>
 
-            <Stack alignItems="center" sx={{ mb: 3 }}>
+            <Stack alignItems="center" sx={{ mb: 2 }}>
               <motion.div
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -293,23 +312,25 @@ export default function SigninPage() {
                 <Typography variant="h4" fontWeight={800} sx={{
                   color: 'text.primary',
                   textAlign: 'center',
-                  mb: 1
+                  mb: 0.5,
+                  fontSize: { xs: '1.4rem', sm: '2rem' }
                 }}>
                   {t('auth.create_account_title')}
                 </Typography>
               </motion.div>
-              <Typography variant="body1" color="text.secondary">
+              <Typography variant="body2" color="text.secondary">
                 {t('auth.quick_easy')}
               </Typography>
             </Stack>
 
 
             <form onSubmit={handleSign}>
-              <Stack spacing={2.5}>
+              <Stack spacing={2}>
                 <Stack direction="row" spacing={2}>
                   <TextField
                     label={t('auth.firstName')}
                     fullWidth
+                    size="small"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     disabled={loading}
@@ -317,6 +338,7 @@ export default function SigninPage() {
                   <TextField
                     label={t('auth.lastName')}
                     fullWidth
+                    size="small"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     disabled={loading}
@@ -326,26 +348,66 @@ export default function SigninPage() {
                 <TextField
                   label={t('auth.username')}
                   fullWidth
+                  size="small"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={loading}
                 />
 
                 <TextField
+                  label={t('auth.phone')}
+                  fullWidth
+                  size="small"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={loading}
+                  placeholder="0912345678"
+                />
+
+                <TextField
                   label={t('auth.password')}
                   type={showPassword ? "text" : "password"}
                   fullWidth
+                  size="small"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
+                  helperText={password.length > 0 && password.length < 8 ? t('auth.password_min_length') : ''}
+                  error={password.length > 0 && password.length < 8}
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
                         <IconButton
                           onClick={() => setShowPassword(!showPassword)}
                           edge="end"
+                          size="small"
                         >
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                          {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+
+                <TextField
+                  label={t('auth.confirm_password')}
+                  type={showConfirmPassword ? "text" : "password"}
+                  fullWidth
+                  size="small"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={loading}
+                  error={confirmPassword.length > 0 && confirmPassword !== password}
+                  helperText={confirmPassword.length > 0 && confirmPassword !== password ? t('auth.password_mismatch') : ''}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          edge="end"
+                          size="small"
+                        >
+                          {showConfirmPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                         </IconButton>
                       </InputAdornment>
                     ),

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Box, Typography } from "@mui/material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId } from "@/queries/useConversationQueries";
@@ -29,6 +29,27 @@ export default function ChatPage() {
     const queryClient = useQueryClient();
     const router = useRouter();
 
+    // Dynamic tab title for unread messages
+    const unreadMsgCount = useRef(0);
+    const originalTitle = useRef("Social Chat - Mạng xã hội kết nối bạn bè");
+
+    const updateTabTitle = useCallback((senderName: string) => {
+        unreadMsgCount.current += 1;
+        document.title = `${senderName} đã gửi ${unreadMsgCount.current} tin nhắn đến bạn`;
+    }, []);
+
+    useEffect(() => {
+        const handleFocus = () => {
+            unreadMsgCount.current = 0;
+            document.title = originalTitle.current;
+        };
+        window.addEventListener("focus", handleFocus);
+        return () => {
+            window.removeEventListener("focus", handleFocus);
+            document.title = originalTitle.current;
+        };
+    }, []);
+
 
     const { data: listConversation, isLoading: isLoadingConversations } = useConversationByUserId(user?.id || "");
 
@@ -43,6 +64,15 @@ export default function ChatPage() {
         if (!socketChat || !user?.id) return;
 
         const handleGlobalMessageNew = (msg: MessageResponse) => {
+            // Update tab title if message is from someone else and tab is not focused
+            const senderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
+            if (senderId !== user.id && !document.hasFocus()) {
+                const senderName = typeof msg.senderId === 'object'
+                    ? `${msg.senderId.firstName} ${msg.senderId.lastName}`.trim()
+                    : 'Ai đó';
+                updateTabTitle(senderName);
+            }
+
             // OPTIMISTIC UPDATE: Update lastMessage immediately in cache
             queryClient.setQueryData<{ data: ConversationResponseData[] }>(
                 [QUERY_KEYS.CONVERSATION_BY_USER, user.id],

@@ -19,6 +19,7 @@ class AuthService {
     password: string;
     firstName: string;
     lastName: string;
+    phone: string;
   }): Promise<APIResponse<LoginResponseData>> {
     const response = await axiosInstance.post<APIResponse<LoginResponseData>>(
       "/auth/signup",

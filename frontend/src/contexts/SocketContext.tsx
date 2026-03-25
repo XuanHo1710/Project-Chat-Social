@@ -37,6 +37,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
   // Track if online status listener is already setup
   const onlineListenerSetup = useRef(false);
+  const onlineCleanup = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const userId = user?.id;
@@ -80,7 +81,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       // Setup global listeners ONCE when connected
       if (!onlineListenerSetup.current) {
         onlineListenerSetup.current = true;
-        setupOnlineStatusListeners(socketIo, userId);
+        onlineCleanup.current = setupOnlineStatusListeners(socketIo, userId);
       }
     });
 
@@ -120,6 +121,8 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       onlineListenerSetup.current = false;
+      onlineCleanup.current?.();
+      onlineCleanup.current = null;
       socketIo.disconnect();
       socketRelationshipIo.disconnect();
       socketReactionIo.disconnect();
@@ -136,11 +139,83 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 };
 
 // Centralized online status listeners - runs ONCE
-function setupOnlineStatusListeners(socket: Socket, userId: string) {
+function setupOnlineStatusListeners(socket: Socket, userId: string): () => void {
   const onlineStore = useOnlineStatusStore.getState();
   const messageStore = useMessageCacheStore.getState();
 
   console.log("🟢 Setting up global socket listeners (once)");
+
+  // ─── Global tab title notification for unread messages ───
+  let unreadMsgCount = 0;
+  const originalTitle = 'Social Chat - Mạng xã hội kết nối bạn bè';
+  let originalFaviconHref: string | null = null;
+  let titleBlinkInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Save original favicon
+  if (typeof document !== 'undefined') {
+    const link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    originalFaviconHref = link?.href || '/icon';
+  }
+
+  // Create a favicon with red notification badge
+  const setNotificationFavicon = (count: number) => {
+    if (typeof document === 'undefined') return;
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, 32, 32);
+      // Draw red badge circle
+      ctx.beginPath();
+      ctx.arc(24, 8, 9, 0, 2 * Math.PI);
+      ctx.fillStyle = '#FF0000';
+      ctx.fill();
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Draw count number
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(count > 9 ? '9+' : String(count), 24, 8);
+      // Apply favicon
+      let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = canvas.toDataURL('image/png');
+    };
+    img.src = originalFaviconHref || '/icon';
+  };
+
+  const restoreFavicon = () => {
+    if (typeof document === 'undefined') return;
+    const link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    if (link && originalFaviconHref) {
+      link.href = originalFaviconHref;
+    }
+    if (titleBlinkInterval) {
+      clearInterval(titleBlinkInterval);
+      titleBlinkInterval = null;
+    }
+  };
+
+  const handleWindowFocus = () => {
+    unreadMsgCount = 0;
+    document.title = originalTitle;
+    restoreFavicon();
+  };
+  if (typeof window !== 'undefined') {
+    window.addEventListener('focus', handleWindowFocus);
+  }
 
   // Listen for user online
   socket.on('user:online', (data: { userId: string; status: string }) => {
@@ -159,6 +234,36 @@ function setupOnlineStatusListeners(socket: Socket, userId: string) {
     console.log("📨 Global message:new received:", msg.conversationId, msg._id);
     // Store in pending cache - AreaChatMessage will consume this when it opens
     messageStore.addPendingMessage(msg.conversationId, msg);
+
+    // Update tab title and favicon if message is from someone else and tab is not focused
+    const senderId = typeof msg.senderId === 'object' ? msg.senderId?._id : msg.senderId;
+    if (senderId && senderId !== userId && typeof document !== 'undefined' && !document.hasFocus()) {
+      let senderName = 'Ai đó';
+      if (typeof msg.senderId === 'object' && msg.senderId) {
+        const first = msg.senderId.firstName || '';
+        const last = msg.senderId.lastName || '';
+        const full = `${first} ${last}`.trim();
+        if (full) senderName = full;
+      }
+      unreadMsgCount += 1;
+      const notifTitle = `${senderName} đã gửi ${unreadMsgCount} tin nhắn đến bạn`;
+      document.title = notifTitle;
+
+      // Set red badge on favicon
+      setNotificationFavicon(unreadMsgCount);
+
+      // Blink tab title for attention
+      if (titleBlinkInterval) clearInterval(titleBlinkInterval);
+      let showNotif = true;
+      titleBlinkInterval = setInterval(() => {
+        if (document.hasFocus()) {
+          handleWindowFocus();
+          return;
+        }
+        document.title = showNotif ? notifTitle : '💬 Tin nhắn mới!';
+        showNotif = !showNotif;
+      }, 1500);
+    }
   });
 
   // GLOBAL: Listen for message edits
@@ -206,4 +311,13 @@ function setupOnlineStatusListeners(socket: Socket, userId: string) {
       onlineStore.setOnlineUsers(data.onlineUsers);
     }
   });
+
+  // Return cleanup function
+  return () => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('focus', handleWindowFocus);
+    }
+    restoreFavicon();
+    document.title = originalTitle;
+  };
 }

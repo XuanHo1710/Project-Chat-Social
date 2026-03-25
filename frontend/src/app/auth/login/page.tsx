@@ -316,7 +316,7 @@ export default function LoginPage() {
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
-          p: 4,
+          p: { xs: 2, sm: 4 },
           perspective: "1000px",
           zIndex: 2,
         }}
@@ -329,18 +329,18 @@ export default function LoginPage() {
             transition={{ type: "spring", stiffness: 60, delay: 0.2 }}
             elevation={3}
             sx={{
-              p: 4,
+              p: { xs: 3, sm: 4 },
               borderRadius: 3,
               bgcolor: 'background.paper',
               boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.08)',
-              marginTop: { xs: 8, md: 0 }
+              marginTop: { xs: 0, md: 0 }
             }}
           >
-            <Box sx={{ mb: 4, textAlign: 'center', display: { md: 'none' } }}>
-              <Typography variant="h4" fontWeight={800} sx={{ color: theme.palette.primary.main }}>Social Chat</Typography>
+            <Box sx={{ mb: 3, textAlign: 'center', display: { md: 'none' } }}>
+              <Typography variant="h4" fontWeight={800} sx={{ color: theme.palette.primary.main, fontSize: { xs: '1.6rem', sm: '2rem' } }}>Social Chat</Typography>
             </Box>
 
-            <Typography variant="h4" fontWeight={700} sx={{ mb: 1, color: 'text.primary', textAlign: 'center' }}>
+            <Typography variant="h4" fontWeight={700} sx={{ mb: 1, color: 'text.primary', textAlign: 'center', fontSize: { xs: '1.4rem', sm: '2rem' } }}>
               {t('auth.login_button')}
             </Typography>
 

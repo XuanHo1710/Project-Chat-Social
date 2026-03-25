@@ -33,6 +33,8 @@ import {
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useThemeStore, ThemeMode, FontSize } from '@/stores/useThemeStore';
 import { authService } from '@/services/auth.service';
+import { accountService } from '@/services/account.service';
+import { getFirebaseToken } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
@@ -59,6 +61,17 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
 
     const handleLogout = async () => {
         onClose();
+
+        // Remove FCM token for this device before logging out
+        try {
+            const fcmToken = await getFirebaseToken();
+            if (fcmToken) {
+                await accountService.removeFMCToken(fcmToken);
+            }
+        } catch {
+            // Ignore FCM cleanup errors - don't block logout
+        }
+
         const response = await authService.logout();
         if (response?.success) {
             logout();

@@ -34,6 +34,7 @@ import Picker from "@emoji-mart/react";
 import Image from "next/image";
 import { useMediaUpload } from "@/contexts/MediaUploadContext";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 // Privacy options will be generated dynamically with translations
 const privacyOptions = [
@@ -178,7 +179,10 @@ export default function CreatePostModal({
     // Handle post submission
     const handlePost = useCallback(async () => {
         if (!user?.id) return;
-        if (!postContent.trim() && pendingMedia.length === 0) return;
+        if (!postContent.trim() && pendingMedia.length === 0) {
+            toast.error(t('post.empty_content_error'));
+            return;
+        }
 
         try {
             // Upload all pending media first

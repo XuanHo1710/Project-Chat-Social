@@ -261,7 +261,21 @@ class RecommendationService:
                 upsert=True
             )
         except Exception as e:
-            logger.error(f"Save vector error: {e}")
+            logger.error(f"Save vector to MongoDB error: {e}")
+
+        # Also update Qdrant Cloud so it persists across restarts
+        try:
+            point_uuid = mongo_id_to_uuid(user_id)
+            self.qdrant.upsert(
+                collection_name=USER_COLLECTION,
+                points=[PointStruct(
+                    id=point_uuid,
+                    vector=vector.tolist(),
+                    payload={"user_id": user_id, "interaction_count": count}
+                )]
+            )
+        except Exception as e:
+            logger.error(f"Save vector to Qdrant error: {e}")
 
     def update_realtime_vector(self, user_id: str, post_id: str, interaction_type: str) -> bool:
         try:

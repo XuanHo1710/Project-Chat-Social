@@ -38,6 +38,7 @@ import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 import { useSocket } from '@/contexts/SocketContext';
 import { renderContentWithMentionsPlain } from '@/utils/hashtagParser';
 import { useTranslation } from 'react-i18next';
+import Link from 'next/link';
 
 interface SelectedConversation {
     _id: string;
@@ -205,7 +206,7 @@ export default function ChatSidebar({
                 minWidth: { xs: '100vw', md: '360px' },
                 maxWidth: { xs: '100vw', md: '360px' },
                 flexShrink: 0,
-                height: '100vh',
+                height: { xs: '100dvh', md: '100vh' },
                 bgcolor: 'background.paper',
                 borderRight: { xs: 'none', md: `1px solid ${theme.palette.divider}` },
                 display: isMobileVisible ? 'flex' : { xs: 'none', md: 'flex' },
@@ -220,27 +221,30 @@ export default function ChatSidebar({
             <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <IconButton
-                            onClick={() => router.push('/')}
-                            sx={{ p: 0 }}
-                        >
+                        <Link href={CLIENT_PATH.HOME} style={{ textDecoration: 'none' }}>
                             <Box
                                 sx={{
                                     width: 40,
                                     height: 40,
                                     borderRadius: '50%',
-                                    bgcolor: '#1877f2', // Facebook blue
+                                    background: 'linear-gradient(135deg, #1877F2 0%, #0053BF 100%)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    fontSize: '24px',
-                                    fontWeight: 'bold',
-                                    color: 'white',
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                        opacity: 0.9
+                                    }
                                 }}
                             >
-                                f
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                    <path d="M12 2C6.48 2 2 5.82 2 10.5c0 2.78 1.64 5.25 4.17 6.86L5 21l3.64-2c1.07.29 2.2.44 3.36.44 5.52 0 10-3.82 10-8.5S17.52 2 12 2z" fill="white" />
+                                    <circle cx="8.5" cy="10.5" r="1.4" fill="#1877F2" />
+                                    <circle cx="12" cy="10.5" r="1.4" fill="#1877F2" />
+                                    <circle cx="15.5" cy="10.5" r="1.4" fill="#1877F2" />
+                                </svg>
                             </Box>
-                        </IconButton>
+                        </Link>
                         <Typography variant="h5" fontWeight={700} color="text.primary">
                             {t('chat.chats')}
                         </Typography>

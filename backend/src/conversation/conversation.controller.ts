@@ -7,7 +7,7 @@ import { Account } from 'src/account/entities/account.entity';
 
 @Controller('conversation')
 export class ConversationController {
-  constructor(private readonly conversationService: ConversationService) { }
+  constructor(private readonly conversationService: ConversationService) {}
 
   @Get('/total-unread-count')
   unreadCountAllConversationByUserId(@UserInfo() user: Account) {
@@ -27,6 +27,14 @@ export class ConversationController {
   @Post('chatbot')
   createChatbotConversation(@UserInfo() user: Account) {
     return this.conversationService.findOrCreateChatbotConversation(user._id.toString());
+  }
+
+  @Post('direct/:targetUserId')
+  findOrCreateDirect(@Param('targetUserId') targetUserId: string, @UserInfo() user: Account) {
+    return this.conversationService.findOrCreateDirectConversation(
+      user._id.toString(),
+      targetUserId
+    );
   }
 
   @Get('detail/:id')

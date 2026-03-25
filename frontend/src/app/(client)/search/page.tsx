@@ -671,172 +671,180 @@ function SearchContent() {
                     sx={{
                         flex: 1,
                         ml: { xs: 0, md: '300px', lg: '360px' },
-                        p: { xs: 1.5, sm: 3 },
+                        display: 'flex',
+                        justifyContent: 'center',
                         pb: { xs: '72px', md: 3 },
-                        maxWidth: { md: 'calc(100% - 300px)', lg: 'calc(100% - 360px)' }
                     }}
                 >
-                    {/* Search Box */}
                     <Box
-                        component="form"
-                        onSubmit={handleSubmit}
                         sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            mb: 3,
-                            bgcolor: cardBg,
-                            borderRadius: 2,
-                            p: 1,
-                            boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
-                            border: isDark ? `1px solid ${borderColor}` : 'none',
+                            width: '100%',
+                            maxWidth: 680,
+                            p: { xs: 1.5, sm: 3 },
                         }}
                     >
-                        <IconButton onClick={handleBack}>
-                            <ArrowBackIcon />
-                        </IconButton>
-                        <InputBase
-                            value={inputValue}
-                            onChange={handleInputChange}
-                            placeholder={t('search.search_placeholder')}
-                            sx={{ flex: 1, fontSize: 16 }}
-                            autoFocus
-                        />
-                        <IconButton type="submit" disabled={!inputValue.trim() || isLoadingPosts}>
-                            {isLoadingPosts ? <CircularProgress size={24} /> : <SearchIcon />}
-                        </IconButton>
-                    </Box>
-
-                    {/* Results */}
-                    {isLoadingPosts ? (
-                        // Loading skeletons
-                        <Card sx={{ mb: 2, borderRadius: 2, p: 2 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                                <Skeleton variant="circular" width={40} height={40} />
-                                <Box sx={{ flex: 1 }}>
-                                    <Skeleton variant="text" width="60%" />
-                                    <Skeleton variant="text" width="30%" />
-                                </Box>
-                            </Box>
-                            <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
-                        </Card>
-                    ) : !isLoadingPosts && posts.length === 0 ? (
-                        <Box sx={{ textAlign: 'center', py: 5 }}>
-                            <SearchIcon sx={{ fontSize: 64, color: '#bcc0c4', mb: 2 }} />
-                            <Typography variant="h6" color="text.secondary">
-                                {urlQuery ? t('search.no_results_for', { query: urlQuery }) : t('search.enter_keyword')}
-                            </Typography>
-                            <Typography color="text.secondary">
-                                {urlQuery ? t('search.try_different') : t('search.search_posts_users')}
-                            </Typography>
-                        </Box>
-                    ) : (
-                        <>
-                            {/* Posts */}
-                            {posts.map((post) => {
-                                const PrivacyIconComponent = getPrivacyIcon(post.privacy);
-                                // Check if post belongs to a group
-                                const groupInfo = post.groupId && typeof post.groupId === 'object' ? post.groupId : null;
-                                const isGroupPost = !!groupInfo;
-
-                                return (
-                                    <PostItem
-                                        key={post._id}
-                                        post={post}
-                                        userId={user?.id || ''}
-                                        handleOpenMenu={handleOpenMenu}
-                                        handleOpenComments={handleOpenComments}
-                                        handleOpenShare={handleOpenShare}
-                                        renderPostMedia={renderPostMedia}
-                                        PrivacyIconComponent={PrivacyIconComponent}
-                                        isGroupPost={isGroupPost}
-                                        groupName={groupInfo?.name}
-                                        groupAvatar={groupInfo?.avatar}
-                                        groupId={groupInfo?._id}
-                                    />
-                                );
-                            })}
-
-                            {/* Load More Trigger & Indicator */}
-                            <Box ref={loadMoreRef} sx={{ py: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: 1 }}>
-                                {isFetchingNextPage && (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                        <CircularProgress size={24} sx={{ color: 'primary.main' }} />
-                                        <Typography sx={{ color: textSecondary, fontSize: 14 }}>{t('common.loading_more')}</Typography>
-                                    </Box>
-                                )}
-                                {!hasNextPage && posts.length > 0 && !isFetchingNextPage && (
-                                    <Typography sx={{ color: textSecondary, fontSize: 14, textAlign: 'center' }}>
-                                        🎉 {t('common.no_more_posts')}
-                                    </Typography>
-                                )}
-                            </Box>
-
-                            {/* Edit Post Modal */}
-                            {editingPost && (
-                                <EditPostModal
-                                    open={openEditPost}
-                                    onClose={() => {
-                                        setOpenEditPost(false);
-                                        setEditingPost(null);
-                                    }}
-                                    post={editingPost}
-                                    onPostUpdated={(updatedPost) => {
-                                        // Update global post store
-                                        usePostStore.getState().updatePost(updatedPost._id, updatedPost);
-                                    }}
-                                />
-                            )}
-
-                            {/* Image Viewer */}
-                            <ImageViewer
-                                open={openImageViewer}
-                                onClose={() => setOpenImageViewer(false)}
-                                media={viewerMedia}
-                                initialIndex={viewerInitialIndex}
+                        {/* Search Box */}
+                        <Box
+                            component="form"
+                            onSubmit={handleSubmit}
+                            sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                mb: 3,
+                                bgcolor: cardBg,
+                                borderRadius: 2,
+                                p: 1,
+                                boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
+                                border: isDark ? `1px solid ${borderColor}` : 'none',
+                            }}
+                        >
+                            <IconButton onClick={handleBack}>
+                                <ArrowBackIcon />
+                            </IconButton>
+                            <InputBase
+                                value={inputValue}
+                                onChange={handleInputChange}
+                                placeholder={t('search.search_placeholder')}
+                                sx={{ flex: 1, fontSize: 16 }}
+                                autoFocus
                             />
+                            <IconButton type="submit" disabled={!inputValue.trim() || isLoadingPosts}>
+                                {isLoadingPosts ? <CircularProgress size={24} /> : <SearchIcon />}
+                            </IconButton>
+                        </Box>
 
-                            {/* Post Options Menu */}
-                            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleCloseMenu} PaperProps={{ sx: { width: 320, borderRadius: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.15)', mt: 1 } }}>
-                                <PostOptionContentMenu
-                                    handleDeletePost={handleDeletePost}
-                                    handleEditPost={handleEditPost}
-                                    isDeleting={isDeleting}
-                                    menuPost={menuPost}
-                                    user={user}
-                                    onToggleComments={handleToggleComments}
-                                    onToggleShares={handleToggleShares}
-                                    onToggleReactions={handleToggleReactions}
+                        {/* Results */}
+                        {isLoadingPosts ? (
+                            // Loading skeletons
+                            <Card sx={{ mb: 2, borderRadius: 2, p: 2 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                                    <Skeleton variant="circular" width={40} height={40} />
+                                    <Box sx={{ flex: 1 }}>
+                                        <Skeleton variant="text" width="60%" />
+                                        <Skeleton variant="text" width="30%" />
+                                    </Box>
+                                </Box>
+                                <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
+                            </Card>
+                        ) : !isLoadingPosts && posts.length === 0 ? (
+                            <Box sx={{ textAlign: 'center', py: 5 }}>
+                                <SearchIcon sx={{ fontSize: 64, color: '#bcc0c4', mb: 2 }} />
+                                <Typography variant="h6" color="text.secondary">
+                                    {urlQuery ? t('search.no_results_for', { query: urlQuery }) : t('search.enter_keyword')}
+                                </Typography>
+                                <Typography color="text.secondary">
+                                    {urlQuery ? t('search.try_different') : t('search.search_posts_users')}
+                                </Typography>
+                            </Box>
+                        ) : (
+                            <>
+                                {/* Posts */}
+                                {posts.map((post) => {
+                                    const PrivacyIconComponent = getPrivacyIcon(post.privacy);
+                                    // Check if post belongs to a group
+                                    const groupInfo = post.groupId && typeof post.groupId === 'object' ? post.groupId : null;
+                                    const isGroupPost = !!groupInfo;
+
+                                    return (
+                                        <PostItem
+                                            key={post._id}
+                                            post={post}
+                                            userId={user?.id || ''}
+                                            handleOpenMenu={handleOpenMenu}
+                                            handleOpenComments={handleOpenComments}
+                                            handleOpenShare={handleOpenShare}
+                                            renderPostMedia={renderPostMedia}
+                                            PrivacyIconComponent={PrivacyIconComponent}
+                                            isGroupPost={isGroupPost}
+                                            groupName={groupInfo?.name}
+                                            groupAvatar={groupInfo?.avatar}
+                                            groupId={groupInfo?._id}
+                                        />
+                                    );
+                                })}
+
+                                {/* Load More Trigger & Indicator */}
+                                <Box ref={loadMoreRef} sx={{ py: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: 1 }}>
+                                    {isFetchingNextPage && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                            <CircularProgress size={24} sx={{ color: 'primary.main' }} />
+                                            <Typography sx={{ color: textSecondary, fontSize: 14 }}>{t('common.loading_more')}</Typography>
+                                        </Box>
+                                    )}
+                                    {!hasNextPage && posts.length > 0 && !isFetchingNextPage && (
+                                        <Typography sx={{ color: textSecondary, fontSize: 14, textAlign: 'center' }}>
+                                            🎉 {t('common.no_more_posts')}
+                                        </Typography>
+                                    )}
+                                </Box>
+
+                                {/* Edit Post Modal */}
+                                {editingPost && (
+                                    <EditPostModal
+                                        open={openEditPost}
+                                        onClose={() => {
+                                            setOpenEditPost(false);
+                                            setEditingPost(null);
+                                        }}
+                                        post={editingPost}
+                                        onPostUpdated={(updatedPost) => {
+                                            // Update global post store
+                                            usePostStore.getState().updatePost(updatedPost._id, updatedPost);
+                                        }}
+                                    />
+                                )}
+
+                                {/* Image Viewer */}
+                                <ImageViewer
+                                    open={openImageViewer}
+                                    onClose={() => setOpenImageViewer(false)}
+                                    media={viewerMedia}
+                                    initialIndex={viewerInitialIndex}
                                 />
-                            </Menu>
 
-                            {/* Comment Modal */}
-                            <Modal open={openCommentModal} onClose={() => setOpenCommentModal(false)}>
-                                <CommentContentModal
-                                    setOpenCommentModal={setOpenCommentModal}
-                                    commentingPost={commentingPost}
-                                    renderPostMedia={renderPostMedia}
-                                    handleOpenShare={handleOpenShare}
-                                />
-                            </Modal>
+                                {/* Post Options Menu */}
+                                <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleCloseMenu} PaperProps={{ sx: { width: 320, borderRadius: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.15)', mt: 1 } }}>
+                                    <PostOptionContentMenu
+                                        handleDeletePost={handleDeletePost}
+                                        handleEditPost={handleEditPost}
+                                        isDeleting={isDeleting}
+                                        menuPost={menuPost}
+                                        user={user}
+                                        onToggleComments={handleToggleComments}
+                                        onToggleShares={handleToggleShares}
+                                        onToggleReactions={handleToggleReactions}
+                                    />
+                                </Menu>
 
-                            {/* Share Modal */}
-                            <Modal open={openShareModal} onClose={handleCloseShare}>
-                                <ShareContentModal
-                                    handleCloseShare={handleCloseShare}
-                                    handleEmojiSelect={handleEmojiSelect}
-                                    setShareCaption={setShareCaption}
-                                    setShowEmojiPicker={setShowEmojiPicker}
-                                    shareCaption={shareCaption}
-                                    sharePrivacy={sharePrivacy}
-                                    showEmojiPicker={showEmojiPicker}
-                                    user={user}
-                                    sharingPost={sharingPost}
-                                />
+                                {/* Comment Modal */}
+                                <Modal open={openCommentModal} onClose={() => setOpenCommentModal(false)}>
+                                    <CommentContentModal
+                                        setOpenCommentModal={setOpenCommentModal}
+                                        commentingPost={commentingPost}
+                                        renderPostMedia={renderPostMedia}
+                                        handleOpenShare={handleOpenShare}
+                                    />
+                                </Modal>
 
-                            </Modal>
-                        </>
-                    )}
+                                {/* Share Modal */}
+                                <Modal open={openShareModal} onClose={handleCloseShare}>
+                                    <ShareContentModal
+                                        handleCloseShare={handleCloseShare}
+                                        handleEmojiSelect={handleEmojiSelect}
+                                        setShareCaption={setShareCaption}
+                                        setShowEmojiPicker={setShowEmojiPicker}
+                                        shareCaption={shareCaption}
+                                        sharePrivacy={sharePrivacy}
+                                        showEmojiPicker={showEmojiPicker}
+                                        user={user}
+                                        sharingPost={sharingPost}
+                                    />
+
+                                </Modal>
+                            </>
+                        )}
+                    </Box>
                 </Box>
             </Box>
         </Box>

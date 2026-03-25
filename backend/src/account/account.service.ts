@@ -24,6 +24,11 @@ export class AccountService {
     return { success: true };
   }
 
+  async removeFcmToken(userId: string, token: string) {
+    await this.accountModel.updateOne({ _id: userId }, { $pull: { fcmTokens: token } });
+    return { success: true };
+  }
+
   async findByEmail(email: string) {
     return await this.accountModel
       .findOne({ email: email })
@@ -34,6 +39,13 @@ export class AccountService {
     const usernameExist = await this.accountModel.findOne({ username: createAccountDto.username });
     if (usernameExist) {
       throw new BadRequestException('User name này đã tồn tại trong hệ thống');
+    }
+
+    if (createAccountDto.phone) {
+      const phoneExist = await this.accountModel.findOne({ phone: createAccountDto.phone });
+      if (phoneExist) {
+        throw new BadRequestException('Số điện thoại này đã được sử dụng');
+      }
     }
 
     let hashedPassword: string = '';
@@ -247,6 +259,12 @@ export class AccountService {
   async findByUsername(username: string) {
     return await this.accountModel
       .findOne({ username: username })
+      .select('-accessToken -resetPasswordToken -resetPasswordExpires');
+  }
+
+  async findByPhone(phone: string) {
+    return await this.accountModel
+      .findOne({ phone: phone })
       .select('-accessToken -resetPasswordToken -resetPasswordExpires');
   }
 

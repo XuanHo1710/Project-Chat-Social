@@ -35,13 +35,13 @@ body {
 /* Chat container */
 .chat-container {
   display: flex;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
 /* Chat sidebar - width controlled by MUI sx prop */
 .chat-sidebar {
-  height: 100vh;
+  height: 100dvh;
   background-color: white;
   flex-direction: column;
   transition: transform 0.3s ease, width 0.3s ease;
@@ -53,13 +53,13 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  height: 100vh;
+  height: 100dvh;
   background-color: white;
 }
 
 /* Chat info panel - width controlled by MUI sx prop */
 .chat-info-panel {
-  height: 100vh;
+  height: 100dvh;
   background-color: white;
   overflow-y: auto;
   transition: transform 0.3s ease, width 0.3s ease;
@@ -182,7 +182,8 @@ body {
 
   /* Prevent content from being hidden behind bottom nav */
   .chat-container {
-    height: calc(100vh - env(safe-area-inset-bottom));
+    height: 100dvh;
+    height: -webkit-fill-available;
   }
 }
 

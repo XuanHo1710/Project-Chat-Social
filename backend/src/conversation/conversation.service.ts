@@ -21,7 +21,7 @@ export class ConversationService {
     @Inject(forwardRef(() => RelationshipService))
     private readonly relationshipService: RelationshipService,
     @InjectModel(Account.name) private readonly accountModel: Model<AccountDocument>
-  ) { }
+  ) {}
 
   async unreadCountAllConversationByUserId(userId: string) {
     const result = await this.conversationModel.aggregate([
@@ -29,8 +29,8 @@ export class ConversationService {
         $match: {
           $and: [
             { 'participants.user': new Types.ObjectId(userId) },
-            { mutedBy: { $ne: new Types.ObjectId(userId) } }
-          ]
+            { mutedBy: { $ne: new Types.ObjectId(userId) } },
+          ],
         },
       },
       {
@@ -39,8 +39,8 @@ export class ConversationService {
             $ifNull: [
               {
                 $getField: {
-                  field: userId,          // key của Map
-                  input: '$unreadCount',  // Map<string, number>
+                  field: userId, // key của Map
+                  input: '$unreadCount', // Map<string, number>
                 },
               },
               0,
@@ -64,6 +64,36 @@ export class ConversationService {
   async create(createConversationDto: CreateConversationDto) {
     const converstation = await this.conversationModel.create(createConversationDto);
     return await converstation.save();
+  }
+
+  async findOrCreateDirectConversation(userId: string, targetUserId: string): Promise<any> {
+    // Find existing DIRECT conversation between these two users
+    const existing = await this.conversationModel.findOne({
+      type: 'DIRECT',
+      'participants.user': { $all: [new Types.ObjectId(userId), new Types.ObjectId(targetUserId)] },
+      $expr: { $eq: [{ $size: '$participants' }, 2] },
+    });
+
+    if (existing) {
+      return this.findById(existing._id.toString(), userId);
+    }
+
+    // Create new DIRECT conversation
+    const newConv = new this.conversationModel({
+      type: 'DIRECT',
+      participants: [
+        { user: new Types.ObjectId(userId), joinedAt: new Date(), isAdmin: false, nickname: '' },
+        {
+          user: new Types.ObjectId(targetUserId),
+          joinedAt: new Date(),
+          isAdmin: false,
+          nickname: '',
+        },
+      ],
+    });
+
+    const saved = await newConv.save();
+    return this.findById(saved._id.toString(), userId);
   }
 
   // Create a group chat with multiple members (minimum 3 people including creator)
@@ -141,7 +171,10 @@ export class ConversationService {
     const participants = conv.participants as any[];
     if (currentUserId && conv && conv.type === 'DIRECT' && participants.length === 2) {
       const blockedUsers = await this.relationshipService.getBlockedUsers(currentUserId);
-      chatBlocked = await this.relationshipService.isUserBlocked(participants[0].user._id.toString(), participants[1].user._id.toString());
+      chatBlocked = await this.relationshipService.isUserBlocked(
+        participants[0].user._id.toString(),
+        participants[1].user._id.toString()
+      );
       const blockedUserIds = blockedUsers.map((u: any) => u._id.toString());
       const otherParticipant = conv.participants.find(
         (p: any) => p.user._id.toString() !== currentUserId
@@ -298,7 +331,7 @@ export class ConversationService {
         role: 'USER',
         status: 'ACTIVE',
         avatar: 'https://cdn-icons-png.flaticon.com/512/4712/4712027.png', // Default AI avatar
-        isActive: true
+        isActive: true,
       });
       await botUser.save();
     }
@@ -308,7 +341,7 @@ export class ConversationService {
     // Note: A user can only have one AI conversation
     const existing = await this.conversationModel.findOne({
       type: 'CHATBOT',
-      'participants.user': new Types.ObjectId(userId)
+      'participants.user': new Types.ObjectId(userId),
     });
 
     if (existing) {
@@ -321,14 +354,14 @@ export class ConversationService {
         user: new Types.ObjectId(userId),
         joinedAt: new Date(),
         isAdmin: true,
-        nickname: ''
+        nickname: '',
       },
       {
         user: botUser._id,
         joinedAt: new Date(),
         isAdmin: false,
-        nickname: 'Cố vấn AI'
-      }
+        nickname: 'Cố vấn AI',
+      },
     ];
 
     const newConv = new this.conversationModel({
@@ -336,18 +369,17 @@ export class ConversationService {
       participants,
       settings: {
         allowMembersToAdd: false,
-        onlyAdminCanChat: false
+        onlyAdminCanChat: false,
       },
       unreadCount: {
         [userId]: 0,
-        [botUser._id.toString()]: 0
-      }
+        [botUser._id.toString()]: 0,
+      },
     });
 
     const saved = await newConv.save();
     return this.findById(saved._id.toString(), userId);
   }
-
 
   async updateLastMessage(id: string, lastMessage: string) {
     return await this.conversationModel
@@ -371,10 +403,7 @@ export class ConversationService {
     if (Object.keys(updateObj).length > 0) {
       // Use updateOne then findById to ensure we get the absolute latest state
       // This avoids issues with findOneAndUpdate returning stale Map data in some Mongoose versions
-      await this.conversationModel.updateOne(
-        { _id: conversationId },
-        { $inc: updateObj }
-      );
+      await this.conversationModel.updateOne({ _id: conversationId }, { $inc: updateObj });
 
       const updated = await this.conversationModel.findById(conversationId).lean();
 

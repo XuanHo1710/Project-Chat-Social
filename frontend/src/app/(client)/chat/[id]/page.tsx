@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, CircularProgress, Typography, useMediaQuery, useTheme } from "@mui/material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId, useConversationDetail } from "@/queries/useConversationQueries";
@@ -37,6 +37,28 @@ export default function ChatDetailPage() {
     const user = useAuthStore((state) => state.user);
     const { socketChat, socketRelationship } = useSocket();
     const queryClient = useQueryClient();
+
+    // Dynamic tab title for unread messages
+    const unreadMsgCount = useRef(0);
+    const originalTitle = useRef("Social Chat - Mạng xã hội kết nối bạn bè");
+
+    const updateTabTitle = useCallback((senderName: string) => {
+        unreadMsgCount.current += 1;
+        document.title = `${senderName} đã gửi ${unreadMsgCount.current} tin nhắn đến bạn`;
+    }, []);
+
+    // Reset title when user focuses the tab
+    useEffect(() => {
+        const handleFocus = () => {
+            unreadMsgCount.current = 0;
+            document.title = originalTitle.current;
+        };
+        window.addEventListener("focus", handleFocus);
+        return () => {
+            window.removeEventListener("focus", handleFocus);
+            document.title = originalTitle.current;
+        };
+    }, []);
 
     // Fetch all conversations for sidebar
     const { data: listConversation, isLoading: isLoadingConversations } = useConversationByUserId(user?.id || "");
@@ -112,6 +134,15 @@ export default function ChatDetailPage() {
         if (!socketChat || !user?.id) return;
 
         const handleGlobalMessageNew = (msg: MessageResponse) => {
+            // Update tab title if message is from someone else and tab is not focused
+            const senderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
+            if (senderId !== user.id && !document.hasFocus()) {
+                const senderName = typeof msg.senderId === 'object'
+                    ? `${msg.senderId.firstName} ${msg.senderId.lastName}`.trim()
+                    : 'Ai đó';
+                updateTabTitle(senderName);
+            }
+
             queryClient.setQueryData<{ data: ConversationResponseData[] }>(
                 [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
                 (oldData) => {
@@ -324,7 +355,7 @@ export default function ChatDetailPage() {
             className="chat-container"
             sx={{
                 display: "flex",
-                height: "100vh",
+                height: { xs: "100dvh", md: "100vh" },
                 width: "100vw",
                 bgcolor: "#f0f2f5",
                 overflow: "hidden",
@@ -350,7 +381,7 @@ export default function ChatDetailPage() {
                     flexDirection: "column",
                     minWidth: 0,
                     width: { xs: '100%', md: 'auto' },
-                    height: '100vh',
+                    height: { xs: '100dvh', md: '100vh' },
                 }}
             >
                 {selectedConversation ? (

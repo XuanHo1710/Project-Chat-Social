@@ -197,7 +197,9 @@ export default function FirebaseNotification() {
 
         syncToken();
 
-        // 2. Listen for Foreground Messages - Chỉ hiển thị khi tab đang focus
+        // 2. Listen for Foreground Messages
+        // Only show browser notification when tab is NOT focused (e.g., user is on another tab)
+        // When tab IS focused, socket handles real-time messages (tab title + favicon badge)
         const unsubscribe = onMessageListener((payload: NotificationPayloadType) => {
             const title = payload?.notification?.title || "Tin nhắn mới";
             const body = payload?.notification?.body || "";
@@ -228,16 +230,19 @@ export default function FirebaseNotification() {
                 lastNotifiedMessageId.current = "";
             }, 3000);
 
-            // Foreground message - chỉ hiện in-app notification vì tab đang focus
-            // Service Worker sẽ KHÔNG hiển thị notification khi foreground
-            // Nên ta chỉ cần hiển thị in-app notification
-            setNotification({
-                open: true,
-                title,
-                body,
-                avatar,
-                conversationId,
-            });
+            // Only show notification when tab is NOT focused
+            // When focused, the socket-based tab title/favicon badge handles it
+            if (!document.hasFocus()) {
+                showBrowserNotification(
+                    title,
+                    body,
+                    avatar,
+                    conversationId,
+                    () => {
+                        router.push(`/chat/${conversationId}`);
+                    }
+                );
+            }
         });
 
         return () => {

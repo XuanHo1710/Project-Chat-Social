@@ -15,7 +15,7 @@ export class Account {
   @Prop()
   email: string;
 
-  @Prop()
+  @Prop({ sparse: true, unique: true })
   phone: string;
 
   // Địa chỉ mặc định
@@ -133,10 +133,12 @@ export class Account {
   loginCount: number; // Tổng số lần đăng nhập
 
   // Lịch sử đăng nhập để thống kê traffic
-  @Prop([{
-    date: { type: Date, required: true },
-    count: { type: Number, default: 1 }
-  }])
+  @Prop([
+    {
+      date: { type: Date, required: true },
+      count: { type: Number, default: 1 },
+    },
+  ])
   loginHistory: Array<{
     date: Date;
     count: number;

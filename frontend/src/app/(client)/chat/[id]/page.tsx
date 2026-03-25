@@ -51,14 +51,15 @@ export default function ChatDetailPage() {
 
     // Reset title when user focuses the tab
     useEffect(() => {
+        const title = originalTitle.current;
         const handleFocus = () => {
             unreadMsgCount.current = 0;
-            document.title = originalTitle.current;
+            document.title = title;
         };
         window.addEventListener("focus", handleFocus);
         return () => {
             window.removeEventListener("focus", handleFocus);
-            document.title = originalTitle.current;
+            document.title = title;
         };
     }, []);
 
@@ -119,7 +120,7 @@ export default function ChatDetailPage() {
                 type: "GROUP",
             };
         }
-    }, [conversationDetail, userId]);
+    }, [conversationDetail, userId, t]);
 
     // Redirect nếu user không có quyền truy cập
     useEffect(() => {
@@ -260,7 +261,7 @@ export default function ChatDetailPage() {
             socketChat.off("conversation:created", handleConversationUpdate);
             socketChat.off("conversation:mute:updated", handleMuteUpdated);
         };
-    }, [socketChat, queryClient, user?.id, conversationId]);
+    }, [socketChat, queryClient, user?.id, conversationId, updateTabTitle]);
 
     // Handle real-time restriction/unrestriction
     useEffect(() => {

@@ -19,8 +19,8 @@ export class AppService {
     @InjectModel(Conversation.name) private conversationModel: Model<ConversationDocument>,
     @Inject('BACKEND_SERVICE') private readonly backendService: ClientProxy,
     private readonly firebaseService: FirebaseService,
-    private readonly aiService: AiService,
-  ) { }
+    private readonly aiService: AiService
+  ) {}
 
   /**
    * Handle chat.message.created event
@@ -30,23 +30,27 @@ export class AppService {
     this.logger.log(`Processing message: ${payload.messageId}`);
 
     // Process in parallel for better performance
-    await Promise.all([
-      this.processAiChatbot(payload),
-      this.processFcmNotification(payload),
-    ]);
+    await Promise.all([this.processAiChatbot(payload), this.processFcmNotification(payload)]);
   }
 
   /**
-   * Process AI chatbot response
+   * Process AI chatbot response — streaming tokens via Socket.io
    */
   private async processAiChatbot(payload: MessageCreatedEventDto): Promise<void> {
     const { isChatbotConversation, isChatbotMentioned } = payload;
 
     if (!isChatbotConversation && !isChatbotMentioned) {
-      return; // Skip if not chatbot related
+      return;
     }
 
     this.logger.log(`AI Chatbot triggered for conversation: ${payload.conversationId}`);
+
+    // Determine bot senderId early
+    let botSenderId = payload.senderId;
+    if (isChatbotConversation) {
+      const botUser = await this.accountModel.findOne({ username: 'ai_assistant' });
+      if (botUser) botSenderId = botUser._id.toString();
+    }
 
     // Emit typing indicator to Backend
     this.backendService.emit('chat.typing', {
@@ -63,72 +67,91 @@ export class AppService {
         .populate('senderId', 'firstName lastName')
         .lean();
 
-      // Format chat history for AI context (oldest first)
       const chatHistory = recentMessages.reverse().map((msg: any) => ({
         role: (msg.type === MessageType.CHATBOT ? 'assistant' : 'user') as 'user' | 'assistant',
         content: msg.content || '',
-        senderName: msg.senderId
-          ? `${msg.senderId.firstName} ${msg.senderId.lastName}`
-          : 'User',
+        senderName: msg.senderId ? `${msg.senderId.firstName} ${msg.senderId.lastName}` : 'User',
       }));
 
-      // Extract image URLs
-      const imageUrls = payload.attachments
-        ?.filter((att) => att.mediaType === 'IMAGE' && att.url)
-        .map((att) => att.url) || [];
+      const imageUrls =
+        payload.attachments
+          ?.filter((att) => att.mediaType === 'IMAGE' && att.url)
+          .map((att) => att.url) || [];
 
-      this.logger.log(
-        `Chat context: ${chatHistory.length} messages, ${imageUrls.length} images`,
-      );
+      this.logger.log(`Chat context: ${chatHistory.length} messages, ${imageUrls.length} images`);
 
-      // Call AI server
-      const aiResponse = await this.aiService.getChatBotResponse(
-        payload.chatMessage || payload.content,
-        chatHistory,
-        imageUrls,
-      );
+      // Create placeholder message in DB to get the _id
+      const chatbotMessage = new this.messageModel({
+        conversationId: new Types.ObjectId(payload.conversationId),
+        senderId: new Types.ObjectId(botSenderId),
+        content: '',
+        type: MessageType.CHATBOT,
+        postIdsRecommendationfromAI: [],
+      });
+      const savedMessage = await chatbotMessage.save();
+      const messageId = savedMessage._id.toString();
 
-      // Stop typing indicator
+      // Notify frontend that streaming has started (with messageId)
+      this.backendService.emit('chat.ai.stream.start', {
+        conversationId: payload.conversationId,
+        messageId,
+        senderId: botSenderId,
+      });
+
+      // Stop the typing dots — streaming itself will show text
       this.backendService.emit('chat.typing', {
         conversationId: payload.conversationId,
         isTyping: false,
       });
 
-      // Determine senderId for the bot message
-      let botSenderId = payload.senderId; // Default fallback
-      if (isChatbotConversation) {
-        const botUser = await this.accountModel.findOne({ username: 'ai_assistant' });
-        if (botUser) botSenderId = botUser._id.toString();
-      }
+      let postIds: string[] = [];
 
-      // Save chatbot message to DB
-      const chatbotMessage = new this.messageModel({
-        conversationId: new Types.ObjectId(payload.conversationId),
-        senderId: new Types.ObjectId(botSenderId),
-        content: aiResponse.response,
-        type: MessageType.CHATBOT,
-        postIdsRecommendationfromAI: aiResponse.postIds || [],
-      });
+      // Stream tokens from AI server
+      await this.aiService.getChatBotResponseStream(
+        payload.chatMessage || payload.content,
+        chatHistory,
+        imageUrls,
+        {
+          onToken: (token: string) => {
+            this.backendService.emit('chat.ai.token', {
+              conversationId: payload.conversationId,
+              messageId,
+              token,
+            });
+          },
+          onPostIds: (ids: string[]) => {
+            postIds = ids;
+          },
+          onDone: async (fullText: string) => {
+            // Update the message in DB with full text
+            await this.messageModel.findByIdAndUpdate(messageId, {
+              content: fullText,
+              postIdsRecommendationfromAI: postIds,
+            });
 
-      const savedMessage = await chatbotMessage.save();
+            // Update conversation lastMessage
+            await this.conversationModel.findByIdAndUpdate(payload.conversationId, {
+              lastMessage: savedMessage._id,
+            });
 
-      // Update conversation lastMessage
-      await this.conversationModel.findByIdAndUpdate(payload.conversationId, {
-        lastMessage: savedMessage._id,
-      });
+            this.logger.log(`AI stream complete, saved: ${messageId}`);
 
-      this.logger.log(`AI message saved: ${savedMessage._id}`);
-
-      // Emit response back to Backend for socket broadcast
-      this.backendService.emit('chat.ai.response', {
-        conversationId: payload.conversationId,
-        messageId: savedMessage._id.toString(),
-        senderId: botSenderId,
-        content: aiResponse.response,
-        postIdsRecommendation: aiResponse.postIds || [],
-        originalSenderId: payload.senderId,
-        success: true,
-      });
+            // Emit final done event
+            this.backendService.emit('chat.ai.stream.done', {
+              conversationId: payload.conversationId,
+              messageId,
+              senderId: botSenderId,
+              content: fullText,
+              postIdsRecommendation: postIds,
+              originalSenderId: payload.senderId,
+              success: true,
+            });
+          },
+          onError: (error: string) => {
+            this.logger.error(`AI stream error: ${error}`);
+          },
+        }
+      );
     } catch (error) {
       this.logger.error('AI processing error:', error);
 
@@ -137,13 +160,6 @@ export class AppService {
         conversationId: payload.conversationId,
         isTyping: false,
       });
-
-      // Determine bot senderId for error message
-      let botSenderId = payload.senderId;
-      if (isChatbotConversation) {
-        const botUser = await this.accountModel.findOne({ username: 'ai_assistant' });
-        if (botUser) botSenderId = botUser._id.toString();
-      }
 
       // Save error message
       const errorMessage = new this.messageModel({
@@ -155,7 +171,6 @@ export class AppService {
 
       const savedError = await errorMessage.save();
 
-      // Emit error response back to Backend
       this.backendService.emit('chat.ai.response', {
         conversationId: payload.conversationId,
         messageId: savedError._id.toString(),
@@ -193,19 +208,14 @@ export class AppService {
 
       try {
         // Check if user has muted conversation
-        const isMuted = conversation.mutedBy?.some(
-          (id) => id.toString() === participantId,
-        );
+        const isMuted = conversation.mutedBy?.some((id) => id.toString() === participantId);
         if (isMuted) {
           this.logger.log(`User ${participantId} has muted conversation, skipping FCM`);
           continue;
         }
 
         // Get user's FCM tokens
-        const user = await this.accountModel
-          .findById(participantId)
-          .select('fcmTokens')
-          .lean();
+        const user = await this.accountModel.findById(participantId).select('fcmTokens').lean();
 
         if (!user || !user.fcmTokens || user.fcmTokens.length === 0) {
           continue;
@@ -222,7 +232,7 @@ export class AppService {
             messageId: payload.messageId,
             type: 'NEW_MESSAGE',
             avatar: payload.senderAvatar || '',
-          },
+          }
         );
 
         this.logger.log(`FCM sent to user ${participantId}`);

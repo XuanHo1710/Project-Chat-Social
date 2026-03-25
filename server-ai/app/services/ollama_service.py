@@ -12,7 +12,7 @@ Configure via .env:
 
 import httpx
 import json
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, AsyncIterator
 from loguru import logger
 
 from app.config import get_settings
@@ -41,10 +41,7 @@ class LLMService:
         return headers
     
     def _chat(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 1000) -> str:
-        """Call OpenAI-compatible chat API with API key."""
-        if not self.settings.llm_api_key:
-            logger.warning("LLM_API_KEY not configured — skipping LLM call")
-            return ""
+        """Call OpenAI-compatible chat API (Ollama or external)."""
         try:
             response = httpx.post(
                 f"{self.base_url}/v1/chat/completions",
@@ -63,6 +60,67 @@ class LLMService:
         except Exception as e:
             logger.error(f"LLM chat error: {e}")
             return ""
+
+    async def _chat_stream(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 1000) -> AsyncIterator[str]:
+        """Call OpenAI-compatible chat API with streaming. Yields tokens."""
+        try:
+            async with httpx.AsyncClient() as client:
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/v1/chat/completions",
+                    headers=self._headers,
+                    json={
+                        "model": self.model,
+                        "messages": messages,
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                        "stream": True,
+                    },
+                    timeout=120.0,
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        payload = line[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            delta = chunk.get("choices", [{}])[0].get("delta", {})
+                            token = delta.get("content")
+                            if token:
+                                yield token
+                        except json.JSONDecodeError:
+                            continue
+        except Exception as e:
+            logger.error(f"LLM stream error: {e}")
+
+    async def stream_chat_response_with_full_context(
+        self, message: str, chat_history: List[Dict[str, str]] = None,
+        image_description: str = "", has_post: bool = False,
+        post_preview: str = "", temperature: float = 0.7
+    ) -> AsyncIterator[str]:
+        """Stream AI response tokens with full conversation context."""
+        system_parts = [
+            'You are a friendly social media assistant named "AI Assistant".',
+            "You help users in both English and Vietnamese (UTF-8).",
+            "Be helpful, concise, and engaging.",
+        ]
+        if image_description:
+            system_parts.append(f"\nThe user has shared an image: {image_description}")
+        if has_post and post_preview:
+            system_parts.append(f'\nYou found related posts. First post preview: "{post_preview[:150]}..."')
+            system_parts.append("Mention that you found some relevant posts.")
+
+        messages = [{"role": "system", "content": " ".join(system_parts)}]
+        if chat_history:
+            for msg in chat_history[-10:]:
+                messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+        messages.append({"role": "user", "content": message})
+
+        async for token in self._chat_stream(messages, temperature):
+            yield token
 
     def chat_messages(self, messages: List[Dict[str, str]], temperature=0.7, max_tokens=500) -> str:
         """Basic chat"""
@@ -173,32 +231,40 @@ Examples:
         return ""
 
     def is_available(self) -> bool:
-        """Check if the external LLM API is accessible."""
-        if not self.settings.llm_api_key:
+        """Check if the LLM API (Ollama or external) is accessible."""
+        try:
+            # Try Ollama-style tags endpoint first, fallback to OpenAI models
+            for path in ["/api/tags", "/v1/models"]:
+                try:
+                    response = httpx.get(
+                        f"{self.base_url}{path}",
+                        headers=self._headers,
+                        timeout=5.0,
+                    )
+                    if response.status_code == 200:
+                        self._is_available = True
+                        return True
+                except:
+                    continue
             self._is_available = False
             return False
-        try:
-            response = httpx.get(
-                f"{self.base_url}/v1/models",
-                headers=self._headers,
-                timeout=5.0
-            )
-            self._is_available = response.status_code == 200
-            return self._is_available
         except:
             self._is_available = False
             return False
 
     def list_models(self) -> List[str]:
-        """List available models from the API."""
-        if not self.settings.llm_api_key:
-            return []
+        """List available models from Ollama or OpenAI-compatible API."""
         try:
-            response = httpx.get(
-                f"{self.base_url}/v1/models",
-                headers=self._headers,
-                timeout=5.0
-            )
+            # Try Ollama native endpoint
+            try:
+                response = httpx.get(f"{self.base_url}/api/tags", headers=self._headers, timeout=5.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    return [m.get("name", "") for m in data.get("models", [])]
+            except:
+                pass
+            # Fallback OpenAI-compatible
+            response = httpx.get(f"{self.base_url}/v1/models", headers=self._headers, timeout=5.0)
             if response.status_code == 200:
                 data = response.json()
                 return [m.get("id", "") for m in data.get("data", [])]

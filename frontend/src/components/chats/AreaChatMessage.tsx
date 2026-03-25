@@ -249,6 +249,10 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     // Chatbot typing indicator state
     const [isChatbotTyping, setIsChatbotTyping] = useState(false);
 
+    // AI streaming state: tracks which messageId is currently streaming and accumulated text
+    const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+    const streamingTextRef = useRef<string>('');
+
     // Check if this is a group conversation
     const isGroup = selectedConversation.type === 'GROUP';
     const isChatbot = selectedConversation.type === 'CHATBOT';
@@ -962,6 +966,137 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         };
     }, [socketChat, selectedConversation._id, userId, setUsersTyping, usersTyping, conversation]);
 
+    // === AI Streaming Socket Events ===
+    useEffect(() => {
+        if (!socketChat) return;
+
+        // Stream started — insert a placeholder CHATBOT message in the cache
+        const handleStreamStart = (data: { conversationId: string; messageId: string; senderId: string }) => {
+            if (data.conversationId !== selectedConversation._id) return;
+
+            setStreamingMessageId(data.messageId);
+            streamingTextRef.current = '';
+            setIsChatbotTyping(false);
+
+            // Insert placeholder message into query cache
+            queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                [QUERY_KEYS.CHATS, selectedConversation._id],
+                (oldData) => {
+                    if (!oldData) {
+                        return {
+                            pages: [{
+                                data: [{
+                                    _id: data.messageId,
+                                    conversationId: data.conversationId,
+                                    senderId: { _id: data.senderId } as any,
+                                    type: 'CHATBOT' as any,
+                                    content: '',
+                                    createdAt: new Date().toISOString(),
+                                    status: 'SENT',
+                                    isDeleted: false,
+                                    isEdited: false,
+                                    _isStreaming: true,
+                                } as MessageResponse & { _isStreaming?: boolean }],
+                                pagination: { page: 1, limit: 15, total: 1, hasMore: false },
+                            }],
+                            pageParams: [undefined],
+                        };
+                    }
+
+                    const exists = oldData.pages.some(p => p.data.some(m => m._id === data.messageId));
+                    if (exists) return oldData;
+
+                    const newPages = [...oldData.pages];
+                    const lastIdx = newPages.length - 1;
+                    newPages[lastIdx] = {
+                        ...newPages[lastIdx],
+                        data: [...newPages[lastIdx].data, {
+                            _id: data.messageId,
+                            conversationId: data.conversationId,
+                            senderId: { _id: data.senderId } as any,
+                            type: 'CHATBOT' as any,
+                            content: '',
+                            createdAt: new Date().toISOString(),
+                            status: 'SENT',
+                            isDeleted: false,
+                            isEdited: false,
+                            _isStreaming: true,
+                        } as MessageResponse & { _isStreaming?: boolean }],
+                    };
+                    return { ...oldData, pages: newPages };
+                },
+            );
+
+            // Scroll to bottom
+            setTimeout(() => {
+                virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'auto' });
+            }, 50);
+        };
+
+        // Token arrived — update the streaming message's content
+        const handleToken = (data: { conversationId: string; messageId: string; token: string }) => {
+            if (data.conversationId !== selectedConversation._id) return;
+
+            streamingTextRef.current += data.token;
+            const currentText = streamingTextRef.current;
+
+            queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                [QUERY_KEYS.CHATS, selectedConversation._id],
+                (oldData) => {
+                    if (!oldData) return oldData;
+
+                    const newPages = oldData.pages.map(page => ({
+                        ...page,
+                        data: page.data.map(msg =>
+                            msg._id === data.messageId
+                                ? { ...msg, content: currentText }
+                                : msg
+                        ),
+                    }));
+                    return { ...oldData, pages: newPages };
+                },
+            );
+
+            // Keep scrolled to bottom while streaming
+            virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'auto' });
+        };
+
+        // Stream done — replace placeholder with final DB message
+        const handleStreamDone = (finalMsg: MessageResponse & { conversationId: string }) => {
+            if (finalMsg.conversationId !== selectedConversation._id) return;
+
+            setStreamingMessageId(null);
+            streamingTextRef.current = '';
+
+            queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                [QUERY_KEYS.CHATS, selectedConversation._id],
+                (oldData) => {
+                    if (!oldData) return oldData;
+
+                    const newPages = oldData.pages.map(page => ({
+                        ...page,
+                        data: page.data.map(msg =>
+                            msg._id === finalMsg._id
+                                ? { ...finalMsg, _isStreaming: false } as any
+                                : msg
+                        ),
+                    }));
+                    return { ...oldData, pages: newPages };
+                },
+            );
+        };
+
+        socketChat.on('chat.ai.stream.start', handleStreamStart);
+        socketChat.on('chat.ai.token', handleToken);
+        socketChat.on('chat.ai.stream.done', handleStreamDone);
+
+        return () => {
+            socketChat.off('chat.ai.stream.start', handleStreamStart);
+            socketChat.off('chat.ai.token', handleToken);
+            socketChat.off('chat.ai.stream.done', handleStreamDone);
+        };
+    }, [socketChat, selectedConversation._id, queryClient]);
+
     // Listen for block/unblock events to update chatBlocked status in real-time
     useEffect(() => {
         if (!socketRelationship || !selectedConversation._id) return;
@@ -1596,6 +1731,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                         themeColor={themeColor}
                                         otherAvatarsNotRead={finalSeenUsers || []}
                                         isLastOwnMessage={isLastOwnMessage}
+                                        isStreaming={streamingMessageId === message._id}
                                     />
                                 );
                             }}

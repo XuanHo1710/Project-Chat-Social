@@ -1,14 +1,16 @@
 """
-AI SERVER — QDRANT CLOUD + DOCKER MODEL RUNNER (ai/qwen3:0.6B-Q4_0)
-=====================================================================
+AI SERVER — QDRANT CLOUD + OLLAMA (qwen2.5:3b)
+================================================
 Endpoints:
 - GET /api/v1/search?q=...
 - GET /api/v1/recommend/{user_id}
 - GET /api/v1/similar/{post_id}
+- POST /api/v1/chat/bot
+- POST /api/v1/chat/bot/stream  (SSE streaming)
 - POST /retrain
 
 Vector DB: Qdrant Cloud
-LLM: Docker Model Runner (ai/qwen3:0.6B-Q4_0)
+LLM: Ollama (qwen2.5:3b — CPU-only, fast, multilingual)
 Embedding: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 """
 
@@ -70,7 +72,7 @@ async def lifespan(app: FastAPI):
         logger.info(f"✅ LLM Ready! Models: {models}")
     else:
         logger.warning(f"⚠️ LLM not available at {settings.llm_base_url}")
-        logger.warning(f"   Ensure Docker Model Runner is running with {settings.llm_model}")
+        logger.warning(f"   Ensure Ollama is running with model: {settings.llm_model}")
     
     logger.info(f"📖 API Docs: http://localhost:{settings.port}/docs")
     
@@ -81,13 +83,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Recommendation Server",
     description="""
-## Qdrant Cloud + Docker Model Runner (Qwen3)
+## Qdrant Cloud + Ollama (qwen2.5:3b)
 
 ### Endpoints:
 - 🔍 **GET /api/v1/search?q=...** - Tìm posts
 - 🎯 **GET /api/v1/recommend/{user_id}** - Gợi ý cho user  
 - 📎 **GET /api/v1/similar/{post_id}** - Posts tương tự
 - 🤖 **POST /api/v1/chat/bot** - Chatbot AI
+- 🤖 **POST /api/v1/chat/bot/stream** - Chatbot AI (SSE streaming)
     """,
     version="4.0.0",
     lifespan=lifespan,
@@ -114,7 +117,7 @@ async def root():
         "name": "AI Recommendation Server",
         "version": "4.0.0",
         "vector_db": "Qdrant Cloud",
-        "llm": "Docker Model Runner (Qwen3)",
+        "llm": f"Ollama ({settings.llm_model})",
         "status": "ready" if ready else "not_ready",
         "total_posts": service.get_total_posts() if ready else 0,
     }

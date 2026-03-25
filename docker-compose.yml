@@ -117,15 +117,53 @@ services:
 
   # ── Application Services ────────────────────────────────────────────
 
+  ollama:
+    # Ollama LLM server — CPU-only, serves qwen2.5:3b
+    # OpenAI-compatible API at http://ollama:11434/v1/chat/completions
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - app-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+
+  ollama-pull:
+    # One-shot init container — pulls the model then exits
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["ollama", "pull", "qwen2.5:3b"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    networks:
+      - app-net
+    restart: "no"
+
   server-ai:
     # FastAPI — Recommendation + Chatbot
     # Vectors: Qdrant Cloud
-    # LLM: External API (OpenAI-compatible, configured via .env LLM_API_KEY)
+    # LLM: Ollama (qwen2.5:3b via Docker, CPU-only)
     build:
       context: ./server-ai
       dockerfile: Dockerfile
     image: project-chat-social-server-ai:latest
     env_file: ./server-ai/.env
+    depends_on:
+      ollama:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -228,6 +266,7 @@ volumes:
   zookeeper_data:
   kafka_data:
   rabbitmq_data:
+  ollama_data:
 
 networks:
   app-net:

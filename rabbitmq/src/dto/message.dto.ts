@@ -42,3 +42,34 @@ export class TypingEventDto {
   conversationId: string;
   isTyping: boolean;
 }
+
+/**
+ * DTO cho event chat.ai.stream.start từ RabbitMQ → Backend
+ */
+export class AiStreamStartEventDto {
+  conversationId: string;
+  messageId: string;
+  senderId: string;
+}
+
+/**
+ * DTO cho event chat.ai.token từ RabbitMQ → Backend
+ */
+export class AiTokenEventDto {
+  conversationId: string;
+  messageId: string;
+  token: string;
+}
+
+/**
+ * DTO cho event chat.ai.stream.done từ RabbitMQ → Backend
+ */
+export class AiStreamDoneEventDto {
+  conversationId: string;
+  messageId: string;
+  senderId: string;
+  content: string;
+  postIdsRecommendation?: string[];
+  originalSenderId: string;
+  success: boolean;
+}

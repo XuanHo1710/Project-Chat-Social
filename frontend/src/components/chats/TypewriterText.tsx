@@ -7,27 +7,53 @@ interface TypewriterTextProps {
     speed?: number; // milliseconds per character
     onComplete?: () => void;
     isNew?: boolean; // Only animate if this is a new message
+    isStreaming?: boolean; // SSE streaming mode — text grows from outside
 }
 
 export default function TypewriterText({
     text,
     speed = 15,
     onComplete,
-    isNew = false
+    isNew = false,
+    isStreaming = false,
 }: TypewriterTextProps) {
     const theme = useTheme();
-    const [displayedText, setDisplayedText] = useState(isNew ? '' : text);
-    const [isTyping, setIsTyping] = useState(isNew);
+    const [displayedText, setDisplayedText] = useState(isNew && !isStreaming ? '' : text);
+    const [isTyping, setIsTyping] = useState(isNew || isStreaming);
     const indexRef = useRef(0);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Track if animation completed to avoid re-animating on re-renders
-    const completedRef = useRef(!isNew);
+    const completedRef = useRef(!isNew && !isStreaming);
 
     // Memoize the text to detect changes
     const textRef = useRef(text);
 
+    // === SSE STREAMING MODE ===
+    // Text prop grows as tokens arrive → just display it directly
     useEffect(() => {
+        if (!isStreaming) return;
+        setDisplayedText(text);
+        setIsTyping(true);
+    }, [text, isStreaming]);
+
+    // When streaming stops (isStreaming flips false), mark completed
+    useEffect(() => {
+        if (!isStreaming && textRef.current !== text && completedRef.current) {
+            setDisplayedText(text);
+        }
+        if (!isStreaming && isTyping && displayedText === text && text.length > 0) {
+            setIsTyping(false);
+            completedRef.current = true;
+            onComplete?.();
+        }
+        textRef.current = text;
+    }, [text, isStreaming]);
+
+    // === LEGACY TYPEWRITER MODE (full text arrives at once) ===
+    useEffect(() => {
+        if (isStreaming) return; // Skip if streaming
+
         // If not a new message or already completed, show full text
         if (!isNew || completedRef.current) {
             setDisplayedText(text);
@@ -40,21 +66,19 @@ export default function TypewriterText({
         setDisplayedText('');
         setIsTyping(true);
 
-        // Typewriter effect with variable speed based on character
         const typeNextChar = () => {
             if (indexRef.current < text.length) {
                 const nextChar = text[indexRef.current];
                 setDisplayedText(text.substring(0, indexRef.current + 1));
                 indexRef.current++;
 
-                // Variable speed: pause longer on punctuation
                 let nextDelay = speed;
                 if (['.', '!', '?'].includes(nextChar)) {
-                    nextDelay = speed * 8; // Longer pause after sentences
+                    nextDelay = speed * 8;
                 } else if ([',', ';', ':'].includes(nextChar)) {
-                    nextDelay = speed * 4; // Medium pause after commas
+                    nextDelay = speed * 4;
                 } else if (nextChar === '\n') {
-                    nextDelay = speed * 6; // Pause on newlines
+                    nextDelay = speed * 6;
                 }
 
                 intervalRef.current = setTimeout(typeNextChar, nextDelay);
@@ -65,7 +89,6 @@ export default function TypewriterText({
             }
         };
 
-        // Start typing after a small delay
         intervalRef.current = setTimeout(typeNextChar, 100);
 
         return () => {
@@ -73,19 +96,7 @@ export default function TypewriterText({
                 clearTimeout(intervalRef.current);
             }
         };
-    }, [text, speed, isNew, onComplete]);
-
-    // Update textRef when text changes
-    useEffect(() => {
-        const displayFunctionText = () => {
-            if (textRef.current !== text && completedRef.current) {
-                // Text changed after completion, show new text immediately
-                setDisplayedText(text);
-            }
-            textRef.current = text;
-        }
-        displayFunctionText()
-    }, [text]);
+    }, [text, speed, isNew, onComplete, isStreaming]);
 
     return (
         <Box sx={{ position: 'relative', display: 'inline' }}>

@@ -1,5 +1,5 @@
 """
-Configuration: Qdrant Cloud + External LLM API (OpenAI-compatible)
+Configuration: Qdrant Cloud + Ollama LLM (OpenAI-compatible)
 All values loaded from environment / .env file — no hardcoded credentials.
 """
 
@@ -24,11 +24,11 @@ class Settings(BaseSettings):
     qdrant_collection_posts: str = "posts"
     qdrant_collection_users: str = "user_vectors"
     
-    # LLM - External API (OpenAI-compatible)
-    # Supports: OpenAI, Groq, Together, OpenRouter, or any OpenAI-compatible API
-    llm_base_url: str = "https://api.groq.com/openai"
-    llm_model: str = "llama-3.1-8b-instant"
-    llm_api_key: str = ""
+    # LLM - Ollama (OpenAI-compatible API, no API key needed)
+    # Default: local Ollama via Docker
+    llm_base_url: str = "http://ollama:11434"
+    llm_model: str = "qwen2.5:3b"
+    llm_api_key: str = ""  # optional, only if using external provider
 
     search_top_k: int = 20
     recommendation_limit: int = 20

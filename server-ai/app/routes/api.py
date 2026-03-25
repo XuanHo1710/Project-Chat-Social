@@ -11,6 +11,7 @@ Endpoints:
 
 from typing import Optional, List
 from fastapi import APIRouter, Query, HTTPException
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from qdrant_client.models import PointStruct
 
@@ -275,7 +276,95 @@ async def chat_bot_post(request: ChatBotRequest):
     }
 
 
-# Keep old GET endpoint for backward compatibility (deprecated)
+@router.post("/chat/bot/stream")
+async def chat_bot_stream(request: ChatBotRequest):
+    """
+    🤖 SSE streaming chatbot - trả về tokens real-time
+
+    Returns SSE stream with events:
+    - event: token   → data: {"token": "..."}
+    - event: postIds → data: {"postIds": [...]}
+    - event: done    → data: {}
+    - event: error   → data: {"error": "..."}
+    """
+    import json as _json
+
+    ollama = get_ollama_service()
+    recommendation = get_recommendation_service()
+
+    async def event_stream():
+        try:
+            if not ollama.is_available():
+                yield f"event: error\ndata: {_json.dumps({'error': 'AI đang khởi động hoặc tạm thời không khả dụng.'})}\n\n"
+                return
+
+            message = request.message
+            chat_history = request.chatHistory or []
+            image_urls = request.imageUrls or []
+
+            post_ids = []
+            post_preview = ""
+
+            conversation_context = []
+            for msg in chat_history[-10:]:
+                conversation_context.append({"role": msg.role, "content": msg.content})
+
+            # Image analysis
+            image_description = ""
+            if image_urls:
+                image_description = ollama.analyze_images(image_urls)
+
+            # Intent analysis
+            intent = ollama.analyze_chat_intent(message)
+
+            if intent.get("should_suggest_post") and intent.get("search_query") and recommendation.is_ready():
+                search_query = intent["search_query"]
+                posts, total = recommendation.search(query=search_query, current_user_id="", limit=15, page=1)
+                if posts:
+                    available_posts = posts[:8]
+                    if available_posts:
+                        import random
+                        random.shuffle(available_posts)
+                        selected_posts = available_posts[:min(4, len(available_posts))]
+                        post_ids = [p["post_id"] for p in selected_posts]
+
+                        try:
+                            from pymongo import MongoClient
+                            import os
+                            mongo = MongoClient(os.getenv("MONGODB_URI"))
+                            db = mongo[os.getenv("MONGODB_DATABASE")]
+                            from bson import ObjectId
+                            post_doc = db.posts.find_one({"_id": ObjectId(post_ids[0])}, {"content": 1})
+                            if post_doc:
+                                post_preview = post_doc.get("content", "")[:200]
+                            mongo.close()
+                        except Exception as e:
+                            logger.warning(f"Could not fetch post preview: {e}")
+
+            # Emit postIds early so frontend can render them
+            if post_ids:
+                yield f"event: postIds\ndata: {_json.dumps({'postIds': post_ids})}\n\n"
+
+            # Stream tokens
+            async for token in ollama.stream_chat_response_with_full_context(
+                message=message,
+                chat_history=conversation_context,
+                image_description=image_description,
+                has_post=len(post_ids) > 0,
+                post_preview=post_preview,
+            ):
+                yield f"event: token\ndata: {_json.dumps({'token': token})}\n\n"
+
+            yield "event: done\ndata: {}\n\n"
+
+        except Exception as e:
+            logger.error(f"Stream error: {e}")
+            yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
 @router.get("/chat/bot/{message}")
 async def chat_bot_get(message: str):
     """Deprecated: Use POST /chat/bot instead"""

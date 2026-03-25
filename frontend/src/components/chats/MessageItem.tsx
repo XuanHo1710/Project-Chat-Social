@@ -59,6 +59,7 @@ interface MessageItemProps {
     themeColor?: string;
     isLastOwnMessage?: boolean;
     otherAvatarsNotRead: Array<{ user: ConversationParticipantUser, userId: string, seenIndex: number }> | [];
+    isStreaming?: boolean;
 }
 
 export default function MessageItem({
@@ -72,6 +73,7 @@ export default function MessageItem({
     themeColor = '#0084ff',
     isLastOwnMessage = false,
     otherAvatarsNotRead,
+    isStreaming = false,
 }: MessageItemProps) {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
@@ -499,9 +501,10 @@ export default function MessageItem({
                                         }}
                                     >
                                         <TypewriterText
-                                            text={message.content}
+                                            text={message.content || ''}
                                             speed={12}
-                                            isNew={new Date().getTime() - new Date(message.createdAt).getTime() < 10000}
+                                            isNew={!isStreaming && new Date().getTime() - new Date(message.createdAt).getTime() < 10000}
+                                            isStreaming={isStreaming}
                                         />
                                     </Box>
 

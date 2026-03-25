@@ -78,6 +78,9 @@ export interface MessageResponse {
   isEdited?: boolean;
   isDeleted?: boolean;
   deletedAt?: string;
+
+  // AI streaming flag (transient, not from DB)
+  _isStreaming?: boolean;
 }
 
 export interface SendMessagePayload {

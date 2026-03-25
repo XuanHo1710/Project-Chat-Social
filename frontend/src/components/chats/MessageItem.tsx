@@ -249,7 +249,7 @@ export default function MessageItem({
                         display: 'grid',
                         gridTemplateColumns: mediaAttachments.length === 1 ? '1fr' : mediaAttachments.length === 2 ? '1fr 1fr' : 'repeat(2, 1fr)',
                         gap: '2px',
-                        maxWidth: 280,
+                        maxWidth: { xs: 260, sm: 280 },
                         borderRadius: '18px',
                         overflow: 'hidden',
                         mb: documentAttachments.length > 0 ? 1 : 0
@@ -391,7 +391,7 @@ export default function MessageItem({
                     display: "flex",
                     flexDirection: 'column',
                     alignItems: "flex-start",
-                    px: 2,
+                    px: { xs: 1, sm: 2 },
                     py: 0.5,
                     animation: 'fadeInUp 0.3s ease-out',
                     '@keyframes fadeInUp': {
@@ -411,7 +411,7 @@ export default function MessageItem({
                     display: 'flex',
                     alignItems: 'flex-start',
                     gap: 1,
-                    maxWidth: '75%',
+                    maxWidth: { xs: '92%', sm: '80%', md: '75%' },
                 }}>
                     {/* Chatbot Avatar - Gradient AI style */}
                     <Avatar
@@ -655,7 +655,7 @@ export default function MessageItem({
                     display: "flex",
                     flexDirection: 'column',
                     alignItems: isOwn ? "flex-end" : "flex-start",
-                    px: 2,
+                    px: { xs: 1, sm: 2 },
                     py: 0.3,
                     '&:hover .message-hover-actions': { opacity: 1 }
                 }}
@@ -664,7 +664,7 @@ export default function MessageItem({
                     display: 'flex',
                     alignItems: 'flex-end',
                     gap: 0.5,
-                    maxWidth: '70%',
+                    maxWidth: { xs: '88%', sm: '75%', md: '70%' },
                     flexDirection: isOwn ? 'row-reverse' : 'row'
                 }}>
                     {!isOwn && (
@@ -983,7 +983,7 @@ export default function MessageItem({
                     display: "flex",
                     flexDirection: 'column',
                     alignItems: isOwn ? "flex-end" : "flex-start",
-                    px: 2,
+                    px: { xs: 1, sm: 2 },
                     py: 0.3,
                     mb: message.replyTo ? 0.5 : 0,
                     '&:hover .message-hover-actions': { opacity: 1 }
@@ -993,7 +993,7 @@ export default function MessageItem({
                     display: 'flex',
                     alignItems: 'flex-end',
                     gap: 0.5,
-                    maxWidth: '70%',
+                    maxWidth: { xs: '88%', sm: '75%', md: '70%' },
                     flexDirection: isOwn ? 'row-reverse' : 'row'
                 }}>
                     {!isOwn && (

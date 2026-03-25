@@ -83,6 +83,7 @@ interface CallContextType {
     rejectCall: () => void;
     toggleAudio: () => void;
     toggleVideo: () => Promise<void>;
+    switchCamera: () => Promise<void>;
     callReceived: boolean;
     isInCall: boolean;
     isGroupCall: boolean;
@@ -98,6 +99,7 @@ interface CallContextType {
     hasAudio: boolean;
     isMuted: boolean;
     isVideoOff: boolean;
+    isFrontCamera: boolean;
 }
 
 const CallContext = createContext<CallContextType | null>(null);
@@ -124,6 +126,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
+    const [isFrontCamera, setIsFrontCamera] = useState(true);
 
     // ─── Refs ───
     const myVideo = useRef<HTMLVideoElement | null>(null);
@@ -206,6 +209,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setPeerStream(undefined);
         setIsMuted(false);
         setIsVideoOff(false);
+        setIsFrontCamera(true);
         setIsGroupCall(false); isGroupCallRef.current = false;
     };
 
@@ -393,10 +397,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }, [stream]);
 
     // Get media stream (camera optional, falls back to audio-only)
-    const getMediaStream = async (wantVideo: boolean): Promise<MediaStream> => {
+    const getMediaStream = async (wantVideo: boolean, facingMode: 'user' | 'environment' = 'user'): Promise<MediaStream> => {
         if (wantVideo) {
             try {
-                return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                return await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode } });
             } catch {
                 toast.info('Không thể truy cập Camera – tiếp tục với âm thanh');
                 setIsVideoOff(true);
@@ -478,6 +482,27 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
     // ─── Start Group Call ───
     const startGroupCall = async (conversationId: string, isTurnOff: boolean) => {
+        // Check if a group call is already active — join instead of starting new
+        if (socket) {
+            try {
+                const checkResult = await new Promise<{ active: boolean; participantCount: number }>((resolve) => {
+                    socket.emit('group-call:check', { conversationId }, (res: { active: boolean; participantCount: number }) => {
+                        resolve(res);
+                    });
+                    // Timeout fallback
+                    setTimeout(() => resolve({ active: false, participantCount: 0 }), 3000);
+                });
+                if (checkResult.active) {
+                    // An active call exists — join it instead
+                    if (isTurnOff) setIsVideoOff(true);
+                    joinGroupCall(conversationId);
+                    return;
+                }
+            } catch {
+                // Ignore — proceed with starting a new call
+            }
+        }
+
         if (isTurnOff) setIsVideoOff(true);
 
         const recipient: RecipientInfo = { id: conversationId, conversationId };
@@ -646,7 +671,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             setIsVideoOff(!videoTrack.enabled);
         } else {
             try {
-                const vs = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                const vs = await navigator.mediaDevices.getUserMedia({ video: { facingMode: isFrontCamera ? 'user' : 'environment' }, audio: false });
                 const newTrack = vs.getVideoTracks()[0];
                 if (newTrack) {
                     currentStream.addTrack(newTrack);
@@ -671,12 +696,52 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    const switchCamera = async () => {
+        if (!streamRef.current) return;
+        const currentStream = streamRef.current;
+        const oldVideoTrack = currentStream.getVideoTracks()[0];
+        if (!oldVideoTrack) return;
+
+        const newFacing = isFrontCamera ? 'environment' : 'user';
+
+        try {
+            const vs = await navigator.mediaDevices.getUserMedia({ video: { facingMode: newFacing }, audio: false });
+            const newTrack = vs.getVideoTracks()[0];
+            if (!newTrack) return;
+
+            // Replace old track in the stream
+            currentStream.removeTrack(oldVideoTrack);
+            oldVideoTrack.stop();
+            currentStream.addTrack(newTrack);
+
+            // Replace track in peer connections (keeps the same stream)
+            const replaceInPeer = (peer: Instance) => {
+                try {
+                    const sender = (peer as unknown as { _pc?: RTCPeerConnection })._pc
+                        ?.getSenders()
+                        .find(s => s.track?.kind === 'video');
+                    if (sender) {
+                        void sender.replaceTrack(newTrack);
+                    }
+                } catch { console.warn('Could not replace track in peer'); }
+            };
+
+            if (connectionRef.current) replaceInPeer(connectionRef.current);
+            peersRef.current.forEach(replaceInPeer);
+
+            setIsFrontCamera(!isFrontCamera);
+            setStream(currentStream);
+        } catch {
+            toast.error('Không thể chuyển camera');
+        }
+    };
+
     return (
         <CallContext.Provider value={{
             callUser, startGroupCall, joinGroupCall, answerCall, leaveCall, rejectCall,
-            toggleAudio, toggleVideo, callReceived, isInCall, isGroupCall, isCallAccepted,
+            toggleAudio, toggleVideo, switchCamera, callReceived, isInCall, isGroupCall, isCallAccepted,
             stream, peerStream, remoteStreams, myVideo, userVideo, callerInfo, recipientInfo,
-            hasVideo: !isVideoOff, hasAudio: !isMuted, isMuted, isVideoOff,
+            hasVideo: !isVideoOff, hasAudio: !isMuted, isMuted, isVideoOff, isFrontCamera,
         }}>
             {children}
         </CallContext.Provider>

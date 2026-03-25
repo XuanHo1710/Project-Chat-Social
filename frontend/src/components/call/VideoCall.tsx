@@ -7,7 +7,8 @@ import {
     Mic,
     MicOff,
     Video as VideoIcon,
-    VideoOff
+    VideoOff,
+    SwitchCamera
 } from 'lucide-react';
 import { useCall } from '@/contexts/CallContext';
 
@@ -24,9 +25,11 @@ export default function VideoCall() {
         isVideoOff,
         toggleAudio,
         toggleVideo,
+        switchCamera,
         callerInfo,
         remoteStreams,
-        isGroupCall
+        isGroupCall,
+        isFrontCamera
     } = useCall();
 
     // FIX: Sync peerStream → userVideo whenever peerStream or isCallAccepted changes
@@ -82,6 +85,7 @@ export default function VideoCall() {
                                 }}
                                 muted={item.peerId === 'me'} // Always mute self
                                 className="w-full h-full object-cover"
+                                style={item.peerId === 'me' && isFrontCamera ? { transform: 'scaleX(-1)' } : undefined}
                                 autoPlay
                                 playsInline
                             />
@@ -151,6 +155,7 @@ export default function VideoCall() {
                                 ref={myVideo}
                                 muted
                                 className={`w-full h-full object-cover ${isVideoOff ? 'opacity-0' : 'opacity-100'}`}
+                                style={isFrontCamera ? { transform: 'scaleX(-1)' } : undefined}
                                 autoPlay
                                 playsInline
                                 onLoadedMetadata={(event) => {
@@ -194,6 +199,16 @@ export default function VideoCall() {
                 >
                     {isVideoOff ? <VideoOff size={24} /> : <VideoIcon size={24} />}
                 </button>
+
+                {!isVideoOff && (
+                    <button
+                        onClick={switchCamera}
+                        className="p-3 md:p-4 rounded-full bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                        title="Chuyển camera"
+                    >
+                        <SwitchCamera size={24} />
+                    </button>
+                )}
             </div>
         </motion.div>
     );

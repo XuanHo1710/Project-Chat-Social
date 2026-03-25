@@ -178,6 +178,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (sockets.size === 0) {
           userSockets.delete(userId);
 
+          // Clean up user from active group calls
+          for (const [convId, participants] of activeGroupCalls.entries()) {
+            if (participants.has(userId)) {
+              participants.delete(userId);
+              // Notify remaining participants
+              participants.forEach((pId) => {
+                const pSockets = userSockets.get(pId);
+                if (pSockets) {
+                  pSockets.forEach((sId) => {
+                    this.server.to(sId).emit('group-call:user-left', { userId });
+                  });
+                }
+              });
+              if (participants.size === 0) {
+                activeGroupCalls.delete(convId);
+              }
+            }
+          }
+
           // Update status to DEACTIVE and lastActive
           const lastActive = new Date();
           const account = await this.accountModel.findByIdAndUpdate(
@@ -403,6 +422,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
       }
     }
+  }
+
+  @SubscribeMessage('group-call:check')
+  async handleGroupCallCheck(@MessageBody() data: { conversationId: string }) {
+    const participants = activeGroupCalls.get(data.conversationId);
+    if (participants && participants.size > 0) {
+      return { active: true, participantCount: participants.size };
+    }
+    return { active: false, participantCount: 0 };
   }
 
   @SubscribeMessage('call:signal')

@@ -92,52 +92,16 @@ services:
 
   # ── Application Services ────────────────────────────────────────────
 
-  llm:
-    # Ollama — qwen3:0.6b (~441MB)
-    # OpenAI-compatible API at http://llm:11434/v1/...
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - app-net
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-        reservations:
-          memory: 512M
-    # Pull model on first start
-    entrypoint:
-      [
-        "/bin/sh",
-        "-c",
-        "ollama serve & sleep 5 && ollama pull qwen3:0.6b && wait",
-      ]
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1"]
-      interval: 15s
-      timeout: 10s
-      start_period: 600s
-      retries: 5
-
   server-ai:
     # FastAPI — Recommendation + Chatbot
     # Vectors: Qdrant Cloud
-    # LLM: Ollama (qwen3:0.6b ~441MB)
+    # LLM: External API (configured via .env LLM_API_KEY)
     image: project-chat-social-server-ai:latest
     env_file: ./server-ai/.env
-    environment:
-      # Ollama — accessible via llm service name
-      LLM_BASE_URL: http://llm:11434
-      LLM_MODEL: qwen3:0.6b
     # PORT is baked into Dockerfile CMD (uvicorn --port 8000), no need to override
     volumes:
       - ai_chroma_data:/app/chroma_db
       - ai_models:/app/models
-    depends_on:
-      llm:
-        condition: service_healthy
     networks:
       - app-net
     restart: unless-stopped
@@ -232,7 +196,6 @@ volumes:
   rabbitmq_data:
   ai_chroma_data:
   ai_models:
-  ollama_data:
 
 networks:
   app-net:

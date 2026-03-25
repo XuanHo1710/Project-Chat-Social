@@ -1,12 +1,13 @@
 """
-LLM Service — Docker Model Runner (ai/qwen3:0.6B-Q4_0)
-=======================================================
-Uses OpenAI-compatible API.
-Docker Model Runner serves models via standard /v1/chat/completions.
+LLM Service — External API (OpenAI-compatible)
+===============================================
+Uses OpenAI-compatible API with API key authentication.
+Supports: OpenAI, Groq, Together, OpenRouter, or any compatible provider.
 
-Endpoints:
-- Docker:  http://llm/v1/chat/completions
-- Local:   http://localhost:11434/v1/chat/completions (Ollama fallback)
+Configure via .env:
+- LLM_BASE_URL: API base URL (e.g. https://api.groq.com/openai)
+- LLM_MODEL: Model name (e.g. llama-3.1-8b-instant)
+- LLM_API_KEY: API key for authentication
 """
 
 import httpx
@@ -18,7 +19,7 @@ from app.config import get_settings
 
 
 class LLMService:
-    """LLM Service using OpenAI-compatible API (Docker Model Runner / Ollama)"""
+    """LLM Service using OpenAI-compatible API with API key"""
     
     def __init__(self):
         self.settings = get_settings()
@@ -32,11 +33,22 @@ class LLMService:
     def model(self) -> str:
         return self.settings.llm_model
     
+    @property
+    def _headers(self) -> Dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if self.settings.llm_api_key:
+            headers["Authorization"] = f"Bearer {self.settings.llm_api_key}"
+        return headers
+    
     def _chat(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 1000) -> str:
-        """Call Docker Model Runner's OpenAI-compatible chat API."""
+        """Call OpenAI-compatible chat API with API key."""
+        if not self.settings.llm_api_key:
+            logger.warning("LLM_API_KEY not configured — skipping LLM call")
+            return ""
         try:
             response = httpx.post(
                 f"{self.base_url}/v1/chat/completions",
+                headers=self._headers,
                 json={
                     "model": self.model,
                     "messages": messages,
@@ -161,9 +173,16 @@ Examples:
         return ""
 
     def is_available(self) -> bool:
-        """Check if Docker Model Runner is accessible."""
+        """Check if the external LLM API is accessible."""
+        if not self.settings.llm_api_key:
+            self._is_available = False
+            return False
         try:
-            response = httpx.get(f"{self.base_url}/v1/models", timeout=5.0)
+            response = httpx.get(
+                f"{self.base_url}/v1/models",
+                headers=self._headers,
+                timeout=5.0
+            )
             self._is_available = response.status_code == 200
             return self._is_available
         except:
@@ -171,9 +190,15 @@ Examples:
             return False
 
     def list_models(self) -> List[str]:
-        """List available models from Docker Model Runner."""
+        """List available models from the API."""
+        if not self.settings.llm_api_key:
+            return []
         try:
-            response = httpx.get(f"{self.base_url}/v1/models", timeout=5.0)
+            response = httpx.get(
+                f"{self.base_url}/v1/models",
+                headers=self._headers,
+                timeout=5.0
+            )
             if response.status_code == 200:
                 data = response.json()
                 return [m.get("id", "") for m in data.get("data", [])]

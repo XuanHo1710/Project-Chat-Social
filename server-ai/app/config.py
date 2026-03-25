@@ -1,5 +1,5 @@
 """
-Configuration: Qdrant Cloud + Ollama LLM (Qwen3)
+Configuration: Qdrant Cloud + External LLM API (OpenAI-compatible)
 All values loaded from environment / .env file — no hardcoded credentials.
 """
 
@@ -24,10 +24,11 @@ class Settings(BaseSettings):
     qdrant_collection_posts: str = "posts"
     qdrant_collection_users: str = "user_vectors"
     
-    # LLM - Docker Model Runner (ai/qwen3:0.6B-Q4_0 ~441MB)
-    # Ref: https://hub.docker.com/r/ai/qwen3
-    llm_base_url: str = "http://model-runner.docker.internal/engines"
-    llm_model: str = "ai/qwen3:0.6B-Q4_0"
+    # LLM - External API (OpenAI-compatible)
+    # Supports: OpenAI, Groq, Together, OpenRouter, or any OpenAI-compatible API
+    llm_base_url: str = "https://api.groq.com/openai"
+    llm_model: str = "llama-3.1-8b-instant"
+    llm_api_key: str = ""
 
     search_top_k: int = 20
     recommendation_limit: int = 20

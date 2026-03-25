@@ -117,43 +117,21 @@ services:
 
   # ── Application Services ────────────────────────────────────────────
 
-  llm:
-    # Docker Model Runner — ai/qwen3:0.6B-Q4_0 (~441MB)
-    # OpenAI-compatible API at http://llm/v1/...
-    # Ref: https://hub.docker.com/r/ai/qwen3
-    provider:
-      type: model
-      options:
-        model: ai/qwen3:0.6B-Q4_0
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-        reservations:
-          memory: 512M
-
   server-ai:
     # FastAPI — Recommendation + Chatbot
     # Vectors: Qdrant Cloud
-    # LLM: Docker Model Runner (ai/qwen3:0.6B-Q4_0 ~441MB)
+    # LLM: External API (OpenAI-compatible, configured via .env LLM_API_KEY)
     build:
       context: ./server-ai
       dockerfile: Dockerfile
     image: project-chat-social-server-ai:latest
     env_file: ./server-ai/.env
-    environment:
-      # Docker Model Runner — accessible via model-runner.docker.internal
-      LLM_BASE_URL: http://model-runner.docker.internal/engines
-      LLM_MODEL: ai/qwen3:0.6B-Q4_0
     deploy:
       resources:
         limits:
           memory: 1536M
         reservations:
           memory: 512M
-    depends_on:
-      llm:
-        condition: service_started
     networks:
       - app-net
     restart: unless-stopped

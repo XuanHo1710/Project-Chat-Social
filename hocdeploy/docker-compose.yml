@@ -169,7 +169,7 @@ services:
       KAFKA_BROKER: kafka:9092
       # server-ai exposes routes under /api/v1 (FastAPI router prefix)
       AI_SERVER_URL: http://server-ai:8000/api/v1
-      CLIENT_URL: ${CLIENT_URL:-http://localhost:1710}
+      # CLIENT_URL: ${CLIENT_URL:-http://localhost:1710}
       # ── Cần override khi lên VPS ──
       # GOOGLE_CALLBACK_URL: https://yourdomain.com/api/v1/auth/google/callback
       # VNPAY_RETURN_URL: https://yourdomain.com/payment/vnpay-return

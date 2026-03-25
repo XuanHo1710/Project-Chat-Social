@@ -194,57 +194,8 @@ export default function LoginPage() {
   };
 
   const handleLoginWithGoogle = () => {
-    // Call API login with google
-    window.open(
-      `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/auth/login/google`,
-      'google-login',
-      'width=500,height=600,left=200,top=100'
-    );
+    window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/auth/login/google`;
   }
-
-
-  // Handle Login with google callback
-  useEffect(() => {
-    const BACKEND_ORIGIN = new URL(
-      process.env.NEXT_PUBLIC_BACKEND_API_URL!
-    ).origin;
-    const handler = async (event: MessageEvent) => {
-      if (event.origin !== BACKEND_ORIGIN) return;
-
-      const { type, payload } = event.data;
-
-      if (type === 'GOOGLE_LOGIN_SUCCESS') {
-        const userData = {
-          id: payload.payload._id,
-          username: payload.payload.username,
-          fullName: payload.payload.fullname,
-          role: payload.payload.role,
-          gender: payload.payload.gender,
-          email: payload.payload.email,
-          avatar: payload.payload.avatar,
-        };
-
-        setAccessToken(payload.access_token);
-        setUser(userData);
-
-        if (payload.session_id) {
-          await axios.post('/api/auth/session', {
-            accessToken: payload.access_token,
-            sessionId: payload.session_id,
-          });
-        }
-
-        toast.success(`Xin chào ${payload.payload.fullname}! Đăng nhập thành công!`);
-        router.push(CLIENT_PATH.HOME);
-      }
-
-      if (type === 'GOOGLE_LOGIN_FAILED') {
-        toast.error(t('auth.google_login_failed'));
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, [router, setAccessToken, setUser]);
 
 
   return (

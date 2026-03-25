@@ -10,7 +10,9 @@ const ICE_SERVERS: RTCIceServer[] = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:global.stun.twilio.com:3478' },
-    // Add TURN servers for better NAT traversal:
+    // TURN servers improve connectivity behind restrictive NATs/firewalls.
+    // Without TURN, calls may fail between certain networks.
+    // Get free credentials at https://www.metered.ca/tools/openrelay/
     // { urls: 'turn:your-turn-server.com:3478', username: '...', credential: '...' },
 ];
 
@@ -293,10 +295,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
         // 1v1: Caller receives answer
         const onCallAccepted = (data: CallAcceptedData) => {
-            console.log('[Call] Accepted by:', data.fromUserId);
+            console.log('[Call] Accepted by:', data.fromUserId, '| peer exists:', !!connectionRef.current);
             setIsCallAccepted(true);
             if (connectionRef.current) {
                 connectionRef.current.signal(data.answer);
+            } else {
+                console.warn('[Call] No peer to signal answer to!');
             }
         };
 
@@ -439,6 +443,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             });
 
             peer.on('signal', (data) => {
+                console.log('[Call] Caller signal type:', data.type || ('candidate' in data ? 'ice-candidate' : 'unknown'));
                 if (data.type === 'offer') {
                     socket?.emit('call:start', { toUserId: userId, offer: data, conversationId });
                 } else if ('candidate' in data) {
@@ -447,8 +452,13 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             });
 
             peer.on('stream', (remoteStream) => {
+                console.log('[Call] Caller received remote stream, tracks:', remoteStream.getTracks().map(t => `${t.kind}:${t.enabled}`));
                 setPeerStream(remoteStream);
                 if (userVideo.current) userVideo.current.srcObject = remoteStream;
+            });
+
+            peer.on('connect', () => {
+                console.log('[Call] Peer connected (data channel open)');
             });
 
             peer.on('error', (err) => {
@@ -570,6 +580,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             });
 
             peer.on('signal', (data) => {
+                console.log('[Call] Callee signal type:', data.type || ('candidate' in data ? 'ice-candidate' : 'unknown'));
                 if (data.type === 'answer') {
                     socket?.emit('call:answer', { toUserId: callerInfo.id, answer: data, conversationId: callerInfo.conversationId });
                 } else if ('candidate' in data) {
@@ -578,8 +589,13 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             });
 
             peer.on('stream', (remoteStream) => {
+                console.log('[Call] Callee received remote stream, tracks:', remoteStream.getTracks().map(t => `${t.kind}:${t.enabled}`));
                 setPeerStream(remoteStream);
                 if (userVideo.current) userVideo.current.srcObject = remoteStream;
+            });
+
+            peer.on('connect', () => {
+                console.log('[Call] Peer connected (data channel open)');
             });
 
             peer.on('error', (err) => {

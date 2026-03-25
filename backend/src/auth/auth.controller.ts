@@ -29,44 +29,23 @@ export class AuthController {
   @Public()
   @UseGuards(GoogleAuthGuard)
   async googleAuthRedirect(@Req() request: Request, @Res() response: Response) {
+    const clientUrl = process.env.CLIENT_URL;
     const user = request.user;
     if (!user) {
-      return response.send(`
-      <script>
-        window.opener.postMessage(
-          { type: 'GOOGLE_LOGIN_FAILED' },
-          '${process.env.CLIENT_URL}'
-        );
-        window.close();
-      </script>
-    `);
+      return response.redirect(`${clientUrl}/auth/google/callback?error=login_failed`);
     }
 
     try {
       const checkAccountGoogle = await this.authService.googleLogin(user as AccountGoogleDto);
       const result = await this.authService.login(checkAccountGoogle);
-      return response.send(`
-      <script>
-        window.opener.postMessage(
-          {
-            type: 'GOOGLE_LOGIN_SUCCESS',
-            payload: ${JSON.stringify(result)}
-          },
-          '${process.env.CLIENT_URL}'
-        );
-        window.close();
-      </script>
-    `);
+      const params = new URLSearchParams({
+        access_token: result.access_token,
+        session_id: result.session_id,
+        payload: JSON.stringify(result.payload),
+      });
+      return response.redirect(`${clientUrl}/auth/google/callback?${params.toString()}`);
     } catch (error) {
-      return response.send(`
-      <script>
-        window.opener.postMessage(
-          { type: 'GOOGLE_LOGIN_FAILED' },
-          '${process.env.CLIENT_URL}'
-        );
-        window.close();
-      </script>
-    `);
+      return response.redirect(`${clientUrl}/auth/google/callback?error=login_failed`);
     }
   }
 

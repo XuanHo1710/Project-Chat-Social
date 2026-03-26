@@ -3,3 +3,5 @@ server-ai/.env
 /server-ai
 
 *.pem
+
+*.tar

@@ -89,7 +89,6 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
 
         setConnectionStatus('connecting');
 
-        console.log('[Viewer] Joining livestream room:', post._id);
         // Viewer should NOT send broadcasterId - only broadcaster sends it
         socket.emit('livestream:join', {
             postId: post._id

@@ -427,7 +427,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
         setRecipientInfo(recipient); recipientInfoRef.current = recipient;
         setCallerInfo(info); callerInfoRef.current = info;
-        setIsInCall(true); isInCallRef.current = true;
         setIsGroupCall(false); isGroupCallRef.current = false;
         setIsCallAccepted(false);
         pendingSignalsRef.current = [];
@@ -437,6 +436,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             const currentStream = await getMediaStream(true);
             streamRef.current = currentStream;
             setStream(currentStream);
+
+            // Set isInCall AFTER stream is ready so mic toggle works immediately
+            setIsInCall(true); isInCallRef.current = true;
 
             // If user chose audio-only, disable video track (but keep it in the stream)
             const vTrack = currentStream.getVideoTracks()[0];
@@ -605,7 +607,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         if (!callerInfo || !callerSignal) return;
 
         setCallReceived(false);
-        setIsInCall(true); isInCallRef.current = true;
         setIsGroupCall(false); isGroupCallRef.current = false;
         setIsCallAccepted(true);
 
@@ -620,6 +621,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             setIsVideoOff(true);
             streamRef.current = currentStream;
             setStream(currentStream);
+
+            // Set isInCall AFTER stream is ready so controls can use toggleAudio immediately
+            setIsInCall(true); isInCallRef.current = true;
 
             const peer = new SimplePeer({
                 initiator: false,

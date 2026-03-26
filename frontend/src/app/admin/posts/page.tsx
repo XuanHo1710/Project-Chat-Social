@@ -34,7 +34,11 @@ import {
     Avatar,
     ImageList,
     ImageListItem,
-    Skeleton
+    Skeleton,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -80,6 +84,10 @@ export default function PostsManagementPage() {
     const [sortBy, setSortBy] = useState('time');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const limit = 10;
+
+    // Delete confirmation dialog
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<AdminPost | null>(null);
 
     // API Query
     const { data: postsData, isLoading } = useQuery({
@@ -154,10 +162,17 @@ export default function PostsManagementPage() {
     });
 
     const handleDeletePost = (post: AdminPost) => {
-        if (confirm(t('admin.confirm_delete_post'))) {
-            deleteMutation.mutate(post.id);
-        }
+        setDeleteTarget(post);
+        setDeleteDialogOpen(true);
         handleMenuClose();
+    };
+
+    const handleConfirmDelete = () => {
+        if (deleteTarget) {
+            deleteMutation.mutate(deleteTarget.id);
+        }
+        setDeleteDialogOpen(false);
+        setDeleteTarget(null);
     };
 
     const clearFilters = () => {
@@ -489,9 +504,9 @@ export default function PostsManagementPage() {
                     flexDirection: 'column',
                 }}>
                     {/* Header */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}` }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', p: 2, borderBottom: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}` }}>
                         <Typography variant="h6" fontWeight="bold">{t('admin.post_detail')}</Typography>
-                        <IconButton onClick={handleCloseViewModal} size="small"><CloseIcon /></IconButton>
+                        <IconButton onClick={handleCloseViewModal} size="small" sx={{ position: 'absolute', right: 12, bgcolor: isDark ? '#3a3b3c' : '#e4e6eb', '&:hover': { bgcolor: isDark ? '#4a4b4c' : '#d8dadf' } }}><CloseIcon fontSize="small" /></IconButton>
                     </Box>
 
                     {/* Content */}
@@ -509,16 +524,19 @@ export default function PostsManagementPage() {
                             <>
                                 {/* Author info */}
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2, pb: 1 }}>
-                                    <Avatar src={postDetail.userId?.avatar} sx={{ width: 48, height: 48 }}>
+                                    <Avatar src={postDetail.userId?.avatar} sx={{ width: 44, height: 44, border: `2px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}` }}>
                                         {postDetail.userId?.firstName?.[0] || '?'}
                                     </Avatar>
-                                    <Box>
+                                    <Box sx={{ flex: 1 }}>
                                         <Typography fontWeight="bold" fontSize={15}>
                                             {postDetail.userId ? `${postDetail.userId.firstName} ${postDetail.userId.lastName}` : 'Unknown'}
                                         </Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {new Date(postDetail.createdAt).toLocaleString()} · {getPrivacyBadge(postDetail.privacy)}
-                                        </Typography>
+                                        <Stack direction="row" alignItems="center" spacing={1}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {new Date(postDetail.createdAt).toLocaleString()}
+                                            </Typography>
+                                            {getPrivacyBadge(postDetail.privacy)}
+                                        </Stack>
                                     </Box>
                                 </Box>
 
@@ -555,11 +573,11 @@ export default function PostsManagementPage() {
                                 )}
 
                                 {/* Stats bar */}
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}` }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5, mx: 2, borderTop: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}`, borderBottom: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}` }}>
                                     <Stack direction="row" spacing={2}>
                                         <Stack direction="row" alignItems="center" gap={0.5}>
                                             <ThumbUpIcon sx={{ fontSize: 16, color: '#1877f2' }} />
-                                            <Typography variant="body2">{postDetail.totalReacts}</Typography>
+                                            <Typography variant="body2" fontWeight="600">{postDetail.totalReacts}</Typography>
                                         </Stack>
                                     </Stack>
                                     <Stack direction="row" spacing={2}>
@@ -570,7 +588,7 @@ export default function PostsManagementPage() {
 
                                 {/* Comments */}
                                 <Box sx={{ p: 2 }}>
-                                    <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5 }}>{t('admin.comments')}</Typography>
+                                    <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>{t('admin.comments')}</Typography>
                                     {isLoadingComments ? (
                                         <Stack spacing={1.5}>
                                             {[1, 2, 3].map(i => (
@@ -583,26 +601,40 @@ export default function PostsManagementPage() {
                                     ) : postComments?.data && postComments.data.length > 0 ? (
                                         <Stack spacing={1.5}>
                                             {postComments.data.map((comment: Comment) => (
-                                                <Box key={comment._id} sx={{ display: 'flex', gap: 1 }}>
-                                                    <Avatar src={comment.userId?.avatar} sx={{ width: 32, height: 32, fontSize: 14 }}>
+                                                <Box key={comment._id} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                                                    <Avatar src={comment.userId?.avatar} sx={{ width: 32, height: 32, fontSize: 14, mt: 0.5 }}>
                                                         {comment.userId?.firstName?.[0] || '?'}
                                                     </Avatar>
-                                                    <Box sx={{
-                                                        bgcolor: isDark ? '#3a3b3c' : '#f0f2f5',
-                                                        borderRadius: 3,
-                                                        px: 1.5,
-                                                        py: 1,
-                                                        maxWidth: '85%',
-                                                    }}>
-                                                        <Typography variant="caption" fontWeight="bold">
-                                                            {comment.userId ? `${comment.userId.firstName} ${comment.userId.lastName}` : 'Unknown'}
-                                                        </Typography>
-                                                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.25 }}>
-                                                            {comment.content}
-                                                        </Typography>
+                                                    <Box sx={{ flex: 1 }}>
+                                                        <Box sx={{
+                                                            bgcolor: isDark ? '#3a3b3c' : '#f0f2f5',
+                                                            borderRadius: '18px',
+                                                            px: 2,
+                                                            py: 1,
+                                                            display: 'inline-block',
+                                                            maxWidth: '100%',
+                                                        }}>
+                                                            <Typography variant="body2" fontWeight="bold" fontSize={13}>
+                                                                {comment.userId ? `${comment.userId.firstName} ${comment.userId.lastName}` : 'Unknown'}
+                                                            </Typography>
+                                                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.25, wordBreak: 'break-word', fontSize: 14 }}>
+                                                                {comment.content}
+                                                            </Typography>
+                                                        </Box>
                                                         {comment.media && comment.media.length > 0 && (
-                                                            <Box component="img" src={comment.media[0].url} sx={{ mt: 1, maxWidth: '100%', maxHeight: 150, borderRadius: 1 }} />
+                                                            <Box component="img" src={comment.media[0].url} sx={{ mt: 0.5, maxWidth: 200, maxHeight: 150, borderRadius: 2, display: 'block' }} />
                                                         )}
+                                                        <Stack direction="row" spacing={2} sx={{ mt: 0.5, pl: 1 }}>
+                                                            <Typography variant="caption" color="text.secondary" sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
+                                                                {t('common.like')}
+                                                            </Typography>
+                                                            <Typography variant="caption" color="text.secondary" sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
+                                                                {t('common.reply')}
+                                                            </Typography>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                {new Date(comment.createdAt).toLocaleString()}
+                                                            </Typography>
+                                                        </Stack>
                                                     </Box>
                                                 </Box>
                                             ))}
@@ -618,6 +650,25 @@ export default function PostsManagementPage() {
                     </Box>
                 </Box>
             </Modal>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <DeleteIcon color="error" />
+                    {t('admin.confirm_delete_title')}
+                </DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" color="text.secondary">
+                        {t('admin.confirm_delete_post')}
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2 }}>
+                    <Button onClick={() => setDeleteDialogOpen(false)}>{t('admin.cancel')}</Button>
+                    <Button variant="contained" color="error" onClick={handleConfirmDelete} disabled={deleteMutation.isPending}>
+                        {deleteMutation.isPending ? <CircularProgress size={20} color="inherit" /> : t('admin.delete_post')}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

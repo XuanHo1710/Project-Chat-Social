@@ -1,0 +1,21 @@
+{
+  "name": "Social Chat",
+  "short_name": "Social Chat",
+  "description": "Mạng xã hội kết nối bạn bè",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1877F2",
+  "icons": [
+    {
+      "src": "/icon",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

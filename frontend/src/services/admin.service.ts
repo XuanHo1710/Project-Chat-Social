@@ -49,8 +49,11 @@ export interface AdminUser {
   avatar?: string;
   role: "USER" | "ADMIN" | "EMPLOYEE";
   status: "ACTIVE" | "BLOCKED" | "PENDING";
-  lastLogin: string;
+  lastLogin: string | null;
   createdAt: string;
+  isBlocked?: boolean;
+  phone?: string;
+  username?: string;
 }
 
 export interface AdminPost {

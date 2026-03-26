@@ -24,6 +24,7 @@ class LLMService:
     def __init__(self):
         self.settings = get_settings()
         self._is_available: bool = False
+        self._async_client: Optional[httpx.AsyncClient] = None
     
     @property
     def base_url(self) -> str:
@@ -63,11 +64,17 @@ class LLMService:
 
 
 
+    async def _get_async_client(self) -> httpx.AsyncClient:
+        """Get or create a persistent async HTTP client for streaming."""
+        if self._async_client is None or self._async_client.is_closed:
+            self._async_client = httpx.AsyncClient(timeout=120.0)
+        return self._async_client
+
     async def _chat_stream(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 500) -> AsyncIterator[str]:
         """Call OpenAI-compatible chat API with streaming. Yields tokens."""
         try:
-            async with httpx.AsyncClient() as client:
-                async with client.stream(
+            client = await self._get_async_client()
+            async with client.stream(
                     "POST",
                     f"{self.base_url}/v1/chat/completions",
                     headers=self._headers,

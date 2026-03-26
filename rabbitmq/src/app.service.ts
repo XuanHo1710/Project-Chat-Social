@@ -56,6 +56,8 @@ export class AppService {
 
     try {
       // Run bot user lookup and chat history fetch in parallel
+      // Direct chatbot conversations have longer AI responses, so use fewer history messages
+      const historyLimit = isChatbotConversation ? 6 : 10;
       const [botUser, recentMessages] = await Promise.all([
         isChatbotConversation
           ? this.accountModel.findOne({ username: 'ai_assistant' }).lean()
@@ -63,7 +65,7 @@ export class AppService {
         this.messageModel
           .find({ conversationId: new Types.ObjectId(payload.conversationId) })
           .sort({ createdAt: -1 })
-          .limit(10)
+          .limit(historyLimit)
           .populate('senderId', 'firstName lastName')
           .lean(),
       ]);
@@ -72,7 +74,7 @@ export class AppService {
 
       const chatHistory = recentMessages.reverse().map((msg: any) => ({
         role: (msg.type === MessageType.CHATBOT ? 'assistant' : 'user') as 'user' | 'assistant',
-        content: msg.content || '',
+        content: (msg.content || '').slice(0, 300),
         senderName: msg.senderId ? `${msg.senderId.firstName} ${msg.senderId.lastName}` : 'User',
       }));
 

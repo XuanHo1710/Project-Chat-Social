@@ -12,6 +12,14 @@ export enum MessageType {
   POST = 'POST', // Bài viết được chia sẻ
   STORY_REPLY = 'STORY_REPLY', // Trả lời story
   CHATBOT = 'CHATBOT', // Tin nhắn từ AI chatbot
+  CALL = 'CALL', // Lịch sử cuộc gọi (audio/video)
+}
+
+export enum CallStatus {
+  ANSWERED = 'ANSWERED', // Cuộc gọi đã được trả lời
+  MISSED = 'MISSED', // Cuộc gọi nhỡ
+  CANCELLED = 'CANCELLED', // Người gọi hủy
+  ONGOING = 'ONGOING', // Đang diễn ra (group call)
 }
 
 export enum MessageStatus {
@@ -97,6 +105,22 @@ export class Message {
 
   // @Prop({ type: Object })
   // postData?: any; // Dữ liệu bài viết được cache (để hiển thị nhanh)
+
+  // Call metadata (cho type=CALL)
+  @Prop({
+    type: {
+      callType: { type: String, enum: ['AUDIO', 'VIDEO'] },
+      callStatus: { type: String, enum: ['ANSWERED', 'MISSED', 'CANCELLED', 'ONGOING'] },
+      duration: Number, // seconds
+      isGroup: Boolean,
+    },
+  })
+  callData?: {
+    callType: 'AUDIO' | 'VIDEO';
+    callStatus: 'ANSWERED' | 'MISSED' | 'CANCELLED' | 'ONGOING';
+    duration?: number;
+    isGroup?: boolean;
+  };
 
   @Prop({ type: String, enum: MessageStatus, default: MessageStatus.SENT })
   status: MessageStatus;

@@ -26,9 +26,13 @@ import {
     PictureAsPdf as PictureAsPdfIcon,
     Description as DescriptionIcon,
     Download as DownloadIcon,
-    IntegrationInstructions as IntegrationInstructionsIcon
+    IntegrationInstructions as IntegrationInstructionsIcon,
+    Phone as PhoneIcon,
+    Videocam as VideocamIcon,
+    PhoneMissed as PhoneMissedIcon,
+    CallEnd as CallEndIcon,
 } from '@mui/icons-material';
-import { MessageResponse, EmotionType, AttachmentData } from '@/types/chat';
+import { MessageResponse, EmotionType, AttachmentData, CallData } from '@/types/chat';
 import { formatChatTimestamp } from '@/utils/formatDate';
 import { Socket } from 'socket.io-client';
 import { handleDownload } from '@/utils/formatFile';
@@ -38,6 +42,7 @@ import { ConversationParticipantUser, ConversationResponseData } from "@/types/c
 import { renderContentWithMentions } from "@/utils/hashtagParser";
 import TypewriterText from "@/components/chats/TypewriterText";
 import { useTranslation } from 'react-i18next';
+import { useCall } from '@/contexts/CallContext';
 
 const EMOTIONS: { type: EmotionType; emoji: string; label: string }[] = [
     { type: 'LIKE', emoji: '👍', label: 'Thích' },
@@ -78,6 +83,7 @@ export default function MessageItem({
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const { t } = useTranslation();
+    const { callUser, startGroupCall } = useCall();
     const hoverBg = 'action.hover';
     const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
     const [reactionAnchor, setReactionAnchor] = useState<HTMLElement | null>(null);
@@ -383,6 +389,139 @@ export default function MessageItem({
                 >
                     {message.content}
                 </Typography>
+            </Box>
+        );
+    }
+
+    // Render CALL message (Zalo/FB Messenger style)
+    if (message.type === 'CALL') {
+        const callData = message.callData;
+        const isVideo = callData?.callType === 'VIDEO';
+        const isMissed = callData?.callStatus === 'MISSED';
+        const isCancelled = callData?.callStatus === 'CANCELLED';
+        const isOngoing = callData?.callStatus === 'ONGOING';
+        const isAnswered = callData?.callStatus === 'ANSWERED';
+        const isGroupConv = callData?.isGroup || conversation?.type === 'GROUP';
+        const duration = callData?.duration || 0;
+
+        const formatDuration = (sec: number) => {
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            return m > 0 ? `${m}:${s.toString().padStart(2, '0')}` : `0:${s.toString().padStart(2, '0')}`;
+        };
+
+        // Call status text
+        let statusText = '';
+        if (isMissed) {
+            statusText = isOwn ? t('call_history.outgoing_missed') : t('call_history.incoming_missed');
+        } else if (isCancelled) {
+            statusText = isOwn ? t('call_history.you_cancelled') : t('call_history.they_cancelled');
+        } else if (isOngoing) {
+            statusText = t('call_history.ongoing');
+        } else if (isAnswered) {
+            statusText = `${isVideo ? t('call_history.video_call') : t('call_history.voice_call')} · ${formatDuration(duration)}`;
+        }
+
+        // Icon and color
+        const iconColor = (isMissed || isCancelled) ? '#f44336' : isOngoing ? '#4caf50' : 'text.secondary';
+        const CallIcon = (isMissed || isCancelled)
+            ? (isVideo ? CallEndIcon : PhoneMissedIcon)
+            : (isVideo ? VideocamIcon : PhoneIcon);
+
+        const handleCallback = () => {
+            if (isGroupConv) {
+                startGroupCall(conversation._id, !isVideo);
+            } else {
+                const otherUser = conversation?.participants?.find(
+                    (p) => p.user._id !== userId
+                );
+                if (otherUser) {
+                    startGroupCall(conversation._id, !isVideo);
+                }
+            }
+        };
+
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', px: 2, py: 0.5 }}>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                        borderRadius: 3,
+                        px: 2.5,
+                        py: 1.2,
+                        maxWidth: 340,
+                        width: 'fit-content',
+                    }}
+                >
+                    {/* Call icon */}
+                    <Box
+                        sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: (isMissed || isCancelled)
+                                ? 'rgba(244,67,54,0.1)'
+                                : isOngoing
+                                    ? 'rgba(76,175,80,0.1)'
+                                    : 'rgba(0,0,0,0.06)',
+                            flexShrink: 0,
+                        }}
+                    >
+                        <CallIcon sx={{ fontSize: 20, color: iconColor }} />
+                    </Box>
+
+                    {/* Call info */}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 500, color: 'text.primary', lineHeight: 1.3 }}>
+                            {isVideo ? t('call_history.video_call') : t('call_history.voice_call')}
+                        </Typography>
+                        <Typography sx={{ fontSize: 11, color: (isMissed || isCancelled) ? '#f44336' : 'text.secondary', lineHeight: 1.4 }}>
+                            {statusText}
+                            {' · '}
+                            {formatChatTimestamp(message.createdAt)}
+                        </Typography>
+                    </Box>
+
+                    {/* Callback button */}
+                    {!isOngoing && (
+                        <Tooltip title={t('call_history.call_back')}>
+                            <IconButton
+                                size="small"
+                                onClick={handleCallback}
+                                sx={{
+                                    color: themeColor,
+                                    '&:hover': { bgcolor: `${themeColor}15` },
+                                }}
+                            >
+                                {isVideo ? <VideocamIcon fontSize="small" /> : <PhoneIcon fontSize="small" />}
+                            </IconButton>
+                        </Tooltip>
+                    )}
+
+                    {/* Join button for ongoing group calls */}
+                    {isOngoing && !isOwn && isGroupConv && (
+                        <Typography
+                            component="span"
+                            onClick={handleCallback}
+                            sx={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: '#4caf50',
+                                cursor: 'pointer',
+                                '&:hover': { textDecoration: 'underline' },
+                                flexShrink: 0,
+                            }}
+                        >
+                            {t('call_history.join')}
+                        </Typography>
+                    )}
+                </Box>
             </Box>
         );
     }

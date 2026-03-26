@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import {
     Dialog,
     Box,
@@ -29,6 +29,7 @@ import SimplePeer, { Instance } from 'simple-peer';
 import { PostType } from '@/types/post';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCommentsByPost } from '@/services/comment.service';
+import type { SignalData } from "simple-peer";
 
 interface LiveStreamViewerModalProps {
     open: boolean;
@@ -87,7 +88,7 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
     useEffect(() => {
         if (!open || !socket || !post) return;
 
-        setConnectionStatus('connecting');
+        queueMicrotask(() => setConnectionStatus('connecting'));
 
         // Viewer should NOT send broadcasterId - only broadcaster sends it
         socket.emit('livestream:join', {
@@ -105,7 +106,7 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
             }
         });
 
-        peer.on('signal', (signal) => {
+        peer.on('signal', (signal: SignalData) => {
             console.log('[Viewer] Sending signal to broadcaster');
             socket.emit('livestream:signal', {
                 toUserId: typeof post.userId === 'string' ? post.userId : post.userId._id,
@@ -137,7 +138,7 @@ export default function LiveStreamViewerModal({ open, onClose, post }: LiveStrea
 
         peerRef.current = peer;
 
-        const handleSignal = (data: { signal: any; fromUserId: string }) => {
+        const handleSignal = (data: { signal: SignalData; fromUserId: string }) => {
             console.log('[Viewer] Received signal from broadcaster:', data.fromUserId);
             peer.signal(data.signal);
         };

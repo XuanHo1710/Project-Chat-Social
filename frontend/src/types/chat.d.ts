@@ -10,7 +10,17 @@ export type MessageType =
   | "POST"
   | "SYSTEM"
   | "STORY_REPLY"
-  | "CHATBOT";
+  | "CHATBOT"
+  | "CALL";
+
+export type CallStatus = "ANSWERED" | "MISSED" | "CANCELLED" | "ONGOING";
+
+export interface CallData {
+  callType: "AUDIO" | "VIDEO";
+  callStatus: CallStatus;
+  duration?: number;
+  isGroup?: boolean;
+}
 
 export type MessageStatus = "SENT" | "DELIVERED" | "READ";
 
@@ -78,6 +88,9 @@ export interface MessageResponse {
   isEdited?: boolean;
   isDeleted?: boolean;
   deletedAt?: string;
+
+  // Call metadata (for CALL type messages)
+  callData?: CallData;
 
   // AI streaming flag (transient, not from DB)
   _isStreaming?: boolean;

@@ -31,6 +31,7 @@ interface CallPayload {
   toUserId: string;
   offer: any;
   conversationId: string;
+  callType?: 'AUDIO' | 'VIDEO';
 }
 
 interface AnswerPayload {
@@ -51,7 +52,14 @@ const userSockets = new Map<string, Set<string>>();
 // Store pending calls for persistence on reload (recipientId -> CallData)
 const pendingCalls = new Map<
   string,
-  { fromUserId: string; offer: any; conversationId: string; timestamp: number }
+  {
+    fromUserId: string;
+    offer: any;
+    conversationId: string;
+    timestamp: number;
+    callType: 'AUDIO' | 'VIDEO';
+    answered: boolean;
+  }
 >();
 
 // Map conversationId -> Set<userId> for active group calls
@@ -199,17 +207,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 const pSockets = userSockets.get(pId);
                 if (pSockets) {
                   pSockets.forEach((sId) => {
-                    this.server
-                      .to(sId)
-                      .emit('group-call:user-left', {
-                        userId,
-                        userName: userNameForCall || 'Someone',
-                      });
+                    this.server.to(sId).emit('group-call:user-left', {
+                      userId,
+                      userName: userNameForCall || 'Someone',
+                    });
                   });
                 }
               });
               if (participants.size === 0) {
                 activeGroupCalls.delete(convId);
+                // Last person disconnected — finalize group call message
+                try {
+                  await this.finalizeGroupCallMessage(convId);
+                } catch {}
               }
             }
           }
@@ -270,6 +280,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       offer: data.offer,
       conversationId: data.conversationId,
       timestamp: Date.now(),
+      callType: data.callType || 'VIDEO',
+      answered: false,
     });
 
     if (recipientSockets && recipientSockets.size > 0) {
@@ -294,8 +306,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleCallAnswer(@MessageBody() data: AnswerPayload, @ConnectedSocket() client: Socket) {
     const fromUserId = client.data.userId; // Người nhận (Callee) trả lời
 
-    // Call accepted, remove pending
-    pendingCalls.delete(fromUserId);
+    // Mark call as answered (keep pending for duration tracking)
+    const pending = pendingCalls.get(fromUserId);
+    if (pending) {
+      pending.answered = true;
+      pending.timestamp = Date.now(); // Reset timestamp to track call duration from answer
+    }
 
     // Gửi answer lại cho người gọi (Caller)
     const callerSockets = userSockets.get(data.toUserId);
@@ -329,27 +345,64 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('call:end')
   async handleCallEnd(
-    @MessageBody() data: { toUserId: string },
+    @MessageBody() data: { toUserId: string; conversationId?: string },
     @ConnectedSocket() client: Socket
   ) {
     const fromUserId = client.data.userId;
     const targetSockets = userSockets.get(data.toUserId);
 
-    // Remove pending call if exists (either cancelled by caller or rejected by callee)
-    pendingCalls.delete(data.toUserId); // If caller cancels
-    pendingCalls.delete(fromUserId); // If callee rejects
+    // Find the pending call to determine status and duration
+    const pendingAsCallee = pendingCalls.get(fromUserId); // callee rejects/ends
+    const pendingAsCaller = pendingCalls.get(data.toUserId); // caller cancels/ends
+    const pending = pendingAsCallee || pendingAsCaller;
+
+    // Remove pending calls
+    pendingCalls.delete(data.toUserId);
+    pendingCalls.delete(fromUserId);
 
     if (targetSockets) {
       targetSockets.forEach((socketId) => {
         this.server.to(socketId).emit('call:ended', { fromUserId });
       });
     }
+
+    // Create call history message
+    const conversationId = data.conversationId || pending?.conversationId;
+    if (conversationId) {
+      try {
+        let callStatus: 'ANSWERED' | 'MISSED' | 'CANCELLED' = 'CANCELLED';
+        let duration = 0;
+        const callType = pending?.callType || 'VIDEO';
+
+        if (pending?.answered) {
+          callStatus = 'ANSWERED';
+          duration = Math.round((Date.now() - pending.timestamp) / 1000);
+        } else if (pendingAsCaller) {
+          // Caller cancelled before answer
+          callStatus = 'CANCELLED';
+        } else {
+          // Callee rejected or timeout
+          callStatus = 'MISSED';
+        }
+
+        await this.createCallMessage(
+          conversationId,
+          fromUserId,
+          callType,
+          callStatus,
+          duration,
+          false
+        );
+      } catch (err) {
+        this.logger.error('Failed to create call message:', err);
+      }
+    }
   }
 
   // ============ GROUP VIDEO CALL ============
   @SubscribeMessage('group-call:start')
   async handleGroupCallStart(
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: { conversationId: string; callType?: 'AUDIO' | 'VIDEO' },
     @ConnectedSocket() client: Socket
   ) {
     const userId = client.data.userId;
@@ -359,6 +412,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Get users already in the active call (don't re-notify them)
     const activeParticipants = activeGroupCalls.get(data.conversationId);
     const alreadyInCall = activeParticipants ? activeParticipants : new Set<string>();
+
+    // Create a CALL message in the group conversation so other members can see and join
+    if (!alreadyInCall.size) {
+      try {
+        await this.createCallMessage(
+          data.conversationId,
+          userId,
+          data.callType || 'VIDEO',
+          'ONGOING',
+          0,
+          true
+        );
+      } catch (err) {
+        this.logger.error('Failed to create group call message:', err);
+      }
+    }
 
     // Notify only participants NOT already in the call
     conversation.participants.forEach((p) => {
@@ -452,6 +521,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         if (currentParticipants.size === 0) {
           activeGroupCalls.delete(data.conversationId);
+
+          // Last person left — update the ONGOING call message to ANSWERED
+          try {
+            await this.finalizeGroupCallMessage(data.conversationId);
+          } catch (err) {
+            this.logger.error('Failed to finalize group call message:', err);
+          }
         }
       }
     }
@@ -1171,6 +1247,57 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private async getUserDisplayName(userId: string): Promise<string> {
     const profile = await this.getSenderProfile(userId);
     return profile.name;
+  }
+
+  // Helper: Create a CALL type message and emit to room
+  private async createCallMessage(
+    conversationId: string,
+    senderId: string,
+    callType: 'AUDIO' | 'VIDEO',
+    callStatus: 'ANSWERED' | 'MISSED' | 'CANCELLED' | 'ONGOING',
+    duration: number,
+    isGroup: boolean
+  ) {
+    const savedMessage = await this.chatService.sendMessage({
+      conversationId: new Types.ObjectId(conversationId) as any,
+      senderId: new Types.ObjectId(senderId) as any,
+      type: MessageType.CALL,
+      content: '',
+      callData: { callType, callStatus, duration, isGroup },
+    } as any);
+
+    if (savedMessage) {
+      const conversation = await this.conversationService.findById(conversationId);
+      const activeParticipants = conversation.participants.filter((p) => !p.kickedAt && !p.leftAt);
+
+      const messageToEmit = {
+        ...savedMessage.toObject(),
+        conversationId: conversationId,
+      };
+
+      activeParticipants.forEach((participant) => {
+        const participantId = participant.user._id.toString();
+        const participantSockets = userSockets.get(participantId);
+        if (participantSockets && participantSockets.size > 0) {
+          participantSockets.forEach((socketId) => {
+            this.server.to(socketId).emit('message:new', messageToEmit);
+          });
+        }
+      });
+
+      await this.conversationService.updateLastMessage(conversationId, savedMessage._id.toString());
+    }
+  }
+
+  // Helper: Update ONGOING group call message to ANSWERED with duration
+  private async finalizeGroupCallMessage(conversationId: string) {
+    const lastCallMsg = await this.chatService.findLastCallMessage(conversationId);
+    if (lastCallMsg && lastCallMsg.callData?.callStatus === 'ONGOING') {
+      const duration = Math.round((Date.now() - new Date(lastCallMsg.createdAt).getTime()) / 1000);
+      lastCallMsg.callData.callStatus = 'ANSWERED';
+      lastCallMsg.callData.duration = duration;
+      await lastCallMsg.save();
+    }
   }
 
   // Thay đổi Quick Reaction

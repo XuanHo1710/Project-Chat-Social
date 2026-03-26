@@ -24,7 +24,7 @@ export class ChatService {
     @InjectModel(ConversationReadStatus.name)
     private readonly readStatusModel: Model<ConversationReadStatusDocument>,
     private readonly cloudinaryService: CloudinaryService
-  ) { }
+  ) {}
 
   async sendMessage(createMessageDto: CreateMessageDto) {
     const message = await this.messageModel.create(createMessageDto);
@@ -74,6 +74,17 @@ export class ChatService {
 
     const message = await this.messageModel.create(messageData);
     return message;
+  }
+
+  // Find the last CALL message in a conversation (for group call finalization)
+  async findLastCallMessage(conversationId: string) {
+    return await this.messageModel
+      .findOne({
+        conversationId: new Types.ObjectId(conversationId),
+        type: MessageType.CALL,
+        isDeleted: { $ne: true },
+      })
+      .sort({ createdAt: -1 });
   }
 
   // Get recent messages for AI chat context
@@ -187,15 +198,15 @@ export class ChatService {
         conversationId: status.conversationId.toString(),
         userId: status.userId
           ? {
-            ...status.userId,
-            _id: (status.userId as any)._id?.toString() || status.userId.toString(),
-          }
+              ...status.userId,
+              _id: (status.userId as any)._id?.toString() || status.userId.toString(),
+            }
           : null,
         lastReadMessageId: status.lastReadMessageId
           ? {
-            ...(status.lastReadMessageId as any),
-            _id: (status.lastReadMessageId as any)._id?.toString(),
-          }
+              ...(status.lastReadMessageId as any),
+              _id: (status.lastReadMessageId as any)._id?.toString(),
+            }
           : status.lastReadMessageId,
       }));
 
@@ -601,15 +612,15 @@ export class ChatService {
       conversationId: result.conversationId.toString(),
       userId: result.userId
         ? {
-          ...(result.userId as any),
-          _id: (result.userId as any)._id?.toString() || (result.userId as any).toString(),
-        }
+            ...(result.userId as any),
+            _id: (result.userId as any)._id?.toString() || (result.userId as any).toString(),
+          }
         : null,
       lastReadMessageId: result.lastReadMessageId
         ? {
-          ...(result.lastReadMessageId as any),
-          _id: (result.lastReadMessageId as any)._id?.toString(),
-        }
+            ...(result.lastReadMessageId as any),
+            _id: (result.lastReadMessageId as any)._id?.toString(),
+          }
         : null,
     };
 
@@ -659,15 +670,15 @@ export class ChatService {
         conversationId: status.conversationId.toString(),
         userId: status.userId
           ? {
-            ...(status.userId as any),
-            _id: (status.userId as any)._id?.toString() || (status.userId as any).toString(),
-          }
+              ...(status.userId as any),
+              _id: (status.userId as any)._id?.toString() || (status.userId as any).toString(),
+            }
           : null,
         lastReadMessageId: status.lastReadMessageId
           ? {
-            ...(status.lastReadMessageId as any),
-            _id: (status.lastReadMessageId as any)._id?.toString(),
-          }
+              ...(status.lastReadMessageId as any),
+              _id: (status.lastReadMessageId as any)._id?.toString(),
+            }
           : null,
       }));
 

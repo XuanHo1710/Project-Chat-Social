@@ -197,7 +197,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 if (convId) socket.emit('group-call:leave', { conversationId: convId });
             } else {
                 const targetId = callerInfoRef.current?.id || recipientInfoRef.current?.id;
-                if (targetId) socket.emit('call:end', { toUserId: targetId });
+                const convId = callerInfoRef.current?.conversationId || recipientInfoRef.current?.conversationId;
+                if (targetId) socket.emit('call:end', { toUserId: targetId, conversationId: convId });
             }
         }
 
@@ -456,7 +457,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             peer.on('signal', (data) => {
                 console.log('[Call] Caller signal type:', data.type || ('candidate' in data ? 'ice-candidate' : 'unknown'));
                 if (data.type === 'offer') {
-                    socket?.emit('call:start', { toUserId: userId, offer: data, conversationId });
+                    socket?.emit('call:start', { toUserId: userId, offer: data, conversationId, callType: isTurnOff ? 'AUDIO' : 'VIDEO' });
                 } else if ('candidate' in data) {
                     socket?.emit('call:ice-candidate', { toUserId: userId, candidate: data, conversationId });
                 }
@@ -541,7 +542,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 setIsVideoOff(true);
             }
 
-            socket?.emit('group-call:start', { conversationId });
+            socket?.emit('group-call:start', { conversationId, callType: isTurnOff ? 'AUDIO' : 'VIDEO' });
             socket?.emit('group-call:join', { conversationId }, (response: GroupJoinResponse) => {
                 console.log('[Call] Joined group:', response);
             });

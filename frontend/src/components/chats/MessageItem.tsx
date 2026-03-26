@@ -1,7 +1,7 @@
 'use client';
 import ReactPlayer from "react-player";
 
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import {
     Box,
     Paper,
@@ -67,7 +67,7 @@ interface MessageItemProps {
     isStreaming?: boolean;
 }
 
-export default function MessageItem({
+function MessageItemInner({
     message,
     isOwn,
     avatar,
@@ -286,6 +286,7 @@ export default function MessageItem({
                                     component="img"
                                     src={url}
                                     alt="attachment"
+                                    loading="lazy"
                                     sx={{
                                         width: '100%',
                                         height: mediaAttachments.length === 1 ? 'auto' : 140,
@@ -1443,3 +1444,18 @@ export default function MessageItem({
         </>
     );
 }
+
+const MessageItem = memo(MessageItemInner, (prev, next) => {
+    // Only re-render when meaningful props change
+    if (prev.message !== next.message) return false;
+    if (prev.isOwn !== next.isOwn) return false;
+    if (prev.isLastOwnMessage !== next.isLastOwnMessage) return false;
+    if (prev.isStreaming !== next.isStreaming) return false;
+    if (prev.avatar !== next.avatar) return false;
+    if (prev.themeColor !== next.themeColor) return false;
+    if (prev.otherAvatarsNotRead !== next.otherAvatarsNotRead) return false;
+    // socket, conversation, userId, onReply rarely change
+    return true;
+});
+
+export default MessageItem;

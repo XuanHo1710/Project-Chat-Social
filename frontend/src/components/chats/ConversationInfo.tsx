@@ -1639,6 +1639,7 @@ export default function ConversationInfo({ conversationId, userId, onClose }: Co
                                                             component="img"
                                                             src={media.url}
                                                             alt=""
+                                                            loading="lazy"
                                                             sx={{
                                                                 position: 'absolute',
                                                                 top: 0,

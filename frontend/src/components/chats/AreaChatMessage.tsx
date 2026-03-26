@@ -196,7 +196,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     } = useChatByConversationId(selectedConversation._id);
 
 
-    const [newMessage, setNewMessage] = useState("");
+    const newMessageRef = useRef("");
     const [displayMessage, setDisplayMessage] = useState("");
     const [replyMsg, setReplyMsg] = useState<MessageResponse | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string; type: 'image' | 'video' }[]>([]);
@@ -357,6 +357,18 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
         return resultMap;
     }, [conversation?.participants, stableUnreadCount, allMessages, userId]);
+
+    // Pre-calculate last own message index to avoid O(n) scan in itemContent
+    const lastOwnMessageIndex = useMemo(() => {
+        if (!userId || !allMessages.length) return -1;
+        for (let i = allMessages.length - 1; i >= 0; i--) {
+            const msg = allMessages[i];
+            if (msg.type !== 'CHATBOT' && msg.senderId?._id === userId.toString()) {
+                return i;
+            }
+        }
+        return -1;
+    }, [allMessages, userId]);
 
     // Sync readStatuses from chatData and fetch from socket when opening conversation
     // Sync readStatuses from chatData and fetch from socket when opening conversation
@@ -1173,9 +1185,9 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         }
     }, [hasPreviousPage, isFetchingPreviousPage, fetchPreviousPage]);
 
-    const handleReply = (message: MessageResponse) => {
+    const handleReply = useCallback((message: MessageResponse) => {
         setReplyMsg(message);
-    };
+    }, []);
 
     const handleCancelReply = () => {
         setReplyMsg(null);
@@ -1256,7 +1268,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     };
 
     const handleSendMessage = async () => {
-        if ((!newMessage.trim() && mediaPreview.length === 0 && filePreview.length === 0) || !socketChat) return;
+        if ((!newMessageRef.current.trim() && mediaPreview.length === 0 && filePreview.length === 0) || !socketChat) return;
 
         setIsUploading(true);
         try {
@@ -1274,7 +1286,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         fileSize: u.fileSize,
                         mediaType: u.mediaType
                     }));
-                    messageType = newMessage.trim() ? 'TEXT' : 'IMAGE';
+                    messageType = newMessageRef.current.trim() ? 'TEXT' : 'IMAGE';
                 } else {
                     console.error("Upload failed");
                     toast.error(uploadResult.error || t('chat.upload_failed'));
@@ -1295,7 +1307,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         mediaType: u.mediaType
                     }));
                     attachments = [...attachments, ...docAttachments];
-                    messageType = newMessage.trim() ? 'TEXT' : 'FILE';
+                    messageType = newMessageRef.current.trim() ? 'TEXT' : 'FILE';
                 } else {
                     console.error("File upload failed");
                     toast.error(uploadResult.error || t('chat.upload_failed'));
@@ -1308,7 +1320,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 conversationId: selectedConversation._id,
                 senderId: userId,
                 type: messageType,
-                content: newMessage || '',
+                content: newMessageRef.current || '',
                 attachments: attachments.length > 0 ? attachments : undefined,
                 replyTo: replyMsg?._id,
             };
@@ -1322,7 +1334,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                     toast.error(response.error || t('chat.cannot_send'));
                 }
             });
-            setNewMessage("");
+            newMessageRef.current = "";
             setDisplayMessage("");
             setReplyMsg(null);
             setMediaPreview([]);
@@ -1402,7 +1414,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
         // ---- BUILD RAW (LUÔN CHẠY) ----
         const raw = buildRawFromDisplay(value, mentionMapRef.current);
-        setNewMessage(raw);
+        newMessageRef.current = raw;
     };
 
 
@@ -1442,7 +1454,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         setDisplayMessage(newDisplay);
 
         const newRaw = buildRawFromDisplay(newDisplay, mentionMapRef.current);
-        setNewMessage(newRaw);
+        newMessageRef.current = newRaw;
 
         setShowMentions(false);
         setMentionSearch('');
@@ -1452,7 +1464,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
 
     const handleEmojiClick = (emoji: { native: string }) => {
-        setNewMessage(prev => prev + emoji.native);
+        newMessageRef.current += emoji.native;
         setEmojiAnchor(null);
     };
 
@@ -1708,22 +1720,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
 
 
-                                // Xác định lastMessage mà mình gửi
-                                const isLastOwnMessage = (() => {
-                                    if (!isOwn) return false;
-
-                                    for (let i = actualIndex + 1; i < allMessages.length; i++) {
-                                        const nextMsg = allMessages[i];
-                                        if (
-                                            nextMsg &&
-                                            nextMsg.senderId?._id === userId?.toString()
-                                        ) {
-                                            return false; // còn message của mình phía sau
-                                        }
-                                    }
-
-                                    return true;
-                                })();
+                                // Xác định lastMessage mà mình gửi (O(1) lookup)
+                                const isLastOwnMessage = isOwn && actualIndex === lastOwnMessageIndex;
 
 
                                 return (
@@ -2252,7 +2250,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             <IconButton size="small" sx={{ color: "#0084ff" }} onClick={(e) => setEmojiAnchor(e.currentTarget)}>
                                 <EmojiEmotionsIcon fontSize="small" />
                             </IconButton>
-                            {(newMessage.trim() || mediaPreview.length > 0) ? (
+                            {(displayMessage.trim() || mediaPreview.length > 0) ? (
                                 <IconButton onClick={handleSendMessage} size="small" sx={{ color: themeColor }} disabled={isUploading}>
                                     {isUploading ? <CircularProgress size={18} /> : <SendIcon fontSize="small" />}
                                 </IconButton>

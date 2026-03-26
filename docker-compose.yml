@@ -118,7 +118,7 @@ services:
   # ── Application Services ────────────────────────────────────────────
 
   ollama:
-    # Ollama LLM server — CPU-only, serves qwen2.5:3b
+    # Ollama LLM server — CPU-only, serves qwen2.5:0.5b
     # OpenAI-compatible API at http://ollama:11434/v1/chat/completions
     image: ollama/ollama:latest
     volumes:
@@ -129,15 +129,15 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
-        reservations:
           memory: 2G
+        reservations:
+          memory: 1G
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
       timeout: 10s
-      start_period: 30s
-      retries: 5
+      start_period: 10s
+      retries: 10
 
   ollama-pull:
     # One-shot init container — pulls the model then exits
@@ -145,7 +145,7 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
-    entrypoint: ["ollama", "pull", "qwen2.5:3b"]
+    entrypoint: ["ollama", "pull", "qwen2.5:0.5b"]
     environment:
       OLLAMA_HOST: http://ollama:11434
     networks:
@@ -155,7 +155,7 @@ services:
   server-ai:
     # FastAPI — Recommendation + Chatbot
     # Vectors: Qdrant Cloud
-    # LLM: Ollama (qwen2.5:3b via Docker, CPU-only)
+    # LLM: Ollama (qwen2.5:0.5b via Docker, CPU-only)
     build:
       context: ./server-ai
       dockerfile: Dockerfile
@@ -185,6 +185,9 @@ services:
     # HTTP prefix: app.setGlobalPrefix('api') → all routes under /api/v1/* and /api/v2/*
     # WebSocket: /socket.io/ (Socket.IO on same port)
     # Also subscribes to RabbitMQ queue: backend_queue (Transport.RMQ)
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: project-chat-social-backend:latest
     ports:
       - "${BACKEND_PORT:-5000}:8080"

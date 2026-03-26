@@ -276,6 +276,31 @@ async def chat_bot_post(request: ChatBotRequest):
     }
 
 
+import re as _re
+
+# Fast keyword-based intent detection (no LLM call needed)
+_POST_KEYWORDS = _re.compile(
+    r'(bài viết|post|bài đăng|có ai đăng|tìm bài|gợi ý|recommend|suggest|search|tìm kiếm|'
+    r'nội dung|content|topic|chủ đề|xu hướng|trending|hot|viral|news|tin tức|'
+    r'có gì mới|what\'s new|show me|cho xem|chia sẻ|share)',
+    _re.IGNORECASE
+)
+
+def _fast_intent_check(message: str) -> dict:
+    """Keyword-based intent check — instant, no LLM call."""
+    if _POST_KEYWORDS.search(message):
+        # Extract the main content as search query (strip common filler words)
+        query = _re.sub(
+            r'(có ai|có gì|cho tôi|giúp tôi|tìm|xem|show me|give me|find|'
+            r'bài viết|post|bài đăng|về|about|không|nào|đi|hả|nhỉ|vậy|nha)\s*',
+            ' ', message, flags=_re.IGNORECASE
+        ).strip()
+        if not query or len(query) < 2:
+            query = message
+        return {"should_suggest_post": True, "search_query": query}
+    return {"should_suggest_post": False, "search_query": ""}
+
+
 @router.post("/chat/bot/stream")
 async def chat_bot_stream(request: ChatBotRequest):
     """
@@ -309,15 +334,15 @@ async def chat_bot_stream(request: ChatBotRequest):
             for msg in chat_history[-10:]:
                 conversation_context.append({"role": msg.role, "content": msg.content})
 
-            # Image analysis
+            # Image analysis (currently no-op for this model)
             image_description = ""
             if image_urls:
                 image_description = ollama.analyze_images(image_urls)
 
-            # Intent analysis
-            intent = ollama.analyze_chat_intent(message)
+            # Fast keyword intent check — NO LLM CALL, instant
+            intent = _fast_intent_check(message)
 
-            if intent.get("should_suggest_post") and intent.get("search_query") and recommendation.is_ready():
+            if intent["should_suggest_post"] and intent["search_query"] and recommendation.is_ready():
                 search_query = intent["search_query"]
                 posts, total = recommendation.search(query=search_query, current_user_id="", limit=15, page=1)
                 if posts:
@@ -345,7 +370,7 @@ async def chat_bot_stream(request: ChatBotRequest):
             if post_ids:
                 yield f"event: postIds\ndata: {_json.dumps({'postIds': post_ids})}\n\n"
 
-            # Stream tokens
+            # Stream tokens — this is the ONLY LLM call now
             async for token in ollama.stream_chat_response_with_full_context(
                 message=message,
                 chat_history=conversation_context,

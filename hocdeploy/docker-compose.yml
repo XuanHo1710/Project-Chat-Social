@@ -26,12 +26,18 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD:-123} --appendonly yes
+    command: redis-server --requirepass ${REDIS_PASSWORD:-123} --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
       - app-net
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-123}", "ping"]
       interval: 10s
@@ -48,6 +54,12 @@ services:
     networks:
       - app-net
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -63,11 +75,18 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
       - app-net
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
 
   rabbitmq:
     image: rabbitmq:4.0-management-alpine
@@ -83,6 +102,12 @@ services:
     networks:
       - app-net
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 15s
@@ -92,16 +117,59 @@ services:
 
   # ── Application Services ────────────────────────────────────────────
 
+  ollama:
+    # Ollama LLM server — CPU-only, serves qwen2.5:3b
+    # OpenAI-compatible API at http://ollama:11434/v1/chat/completions
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - app-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      start_period: 10s
+      retries: 10
+
+  ollama-pull:
+    # One-shot init container — pulls the model then exits
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["ollama", "pull", "qwen2.5:3b"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    networks:
+      - app-net
+    restart: "no"
+
   server-ai:
     # FastAPI — Recommendation + Chatbot
     # Vectors: Qdrant Cloud
-    # LLM: External API (configured via .env LLM_API_KEY)
+    # LLM: Ollama (qwen2.5:3b via Docker, CPU-only)
+    build:
+      context: ./server-ai
+      dockerfile: Dockerfile
     image: project-chat-social-server-ai:latest
     env_file: ./server-ai/.env
-    # PORT is baked into Dockerfile CMD (uvicorn --port 8000), no need to override
-    volumes:
-      - ai_chroma_data:/app/chroma_db
-      - ai_models:/app/models
+    depends_on:
+      ollama:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+        reservations:
+          memory: 512M
     networks:
       - app-net
     restart: unless-stopped
@@ -117,6 +185,9 @@ services:
     # HTTP prefix: app.setGlobalPrefix('api') → all routes under /api/v1/* and /api/v2/*
     # WebSocket: /socket.io/ (Socket.IO on same port)
     # Also subscribes to RabbitMQ queue: backend_queue (Transport.RMQ)
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: project-chat-social-backend:latest
     ports:
       - "${BACKEND_PORT:-5000}:8080"
@@ -131,12 +202,7 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-user}:${RABBITMQ_PASS:-123123123}@rabbitmq:5672
       KAFKA_BROKER: kafka:9092
-      # server-ai exposes routes under /api/v1 (FastAPI router prefix)
       AI_SERVER_URL: http://server-ai:8000/api/v1
-      # CLIENT_URL: ${CLIENT_URL:-http://localhost:1710}
-      # ── Cần override khi lên VPS ──
-      # GOOGLE_CALLBACK_URL: https://yourdomain.com/api/v1/auth/google/callback
-      # VNPAY_RETURN_URL: https://yourdomain.com/payment/vnpay-return
     depends_on:
       redis:
         condition: service_healthy
@@ -154,14 +220,20 @@ services:
     # NestJS Hybrid — HTTP :3002 (internal, no public routes) + Kafka consumer
     # Consumer groupId: newsfeed-consumer-group
     # NOT routed through nginx — internal processing only
+    build:
+      context: ./kafka-server
+      dockerfile: Dockerfile
     image: project-chat-social-kafka-server:latest
     env_file: ./kafka-server/.env
     environment:
       NODE_ENV: production
       PORT: "3002"
       KAFKA_BROKER: kafka:9092
+      AI_SERVER_URL: http://server-ai:8000/api/v1
     depends_on:
       kafka:
+        condition: service_started
+      server-ai:
         condition: service_started
     networks:
       - app-net
@@ -172,6 +244,9 @@ services:
     # NO HTTP server, NO exposed port
     # Subscribes to RabbitMQ queue: social_queue (env RABBITMQ_QUEUE_NAME)
     # Calls server-ai for AI features via HTTP: /api/v1/...
+    build:
+      context: ./rabbitmq
+      dockerfile: Dockerfile
     image: project-chat-social-rabbitmq-worker:latest
     env_file: ./rabbitmq/.env
     environment:
@@ -194,8 +269,7 @@ volumes:
   zookeeper_data:
   kafka_data:
   rabbitmq_data:
-  ai_chroma_data:
-  ai_models:
+  ollama_data:
 
 networks:
   app-net:

@@ -1,6 +1,6 @@
 """
-AI SERVER — QDRANT CLOUD + OLLAMA (qwen2.5:3b)
-================================================
+AI SERVER — QDRANT CLOUD + OLLAMA (qwen2.5:0.5b)
+=================================================
 Endpoints:
 - GET /api/v1/search?q=...
 - GET /api/v1/recommend/{user_id}
@@ -10,7 +10,7 @@ Endpoints:
 - POST /retrain
 
 Vector DB: Qdrant Cloud
-LLM: Ollama (qwen2.5:3b — CPU-only, fast, multilingual)
+LLM: Ollama (qwen2.5:0.5b — CPU-only, ultra-fast, multilingual)
 Embedding: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 """
 

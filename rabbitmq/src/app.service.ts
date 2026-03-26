@@ -47,25 +47,28 @@ export class AppService {
 
     // Determine bot senderId early
     let botSenderId = payload.senderId;
-    if (isChatbotConversation) {
-      const botUser = await this.accountModel.findOne({ username: 'ai_assistant' });
-      if (botUser) botSenderId = botUser._id.toString();
-    }
 
-    // Emit typing indicator to Backend
+    // Emit typing indicator to Backend immediately
     this.backendService.emit('chat.typing', {
       conversationId: payload.conversationId,
       isTyping: true,
     });
 
     try {
-      // Get chat history from DB
-      const recentMessages = await this.messageModel
-        .find({ conversationId: new Types.ObjectId(payload.conversationId) })
-        .sort({ createdAt: -1 })
-        .limit(15)
-        .populate('senderId', 'firstName lastName')
-        .lean();
+      // Run bot user lookup and chat history fetch in parallel
+      const [botUser, recentMessages] = await Promise.all([
+        isChatbotConversation
+          ? this.accountModel.findOne({ username: 'ai_assistant' }).lean()
+          : Promise.resolve(null),
+        this.messageModel
+          .find({ conversationId: new Types.ObjectId(payload.conversationId) })
+          .sort({ createdAt: -1 })
+          .limit(10)
+          .populate('senderId', 'firstName lastName')
+          .lean(),
+      ]);
+
+      if (botUser) botSenderId = (botUser as any)._id.toString();
 
       const chatHistory = recentMessages.reverse().map((msg: any) => ({
         role: (msg.type === MessageType.CHATBOT ? 'assistant' : 'user') as 'user' | 'assistant',
@@ -98,13 +101,27 @@ export class AppService {
         senderId: botSenderId,
       });
 
-      // Stop the typing dots — streaming itself will show text
-      this.backendService.emit('chat.typing', {
-        conversationId: payload.conversationId,
-        isTyping: false,
-      });
+      // Don't stop typing dots here — frontend will hide them when first token arrives
 
       let postIds: string[] = [];
+
+      // Buffer tokens and flush in batches to reduce RabbitMQ message overhead
+      let tokenBuffer = '';
+      let flushTimer: ReturnType<typeof setTimeout> | null = null;
+      const FLUSH_INTERVAL = 80; // ms
+
+      const flushTokens = () => {
+        if (tokenBuffer) {
+          const batch = tokenBuffer;
+          tokenBuffer = '';
+          this.backendService.emit('chat.ai.token', {
+            conversationId: payload.conversationId,
+            messageId,
+            token: batch,
+          });
+        }
+        flushTimer = null;
+      };
 
       // Stream tokens from AI server
       await this.aiService.getChatBotResponseStream(
@@ -113,16 +130,23 @@ export class AppService {
         imageUrls,
         {
           onToken: (token: string) => {
-            this.backendService.emit('chat.ai.token', {
-              conversationId: payload.conversationId,
-              messageId,
-              token,
-            });
+            tokenBuffer += token;
+            // Schedule a flush if not already pending
+            if (!flushTimer) {
+              flushTimer = setTimeout(flushTokens, FLUSH_INTERVAL);
+            }
           },
           onPostIds: (ids: string[]) => {
             postIds = ids;
           },
           onDone: async (fullText: string) => {
+            // Flush any remaining buffered tokens
+            if (flushTimer) {
+              clearTimeout(flushTimer);
+              flushTimer = null;
+            }
+            flushTokens();
+
             // Update the message in DB with full text
             await this.messageModel.findByIdAndUpdate(messageId, {
               content: fullText,

@@ -15,8 +15,10 @@ import {
     ListItemButton,
     Avatar,
     Collapse,
+    Drawer,
     useTheme
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 
 import {
     Search as SearchIcon,
@@ -79,6 +81,7 @@ function SearchContent() {
     const [sortBy, setSortBy] = useState('relevance');
     const [yearRange, setYearRange] = useState<number[]>([2010, 2026]);
     const [showFilters, setShowFilters] = useState(false);
+    const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
     // Get initial query from URL
     const urlQuery = searchParams.get('q')?.toString() || '';
@@ -477,17 +480,17 @@ function SearchContent() {
             {/* Header */}
             <Header />
 
-            <Box sx={{ display: 'flex', pt: '56px' }}>
+            <Box sx={{ display: 'flex' }}>
                 {/* Left Sidebar - Like Home Sidebar */}
                 <Box
                     sx={{
-                        width: { md: 300, lg: 360 },
+                        width: { md: "300px", lg: "360px" },
                         bgcolor: cardBg,
                         borderRight: `1px solid ${borderColor}`,
-                        height: 'calc(100vh - 56px)',
+                        height: 'calc(100vh - 70px)',
                         position: 'fixed',
                         left: 0,
-                        top: 56,
+                        top: 70,
                         overflowY: 'auto',
                         p: 2,
                         display: { xs: 'none', md: 'block' },
@@ -666,11 +669,70 @@ function SearchContent() {
                     </Collapse>
                 </Box>
 
+                {/* Mobile Filter Drawer */}
+                <Drawer
+                    anchor="left"
+                    open={mobileFilterOpen}
+                    onClose={() => setMobileFilterOpen(false)}
+                    sx={{ display: { xs: 'block', md: 'none' } }}
+                    PaperProps={{ sx: { width: 300, bgcolor: cardBg, p: 2 } }}
+                >
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                        <Typography variant="h6" fontWeight="bold">{t('search.search_filters')}</Typography>
+                        <IconButton onClick={() => setMobileFilterOpen(false)} size="small">
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
+                    <Divider sx={{ mb: 2 }} />
+                    {/* Filter Type */}
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 600 }}>
+                        {t('search.result_type')}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                        <Box
+                            onClick={() => setActiveFilter('all')}
+                            sx={{ px: 2, py: 0.75, borderRadius: 5, cursor: 'pointer', bgcolor: activeFilter === 'all' ? 'primary.main' : chipBg, color: activeFilter === 'all' ? 'white' : chipText, fontSize: 14, fontWeight: 500 }}
+                        >{t('common.all')}</Box>
+                        <Box
+                            onClick={() => setActiveFilter('posts')}
+                            sx={{ px: 2, py: 0.75, borderRadius: 5, cursor: 'pointer', bgcolor: activeFilter === 'posts' ? 'primary.main' : chipBg, color: activeFilter === 'posts' ? 'white' : chipText, fontSize: 14, fontWeight: 500 }}
+                        >{t('search.posts')}</Box>
+                    </Box>
+                    {/* Sort */}
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 600 }}>
+                        <SortIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+                        {t('search.sort_by')}
+                    </Typography>
+                    <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                        <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)} sx={{ borderRadius: 2, fontSize: 14 }}>
+                            <MenuItem value="relevance">{t('search.most_relevant')}</MenuItem>
+                            <MenuItem value="newest">{t('search.newest')}</MenuItem>
+                            <MenuItem value="oldest">{t('search.oldest')}</MenuItem>
+                        </Select>
+                    </FormControl>
+                    {/* Year Range */}
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', fontWeight: 600 }}>
+                        <CalendarIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+                        {t('search.post_date')} ({yearRange[0]} - {yearRange[1]})
+                    </Typography>
+                    <Box sx={{ px: 1, pb: 2 }}>
+                        <Slider
+                            value={yearRange}
+                            onChange={(_, newValue) => setYearRange(newValue as number[])}
+                            valueLabelDisplay="auto"
+                            min={2010}
+                            max={2026}
+                            marks={[{ value: 2010, label: '2010' }, { value: 2026, label: '2026' }]}
+                            sx={{ color: 'primary.main', '& .MuiSlider-thumb': { width: 14, height: 14 }, '& .MuiSlider-mark': { display: 'none' } }}
+                        />
+                    </Box>
+                </Drawer>
+
                 {/* Main Content */}
                 <Box
                     sx={{
                         flex: 1,
-                        ml: { xs: 0, md: '300px', lg: '360px' },
+                        ml: { md: "20px", lg: "100px" },
                         display: 'flex',
                         justifyContent: 'center',
                         pb: { xs: '72px', md: 3 },
@@ -678,8 +740,7 @@ function SearchContent() {
                 >
                     <Box
                         sx={{
-                            width: '100%',
-                            maxWidth: 680,
+                            width: "100%",
                             p: { xs: 1.5, sm: 3 },
                         }}
                     >
@@ -701,6 +762,12 @@ function SearchContent() {
                         >
                             <IconButton onClick={handleBack}>
                                 <ArrowBackIcon />
+                            </IconButton>
+                            <IconButton
+                                onClick={() => setMobileFilterOpen(true)}
+                                sx={{ display: { xs: 'flex', md: 'none' } }}
+                            >
+                                <FilterIcon />
                             </IconButton>
                             <InputBase
                                 value={inputValue}

@@ -18,8 +18,22 @@ from qdrant_client.models import PointStruct
 from app.services.recommendation_service import get_recommendation_service
 
 from app.services.ollama_service import get_ollama_service
+import os
+from functools import lru_cache
 
 router = APIRouter(tags=["Recommendations"])
+
+
+# Lazy shared MongoDB connection for post preview lookups
+@lru_cache()
+def _get_mongo_db():
+    try:
+        from pymongo import MongoClient
+        client = MongoClient(os.getenv("MONGODB_URI"), maxPoolSize=5, serverSelectionTimeoutMS=3000)
+        return client[os.getenv("MONGODB_DATABASE", "project-chat-social")]
+    except Exception as e:
+        logger.warning(f"MongoDB not available for preview lookups: {e}")
+        return None
 
 
 @router.get("/search")
@@ -354,15 +368,12 @@ async def chat_bot_stream(request: ChatBotRequest):
                         post_ids = [p["post_id"] for p in selected_posts]
 
                         try:
-                            from pymongo import MongoClient
-                            import os
-                            mongo = MongoClient(os.getenv("MONGODB_URI"))
-                            db = mongo[os.getenv("MONGODB_DATABASE")]
                             from bson import ObjectId
-                            post_doc = db.posts.find_one({"_id": ObjectId(post_ids[0])}, {"content": 1})
-                            if post_doc:
-                                post_preview = post_doc.get("content", "")[:200]
-                            mongo.close()
+                            db = _get_mongo_db()
+                            if db:
+                                post_doc = db.posts.find_one({"_id": ObjectId(post_ids[0])}, {"content": 1})
+                                if post_doc:
+                                    post_preview = post_doc.get("content", "")[:200]
                         except Exception as e:
                             logger.warning(f"Could not fetch post preview: {e}")
 

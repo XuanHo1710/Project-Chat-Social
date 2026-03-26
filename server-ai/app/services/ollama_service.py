@@ -61,7 +61,7 @@ class LLMService:
             logger.error(f"LLM chat error: {e}")
             return ""
 
-    async def _chat_stream(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 1000) -> AsyncIterator[str]:
+    async def _chat_stream(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 500) -> AsyncIterator[str]:
         """Call OpenAI-compatible chat API with streaming. Yields tokens."""
         try:
             async with httpx.AsyncClient() as client:

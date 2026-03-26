@@ -50,6 +50,7 @@ interface GroupCallSignalData {
 
 interface GroupCallUserData {
     userId: string;
+    userName?: string;
 }
 
 interface GroupJoinResponse {
@@ -351,7 +352,11 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         // Group: User left
         const onGroupUserLeft = (data: GroupCallUserData) => {
             removePeer(data.userId);
-            toast.info(t('call.user_left'));
+            const name = data.userName || t('call.someone');
+            toast(`${name} ${t('call.has_left_call')}`, {
+                duration: 3000,
+                icon: '👋',
+            });
         };
 
         // Group: Mesh signaling

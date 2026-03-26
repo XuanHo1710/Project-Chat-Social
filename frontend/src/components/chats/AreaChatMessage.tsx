@@ -976,7 +976,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
             setStreamingMessageId(data.messageId);
             streamingTextRef.current = '';
-            setIsChatbotTyping(false);
+            // Don't clear typing yet — we keep it until first token arrives
 
             // Insert placeholder message into query cache
             queryClient.setQueryData<InfiniteData<MessagesResponse>>(
@@ -1037,6 +1037,9 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         const handleToken = (data: { conversationId: string; messageId: string; token: string }) => {
             if (data.conversationId !== selectedConversation._id) return;
 
+            // Hide typing dots on first token
+            setIsChatbotTyping(false);
+
             streamingTextRef.current += data.token;
             const currentText = streamingTextRef.current;
 
@@ -1058,7 +1061,9 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             );
 
             // Keep scrolled to bottom while streaming
-            virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'auto' });
+            requestAnimationFrame(() => {
+                virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
+            });
         };
 
         // Stream done — replace placeholder with final DB message
@@ -1561,52 +1566,56 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         </Box>
                     </Box>
                     <Box sx={{ display: "flex", gap: { xs: 0.5, md: 1 } }}>
-                        <IconButton
-                            size="small"
-                            sx={{
-                                color: 'primary.main',
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
-                                "&:hover": { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : '#e4e6eb' },
-                            }}
-                            onClick={() => {
-                                if (!isGroup) {
-                                    callUser(
-                                        selectedConversation.otherId,
-                                        selectedConversation._id,
-                                        true,
-                                        selectedConversation.fullName,
-                                        selectedConversation.avatar
-                                    );
-                                } else {
-                                    startGroupCall(selectedConversation._id, true);
-                                }
-                            }}
-                        >
-                            <CallIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                            size="small"
-                            onClick={() => {
-                                if (!isGroup) {
-                                    callUser(
-                                        selectedConversation.otherId,
-                                        selectedConversation._id,
-                                        false,
-                                        selectedConversation.fullName,
-                                        selectedConversation.avatar
-                                    );
-                                } else {
-                                    startGroupCall(selectedConversation._id, false);
-                                }
-                            }}
-                            sx={{
-                                color: 'primary.main',
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
-                                "&:hover": { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : '#e4e6eb' },
-                            }}
-                        >
-                            <VideocamIcon fontSize="small" />
-                        </IconButton>
+                        {!isChatbot && (
+                            <>
+                                <IconButton
+                                    size="small"
+                                    sx={{
+                                        color: 'primary.main',
+                                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
+                                        "&:hover": { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : '#e4e6eb' },
+                                    }}
+                                    onClick={() => {
+                                        if (!isGroup) {
+                                            callUser(
+                                                selectedConversation.otherId,
+                                                selectedConversation._id,
+                                                true,
+                                                selectedConversation.fullName,
+                                                selectedConversation.avatar
+                                            );
+                                        } else {
+                                            startGroupCall(selectedConversation._id, true);
+                                        }
+                                    }}
+                                >
+                                    <CallIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                    size="small"
+                                    onClick={() => {
+                                        if (!isGroup) {
+                                            callUser(
+                                                selectedConversation.otherId,
+                                                selectedConversation._id,
+                                                false,
+                                                selectedConversation.fullName,
+                                                selectedConversation.avatar
+                                            );
+                                        } else {
+                                            startGroupCall(selectedConversation._id, false);
+                                        }
+                                    }}
+                                    sx={{
+                                        color: 'primary.main',
+                                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#f0f2f5',
+                                        "&:hover": { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : '#e4e6eb' },
+                                    }}
+                                >
+                                    <VideocamIcon fontSize="small" />
+                                </IconButton>
+                            </>
+                        )}
                         <IconButton
                             onClick={() => setShowInfo(!showInfo)}
                             size="small"

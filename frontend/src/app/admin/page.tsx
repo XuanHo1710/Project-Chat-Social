@@ -255,6 +255,37 @@ export default function AdminDashboard() {
     const filteredApiComments = apiComments.filter(c => !liveCommentIds.has(c.id));
     const mockComments = [...liveComments, ...filteredApiComments].slice(0, 10);
 
+    // Parse @[DisplayName:Username] mentions in comment content
+    const renderCommentContent = (content: string) => {
+        const mentionRegex = /@\[([^\]]+):([^\]]+)\]/g;
+        const parts: React.ReactNode[] = [];
+        let lastIndex = 0;
+        let match;
+
+        while ((match = mentionRegex.exec(content)) !== null) {
+            if (match.index > lastIndex) {
+                parts.push(content.slice(lastIndex, match.index));
+            }
+            const displayName = match[1];
+            parts.push(
+                <Typography
+                    key={match.index}
+                    component="span"
+                    sx={{ color: 'primary.main', fontWeight: 600 }}
+                >
+                    @{displayName}
+                </Typography>
+            );
+            lastIndex = match.index + match[0].length;
+        }
+
+        if (lastIndex < content.length) {
+            parts.push(content.slice(lastIndex));
+        }
+
+        return parts.length > 0 ? parts : content;
+    };
+
     const cardStyle = {
         p: 3,
         borderRadius: 3,
@@ -640,7 +671,7 @@ export default function AdminDashboard() {
                                                         mt: 0.5
                                                     }}
                                                 >
-                                                    {comment.content}
+                                                    {renderCommentContent(comment.content)}
                                                 </Typography>
                                             }
                                         />

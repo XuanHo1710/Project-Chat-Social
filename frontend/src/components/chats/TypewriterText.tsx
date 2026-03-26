@@ -100,6 +100,32 @@ export default function TypewriterText({
 
     return (
         <Box sx={{ position: 'relative', display: 'inline' }}>
+            {/* Show thinking dots when streaming starts but no text yet */}
+            {isStreaming && !displayedText && (
+                <Box component="span" sx={{ display: 'inline-flex', gap: '3px', alignItems: 'center', py: 0.5 }}>
+                    {[0, 1, 2].map((i) => (
+                        <Box
+                            key={i}
+                            component="span"
+                            sx={{
+                                display: 'inline-block',
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                bgcolor: 'primary.main',
+                                opacity: 0.6,
+                                animation: 'thinkingPulse 1.2s infinite ease-in-out',
+                                animationDelay: `${i * 0.2}s`,
+                                '@keyframes thinkingPulse': {
+                                    '0%, 80%, 100%': { transform: 'scale(0.5)', opacity: 0.3 },
+                                    '40%': { transform: 'scale(1)', opacity: 0.8 },
+                                },
+                            }}
+                        />
+                    ))}
+                </Box>
+            )}
+
             <Typography
                 component="span"
                 sx={{
@@ -120,8 +146,8 @@ export default function TypewriterText({
                 {displayedText}
             </Typography>
 
-            {/* Blinking cursor while typing */}
-            {isTyping && (
+            {/* Blinking cursor while typing (only show when there's text) */}
+            {isTyping && displayedText && (
                 <Box
                     component="span"
                     sx={{

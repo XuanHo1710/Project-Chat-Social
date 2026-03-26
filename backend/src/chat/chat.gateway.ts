@@ -179,15 +179,32 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           userSockets.delete(userId);
 
           // Clean up user from active group calls
+          let userNameForCall: string | undefined;
           for (const [convId, participants] of activeGroupCalls.entries()) {
             if (participants.has(userId)) {
               participants.delete(userId);
-              // Notify remaining participants
+              // Look up user name once if needed
+              if (!userNameForCall) {
+                try {
+                  const acc = await this.accountModel.findById(userId, 'firstName lastName').lean();
+                  if (acc) {
+                    userNameForCall =
+                      `${(acc as any).firstName || ''} ${(acc as any).lastName || ''}`.trim() ||
+                      undefined;
+                  }
+                } catch {}
+              }
+              // Notify remaining participants with name
               participants.forEach((pId) => {
                 const pSockets = userSockets.get(pId);
                 if (pSockets) {
                   pSockets.forEach((sId) => {
-                    this.server.to(sId).emit('group-call:user-left', { userId });
+                    this.server
+                      .to(sId)
+                      .emit('group-call:user-left', {
+                        userId,
+                        userName: userNameForCall || 'Someone',
+                      });
                   });
                 }
               });
@@ -412,12 +429,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (currentParticipants) {
         currentParticipants.delete(userId);
 
-        // Notify others
+        // Look up user name for notification
+        let userName = 'Someone';
+        try {
+          const account = await this.accountModel.findById(userId, 'firstName lastName').lean();
+          if (account) {
+            userName =
+              `${(account as any).firstName || ''} ${(account as any).lastName || ''}`.trim() ||
+              'Someone';
+          }
+        } catch {}
+
+        // Notify others with name
         currentParticipants.forEach((pId) => {
           const sockets = userSockets.get(pId);
           if (sockets) {
             sockets.forEach((sId) => {
-              this.server.to(sId).emit('group-call:user-left', { userId });
+              this.server.to(sId).emit('group-call:user-left', { userId, userName });
             });
           }
         });

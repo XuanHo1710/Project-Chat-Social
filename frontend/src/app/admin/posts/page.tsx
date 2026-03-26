@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     Box,
     Paper,
@@ -29,7 +29,12 @@ import {
     alpha,
     Collapse,
     Divider,
-    CircularProgress
+    CircularProgress,
+    Modal,
+    Avatar,
+    ImageList,
+    ImageListItem,
+    Skeleton
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -51,8 +56,11 @@ import {
     ArrowDownward as ArrowDownwardIcon,
     ArrowUpward as ArrowUpwardIcon
 } from '@mui/icons-material';
-import { adminService, AdminPost } from '@/services/admin.service';
+import { adminService, AdminPost, AdminPostDetail } from '@/services/admin.service';
+import { getCommentsByPost } from '@/services/comment.service';
+import { Comment } from '@/types/comment';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 
 export default function PostsManagementPage() {
@@ -98,6 +106,58 @@ export default function PostsManagementPage() {
     const handleMenuClose = () => {
         setAnchorEl(null);
         setSelectedPost(null);
+    };
+
+    // View modal state
+    const [viewModalOpen, setViewModalOpen] = useState(false);
+    const [viewPostId, setViewPostId] = useState<string | null>(null);
+
+    const { data: postDetail, isLoading: isLoadingDetail } = useQuery({
+        queryKey: ['admin', 'post-detail', viewPostId],
+        queryFn: () => adminService.getPostById(viewPostId!),
+        enabled: !!viewPostId && viewModalOpen,
+    });
+
+    const { data: postComments, isLoading: isLoadingComments } = useQuery({
+        queryKey: ['admin', 'post-comments', viewPostId],
+        queryFn: () => getCommentsByPost(viewPostId!, 1, 20),
+        enabled: !!viewPostId && viewModalOpen,
+    });
+
+    const handleViewPost = (post: AdminPost) => {
+        if (post.privacy === 'PRIVATE') {
+            toast.info(t('admin.cannot_view_private'));
+            handleMenuClose();
+            return;
+        }
+        setViewPostId(post.id);
+        setViewModalOpen(true);
+        handleMenuClose();
+    };
+
+    const handleCloseViewModal = () => {
+        setViewModalOpen(false);
+        setViewPostId(null);
+    };
+
+    // Delete mutation
+    const queryClient = useQueryClient();
+    const deleteMutation = useMutation({
+        mutationFn: (id: string) => adminService.deletePost(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'posts'] });
+            toast.success(t('admin.post_deleted'));
+        },
+        onError: () => {
+            toast.error(t('admin.delete_failed'));
+        },
+    });
+
+    const handleDeletePost = (post: AdminPost) => {
+        if (confirm(t('admin.confirm_delete_post'))) {
+            deleteMutation.mutate(post.id);
+        }
+        handleMenuClose();
     };
 
     const clearFilters = () => {
@@ -402,15 +462,162 @@ export default function PostsManagementPage() {
                 open={Boolean(anchorEl)}
                 onClose={handleMenuClose}
             >
-                <MenuItem onClick={handleMenuClose}>
+                <MenuItem onClick={() => selectedPost && handleViewPost(selectedPost)}>
                     <ListItemIcon><VisibilityIcon fontSize="small" /></ListItemIcon>
                     {t('admin.view_post')}
                 </MenuItem>
-                <MenuItem onClick={handleMenuClose} sx={{ color: 'error.main' }}>
+                <MenuItem onClick={() => selectedPost && handleDeletePost(selectedPost)} sx={{ color: 'error.main' }}>
                     <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
                     {t('admin.delete_post')}
                 </MenuItem>
             </Menu>
+
+            {/* Post Detail Modal */}
+            <Modal open={viewModalOpen} onClose={handleCloseViewModal}>
+                <Box sx={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: { xs: '95%', sm: 600 },
+                    maxHeight: '85vh',
+                    bgcolor: 'background.paper',
+                    borderRadius: 3,
+                    boxShadow: 24,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                }}>
+                    {/* Header */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}` }}>
+                        <Typography variant="h6" fontWeight="bold">{t('admin.post_detail')}</Typography>
+                        <IconButton onClick={handleCloseViewModal} size="small"><CloseIcon /></IconButton>
+                    </Box>
+
+                    {/* Content */}
+                    <Box sx={{ overflow: 'auto', flex: 1 }}>
+                        {isLoadingDetail ? (
+                            <Box sx={{ p: 3 }}>
+                                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                                    <Skeleton variant="circular" width={48} height={48} />
+                                    <Box sx={{ flex: 1 }}><Skeleton width="40%" /><Skeleton width="25%" /></Box>
+                                </Box>
+                                <Skeleton variant="rectangular" height={100} sx={{ borderRadius: 1, mb: 2 }} />
+                                <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
+                            </Box>
+                        ) : postDetail ? (
+                            <>
+                                {/* Author info */}
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2, pb: 1 }}>
+                                    <Avatar src={postDetail.userId?.avatar} sx={{ width: 48, height: 48 }}>
+                                        {postDetail.userId?.firstName?.[0] || '?'}
+                                    </Avatar>
+                                    <Box>
+                                        <Typography fontWeight="bold" fontSize={15}>
+                                            {postDetail.userId ? `${postDetail.userId.firstName} ${postDetail.userId.lastName}` : 'Unknown'}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {new Date(postDetail.createdAt).toLocaleString()} · {getPrivacyBadge(postDetail.privacy)}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+
+                                {/* Post content */}
+                                {postDetail.content && (
+                                    <Typography sx={{ px: 2, py: 1, whiteSpace: 'pre-wrap', fontSize: 15, lineHeight: 1.6 }}>
+                                        {postDetail.content}
+                                    </Typography>
+                                )}
+
+                                {/* Media */}
+                                {postDetail.media && postDetail.media.length > 0 && (
+                                    <Box sx={{ px: 0 }}>
+                                        {postDetail.media.length === 1 ? (
+                                            postDetail.media[0].mediaType === 'VIDEO' ? (
+                                                <Box component="video" controls sx={{ width: '100%', maxHeight: 400 }} src={postDetail.media[0].url} />
+                                            ) : (
+                                                <Box component="img" src={postDetail.media[0].url} sx={{ width: '100%', maxHeight: 400, objectFit: 'contain', bgcolor: isDark ? '#18191a' : '#f0f2f5' }} />
+                                            )
+                                        ) : (
+                                            <ImageList variant="quilted" cols={postDetail.media.length === 2 ? 2 : 3} gap={2} sx={{ m: 0 }}>
+                                                {postDetail.media.map((m, i) => (
+                                                    <ImageListItem key={i} cols={postDetail.media.length === 3 && i === 0 ? 2 : 1} rows={postDetail.media.length === 3 && i === 0 ? 2 : 1}>
+                                                        {m.mediaType === 'VIDEO' ? (
+                                                            <Box component="video" controls src={m.url} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                        ) : (
+                                                            <Box component="img" src={m.url} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+                                                        )}
+                                                    </ImageListItem>
+                                                ))}
+                                            </ImageList>
+                                        )}
+                                    </Box>
+                                )}
+
+                                {/* Stats bar */}
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}` }}>
+                                    <Stack direction="row" spacing={2}>
+                                        <Stack direction="row" alignItems="center" gap={0.5}>
+                                            <ThumbUpIcon sx={{ fontSize: 16, color: '#1877f2' }} />
+                                            <Typography variant="body2">{postDetail.totalReacts}</Typography>
+                                        </Stack>
+                                    </Stack>
+                                    <Stack direction="row" spacing={2}>
+                                        <Typography variant="body2" color="text.secondary">{postDetail.totalComments} {t('admin.comments')}</Typography>
+                                        <Typography variant="body2" color="text.secondary">{postDetail.totalShares} {t('admin.shares')}</Typography>
+                                    </Stack>
+                                </Box>
+
+                                {/* Comments */}
+                                <Box sx={{ p: 2 }}>
+                                    <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5 }}>{t('admin.comments')}</Typography>
+                                    {isLoadingComments ? (
+                                        <Stack spacing={1.5}>
+                                            {[1, 2, 3].map(i => (
+                                                <Box key={i} sx={{ display: 'flex', gap: 1 }}>
+                                                    <Skeleton variant="circular" width={32} height={32} />
+                                                    <Skeleton variant="rounded" width="60%" height={40} />
+                                                </Box>
+                                            ))}
+                                        </Stack>
+                                    ) : postComments?.data && postComments.data.length > 0 ? (
+                                        <Stack spacing={1.5}>
+                                            {postComments.data.map((comment: Comment) => (
+                                                <Box key={comment._id} sx={{ display: 'flex', gap: 1 }}>
+                                                    <Avatar src={comment.userId?.avatar} sx={{ width: 32, height: 32, fontSize: 14 }}>
+                                                        {comment.userId?.firstName?.[0] || '?'}
+                                                    </Avatar>
+                                                    <Box sx={{
+                                                        bgcolor: isDark ? '#3a3b3c' : '#f0f2f5',
+                                                        borderRadius: 3,
+                                                        px: 1.5,
+                                                        py: 1,
+                                                        maxWidth: '85%',
+                                                    }}>
+                                                        <Typography variant="caption" fontWeight="bold">
+                                                            {comment.userId ? `${comment.userId.firstName} ${comment.userId.lastName}` : 'Unknown'}
+                                                        </Typography>
+                                                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.25 }}>
+                                                            {comment.content}
+                                                        </Typography>
+                                                        {comment.media && comment.media.length > 0 && (
+                                                            <Box component="img" src={comment.media[0].url} sx={{ mt: 1, maxWidth: '100%', maxHeight: 150, borderRadius: 1 }} />
+                                                        )}
+                                                    </Box>
+                                                </Box>
+                                            ))}
+                                        </Stack>
+                                    ) : (
+                                        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                                            {t('admin.no_comments')}
+                                        </Typography>
+                                    )}
+                                </Box>
+                            </>
+                        ) : null}
+                    </Box>
+                </Box>
+            </Modal>
         </Box>
     );
 }

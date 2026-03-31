@@ -1,13 +1,17 @@
 """
-RECOMMENDATION SERVICE — QDRANT CLOUD
+RECOMMENDATION SERVICE — QDRANT CLOUD  
 =======================================
-1. search(query, ...) - Tìm posts theo query
+1. search(query, ...) - Tìm posts theo query (with chunk-level retrieval)
 2. recommend(user_id, ...) - Gợi ý cho user
 3. similar(post_id, ...) - Tìm posts tương tự
 4. get_newsfeed(user_id, ...) - Alias cho recommend
+5. embed_query(query, user_id) - Embed & store user queries for RAG improvement
 
 Optimized:
 - Uses `userinteractions` collection (from Kafka) for richer signals
+- Chunk-level vector search with post-level deduplication
+- E5 model prefix support (query: / passage:)
+- Query embedding into Qdrant for RAG feedback loop
 - Cosine similarity via Qdrant + numpy for scoring
 - Weighted interaction vectors from POST_VIEW, POST_LIKE, POST_COMMENT, etc.
 """
@@ -37,6 +41,8 @@ QDRANT_URL = settings.qdrant_url
 QDRANT_API_KEY = settings.qdrant_api_key
 COLLECTION_NAME = settings.qdrant_collection_posts
 USER_COLLECTION = settings.qdrant_collection_users
+QUERY_COLLECTION = settings.qdrant_collection_queries
+IS_E5_MODEL = "e5" in settings.embedding_model.lower()
 
 # Interaction weights — used for building user preference vectors
 # Higher weight = stronger positive signal for recommendation
@@ -302,8 +308,12 @@ class RecommendationService:
     def update_realtime_vector(self, user_id: str, post_id: str, interaction_type: str) -> bool:
         try:
             if not self.is_ready(): return False
-            point_uuid = mongo_id_to_uuid(post_id)
+            # Try chunk_0 first, fallback to legacy point ID
+            point_uuid = mongo_id_to_uuid(f"{post_id}_chunk_0")
             results = self.qdrant.retrieve(collection_name=COLLECTION_NAME, ids=[point_uuid], with_vectors=True)
+            if not results:
+                point_uuid = mongo_id_to_uuid(post_id)
+                results = self.qdrant.retrieve(collection_name=COLLECTION_NAME, ids=[point_uuid], with_vectors=True)
             if not results: return False
 
             post_emb = np.array(results[0].vector)
@@ -400,7 +410,7 @@ class RecommendationService:
             return 1.0
 
     # ========================================
-    # 1. SEARCH
+    # 1. SEARCH (chunk-level retrieval + post-level dedup)
     # ========================================
     def search(self, query: str, current_user_id: str = "", friend_ids: List[str] = None,
                limit: int = 20, page: int = 1, media_type: Optional[str] = None) -> Tuple[List[Dict], int]:
@@ -409,29 +419,40 @@ class RecommendationService:
         # Retry logic: if Qdrant connection fails, reset and retry once
         for attempt in range(2):
             try:
-                query_emb = self.model.encode(query, convert_to_numpy=True)
-                total_posts = self.get_total_posts()
-                if total_posts == 0:
-                    logger.warning("Search: total_posts=0, skipping")
+                # E5 models require "query: " prefix for search queries
+                query_text = f"query: {query}" if IS_E5_MODEL else query
+                query_emb = self.model.encode(query_text, convert_to_numpy=True, normalize_embeddings=True)
+                total_points = self.get_total_posts()
+                if total_points == 0:
+                    logger.warning("Search: total_points=0, skipping")
                     return [], 0
 
                 results = self.qdrant.query_points(
                     collection_name=COLLECTION_NAME,
                     query=query_emb.tolist(),
-                    limit=min(200, total_posts),
+                    limit=min(500, total_points),
                     with_payload=True
                 ).points
 
-                posts = []
+                # Chunk-level results → deduplicate to post-level (keep best chunk score per post)
+                post_scores: Dict[str, Dict] = {}
                 for hit in results:
                     p = hit.payload
-                    posts.append({
-                        "post_id": p.get("post_id", ""),
-                        "score": round(hit.score, 4),
-                        "user_id": p.get("user_id", ""),
-                        "group_id": p.get("group_id", ""),
-                        "privacy": p.get("privacy", "PUBLIC"),
-                    })
+                    post_id = p.get("post_id", "")
+                    if not post_id:
+                        continue
+                    
+                    if post_id not in post_scores or hit.score > post_scores[post_id]["score"]:
+                        post_scores[post_id] = {
+                            "post_id": post_id,
+                            "score": round(hit.score, 4),
+                            "user_id": p.get("user_id", ""),
+                            "group_id": p.get("group_id", ""),
+                            "privacy": p.get("privacy", "PUBLIC"),
+                        }
+
+                posts = list(post_scores.values())
+                posts.sort(key=lambda x: x["score"], reverse=True)
 
                 if current_user_id:
                     posts = self._filter_privacy(posts, current_user_id, friend_ids or [])
@@ -439,18 +460,50 @@ class RecommendationService:
                 total = len(posts)
                 offset = (page - 1) * limit
                 logger.info(f"🔍 Search '{query}': {total} results (page {page})")
+                
+                # Async embed query for RAG improvement (fire and forget)
+                self._store_query_async(query, query_emb, current_user_id)
+                
                 return posts[offset:offset + limit], total
 
             except Exception as e:
                 logger.error(f"Search error (attempt {attempt + 1}): {e}")
                 if attempt == 0:
-                    # First failure: reset Qdrant connection and retry
                     logger.info("Resetting Qdrant connection and retrying...")
                     self._reset_qdrant()
                 else:
                     return [], 0
 
         return [], 0
+
+    def _store_query_async(self, query: str, query_emb: np.ndarray, user_id: str = ""):
+        """Store user query embedding into Qdrant query_vectors collection for RAG improvement."""
+        try:
+            import threading
+            
+            def _store():
+                try:
+                    query_id = mongo_id_to_uuid(f"query_{query}_{datetime.now().isoformat()}")
+                    point = PointStruct(
+                        id=query_id,
+                        vector=query_emb.tolist(),
+                        payload={
+                            "query": query,
+                            "user_id": user_id,
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                    )
+                    self.qdrant.upsert(
+                        collection_name=QUERY_COLLECTION,
+                        points=[point]
+                    )
+                    logger.debug(f"📝 Query embedded: '{query[:50]}...'")
+                except Exception as e:
+                    logger.debug(f"Query embedding store failed (non-critical): {e}")
+            
+            threading.Thread(target=_store, daemon=True).start()
+        except Exception:
+            pass
 
     # ========================================
     # 2. RECOMMEND
@@ -489,14 +542,23 @@ class RecommendationService:
             results = self.qdrant.query_points(
                 collection_name=COLLECTION_NAME,
                 query=user_vector.tolist(),
-                limit=min(200, self.get_total_posts()),
+                limit=min(500, self.get_total_posts()),
                 with_payload=True
             ).points
 
-            posts = []
+            # Chunk-level → post-level dedup (keep best score per post)
+            post_best: Dict[str, tuple] = {}  # post_id → (score, hit)
             for hit in results:
                 p = hit.payload
                 post_id = p.get("post_id", "")
+                if not post_id:
+                    continue
+                if post_id not in post_best or hit.score > post_best[post_id][0]:
+                    post_best[post_id] = (hit.score, hit)
+
+            posts = []
+            for post_id, (base_score, hit) in post_best.items():
+                p = hit.payload
                 owner = p.get("user_id", "")
                 created_at = p.get("created_at", "")
 
@@ -504,7 +566,7 @@ class RecommendationService:
                 if post_id in hidden_post_ids:
                     continue
                 
-                score = hit.score
+                score = base_score
                 if owner in friend_set: score *= 1.2
                 if owner == user_id: score *= 0.5
                 score *= self._calculate_recency_boost(created_at)
@@ -558,35 +620,42 @@ class RecommendationService:
         return self.recommend(user_id, friend_ids, limit, page, media_type)
 
     # ========================================
-    # 3. SIMILAR
+    # 3. SIMILAR (chunk-level → post-level dedup)
     # ========================================
     def similar(self, post_id: str, limit: int = 10, page: int = 1) -> Tuple[List[Dict], int]:
         if not self.is_ready(): return [], 0
         try:
-            point_uuid = mongo_id_to_uuid(post_id)
+            # Try chunk_0 first, fallback to legacy point ID
+            point_uuid = mongo_id_to_uuid(f"{post_id}_chunk_0")
             results = self.qdrant.retrieve(collection_name=COLLECTION_NAME, ids=[point_uuid], with_vectors=True)
+            if not results:
+                point_uuid = mongo_id_to_uuid(post_id)
+                results = self.qdrant.retrieve(collection_name=COLLECTION_NAME, ids=[point_uuid], with_vectors=True)
             if not results: return [], 0
 
             source_emb = results[0].vector
             search_results = self.qdrant.query_points(
                 collection_name=COLLECTION_NAME,
                 query=source_emb,
-                limit=min(100, self.get_total_posts()),
+                limit=min(300, self.get_total_posts()),
                 with_payload=True
             ).points
 
-            posts = []
+            # Chunk-level → post-level dedup
+            post_scores: Dict[str, Dict] = {}
             for hit in search_results:
                 pid = hit.payload.get("post_id", "")
                 if pid == post_id: continue
-                posts.append({
-                    "post_id": pid,
-                    "score": round(hit.score, 4),
-                    "user_id": hit.payload.get("user_id", ""),
-                    "group_id": hit.payload.get("group_id", ""),
-                    "privacy": hit.payload.get("privacy", "PUBLIC")
-                })
+                if pid not in post_scores or hit.score > post_scores[pid]["score"]:
+                    post_scores[pid] = {
+                        "post_id": pid,
+                        "score": round(hit.score, 4),
+                        "user_id": hit.payload.get("user_id", ""),
+                        "group_id": hit.payload.get("group_id", ""),
+                        "privacy": hit.payload.get("privacy", "PUBLIC")
+                    }
 
+            posts = sorted(post_scores.values(), key=lambda x: x["score"], reverse=True)
             total = len(posts)
             offset = (page - 1) * limit
             return posts[offset:offset + limit], total

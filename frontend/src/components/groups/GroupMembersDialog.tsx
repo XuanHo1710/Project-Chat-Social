@@ -109,10 +109,10 @@ export default function GroupMembersDialog({
         try {
             await groupService.removeMember(groupId, selectedMember._id);
             setMembers(prev => prev.filter(m => m._id !== selectedMember._id));
-            toast.success(`Đã xóa ${selectedMember.firstName} ${selectedMember.lastName} khỏi nhóm`);
+            toast.success(t('group_members.member_removed', { name: `${selectedMember.firstName} ${selectedMember.lastName}` }));
             handleCloseMenu();
         } catch {
-            toast.error('Không thể xóa thành viên');
+            toast.error(t('group_members.remove_error'));
         } finally {
             setIsRemoving(false);
         }
@@ -125,10 +125,10 @@ export default function GroupMembersDialog({
             setMembers(prev => prev.map(m =>
                 m._id === selectedMember._id ? { ...m, role } : m
             ));
-            toast.success(`Đã cập nhật vai trò của ${selectedMember.firstName} ${selectedMember.lastName}`);
+            toast.success(t('group_members.role_updated', { name: `${selectedMember.firstName} ${selectedMember.lastName}` }));
             handleCloseMenu();
         } catch {
-            toast.error('Không thể cập nhật vai trò');
+            toast.error(t('group_members.role_update_error'));
         }
     };
 

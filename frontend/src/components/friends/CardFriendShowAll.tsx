@@ -13,11 +13,13 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
 import MutualFriendsPreview from '@/components/friends/MutualFriendsPreview';
+import { useTranslation } from 'react-i18next';
 
 
 
 export default function CardFriendShowAllComponent({ friend }: { friend: AccountCardFriendType }) {
     const { user } = useAuthStore();
+    const { t } = useTranslation();
     const router = useRouter();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
@@ -37,9 +39,9 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
             if (!response?.success) {
                 // Revert on error
                 setAddFriend(false);
-                toast.error(response?.error || 'Không thể gửi lời mời kết bạn');
+                toast.error(response?.error || t('card_friend.request_error'));
             } else {
-                toast.success('Đã gửi lời mời kết bạn');
+                toast.success(t('card_friend.request_sent'));
             }
         });
     };
@@ -56,9 +58,9 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
             if (!response?.success) {
                 // Revert on error
                 setAddFriend(true);
-                toast.error(response?.error || 'Không thể hủy lời mời');
+                toast.error(response?.error || t('card_friend.cancel_error'));
             } else {
-                toast.success('Đã hủy lời mời kết bạn');
+                toast.success(t('card_friend.cancel_success'));
             }
         });
     };
@@ -133,7 +135,7 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                                 },
                             }}
                         >
-                            {isLoading ? 'Đang gửi...' : 'Thêm bạn'}
+                            {isLoading ? t('card_friend.sending') : t('card_friend.add_friend')}
                         </Button>
                         :
                         // Đã gửi lời mời
@@ -162,7 +164,7 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                                 },
                             }}
                         >
-                            {isLoading ? 'Đang hủy...' : 'Hủy'}
+                            {isLoading ? t('card_friend.canceling') : t('card_friend.cancel')}
                         </Button>
                     }
 

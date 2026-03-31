@@ -108,7 +108,9 @@
     "upload_cover_success": "Cover photo uploaded successfully!",
     "update_success": "Profile updated successfully!",
     "update_error": "Error updating profile",
-    "upload_error": "Error uploading image"
+    "upload_error": "Error uploading image",
+    "continue": "Continue",
+    "save_changes": "Save changes"
   },
   "auth": {
     "login_title": "Welcome Back",
@@ -210,7 +212,9 @@
     "advertising": "Advertising",
     "adChoices": "Ad Choices",
     "cookies": "Cookies",
-    "more": "More"
+    "more": "More",
+    "ad_choices": "Ad Choices",
+    "meta_copyright": "Meta © 2025"
   },
   "post": {
     "create_post": "Create Post",
@@ -332,7 +336,9 @@
     "hide_post_desc": "Hide similar posts.",
     "snooze_30_days": "Snooze for 30 days",
     "show_less": "Show less",
-    "show_more": "Show more"
+    "show_more": "Show more",
+    "livestream_start_error": "Unable to start livestream",
+    "livestream_started": "Now live streaming!"
   },
   "story": {
     "create_story": "Create Story",
@@ -357,7 +363,8 @@
     "video_too_long": "Video must be 15 seconds or less",
     "public_desc": "Anyone can see",
     "friends_desc": "Your friends",
-    "only_me_desc": "Only you can see"
+    "only_me_desc": "Only you can see",
+    "reply_error": "Unable to send reply"
   },
   "call": {
     "group_call_from": "Group call from {{name}}",
@@ -372,7 +379,8 @@
     "join_error": "Cannot join – check Microphone permissions",
     "camera_enabled": "Camera has been enabled",
     "camera_error": "Cannot access Camera",
-    "switch_camera_error": "Cannot switch camera"
+    "switch_camera_error": "Cannot switch camera",
+    "share_screen_error": "Unable to share screen"
   },
   "call_history": {
     "voice_call": "Voice call",
@@ -419,7 +427,9 @@
     "friend_since": "Friends since {{date}}",
     "lives_in": "Lives in {{location}}",
     "works_at": "Works at {{company}}",
-    "studied_at": "Studied at {{school}}"
+    "studied_at": "Studied at {{school}}",
+    "friend_request_error": "Unable to send friend request",
+    "friend_request_success": "Friend request sent!"
   },
   "chat": {
     "messages": "Messages",
@@ -750,7 +760,16 @@
     "invited": "Invited",
     "invite_sent": "Invitation sent!",
     "invite_failed": "Failed to send invitation",
-    "preview_desktop": "Preview group on desktop"
+    "preview_desktop": "Preview group on desktop",
+    "transfer_ownership_success": "Transferred group ownership to {{name}}",
+    "transfer_ownership_error": "Unable to transfer ownership",
+    "settings_update_success": "Group settings updated",
+    "settings_update_error": "Unable to update settings",
+    "member_remove_success": "Removed {{name}} from group",
+    "member_remove_error": "Unable to remove member",
+    "member_role_update_success": "Updated role of {{name}}",
+    "member_role_update_error": "Unable to update role",
+    "privacy_label": "Privacy"
   },
   "search": {
     "search_results": "Search Results",
@@ -922,7 +941,62 @@
     "upload_cover": "Upload cover photo",
     "avatar_updated": "Avatar updated successfully!",
     "cover_updated": "Cover updated successfully!",
-    "upload_error": "Error uploading image"
+    "upload_error": "Error uploading image",
+    "block_user_error": "Unable to block user",
+    "block_cant_message_them": "They will not be able to message you",
+    "block_cant_message_you": "You will not be able to message them",
+    "post_deleted": "Post deleted!",
+    "post_delete_error": "Error deleting post",
+    "live_label": "LIVE",
+    "user_is_live": "{{name}} is live streaming",
+    "join_now": "Click to join now ▶",
+    "live_ended": "Live stream has ended",
+    "replay": "Replay",
+    "video_not_saved": "Video was not saved",
+    "friends_section": "Friends",
+    "view_all_friends": "See all friends",
+    "no_friends": "No friends yet",
+    "whats_on_mind": "{{name}}, what's on your mind?",
+    "loading_more": "Loading more...",
+    "all_posts_loaded": "All posts have been shown",
+    "about_section": "About",
+    "about_tabs_overview": "Overview",
+    "about_tabs_work": "Work and education",
+    "about_tabs_places": "Places lived",
+    "about_tabs_contact": "Contact and basic info",
+    "about_tabs_details": "Details about you",
+    "no_school_info": "No school information",
+    "add_current_city": "Add current city",
+    "birthday_label": "Born on",
+    "joined_label": "Joined",
+    "friends_title": "Friends",
+    "search_placeholder": "Search",
+    "friend_requests": "Friend requests",
+    "find_friends": "Find friends",
+    "all_friends_tab": "All friends",
+    "recently_added_tab": "Recently added",
+    "no_friends_found": "No friends found",
+    "no_friends_yet": "No friends yet",
+    "photos_section": "Photos",
+    "add_photo_video": "Add photo/video",
+    "your_photos_tab": "Your photos",
+    "albums_tab": "Albums",
+    "block_user_label": "Block user",
+    "find_support": "Find support or report",
+    "deactivate_profile": "Deactivate profile",
+    "deactivate_description": "Temporarily hide your profile and information",
+    "profile_settings": "Profile settings",
+    "block_label": "Block",
+    "update_cover": "Update cover photo",
+    "no_cover_photo": "No cover photo",
+    "select_from_computer": "Select photo from computer",
+    "file_selected": "Selected: {{name}}",
+    "cancel": "Cancel",
+    "save_changes": "Save changes",
+    "block_confirm_title": "Block {{name}}?",
+    "block_when_you_block": "When you block this person:",
+    "block_conversation_hidden": "The conversation will be hidden from your list",
+    "block_button": "Block"
   },
   "settings": {
     "title": "Settings",
@@ -1198,7 +1272,8 @@
     "language": "Language",
     "language_title": "Language",
     "vietnamese": "Vietnamese",
-    "english": "English (US)"
+    "english": "English (US)",
+    "footer_text": "Privacy · Terms · Advertising · Ad Choices · Cookies · More · Meta © 2025"
   },
   "admin": {
     "dashboard": "Dashboard",
@@ -1401,7 +1476,10 @@
     "never_logged_in": "Never logged in",
     "close": "Close",
     "options": "Options",
-    "no_comments": "No comments yet"
+    "no_comments": "No comments yet",
+    "logo_text": "SOCIAL",
+    "admin_panel_label": "Admin Panel",
+    "admin_user_default": "Administrator"
   },
   "messenger_popup": {
     "header": "Chats",
@@ -1438,7 +1516,11 @@
     "remove_from_group": "Remove from group",
     "removing": "Removing...",
     "you": "You",
-    "no_members_found": "No members found"
+    "no_members_found": "No members found",
+    "member_removed": "Removed {{name}} from group",
+    "remove_error": "Unable to remove member",
+    "role_updated": "Updated role of {{name}}",
+    "role_update_error": "Unable to update role"
   },
   "reactions": {
     "title": "Reactions",
@@ -1468,5 +1550,86 @@
     "share_error": "Error sharing post",
     "copy_success": "Link copied!",
     "see_more": "See more"
+  },
+  "transfer_ownership": {
+    "title": "Transfer group ownership",
+    "confirm_title": "Confirm transfer",
+    "confirm_message": "Are you sure you want to transfer ownership of group {{groupName}}?",
+    "description": "This action will transfer all top admin rights to {{name}}. You will remain an admin of the group but will no longer be the owner.",
+    "search_placeholder": "Search members...",
+    "no_other_members": "No other members in the group",
+    "no_members_found": "No members found",
+    "confirm_button": "Confirm transfer",
+    "success_message": "Transferred group ownership to {{name}}",
+    "error_message": "Unable to transfer ownership"
+  },
+  "story_viewer": {
+    "reply_sent": "Reply sent",
+    "reply_failed": "Unable to send reply",
+    "delete_story": "Delete story",
+    "message_placeholder": "Send a message...",
+    "views_count": "viewers"
+  },
+  "group_settings": {
+    "title": "Group Settings",
+    "name_required": "Group name is required",
+    "updated_success": "Group settings updated",
+    "update_error": "Unable to update settings",
+    "group_name_label": "Group name",
+    "group_name_placeholder": "Enter group name",
+    "group_description_label": "About the group",
+    "group_description_placeholder": "Describe your group...",
+    "character_count": "{{count}}/2000 characters",
+    "privacy_label": "Privacy",
+    "public": "Public",
+    "public_description": "Anyone can see posts and join the group",
+    "private": "Private",
+    "private_description": "Only members can see posts. Approval required to join.",
+    "visibility_label": "Visibility",
+    "visible": "Visible",
+    "visible_description": "Anyone can find this group",
+    "hidden": "Hidden",
+    "hidden_description": "Only members can find this group",
+    "save_button": "Save changes"
+  },
+  "card_friend": {
+    "sending": "Sending...",
+    "add_friend": "Add Friend",
+    "canceling": "Canceling...",
+    "cancel": "Cancel",
+    "request_error": "Unable to send friend request",
+    "request_sent": "Friend request sent",
+    "cancel_error": "Unable to cancel request",
+    "cancel_success": "Friend request canceled"
+  },
+  "livestream": {
+    "camera_error": "Unable to access Camera",
+    "screen_share_error": "Unable to share screen",
+    "end_confirm": "End Livestream?",
+    "started": "Now live streaming!",
+    "start_error": "Unable to start livestream",
+    "saving_video": "Saving video...",
+    "live_now": "Live now",
+    "go_live": "Go Live",
+    "viewers_count": "{{count}} viewers",
+    "initializing": "Initializing...",
+    "camera_not_found": "Camera not found",
+    "select_source": "Select broadcast source",
+    "camera": "Camera",
+    "screen_share": "Screen Share",
+    "mute_mic": "Mute mic",
+    "unmute_mic": "Unmute mic",
+    "turn_off_camera": "Turn off camera",
+    "turn_on_camera": "Turn on camera",
+    "switch_source": "Switch source",
+    "start_live": "Go Live",
+    "end_live": "End Live",
+    "live_comments": "Live Comments",
+    "no_comments": "No comments yet",
+    "write_comment": "Write a comment...",
+    "description_placeholder": "Write a description for your live stream...",
+    "title_placeholder": "Live stream title...",
+    "start_chatting": "Start chatting with your audience!",
+    "screen": "Screen"
   }
 }

@@ -108,9 +108,10 @@ class LLMService:
     async def stream_chat_response_with_full_context(
         self, message: str, chat_history: List[Dict[str, str]] = None,
         image_description: str = "", has_post: bool = False,
-        post_preview: str = "", temperature: float = 0.7
+        post_preview: str = "", rag_context: str = "",
+        temperature: float = 0.7
     ) -> AsyncIterator[str]:
-        """Stream AI response tokens with full conversation context."""
+        """Stream AI response tokens with full conversation context + RAG retrieved chunks."""
         system_parts = [
             'You are a friendly social media assistant named "AI Assistant".',
             "You help users in both English and Vietnamese (UTF-8).",
@@ -118,17 +119,29 @@ class LLMService:
         ]
         if image_description:
             system_parts.append(f"\nThe user has shared an image: {image_description}")
-        if has_post and post_preview:
+        
+        # RAG: Inject retrieved context from vector DB
+        if rag_context:
+            system_parts.append(
+                "\n--- RETRIEVED CONTEXT FROM SOCIAL MEDIA POSTS ---\n"
+                "Use the following post content to answer the user's question accurately. "
+                "Reference specific information from these posts when relevant. "
+                "If the context doesn't fully answer the question, supplement with your knowledge.\n\n"
+                f"{rag_context}\n"
+                "--- END OF CONTEXT ---"
+            )
+        
+        if has_post and not rag_context:
             system_parts.append(f'\nYou found related posts. First post preview: "{post_preview[:150]}..."')
             system_parts.append("Mention that you found some relevant posts.")
 
-        messages = [{"role": "system", "content": " ".join(system_parts)}]
+        messages = [{"role": "system", "content": "\n".join(system_parts)}]
         if chat_history:
             for msg in chat_history[-10:]:
                 messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
         messages.append({"role": "user", "content": message})
 
-        async for token in self._chat_stream(messages, temperature):
+        async for token in self._chat_stream(messages, temperature, max_tokens=1500):
             yield token
 
     def chat_messages(self, messages: List[Dict[str, str]], temperature=0.7, max_tokens=500) -> str:
@@ -206,9 +219,10 @@ Examples:
     def generate_chat_response_with_full_context(
         self, message: str, chat_history: List[Dict[str, str]] = None,
         image_description: str = "", has_post: bool = False,
-        post_preview: str = "", temperature: float = 0.7
+        post_preview: str = "", rag_context: str = "",
+        temperature: float = 0.7
     ) -> str:
-        """Generate AI response with full conversation context."""
+        """Generate AI response with full conversation context + RAG retrieved chunks."""
         try:
             system_parts = [
                 'You are a friendly social media assistant named "AI Assistant".',
@@ -217,17 +231,30 @@ Examples:
             ]
             if image_description:
                 system_parts.append(f"\nThe user has shared an image: {image_description}")
-            if has_post and post_preview:
+            
+            # RAG: Inject retrieved context from vector DB
+            if rag_context:
+                system_parts.append(
+                    "\n--- RETRIEVED CONTEXT FROM SOCIAL MEDIA POSTS ---\n"
+                    "Use the following post content to answer the user's question accurately. "
+                    "Reference specific information from these posts when relevant. "
+                    "If the context doesn't fully answer the question, supplement with your knowledge.\n\n"
+                    f"{rag_context}\n"
+                    "--- END OF CONTEXT ---"
+                )
+            
+            if has_post and not rag_context:
+                # Fallback if only preview available
                 system_parts.append(f'\nYou found related posts. First post preview: "{post_preview[:150]}..."')
                 system_parts.append("Mention that you found some relevant posts.")
 
-            messages = [{"role": "system", "content": " ".join(system_parts)}]
+            messages = [{"role": "system", "content": "\n".join(system_parts)}]
             if chat_history:
                 for msg in chat_history[-10:]:
                     messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
             messages.append({"role": "user", "content": message})
 
-            return self._chat(messages, temperature)
+            return self._chat(messages, temperature, max_tokens=1500)
         except Exception as e:
             logger.error(f"Generate full context response error: {e}")
             return "Xin lỗi, tôi gặp sự cố. Vui lòng thử lại!"

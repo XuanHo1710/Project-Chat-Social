@@ -1,17 +1,20 @@
 """
-AI SERVER — QDRANT CLOUD + OLLAMA (qwen2.5:0.5b)
-=================================================
+AI SERVER — QDRANT CLOUD + LLM (qwen2.5:3b / Groq)
+=====================================================
 Endpoints:
-- GET /api/v1/search?q=...
+- GET /api/v1/search?q=...        (chunk-level search + post dedup)
 - GET /api/v1/recommend/{user_id}
 - GET /api/v1/similar/{post_id}
 - POST /api/v1/chat/bot
-- POST /api/v1/chat/bot/stream  (SSE streaming)
+- POST /api/v1/chat/bot/stream    (SSE streaming)
+- POST /api/v1/embed/post         (with professional chunking)
+- GET /api/v1/queries/similar     (RAG query feedback)
 - POST /retrain
 
 Vector DB: Qdrant Cloud
-LLM: Ollama (qwen2.5:0.5b — CPU-only, ultra-fast, multilingual)
-Embedding: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+LLM: qwen2.5:3b (multilingual, good quality) or Groq llama-3.1-8b-instant  
+Embedding: intfloat/multilingual-e5-base (768-dim, high quality, fast)
+Chunking: Sliding window with overlap (500 chars, 100 overlap)
 """
 
 from contextlib import asynccontextmanager
@@ -83,16 +86,24 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Recommendation Server",
     description="""
-## Qdrant Cloud + Ollama (qwen2.5:3b)
+## Qdrant Cloud + LLM (qwen2.5:3b / Groq)
+
+### Features:
+- 🧩 **Professional chunking** with sliding window overlap
+- 🔍 **intfloat/multilingual-e5-base** embedding (768-dim, high quality)
+- 📝 **Query embedding** into vector DB for RAG improvement
+- 🏷️ **Chunk-level search** with post-level deduplication
 
 ### Endpoints:
-- 🔍 **GET /api/v1/search?q=...** - Tìm posts
+- 🔍 **GET /api/v1/search?q=...** - Tìm posts (chunk-level)
 - 🎯 **GET /api/v1/recommend/{user_id}** - Gợi ý cho user  
 - 📎 **GET /api/v1/similar/{post_id}** - Posts tương tự
 - 🤖 **POST /api/v1/chat/bot** - Chatbot AI
 - 🤖 **POST /api/v1/chat/bot/stream** - Chatbot AI (SSE streaming)
+- 📌 **POST /api/v1/embed/post** - Embed post (with chunking)
+- 🔄 **GET /api/v1/queries/similar** - RAG query feedback
     """,
-    version="4.0.0",
+    version="5.0.0",
     lifespan=lifespan,
     docs_url="/docs"
 )
@@ -113,13 +124,16 @@ app.include_router(api_router, prefix="/api/v1")
 async def root():
     service = get_recommendation_service()
     ready = service.is_ready()
+    settings = get_settings()
     return {
         "name": "AI Recommendation Server",
-        "version": "4.0.0",
+        "version": "5.0.0",
         "vector_db": "Qdrant Cloud",
-        "llm": f"Ollama ({settings.llm_model})",
+        "embedding": settings.embedding_model,
+        "llm": f"{settings.llm_base_url} ({settings.llm_model})",
+        "chunking": f"sliding_window(max={settings.chunk_max_size}, overlap={settings.chunk_overlap})",
         "status": "ready" if ready else "not_ready",
-        "total_posts": service.get_total_posts() if ready else 0,
+        "total_vectors": service.get_total_posts() if ready else 0,
     }
 
 

@@ -223,7 +223,7 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
             {/* Footer */}
             <Box sx={{ p: 2, bgcolor: 'action.hover' }}>
                 <Typography variant="caption" color="text.secondary" fontSize={11}>
-                    Quyền riêng tư · Điều khoản · Quảng cáo · Lựa chọn quảng cáo · Cookie · Xem thêm · Meta © 2025
+                    {t('avatar_menu.footer_text')}
                 </Typography>
             </Box>
         </Box>

@@ -311,11 +311,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                 setProfile(updatedProfile);
                 // Sync avatar to auth store for Header and other components
                 useAuthStore.getState().updateUser({ avatar: avatarUrl });
-                toast.success('Cập nhật ảnh đại diện thành công!');
+                toast.success(t('profile.avatar_updated'));
             }
         } catch (error) {
             console.error('Error uploading avatar:', error);
-            toast.error('Lỗi khi tải ảnh lên');
+            toast.error(t('profile.upload_error'));
         } finally {
             setUploadingAvatar(false);
             if (avatarInputRef.current) avatarInputRef.current.value = '';
@@ -333,11 +333,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                 const backgroundUrl = result.results[0].url;
                 const updatedProfile = await accountService.updateProfile({ background: backgroundUrl });
                 setProfile(updatedProfile);
-                toast.success('Cập nhật ảnh bìa thành công!');
+                toast.success(t('profile.cover_updated'));
             }
         } catch (error) {
             console.error('Error uploading cover:', error);
-            toast.error('Lỗi khi tải ảnh lên');
+            toast.error(t('profile.upload_error'));
         } finally {
             setUploadingCover(false);
             if (coverInputRef.current) coverInputRef.current.value = '';
@@ -414,10 +414,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
             await deletePostMutation.mutateAsync(menuPost._id);
             // Invalidate triggers refetch
             handleCloseMenu();
-            toast.success('Xóa bài viết thành công!');
+            toast.success(t('profile.post_deleted'));
         } catch (error) {
             console.error('Error deleting post:', error);
-            toast.error('Lỗi khi xóa bài viết');
+            toast.error(t('profile.post_delete_error'));
         } finally {
             setIsDeleting(false);
         }
@@ -603,7 +603,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
             }
         } catch (error) {
             console.error('Failed to block user:', error);
-            toast.error('Không thể chặn người dùng');
+            toast.error(t('profile.block_error'));
             setIsBlocking(false);
         }
     };
@@ -640,7 +640,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
             }
         } catch (error) {
             console.error('Failed to block friend:', error);
-            toast.error('Không thể chặn người dùng');
+            toast.error(t('profile.block_error'));
             setIsBlocking(false);
         }
     };
@@ -729,7 +729,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
             }
         } catch (error) {
             console.error('Error uploading cover:', error);
-            toast.error('Lỗi khi tải ảnh lên');
+            toast.error(t('profile.upload_error'));
         } finally {
             setUploadingCover(false);
         }
@@ -826,7 +826,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     }}>
                                         <Chip
                                             icon={<Box sx={{ width: 8, height: 8, bgcolor: 'white', borderRadius: '50%', ml: 0.5 }} />}
-                                            label="TRỰC TIẾP"
+                                            label={t('profile.live_label')}
                                             sx={{
                                                 bgcolor: '#e41e3f',
                                                 color: 'white',
@@ -839,7 +839,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         />
                                     </Box>
                                     <Typography variant="h5" sx={{ color: 'white', fontWeight: 700, mb: 1, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-                                        {post.userId?.firstName + " " + post.userId?.lastName} đang phát trực tiếp
+                                        {t('profile.user_is_live', { name: post.userId?.firstName + " " + post.userId?.lastName })}
                                     </Typography>
                                     <Box sx={{
                                         mt: 1,
@@ -854,14 +854,14 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         '&:hover': { bgcolor: 'rgba(255,255,255,0.3)', transform: 'scale(1.05)' }
                                     }}>
                                         <Typography sx={{ color: 'white', fontWeight: 600, fontSize: 13 }}>
-                                            Bấm để tham gia ngay ▶
+                                            {t('profile.join_now')}
                                         </Typography>
                                     </Box>
                                 </Box>
                             ) : (
                                 <>
                                     <Typography variant="body1" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                                        Video trực tiếp đã kết thúc
+                                        {t('profile.live_ended')}
                                     </Typography>
                                 </>
                             )}
@@ -895,7 +895,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             borderRadius: 1
                         }}>
                             <Typography sx={{ color: 'white', fontSize: 12, fontWeight: 600 }}>
-                                Phát lại
+                                {t('profile.replay')}
                             </Typography>
                         </Box>
                     </Box>
@@ -919,10 +919,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                 >
                     <Box sx={{ textAlign: 'center', py: 4 }}>
                         <Typography variant="body1" sx={{ color: textSecondary, fontWeight: 500 }}>
-                            Video trực tiếp đã kết thúc
+                            {t('profile.live_ended')}
                         </Typography>
                         <Typography variant="body2" sx={{ color: textSecondary, mt: 0.5 }}>
-                            Video không được lưu
+                            {t('profile.video_not_saved')}
                         </Typography>
                     </Box>
                 </Box>
@@ -1517,14 +1517,14 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                                             <Box>
                                                 <Typography variant="h6" fontWeight={700} color={textPrimary}>
-                                                    Bạn bè
+                                                    {t('profile.friends_section')}
                                                 </Typography>
                                                 <Typography color={textSecondary} fontSize={14}>
-                                                    {friends.length} người bạn
+                                                    {t('profile.friends_count', { count: friends.length })}
                                                 </Typography>
                                             </Box>
                                             <Button sx={{ textTransform: 'none', color: 'primary.main' }} onClick={() => setActiveTab(2)}>
-                                                Xem tất cả bạn bè
+                                                {t('profile.view_all_friends')}
                                             </Button>
                                         </Box>
 
@@ -1534,57 +1534,55 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             </Box>
                                         ) : friends.length === 0 ? (
                                             <Typography color={textSecondary} fontSize={14} textAlign="center" py={2}>
-                                                Chưa có bạn bè nào
-                                            </Typography>
-                                        ) : (
-                                            <Grid container spacing={1}>
-                                                {friends.slice(0, 9).map((friend) => (
-                                                    <Grid size={{ xs: 4 }} key={friend._id}>
-                                                        <Box
-                                                            sx={{
-                                                                cursor: 'pointer',
-                                                                borderRadius: 2,
-                                                                overflow: 'hidden',
-                                                                '&:hover': { opacity: 0.9 }
-                                                            }}
-                                                            onClick={() => navigateToProfile(friend.username)}
-                                                        >
+                                                {t('profile.no_friends')}
+                                                <Grid container spacing={1}>
+                                                    {friends.slice(0, 9).map((friend) => (
+                                                        <Grid size={{ xs: 4 }} key={friend._id}>
                                                             <Box
-                                                                component="img"
-                                                                src={friend.avatar || `https://ui-avatars.com/api/?name=${friend.firstName}+${friend.lastName}&background=e4e6eb&color=050505`}
                                                                 sx={{
-                                                                    width: '100%',
-                                                                    aspectRatio: '1',
-                                                                    objectFit: 'cover',
+                                                                    cursor: 'pointer',
                                                                     borderRadius: 2,
-                                                                }}
-                                                            />
-                                                            <Typography
-                                                                fontSize={13}
-                                                                fontWeight={500}
-                                                                color={textPrimary}
-                                                                sx={{
-                                                                    mt: 0.5,
                                                                     overflow: 'hidden',
-                                                                    textOverflow: 'ellipsis',
-                                                                    whiteSpace: 'nowrap'
+                                                                    '&:hover': { opacity: 0.9 }
                                                                 }}
+                                                                onClick={() => navigateToProfile(friend.username)}
                                                             >
-                                                                {friend.firstName} {friend.lastName}
-                                                            </Typography>
-                                                            {!isOwnProfile && (
-                                                                <MutualFriendsPreview
-                                                                    count={friend.mutualFriends || 0}
-                                                                    preview={friend.mutualFriendPreview || []}
-                                                                    compact
+                                                                <Box
+                                                                    component="img"
+                                                                    src={friend.avatar || `https://ui-avatars.com/api/?name=${friend.firstName}+${friend.lastName}&background=e4e6eb&color=050505`}
+                                                                    sx={{
+                                                                        width: '100%',
+                                                                        aspectRatio: '1',
+                                                                        objectFit: 'cover',
+                                                                        borderRadius: 2,
+                                                                    }}
                                                                 />
-                                                            )}
-                                                        </Box>
-                                                    </Grid>
-                                                ))}
-                                            </Grid>
+                                                                <Typography
+                                                                    fontSize={13}
+                                                                    fontWeight={500}
+                                                                    color={textPrimary}
+                                                                    sx={{
+                                                                        mt: 0.5,
+                                                                        overflow: 'hidden',
+                                                                        textOverflow: 'ellipsis',
+                                                                        whiteSpace: 'nowrap'
+                                                                    }}
+                                                                >
+                                                                    {friend.firstName} {friend.lastName}
+                                                                </Typography>
+                                                                {!isOwnProfile && (
+                                                                    <MutualFriendsPreview
+                                                                        count={friend.mutualFriends || 0}
+                                                                        preview={friend.mutualFriendPreview || []}
+                                                                        compact
+                                                                    />
+                                                                )}
+                                                            </Box>
+                                                        </Grid>
+                                                    ))}
+                                                </Grid>
                                         )}
-                                    </CardContent>
+                                            </CardContent>
                                 </Card>
                             </Grid>
 
@@ -1620,7 +1618,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                         '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb' }
                                                     }}
                                                 >
-                                                    {fullName} ơi, bạn đang nghĩ gì thế?
+                                                    {t('profile.whats_on_mind', { name: fullName })}
                                                 </Button>
                                             </Box>
                                         </CardContent>
@@ -1636,7 +1634,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     <Card sx={{ bgcolor: paperBg, borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
                                         <CardContent sx={{ textAlign: 'center', py: 4 }}>
                                             <Typography color={textSecondary} fontSize={15}>
-                                                Chưa có bài viết nào
+                                                {t('profile.no_posts')}
                                             </Typography>
                                         </CardContent>
                                     </Card>
@@ -1664,12 +1662,12 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     {isFetchingNextPage && (
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                             <CircularProgress size={24} sx={{ color: 'primary.main' }} />
-                                            <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>Đang tải thêm...</Typography>
+                                            <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>{t('profile.loading_more')}</Typography>
                                         </Box>
                                     )}
                                     {!hasNextPage && posts.length > 0 && !isFetchingNextPage && (
                                         <Typography sx={{ color: 'text.secondary', fontSize: 14, textAlign: 'center' }}>
-                                            Đã hiển thị tất cả bài viết
+                                            {t('profile.all_posts_loaded')}
                                         </Typography>
                                     )}
                                 </Box>
@@ -1685,10 +1683,10 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     {/* Left sidebar */}
                                     <Grid size={{ xs: 12, md: 4 }} sx={{ borderRight: { md: `1px solid ${theme.palette.divider}` }, pr: { md: 2 } }}>
                                         <Typography variant="h5" fontWeight={700} color={textPrimary} gutterBottom>
-                                            Giới thiệu
+                                            {t('profile.about_section')}
                                         </Typography>
                                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                            {['Tổng quan', 'Công việc và học vấn', 'Nơi từng sống', 'Thông tin liên hệ và cơ bản', 'Chi tiết về bạn'].map((item, idx) => (
+                                            {[t('profile.about_tabs_overview'), t('profile.about_tabs_work'), t('profile.about_tabs_places'), t('profile.about_tabs_contact'), t('profile.about_tabs_details')].map((item, idx) => (
                                                 <Button
                                                     key={idx}
                                                     fullWidth
@@ -1717,7 +1715,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', '&:hover': { opacity: 0.8 } }}>
                                                     <AddIcon sx={{ color: 'primary.main', bgcolor: isDark ? 'rgba(45, 136, 255, 0.2)' : '#e7f3ff', borderRadius: '50%', p: 0.5 }} />
                                                     <Typography color="primary.main" fontSize={15} fontWeight={500}>
-                                                        Thêm nơi làm việc
+                                                        {t('profile.add_workplace')}
                                                     </Typography>
                                                 </Box>
                                             )}
@@ -1726,7 +1724,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                                 <SchoolIcon sx={{ color: textSecondary, fontSize: 24 }} />
                                                 <Typography color={textPrimary} fontSize={15}>
-                                                    Chưa có thông tin trường học
+                                                    {t('profile.no_school_info')}
                                                 </Typography>
                                             </Box>
 
@@ -1736,7 +1734,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                     <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                                         <HomeIcon sx={{ color: textSecondary, fontSize: 24 }} />
                                                         <Typography color={textPrimary} fontSize={15}>
-                                                            Sống tại <strong>{addr.ward?.name}, {addr.district?.name}, {addr.province?.name}</strong>
+                                                            {t('profile.lives_in')} <strong>{addr.ward?.name}, {addr.district?.name}, {addr.province?.name}</strong>
                                                         </Typography>
                                                     </Box>
                                                 ))
@@ -1744,7 +1742,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', '&:hover': { opacity: 0.8 } }} onClick={() => setEditModalOpen(true)}>
                                                     <AddIcon sx={{ color: 'primary.main', bgcolor: isDark ? 'rgba(45, 136, 255, 0.2)' : '#e7f3ff', borderRadius: '50%', p: 0.5 }} />
                                                     <Typography color="primary.main" fontSize={15} fontWeight={500}>
-                                                        Thêm thành phố hiện tại
+                                                        {t('profile.add_current_city')}
                                                     </Typography>
                                                 </Box>
                                             )}
@@ -1754,7 +1752,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                                     <CakeIcon sx={{ color: textSecondary, fontSize: 24 }} />
                                                     <Typography color={textPrimary} fontSize={15}>
-                                                        Sinh ngày <strong>{formatDate(profile.birthday)}</strong>
+                                                        {t('profile.birthday_label')} <strong>{formatDate(profile.birthday)}</strong>
                                                     </Typography>
                                                 </Box>
                                             )}
@@ -1794,7 +1792,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                                     <PublicIcon sx={{ color: textSecondary, fontSize: 24 }} />
                                                     <Typography color={textPrimary} fontSize={15}>
-                                                        Tham gia từ <strong>{formatDate(profile.createdAt)}</strong>
+                                                        {t('profile.joined_label')} <strong>{formatDate(profile.createdAt)}</strong>
                                                     </Typography>
                                                 </Box>
                                             )}
@@ -1811,11 +1809,11 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <CardContent>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                                     <Typography variant="h5" fontWeight={700} color={textPrimary}>
-                                        Bạn bè
+                                        {t('profile.friends_title')}
                                     </Typography>
                                     <Box sx={{ display: 'flex', gap: 1 }}>
                                         <TextField
-                                            placeholder="Tìm kiếm"
+                                            placeholder={t('profile.search_placeholder')}
                                             size="small"
                                             value={friendSearchQuery}
                                             onChange={(e) => setFriendSearchQuery(e.target.value)}
@@ -1838,20 +1836,20 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                             sx={{ textTransform: 'none', color: 'primary.main' }}
                                             onClick={() => navigateToFriends('requests')}
                                         >
-                                            Lời mời kết bạn
+                                            {t('profile.friend_requests')}
                                         </Button>
                                         <Button
                                             sx={{ textTransform: 'none', color: 'primary.main' }}
                                             onClick={() => navigateToFriends('suggestions')}
                                         >
-                                            Tìm bạn bè
+                                            {t('profile.find_friends')}
                                         </Button>
                                     </Box>
                                 </Box>
 
                                 <Tabs value={0} sx={{ mb: 2, '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
-                                    <Tab label="Tất cả bạn bè" onClick={() => navigateToFriends('list')} />
-                                    <Tab label="Thêm gần đây" onClick={() => navigateToFriends('recent')} />
+                                    <Tab label={t('profile.all_friends_tab')} onClick={() => navigateToFriends('list')} />
+                                    <Tab label={t('profile.recently_added_tab')} onClick={() => navigateToFriends('recent')} />
                                 </Tabs>
 
                                 {friendsLoading ? (
@@ -1860,7 +1858,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     </Box>
                                 ) : filteredFriends.length === 0 ? (
                                     <Typography color={textSecondary} textAlign="center" py={4}>
-                                        {friendSearchQuery ? 'Không tìm thấy bạn bè nào' : 'Chưa có bạn bè nào'}
+                                        {friendSearchQuery ? t('profile.no_friends_found') : t('profile.no_friends_yet')}
                                     </Typography>
                                 ) : (
                                     <Grid container spacing={2}>
@@ -1922,21 +1920,21 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <CardContent>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                                     <Typography variant="h5" fontWeight={700} color={textPrimary}>
-                                        Ảnh
+                                        {t('profile.photos_section')}
                                     </Typography>
                                     {isOwnProfile && (
                                         <Button
                                             sx={{ textTransform: 'none', color: 'primary.main' }}
                                             onClick={() => setCreatePostModalOpen(true)}
                                         >
-                                            Thêm ảnh/video
+                                            {t('profile.add_photo_video')}
                                         </Button>
                                     )}
                                 </Box>
 
                                 <Tabs value={0} sx={{ mb: 2, '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
-                                    <Tab label="Ảnh của bạn" />
-                                    <Tab label="Album" />
+                                    <Tab label={t('profile.your_photos_tab')} />
+                                    <Tab label={t('profile.albums_tab')} />
                                 </Tabs>
 
                                 {(() => {
@@ -1948,7 +1946,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     if (allPhotos.length === 0) {
                                         return (
                                             <Typography color={textSecondary} textAlign="center" py={4}>
-                                                Chưa có ảnh nào
+                                                {t('profile.no_photos')}
                                             </Typography>
                                         );
                                     }
@@ -2125,7 +2123,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <PersonRemoveIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
-                            primary="Hủy kết bạn"
+                            primary={t('profile.unfriend')}
                             primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
@@ -2140,13 +2138,13 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <BlockIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
-                            primary="Chặn người dùng"
+                            primary={t('profile.block_user_label')}
                             primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
                 </Menu>
 
-                {/* Profile Settings Menu */}
+                {/* Profile Settings Menu */}}
                 <Menu
                     anchorEl={profileSettingsAnchor}
                     open={Boolean(profileSettingsAnchor)}
@@ -2169,7 +2167,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <SearchIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
-                            primary="Tìm hỗ trợ hoặc báo cáo"
+                            primary={t('profile.find_support')}
                             primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
@@ -2183,8 +2181,8 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     <PauseCircleIcon sx={{ color: textPrimary }} />
                                 </ListItemIcon>
                                 <ListItemText
-                                    primary="Tạm khóa trang cá nhân"
-                                    secondary="Tạm ẩn trang cá nhân và thông tin của bạn"
+                                    primary={t('profile.deactivate_profile')}
+                                    secondary={t('profile.deactivate_description')}
                                     primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                                     secondaryTypographyProps={{ color: textSecondary, fontSize: 12 }}
                                 />
@@ -2197,7 +2195,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                     <SettingsIcon sx={{ color: textPrimary }} />
                                 </ListItemIcon>
                                 <ListItemText
-                                    primary="Cài đặt trang cá nhân"
+                                    primary={t('profile.profile_settings')}
                                     primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                                 />
                             </MenuItem>
@@ -2215,14 +2213,14 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 <BlockIcon sx={{ color: textPrimary }} />
                             </ListItemIcon>
                             <ListItemText
-                                primary="Chặn"
+                                primary={t('profile.block_label')}
                                 primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                             />
                         </MenuItem>
                     )}
                 </Menu>
 
-                {/* Avatar Menu */}
+                {/* Avatar Menu */}}
                 <Menu
                     anchorEl={avatarMenuAnchor}
                     open={Boolean(avatarMenuAnchor)}
@@ -2245,7 +2243,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <VisibilityIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
-                            primary="Xem ảnh đại diện"
+                            primary={t('profile.view_avatar')}
                             primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
@@ -2257,7 +2255,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <CloudUploadIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
-                            primary="Tải ảnh lên"
+                            primary={t('profile.upload_avatar')}
                             primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
@@ -2286,7 +2284,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <VisibilityIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
-                            primary="Xem ảnh bìa"
+                            primary={t('profile.view_cover')}
                             primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
@@ -2298,7 +2296,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <CloudUploadIcon sx={{ color: textPrimary }} />
                         </ListItemIcon>
                         <ListItemText
-                            primary="Tải ảnh bìa lên"
+                            primary={t('profile.upload_cover')}
                             primaryTypographyProps={{ color: textPrimary, fontWeight: 500 }}
                         />
                     </MenuItem>
@@ -2319,7 +2317,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                 >
                     <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${theme.palette.divider}` }}>
                         <Typography variant="h6" fontWeight={700} color={textPrimary}>
-                            Cập nhật ảnh bìa
+                            {t('profile.update_cover')}
                         </Typography>
                         <IconButton onClick={handleCloseCoverEditModal}>
                             <CloseIcon sx={{ color: textSecondary }} />
@@ -2339,7 +2337,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             {!coverPreviewUrl && (
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                                     <Typography color="white" fontSize={16}>
-                                        Chưa có ảnh bìa
+                                        {t('profile.no_cover_photo')}
                                     </Typography>
                                 </Box>
                             )}
@@ -2369,12 +2367,12 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         '&:hover': { borderColor: 'primary.main', bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#f0f2f5' }
                                     }}
                                 >
-                                    Chọn ảnh từ máy tính
+                                    {t('profile.select_from_computer')}
                                 </Button>
                             </label>
                             {selectedCoverFile && (
                                 <Typography color={textSecondary} fontSize={14} sx={{ mt: 1, textAlign: 'center' }}>
-                                    Đã chọn: {selectedCoverFile.name}
+                                    {t('profile.file_selected', { name: selectedCoverFile.name })}
                                 </Typography>
                             )}
                         </Box>
@@ -2384,7 +2382,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             onClick={handleCloseCoverEditModal}
                             sx={{ textTransform: 'none', color: textSecondary }}
                         >
-                            Hủy
+                            {t('profile.cancel')}
                         </Button>
                         <Button
                             variant="contained"
@@ -2398,7 +2396,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 '&:disabled': { bgcolor: isDark ? 'rgba(255,255,255,0.1)' : '#e4e6eb' }
                             }}
                         >
-                            {uploadingCover ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Lưu thay đổi'}
+                            {uploadingCover ? <CircularProgress size={20} sx={{ color: 'white' }} /> : t('profile.save_changes')}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -2442,7 +2440,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <BlockIcon sx={{ fontSize: 32, color: '#dc2626' }} />
                         </Box>
                         <Typography variant="h6" fontWeight={700}>
-                            Chặn {profile?.firstName} {profile?.lastName}?
+                            {t('profile.block_confirm_title', { name: `${profile?.firstName} ${profile?.lastName}` })}
                         </Typography>
                     </DialogTitle>
                     <DialogContent>
@@ -2452,17 +2450,17 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             textAlign="center"
                             sx={{ px: 2 }}
                         >
-                            Khi bạn chặn người này:
+                            {t('profile.block_when_you_block')}
                         </Typography>
                         <Box component="ul" sx={{ pl: 3, mt: 1, mb: 0, color: 'text.secondary' }}>
                             <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                                Họ sẽ không thể nhắn tin cho bạn
+                                {t('profile.block_cant_message_them')}
                             </Typography>
                             <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                                Bạn sẽ không thể nhắn tin cho họ
+                                {t('profile.block_cant_message_you')}
                             </Typography>
                             <Typography component="li" variant="body2">
-                                Cuộc trò chuyện sẽ bị ẩn khỏi danh sách của bạn
+                                {t('profile.block_conversation_hidden')}
                             </Typography>
                         </Box>
                     </DialogContent>
@@ -2483,7 +2481,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 }
                             }}
                         >
-                            Hủy
+                            {t('profile.cancel')}
                         </Button>
                         <Button
                             onClick={handleBlockUser}
@@ -2499,7 +2497,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 '&:disabled': { bgcolor: '#fca5a5' }
                             }}
                         >
-                            {isBlocking ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Chặn'}
+                            {isBlocking ? <CircularProgress size={20} sx={{ color: 'white' }} /> : t('profile.block_button')}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -2543,7 +2541,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             <BlockIcon sx={{ fontSize: 32, color: '#dc2626' }} />
                         </Box>
                         <Typography variant="h6" fontWeight={700}>
-                            Chặn {selectedFriend?.firstName} {selectedFriend?.lastName}?
+                            {t('profile.block_confirm_title', { name: `${selectedFriend?.firstName} ${selectedFriend?.lastName}` })}
                         </Typography>
                     </DialogTitle>
                     <DialogContent>
@@ -2553,17 +2551,17 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                             textAlign="center"
                             sx={{ px: 2 }}
                         >
-                            Khi bạn chặn người này:
+                            {t('profile.block_when_you_block')}
                         </Typography>
                         <Box component="ul" sx={{ pl: 3, mt: 1, mb: 0, color: 'text.secondary' }}>
                             <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                                Họ sẽ không thể nhắn tin cho bạn
+                                {t('profile.block_cant_message_them')}
                             </Typography>
                             <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                                Bạn sẽ không thể nhắn tin cho họ
+                                {t('profile.block_cant_message_you')}
                             </Typography>
                             <Typography component="li" variant="body2">
-                                Cuộc trò chuyện sẽ bị ẩn khỏi danh sách của bạn
+                                {t('profile.block_conversation_hidden')}
                             </Typography>
                         </Box>
                     </DialogContent>
@@ -2584,7 +2582,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 }
                             }}
                         >
-                            Hủy
+                            {t('profile.cancel')}
                         </Button>
                         <Button
                             onClick={handleBlockFriend}
@@ -2600,7 +2598,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                 '&:disabled': { bgcolor: '#fca5a5' }
                             }}
                         >
-                            {isBlocking ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Chặn'}
+                            {isBlocking ? <CircularProgress size={20} sx={{ color: 'white' }} /> : t('profile.block_button')}
                         </Button>
                     </DialogActions>
                 </Dialog>

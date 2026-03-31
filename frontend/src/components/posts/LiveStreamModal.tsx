@@ -39,6 +39,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadLivestreamVideo } from '@/services/api-video.service';
 import { getCommentsByPost } from '@/services/comment.service';
+import { useTranslation } from 'react-i18next';
 
 interface LiveStreamModalProps {
     open: boolean;
@@ -64,6 +65,7 @@ const LIVE_REACTIONS = ['❤️', '👍', '😂', '😮', '😢', '🔥'];
 
 export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps) {
     const theme = useTheme();
+    const { t } = useTranslation();
     const isDark = theme.palette.mode === 'dark';
     const { user } = useAuthStore();
     const { socket } = useSocket();
@@ -130,7 +132,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
         } catch (err) {
             console.error("Camera Error:", err);
             setCameraError(true);
-            toast.error("Không thể truy cập Camera");
+            toast.error(t('livestream.camera_error'));
         } finally {
             setIsLoadingSource(false);
         }
@@ -164,7 +166,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
             };
         } catch (err) {
             console.error("Screen Share Error:", err);
-            toast.error("Không thể chia sẻ màn hình");
+            toast.error(t('livestream.screen_share_error'));
         } finally {
             setIsLoadingSource(false);
         }
@@ -379,7 +381,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
 
     const handleClose = () => {
         if (isLive) {
-            if (confirm("Kết thúc Live stream?")) handleEndLive();
+            if (confirm(t('livestream.end_confirm'))) handleEndLive();
         } else {
             stopStream();
             setStreamSource(null);
@@ -436,10 +438,10 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
             // 3. Join socket room for P2P viewing
             socket?.emit('livestream:join', { postId: post._id });
 
-            toast.success('Đang phát trực tiếp!');
+            toast.success(t('livestream.started'));
         } catch (error) {
             console.error('Start live error:', error);
-            toast.error('Không thể bắt đầu livestream');
+            toast.error(t('livestream.start_error'));
         }
     };
 
@@ -528,7 +530,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                     gap: 2
                 }}>
                     <CircularProgress sx={{ color: 'white' }} size={48} />
-                    <Typography sx={{ color: 'white', fontWeight: 500 }}>Đang lưu video...</Typography>
+                    <Typography sx={{ color: 'white', fontWeight: 500 }}>{t('livestream.saving_video')}</Typography>
                 </Box>
             )}
 
@@ -546,7 +548,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                     }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                             <Typography variant="h6" sx={{ fontWeight: 700, color: textPrimary }}>
-                                {isLive ? '🔴 Đang phát trực tiếp' : 'Phát trực tiếp'}
+                                {isLive ? `🔴 ${t('livestream.live_now')}` : t('livestream.go_live')}
                             </Typography>
                             {isLive && (
                                 <>
@@ -558,7 +560,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                                     />
                                     <Chip
                                         icon={<VisibilityIcon sx={{ fontSize: 14 }} />}
-                                        label={`${viewers} người xem`}
+                                        label={t('livestream.viewers_count', { count: viewers })}
                                         size="small"
                                         sx={{ bgcolor: bgTertiary }}
                                     />
@@ -583,14 +585,14 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                         {isLoadingSource && (
                             <Box sx={{ textAlign: 'center' }}>
                                 <CircularProgress sx={{ color: 'white' }} />
-                                <Typography sx={{ mt: 2, color: 'gray' }}>Đang khởi tạo...</Typography>
+                                <Typography sx={{ mt: 2, color: 'gray' }}>{t('livestream.initializing')}</Typography>
                             </Box>
                         )}
 
                         {cameraError && (
                             <Box sx={{ textAlign: 'center' }}>
                                 <VideocamOffIcon sx={{ fontSize: 64, color: errorColor, mb: 2 }} />
-                                <Typography color="error">Không tìm thấy Camera</Typography>
+                                <Typography color="error">{t('livestream.camera_not_found')}</Typography>
                             </Box>
                         )}
 
@@ -598,7 +600,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                         {!streamSource && !isLoadingSource && !cameraError && (
                             <Box sx={{ textAlign: 'center', p: 4 }}>
                                 <Typography variant="h5" sx={{ mb: 4, color: 'white', fontWeight: 600 }}>
-                                    Chọn nguồn phát
+                                    {t('livestream.select_source')}
                                 </Typography>
                                 <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
                                     <Box
@@ -618,7 +620,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                                         }}
                                     >
                                         <VideocamIcon sx={{ fontSize: 48, color: primaryColor, mb: 1 }} />
-                                        <Typography sx={{ color: 'white', fontWeight: 600 }}>Camera</Typography>
+                                        <Typography sx={{ color: 'white', fontWeight: 600 }}>{t('livestream.camera')}</Typography>
                                     </Box>
                                     <Box
                                         onClick={startScreenShare}
@@ -637,7 +639,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                                         }}
                                     >
                                         <ScreenShareIcon sx={{ fontSize: 48, color: '#ec4899', mb: 1 }} />
-                                        <Typography sx={{ color: 'white', fontWeight: 600 }}>Màn hình</Typography>
+                                        <Typography sx={{ color: 'white', fontWeight: 600 }}>{t('livestream.screen')}</Typography>
                                     </Box>
                                 </Box>
                             </Box>
@@ -695,7 +697,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
 
                                     <TextField
                                         fullWidth
-                                        placeholder="Tiêu đề buổi live..."
+                                        placeholder={t('livestream.title_placeholder')}
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
                                         sx={{
@@ -708,7 +710,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                                     />
 
                                     <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1.5, mb: 2 }}>
-                                        <Tooltip title={isMuted ? "Bật mic" : "Tắt mic"}>
+                                        <Tooltip title={isMuted ? t('livestream.unmute_mic') : t('livestream.mute_mic')}>
                                             <IconButton
                                                 onClick={toggleAudio}
                                                 sx={{
@@ -720,7 +722,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                                                 {isMuted ? <MicOffIcon /> : <MicIcon />}
                                             </IconButton>
                                         </Tooltip>
-                                        <Tooltip title={isVideoOff ? "Bật camera" : "Tắt camera"}>
+                                        <Tooltip title={isVideoOff ? t('livestream.turn_on_camera') : t('livestream.turn_off_camera')}>
                                             <IconButton
                                                 onClick={toggleVideo}
                                                 sx={{
@@ -732,7 +734,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                                                 {isVideoOff ? <VideocamOffIcon /> : <VideocamIcon />}
                                             </IconButton>
                                         </Tooltip>
-                                        <Tooltip title="Đổi nguồn">
+                                        <Tooltip title={t('livestream.switch_source')}>
                                             {/* Old handlers removed */}
                                             <IconButton
                                                 onClick={() => { stopStream(); setStreamSource(null); }}
@@ -757,7 +759,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                                             '&:hover': { bgcolor: alpha(errorColor, 0.9) }
                                         }}
                                     >
-                                        Phát trực tiếp
+                                        {t('livestream.start_live')}
                                     </Button>
                                 </Box>
                             )
@@ -773,7 +775,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                                         '&:hover': { bgcolor: alpha(primaryColor, 0.9) }
                                     }}
                                 >
-                                    Kết thúc Live
+                                    {t('livestream.end_live')}
                                 </Button>
                                 <IconButton
                                     onClick={toggleAudio}
@@ -813,7 +815,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                             justifyContent: 'space-between'
                         }}>
                             <Typography sx={{ fontWeight: 700, color: textPrimary, fontSize: 16 }}>
-                                Bình luận trực tiếp
+                                {t('livestream.live_comments')}
                             </Typography>
                             <Chip
                                 label={comments.length}
@@ -836,8 +838,8 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                         }}>
                             {comments.length === 0 ? (
                                 <Box sx={{ textAlign: 'center', py: 4, opacity: 0.7 }}>
-                                    <Typography variant="body2" sx={{ color: textSecondary }}>Chưa có bình luận</Typography>
-                                    <Typography variant="caption" sx={{ color: textSecondary }}>Hãy bắt đầu trò chuyện với khán giả!</Typography>
+                                    <Typography variant="body2" sx={{ color: textSecondary }}>{t('livestream.no_comments')}</Typography>
+                                    <Typography variant="caption" sx={{ color: textSecondary }}>{t('livestream.start_chatting')}</Typography>
                                 </Box>
                             ) : (
                                 <AnimatePresence initial={false}>
@@ -904,7 +906,7 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
                             <TextField
                                 fullWidth
                                 size="small"
-                                placeholder="Viết bình luận..."
+                                placeholder={t('livestream.write_comment')}
                                 value={commentInput}
                                 onChange={(e) => setCommentInput(e.target.value)}
                                 onKeyPress={(e) => e.key === 'Enter' && handleSendComment()}

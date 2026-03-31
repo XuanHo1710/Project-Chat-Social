@@ -30,6 +30,7 @@ import { groupService } from '@/services/group.service';
 import { GroupMember } from '@/types/group';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 interface TransferOwnershipDialogProps {
     open: boolean;
@@ -47,6 +48,7 @@ export default function TransferOwnershipDialog({
     onTransferred,
 }: TransferOwnershipDialogProps) {
     const { user } = useAuthStore();
+    const { t } = useTranslation();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const [members, setMembers] = useState<GroupMember[]>([]);
@@ -103,12 +105,11 @@ export default function TransferOwnershipDialog({
         setIsTransferring(true);
         try {
             await groupService.transferOwnership(groupId, selectedMember._id);
-            toast.success(`Đã chuyển quyền sở hữu nhóm cho ${selectedMember.firstName} ${selectedMember.lastName}`);
+            toast.success(t('transfer_ownership.success_message', { name: `${selectedMember.firstName} ${selectedMember.lastName}` }));
             onTransferred();
             onClose();
         } catch {
-            const message = 'Không thể chuyển quyền sở hữu';
-            toast.error(message);
+            toast.error(t('transfer_ownership.error_message'));
         } finally {
             setIsTransferring(false);
         }
@@ -141,7 +142,7 @@ export default function TransferOwnershipDialog({
                 pb: 2
             }}>
                 <Typography variant="h6" fontWeight={700}>
-                    {confirmStep ? 'Xác nhận chuyển quyền' : 'Chuyển quyền sở hữu nhóm'}
+                    {confirmStep ? t('transfer_ownership.confirm_title') : t('transfer_ownership.title')}
                 </Typography>
                 <IconButton onClick={onClose} size="small">
                     <CloseIcon />
@@ -153,12 +154,10 @@ export default function TransferOwnershipDialog({
                     <Box>
                         <Alert severity="warning" sx={{ mb: 2 }}>
                             <Typography fontWeight={600} sx={{ mb: 1 }}>
-                                Bạn có chắc chắn muốn chuyển quyền sở hữu nhóm {groupName}?
+                                {t('transfer_ownership.confirm_message', { groupName })}
                             </Typography>
                             <Typography variant="body2">
-                                Hành động này sẽ chuyển tất cả quyền quản trị viên cao nhất cho{' '}
-                                <strong>{selectedMember.firstName} {selectedMember.lastName}</strong>.
-                                Bạn sẽ vẫn là quản trị viên của nhóm nhưng không còn là chủ sở hữu.
+                                {t('transfer_ownership.description', { name: `${selectedMember.firstName} ${selectedMember.lastName}` })}
                             </Typography>
                         </Alert>
 
@@ -183,7 +182,7 @@ export default function TransferOwnershipDialog({
                         <Box sx={{ p: 2, borderBottom: `1px solid ${borderColor}` }}>
                             <TextField
                                 fullWidth
-                                placeholder="Tìm thành viên..."
+                                placeholder={t('transfer_ownership.search_placeholder')}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 InputProps={{
@@ -211,7 +210,7 @@ export default function TransferOwnershipDialog({
                                 </Box>
                             ) : filteredMembers.length === 0 ? (
                                 <Typography color={secondaryText} sx={{ textAlign: 'center', py: 4 }}>
-                                    {members.length === 0 ? 'Không có thành viên nào khác trong nhóm' : 'Không tìm thấy thành viên'}
+                                    {members.length === 0 ? t('transfer_ownership.no_other_members') : t('transfer_ownership.no_members_found')}
                                 </Typography>
                             ) : (
                                 <List>
@@ -266,7 +265,7 @@ export default function TransferOwnershipDialog({
                                 fontWeight: 600,
                             }}
                         >
-                            Quay lại
+                            {t('common.back')}
                         </Button>
                         <Button
                             onClick={handleTransfer}
@@ -278,7 +277,7 @@ export default function TransferOwnershipDialog({
                                 fontWeight: 600,
                             }}
                         >
-                            {isTransferring ? <CircularProgress size={20} color="inherit" /> : 'Xác nhận chuyển quyền'}
+                            {isTransferring ? <CircularProgress size={20} color="inherit" /> : t('transfer_ownership.confirm_button')}
                         </Button>
                     </>
                 ) : (
@@ -291,7 +290,7 @@ export default function TransferOwnershipDialog({
                                 fontWeight: 600,
                             }}
                         >
-                            Hủy
+                            {t('common.cancel')}
                         </Button>
                         <Button
                             onClick={handleConfirm}
@@ -304,7 +303,7 @@ export default function TransferOwnershipDialog({
                                 '&:hover': { bgcolor: 'primary.dark' },
                             }}
                         >
-                            Tiếp tục
+                            {t('common.continue')}
                         </Button>
                     </>
                 )}

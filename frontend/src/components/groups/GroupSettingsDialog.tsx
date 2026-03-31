@@ -29,6 +29,7 @@ import {
 import { groupService } from '@/services/group.service';
 import { Group, GroupPrivacy, GroupVisibility, UpdateGroupData } from '@/types/group';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 interface GroupSettingsDialogProps {
     open: boolean;
@@ -44,6 +45,7 @@ export default function GroupSettingsDialog({
     onGroupUpdated,
 }: GroupSettingsDialogProps) {
     const theme = useTheme();
+    const { t } = useTranslation();
     const isDark = theme.palette.mode === 'dark';
     const [name, setName] = useState(group.name);
     const [description, setDescription] = useState(group.description || '');
@@ -62,7 +64,7 @@ export default function GroupSettingsDialog({
 
     const handleSave = async () => {
         if (!name.trim()) {
-            toast.error('Tên nhóm không được để trống');
+            toast.error(t('group_settings.name_required'));
             return;
         }
 
@@ -77,11 +79,10 @@ export default function GroupSettingsDialog({
 
             await groupService.updateGroup(group._id, updateData);
             onGroupUpdated(updateData);
-            toast.success('Đã cập nhật cài đặt nhóm');
+            toast.success(t('group_settings.updated_success'));
             onClose();
         } catch {
-            const message = 'Không thể cập nhật cài đặt';
-            toast.error(message);
+            toast.error(t('group_settings.update_error'));
         } finally {
             setIsSaving(false);
         }
@@ -105,7 +106,7 @@ export default function GroupSettingsDialog({
                 pb: 2
             }}>
                 <Typography variant="h6" fontWeight={700}>
-                    Cài đặt nhóm
+                    {t('group_settings.title')}
                 </Typography>
                 <IconButton onClick={onClose} size="small">
                     <CloseIcon />
@@ -116,13 +117,13 @@ export default function GroupSettingsDialog({
                 {/* Group Name */}
                 <Box sx={{ mb: 3 }}>
                     <Typography fontWeight={600} sx={{ mb: 1 }}>
-                        Tên nhóm
+                        {t('group_settings.group_name_label')}
                     </Typography>
                     <TextField
                         fullWidth
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="Nhập tên nhóm"
+                        placeholder={t('group_settings.group_name_placeholder')}
                         inputProps={{ maxLength: 100 }}
                         sx={{
                             '& .MuiOutlinedInput-root': {
@@ -135,7 +136,7 @@ export default function GroupSettingsDialog({
                 {/* Description */}
                 <Box sx={{ mb: 3 }}>
                     <Typography fontWeight={600} sx={{ mb: 1 }}>
-                        Giới thiệu về nhóm
+                        {t('group_settings.group_description_label')}
                     </Typography>
                     <TextField
                         fullWidth
@@ -143,7 +144,7 @@ export default function GroupSettingsDialog({
                         rows={4}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Mô tả về nhóm của bạn..."
+                        placeholder={t('group_settings.group_description_placeholder')}
                         inputProps={{ maxLength: 2000 }}
                         sx={{
                             '& .MuiOutlinedInput-root': {
@@ -152,7 +153,7 @@ export default function GroupSettingsDialog({
                         }}
                     />
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                        {description.length}/2000 ký tự
+                        {t('group_settings.character_count', { count: description.length })}
                     </Typography>
                 </Box>
 
@@ -161,7 +162,7 @@ export default function GroupSettingsDialog({
                 {/* Privacy Settings */}
                 <Box sx={{ mb: 3 }}>
                     <Typography fontWeight={600} sx={{ mb: 1 }}>
-                        Quyền riêng tư
+                        {t('group_settings.privacy_label')}
                     </Typography>
                     <FormControl component="fieldset">
                         <RadioGroup
@@ -175,9 +176,9 @@ export default function GroupSettingsDialog({
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
                                         <PublicIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                         <Box>
-                                            <Typography fontWeight={500}>Công khai</Typography>
+                                            <Typography fontWeight={500}>{t('group_settings.public')}</Typography>
                                             <Typography variant="body2" color="text.secondary">
-                                                Ai cũng có thể xem bài viết và tham gia nhóm
+                                                {t('group_settings.public_description')}
                                             </Typography>
                                         </Box>
                                     </Box>
@@ -191,9 +192,9 @@ export default function GroupSettingsDialog({
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
                                         <LockIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                         <Box>
-                                            <Typography fontWeight={500}>Riêng tư</Typography>
+                                            <Typography fontWeight={500}>{t('group_settings.private')}</Typography>
                                             <Typography variant="body2" color="text.secondary">
-                                                Chỉ thành viên mới xem được bài viết. Cần được duyệt để tham gia.
+                                                {t('group_settings.private_description')}
                                             </Typography>
                                         </Box>
                                     </Box>
@@ -207,7 +208,7 @@ export default function GroupSettingsDialog({
                 {/* Visibility Settings */}
                 <Box sx={{ mb: 2 }}>
                     <Typography fontWeight={600} sx={{ mb: 1 }}>
-                        Hiển thị
+                        {t('group_settings.visibility_label')}
                     </Typography>
                     <FormControl component="fieldset">
                         <RadioGroup
@@ -221,9 +222,9 @@ export default function GroupSettingsDialog({
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
                                         <VisibilityIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                         <Box>
-                                            <Typography fontWeight={500}>Hiển thị</Typography>
+                                            <Typography fontWeight={500}>{t('group_settings.visible')}</Typography>
                                             <Typography variant="body2" color="text.secondary">
-                                                Ai cũng có thể tìm thấy nhóm này
+                                                {t('group_settings.visible_description')}
                                             </Typography>
                                         </Box>
                                     </Box>
@@ -237,9 +238,9 @@ export default function GroupSettingsDialog({
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
                                         <VisibilityOffIcon sx={{ color: 'text.secondary', mt: 0.5 }} />
                                         <Box>
-                                            <Typography fontWeight={500}>Ẩn</Typography>
+                                            <Typography fontWeight={500}>{t('group_settings.hidden')}</Typography>
                                             <Typography variant="body2" color="text.secondary">
-                                                Chỉ thành viên mới có thể tìm thấy nhóm này
+                                                {t('group_settings.hidden_description')}
                                             </Typography>
                                         </Box>
                                     </Box>
@@ -260,7 +261,7 @@ export default function GroupSettingsDialog({
                         fontWeight: 600,
                     }}
                 >
-                    Hủy
+                    {t('common.cancel')}
                 </Button>
                 <Button
                     onClick={handleSave}
@@ -273,7 +274,7 @@ export default function GroupSettingsDialog({
                         '&:hover': { bgcolor: 'primary.dark' },
                     }}
                 >
-                    {isSaving ? <CircularProgress size={20} color="inherit" /> : 'Lưu thay đổi'}
+                    {isSaving ? <CircularProgress size={20} color="inherit" /> : t('group_settings.save_button')}
                 </Button>
             </DialogActions>
         </Dialog>

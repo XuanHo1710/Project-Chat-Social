@@ -87,10 +87,10 @@ export default function AdminSidebar({ mobileOpen = false, onMobileClose }: Admi
                 </Box>
                 <Box>
                     <Typography sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2, letterSpacing: -0.3 }}>
-                        SOCIAL
+                        {t('admin.logo_text', 'SOCIAL')}
                     </Typography>
                     <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>
-                        Admin Panel
+                        {t('admin.admin_panel_label', 'Admin Panel')}
                     </Typography>
                 </Box>
             </Box>

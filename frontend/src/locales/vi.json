@@ -108,7 +108,9 @@
     "sent": "Đã gửi",
     "sending": "Đang gửi...",
     "sent_successfully": "Gửi thành công",
-    "no_data": "Không có dữ liệu"
+    "no_data": "Không có dữ liệu",
+    "continue": "Tiếp tục",
+    "save_changes": "Lưu thay đổi"
   },
   "address": {
     "home": "Nhà",
@@ -143,7 +145,8 @@
     "language": "Ngôn ngữ",
     "language_title": "Ngôn ngữ",
     "vietnamese": "Tiếng Việt",
-    "english": "English (US)"
+    "english": "English (US)",
+    "footer_text": "Quyền riêng tư · Điều khoản · Quảng cáo · Lựa chọn quảng cáo · Cookie · Xem thêm · Meta © 2025"
   },
   "auth": {
     "login_title": "Chào mừng trở lại",
@@ -245,7 +248,9 @@
     "advertising": "Quảng cáo",
     "adChoices": "Lựa chọn quảng cáo",
     "cookies": "Cookie",
-    "more": "Xem thêm"
+    "more": "Xem thêm",
+    "ad_choices": "Lựa chọn quảng cáo",
+    "meta_copyright": "Meta © 2025"
   },
   "post": {
     "anonymous_post": "Bài viết ẩn danh",
@@ -367,7 +372,9 @@
     "hide_post_desc": "Ẩn bớt các bài viết tương tự.",
     "snooze_30_days": "Tạm ẩn trong 30 ngày",
     "show_less": "Ẩn bớt",
-    "show_more": "Xem thêm"
+    "show_more": "Xem thêm",
+    "livestream_start_error": "Không thể bắt đầu livestream",
+    "livestream_started": "Đang phát trực tiếp!"
   },
   "story": {
     "create_story": "Tạo tin",
@@ -392,7 +399,8 @@
     "video_too_long": "Video không được dài quá 15 giây",
     "public_desc": "Bất kỳ ai đều có thể xem",
     "friends_desc": "Bạn bè của bạn",
-    "only_me_desc": "Chỉ bạn có thể xem"
+    "only_me_desc": "Chỉ bạn có thể xem",
+    "reply_error": "Không thể gửi phản hồi"
   },
   "call": {
     "group_call_from": "Cuộc gọi nhóm từ {{name}}",
@@ -407,7 +415,8 @@
     "join_error": "Không thể tham gia – kiểm tra quyền Microphone",
     "camera_enabled": "Camera đã được bật",
     "camera_error": "Không thể truy cập Camera",
-    "switch_camera_error": "Không thể chuyển camera"
+    "switch_camera_error": "Không thể chuyển camera",
+    "share_screen_error": "Không thể chia sẻ màn hình"
   },
   "call_history": {
     "voice_call": "Cuộc gọi thoại",
@@ -454,7 +463,9 @@
     "friend_since": "Bạn bè từ {{date}}",
     "lives_in": "Sống tại {{location}}",
     "works_at": "Làm việc tại {{company}}",
-    "studied_at": "Học tại {{school}}"
+    "studied_at": "Học tại {{school}}",
+    "friend_request_error": "Không thể gửi lời mời kết bạn",
+    "friend_request_success": "Đã gửi lời mời kết bạn!"
   },
   "chat": {
     "messages": "Tin nhắn",
@@ -733,7 +744,16 @@
     "invite_pending": "Đang chờ",
     "invited": "Đã mời",
     "invite_sent": "Đã gửi lời mời!",
-    "invite_failed": "Không thể gửi lời mời"
+    "invite_failed": "Không thể gửi lời mời",
+    "transfer_ownership_success": "Đã chuyển quyền sở hữu nhóm cho {{name}}",
+    "transfer_ownership_error": "Không thể chuyển quyền sở hữu",
+    "settings_update_success": "Đã cập nhật cài đặt nhóm",
+    "settings_update_error": "Không thể cập nhật cài đặt",
+    "member_remove_success": "Đã xóa {{name}} khỏi nhóm",
+    "member_remove_error": "Không thể xóa thành viên",
+    "member_role_update_success": "Đã cập nhật vai trò của {{name}}",
+    "member_role_update_error": "Không thể cập nhật vai trò",
+    "privacy_label": "Quyền riêng tư"
   },
   "notifications": {
     "notifications": "Thông báo",
@@ -945,7 +965,62 @@
     "upload_cover_success": "Tải ảnh bìa thành công!",
     "update_success": "Cập nhật thông tin thành công!",
     "update_error": "Lỗi khi cập nhật thông tin",
-    "not_found": "Không tìm thấy người dùng"
+    "not_found": "Không tìm thấy người dùng",
+    "block_user_error": "Không thể chặn người dùng",
+    "block_cant_message_them": "Họ sẽ không thể nhắn tin cho bạn",
+    "block_cant_message_you": "Bạn sẽ không thể nhắn tin cho họ",
+    "post_deleted": "Xóa bài viết thành công!",
+    "post_delete_error": "Lỗi khi xóa bài viết",
+    "live_label": "TRỰC TIẾFP",
+    "user_is_live": "{{name}} đang phát trực tiếp",
+    "join_now": "Bấm để tham gia ngay ▶",
+    "live_ended": "Video trực tiếp đã kết thúc",
+    "replay": "Phát lại",
+    "video_not_saved": "Video không được lưu",
+    "friends_section": "Bạn bè",
+    "view_all_friends": "Xem tất cả bạn bè",
+    "no_friends": "Chưa có bạn bè nào",
+    "whats_on_mind": "{{name}} ơi, bạn đang nghĩ gì thế?",
+    "loading_more": "Đang tải thêm...",
+    "all_posts_loaded": "Đã hiển thị tất cả bài viết",
+    "about_section": "Giới thiệu",
+    "about_tabs_overview": "Tổng quan",
+    "about_tabs_work": "Công việc và học vấn",
+    "about_tabs_places": "Nơi từng sống",
+    "about_tabs_contact": "Thông tin liên hệ và cơ bản",
+    "about_tabs_details": "Chi tiết về bạn",
+    "no_school_info": "Chưa có thông tin trường học",
+    "add_current_city": "Thêm thành phố hiện tại",
+    "birthday_label": "Sinh ngày",
+    "joined_label": "Tham gia từ",
+    "friends_title": "Bạn bè",
+    "search_placeholder": "Tìm kiếm",
+    "friend_requests": "Lời mời kết bạn",
+    "find_friends": "Tìm bạn bè",
+    "all_friends_tab": "Tất cả bạn bè",
+    "recently_added_tab": "Thêm gần đây",
+    "no_friends_found": "Không tìm thấy bạn bè nào",
+    "no_friends_yet": "Chưa có bạn bè nào",
+    "photos_section": "Ảnh",
+    "add_photo_video": "Thêm ảnh/video",
+    "your_photos_tab": "Ảnh của bạn",
+    "albums_tab": "Album",
+    "block_user_label": "Chặn người dùng",
+    "find_support": "Tìm hỗ trợ hoặc báo cáo",
+    "deactivate_profile": "Tạm khóa trang cá nhân",
+    "deactivate_description": "Tạm ẩn trang cá nhân và thông tin của bạn",
+    "profile_settings": "Cài đặt trang cá nhân",
+    "block_label": "Chặn",
+    "update_cover": "Cập nhật ảnh bìa",
+    "no_cover_photo": "Chưa có ảnh bìa",
+    "select_from_computer": "Chọn ảnh từ máy tính",
+    "file_selected": "Đã chọn: {{name}}",
+    "cancel": "Hủy",
+    "save_changes": "Lưu thay đổi",
+    "block_confirm_title": "Chặn {{name}}?",
+    "block_when_you_block": "Khi bạn chặn người này:",
+    "block_conversation_hidden": "Cuộc trò chuyện sẽ bị ẩn khỏi danh sách của bạn",
+    "block_button": "Chặn"
   },
   "settings": {
     "title": "Cài đặt",
@@ -1401,7 +1476,10 @@
     "never_logged_in": "Chưa đăng nhập",
     "close": "Đóng",
     "options": "Tùy chọn",
-    "no_comments": "Chưa có bình luận nào"
+    "no_comments": "Chưa có bình luận nào",
+    "logo_text": "SOCIAL",
+    "admin_panel_label": "Bảng điều khiển",
+    "admin_user_default": "Quản trị viên"
   },
   "messenger_popup": {
     "header": "Đoạn chat",
@@ -1438,7 +1516,11 @@
     "demote_member": "Hạ xuống Thành viên",
     "remove_from_group": "Xóa khỏi nhóm",
     "removing": "Đang xóa...",
-    "no_members_found": "Không tìm thấy thành viên"
+    "no_members_found": "Không tìm thấy thành viên",
+    "member_removed": "Đã xóa {{name}} khỏi nhóm",
+    "remove_error": "Không thể xóa thành viên",
+    "role_updated": "Đã cập nhật vai trò của {{name}}",
+    "role_update_error": "Không thể cập nhật vai trò"
   },
   "reactions": {
     "title": "Cảm xúc về bài viết",
@@ -1468,5 +1550,86 @@
     "share_error": "Có lỗi xảy ra khi chia sẻ bài viết",
     "copy_success": "Đã sao chép liên kết!",
     "see_more": "Xem thêm"
+  },
+  "transfer_ownership": {
+    "title": "Chuyển quyền sở hữu nhóm",
+    "confirm_title": "Xác nhận chuyển quyền",
+    "confirm_message": "Bạn có chắc chắn muốn chuyển quyền sở hữu nhóm {{groupName}}?",
+    "description": "Hành động này sẽ chuyển tất cả quyền quản trị viên cao nhất cho {{name}}. Bạn sẽ vẫn là quản trị viên của nhóm nhưng không còn là chủ sở hữu.",
+    "search_placeholder": "Tìm thành viên...",
+    "no_other_members": "Không có thành viên nào khác trong nhóm",
+    "no_members_found": "Không tìm thấy thành viên",
+    "confirm_button": "Xác nhận chuyển quyền",
+    "success_message": "Đã chuyển quyền sở hữu nhóm cho {{name}}",
+    "error_message": "Không thể chuyển quyền sở hữu"
+  },
+  "story_viewer": {
+    "reply_sent": "Đã gửi phản hồi",
+    "reply_failed": "Không thể gửi phản hồi",
+    "delete_story": "Xóa tin",
+    "message_placeholder": "Gửi tin nhắn...",
+    "views_count": "người xem"
+  },
+  "group_settings": {
+    "title": "Cài đặt nhóm",
+    "name_required": "Tên nhóm không được để trống",
+    "updated_success": "Đã cập nhật cài đặt nhóm",
+    "update_error": "Không thể cập nhật cài đặt",
+    "group_name_label": "Tên nhóm",
+    "group_name_placeholder": "Nhập tên nhóm",
+    "group_description_label": "Giới thiệu về nhóm",
+    "group_description_placeholder": "Mô tả về nhóm của bạn...",
+    "character_count": "{{count}}/2000 ký tự",
+    "privacy_label": "Quyền riêng tư",
+    "public": "Công khai",
+    "public_description": "Ai cũng có thể xem bài viết và tham gia nhóm",
+    "private": "Riêng tư",
+    "private_description": "Chỉ thành viên mới xem được bài viết. Cần được duyệt để tham gia.",
+    "visibility_label": "Hiển thị",
+    "visible": "Hiển thị",
+    "visible_description": "Ai cũng có thể tìm thấy nhóm này",
+    "hidden": "Ẩn",
+    "hidden_description": "Chỉ thành viên mới có thể tìm thấy nhóm này",
+    "save_button": "Lưu thay đổi"
+  },
+  "card_friend": {
+    "sending": "Đang gửi...",
+    "add_friend": "Thêm bạn",
+    "canceling": "Đang hủy...",
+    "cancel": "Hủy",
+    "request_error": "Không thể gửi lời mời kết bạn",
+    "request_sent": "Đã gửi lời mời kết bạn",
+    "cancel_error": "Không thể hủy lời mời",
+    "cancel_success": "Đã hủy lời mời kết bạn"
+  },
+  "livestream": {
+    "camera_error": "Không thể truy cập Camera",
+    "screen_share_error": "Không thể chia sẻ màn hình",
+    "end_confirm": "Kết thúc Live stream?",
+    "started": "Đang phát trực tiếp!",
+    "start_error": "Không thể bắt đầu livestream",
+    "saving_video": "Đang lưu video...",
+    "live_now": "Đang phát trực tiếp",
+    "go_live": "Phát trực tiếp",
+    "viewers_count": "{{count}} người xem",
+    "initializing": "Đang khởi tạo...",
+    "camera_not_found": "Không tìm thấy Camera",
+    "select_source": "Chọn nguồn phát",
+    "camera": "Camera",
+    "screen_share": "Màn hình",
+    "mute_mic": "Tắt mic",
+    "unmute_mic": "Bật mic",
+    "turn_off_camera": "Tắt camera",
+    "turn_on_camera": "Bật camera",
+    "switch_source": "Đổi nguồn",
+    "start_live": "Phát trực tiếp",
+    "end_live": "Kết thúc Live",
+    "live_comments": "Bình luận trực tiếp",
+    "no_comments": "Chưa có bình luận",
+    "write_comment": "Viết bình luận...",
+    "description_placeholder": "Viết mô tả cho live stream...",
+    "title_placeholder": "Tiêu đề buổi live...",
+    "start_chatting": "Hãy bắt đầu trò chuyện với khán giả!",
+    "screen": "Màn hình"
   }
 }

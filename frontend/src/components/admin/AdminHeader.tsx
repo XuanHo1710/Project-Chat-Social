@@ -108,7 +108,7 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
                         <Box sx={{ ml: 1, display: 'flex', alignItems: 'center', gap: 1, pl: 1.5, borderLeft: '1px solid', borderColor: 'divider' }}>
                             <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
                                 <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>
-                                    {user?.fullName || "Administrator"}
+                                    {user?.fullName || t('admin.admin_user_default', 'Administrator')}
                                 </Typography>
                                 <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
                                     {user?.role === 'ADMIN' ? t('admin.super_admin') : t('admin.employee')}

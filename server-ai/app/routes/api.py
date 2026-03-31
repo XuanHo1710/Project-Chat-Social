@@ -1,12 +1,14 @@
 """
-API ROUTES - OPTIMIZED
+API ROUTES - OPTIMIZED (v5.0)
 ======================
 Endpoints:
-1. GET /search - Tìm posts theo query
+1. GET /search - Tìm posts theo query (chunk-level search + post dedup)
 2. GET /recommend/{user_id} - Gợi ý cho user
 3. GET /newsfeed/{user_id} - Newsfeed (alias của recommend)
 4. GET /similar/{post_id} - Posts tương tự
-5. GET /status - Trạng thái service
+5. POST /embed/post - Embed single post (with chunking)
+6. GET /queries/similar - Find similar past queries (RAG feedback)
+7. GET /status - Trạng thái service
 """
 
 from typing import Optional, List
@@ -182,17 +184,24 @@ class ChatBotRequest(BaseModel):
 @router.post("/chat/bot")
 async def chat_bot_post(request: ChatBotRequest):
     """
-    🤖 Gửi tin nhắn đến chatbot AI (với chat history và image support)
+    🤖 RAG-powered chatbot with full context injection
+    
+    RAG Workflow (matching the diagram):
+    1. User sends query
+    2. Query is embedded and searched against vector DB (chunks)
+    3. Retrieved chunks are injected into LLM prompt as context
+    4. LLM generates response grounded in actual post content
+    5. Response + relevant post IDs returned to user
     
     Request Body:
-    - message: tin nhắn hiện tại
-    - chatHistory: 15 messages gần nhất (để AI hiểu ngữ cảnh)
-    - imageUrls: URLs của ảnh đính kèm (nếu có)
+    - message: current message
+    - chatHistory: last 15 messages for context
+    - imageUrls: attached image URLs (if any)
     
     Returns:
-    - message: tin nhắn gốc
-    - response: phản hồi từ AI
-    - postIds: Array of post IDs gợi ý (3-4 posts, nếu có)
+    - message: original message
+    - response: AI response (grounded in retrieved context)
+    - postIds: Array of relevant post IDs (3-4 posts)
     """
     ollama = get_ollama_service()
     recommendation = get_recommendation_service()
@@ -210,13 +219,13 @@ async def chat_bot_post(request: ChatBotRequest):
     image_urls = request.imageUrls or []
     
     post_ids = []
-    post_preview = ""
+    rag_context = ""
     
     logger.info(f"Chat request: '{message[:50]}...' with {len(chat_history)} history, {len(image_urls)} images")
     
     # Build conversation context from history
     conversation_context = []
-    for msg in chat_history[-10:]:  # Use last 10 messages for context
+    for msg in chat_history[-10:]:
         conversation_context.append({
             "role": msg.role,
             "content": msg.content
@@ -230,13 +239,14 @@ async def chat_bot_post(request: ChatBotRequest):
         if image_description:
             logger.info(f"Image analysis: {image_description[:100]}...")
     
-    # 2. Analyze intent - does user want posts?
+    # 2. Analyze intent - does user want posts / info?
     intent = ollama.analyze_chat_intent(message)
     logger.info(f"Chat intent: {intent}")
     
     if intent.get("should_suggest_post") and intent.get("search_query") and recommendation.is_ready():
-        # Search for relevant posts
         search_query = intent["search_query"]
+        
+        # RAG Step 2: Search vector DB for relevant chunks
         posts, total = recommendation.search(
             query=search_query,
             current_user_id="",
@@ -245,44 +255,54 @@ async def chat_bot_post(request: ChatBotRequest):
         )
         
         if posts:
-            # Get post IDs already shown in chat history
-            shown_post_ids = set()
-            # Could extract from history if needed
-            
-            available_posts = [p for p in posts if p["post_id"] not in shown_post_ids]
+            available_posts = [p for p in posts][:8]
             
             if available_posts:
                 import random
-                random.shuffle(available_posts[:8])
+                random.shuffle(available_posts[:6])
                 num_posts = min(4, len(available_posts))
                 selected_posts = available_posts[:num_posts]
                 post_ids = [p["post_id"] for p in selected_posts]
                 
-                # Get first post content for AI context
+                # RAG Step 3: Retrieve FULL post content from MongoDB for context injection
                 try:
-                    from pymongo import MongoClient
-                    import os
-                    mongo = MongoClient(os.getenv("MONGODB_URI"))
-                    db = mongo[os.getenv("MONGODB_DATABASE")]
                     from bson import ObjectId
-                    post_doc = db.posts.find_one({"_id": ObjectId(post_ids[0])}, {"content": 1})
-                    if post_doc:
-                        post_preview = post_doc.get("content", "")[:200]
-                    mongo.close()
+                    db = _get_mongo_db()
+                    if db:
+                        post_oids = [ObjectId(pid) for pid in post_ids]
+                        post_docs = list(db.posts.find(
+                            {"_id": {"$in": post_oids}},
+                            {"content": 1, "userId": 1, "createdAt": 1}
+                        ))
+                        
+                        # Build RAG context string with full post content
+                        context_parts = []
+                        for i, doc in enumerate(post_docs, 1):
+                            content = doc.get("content", "").strip()
+                            if content:
+                                # Truncate very long posts but keep much more than before
+                                truncated = content[:1500] + ("..." if len(content) > 1500 else "")
+                                context_parts.append(f"[Post {i}]: {truncated}")
+                        
+                        if context_parts:
+                            rag_context = "\n\n".join(context_parts)
+                            logger.info(f"📚 RAG context: {len(context_parts)} posts, {len(rag_context)} chars injected")
                 except Exception as e:
-                    logger.warning(f"Could not fetch post preview: {e}")
+                    logger.warning(f"Could not fetch RAG context: {e}")
                 
                 logger.info(f"Suggesting {len(post_ids)} posts")
     
-    # 3. Generate AI response with full context
+    # RAG Step 4: Generate AI response with retrieved context injected
     response = ollama.generate_chat_response_with_full_context(
         message=message,
         chat_history=conversation_context,
         image_description=image_description,
         has_post=len(post_ids) > 0,
-        post_preview=post_preview
+        post_preview="",
+        rag_context=rag_context,
     )
     
+    # RAG Step 5: Return response + related posts to user
     return {
         "message": message,
         "response": response,
@@ -318,7 +338,9 @@ def _fast_intent_check(message: str) -> dict:
 @router.post("/chat/bot/stream")
 async def chat_bot_stream(request: ChatBotRequest):
     """
-    🤖 SSE streaming chatbot - trả về tokens real-time
+    🤖 SSE streaming RAG chatbot - returns tokens in real-time
+
+    RAG Workflow: query → embed → search vector DB → inject context → stream LLM response
 
     Returns SSE stream with events:
     - event: token   → data: {"token": "..."}
@@ -342,7 +364,7 @@ async def chat_bot_stream(request: ChatBotRequest):
             image_urls = request.imageUrls or []
 
             post_ids = []
-            post_preview = ""
+            rag_context = ""
 
             conversation_context = []
             for msg in chat_history[-10:]:
@@ -367,27 +389,40 @@ async def chat_bot_stream(request: ChatBotRequest):
                         selected_posts = available_posts[:min(4, len(available_posts))]
                         post_ids = [p["post_id"] for p in selected_posts]
 
+                        # RAG: Retrieve FULL post content for context injection
                         try:
                             from bson import ObjectId
                             db = _get_mongo_db()
                             if db:
-                                post_doc = db.posts.find_one({"_id": ObjectId(post_ids[0])}, {"content": 1})
-                                if post_doc:
-                                    post_preview = post_doc.get("content", "")[:200]
+                                post_oids = [ObjectId(pid) for pid in post_ids]
+                                post_docs = list(db.posts.find(
+                                    {"_id": {"$in": post_oids}},
+                                    {"content": 1}
+                                ))
+                                context_parts = []
+                                for i, doc in enumerate(post_docs, 1):
+                                    content = doc.get("content", "").strip()
+                                    if content:
+                                        truncated = content[:1500] + ("..." if len(content) > 1500 else "")
+                                        context_parts.append(f"[Post {i}]: {truncated}")
+                                if context_parts:
+                                    rag_context = "\n\n".join(context_parts)
+                                    logger.info(f"📚 RAG context: {len(context_parts)} posts, {len(rag_context)} chars")
                         except Exception as e:
-                            logger.warning(f"Could not fetch post preview: {e}")
+                            logger.warning(f"Could not fetch RAG context: {e}")
 
             # Emit postIds early so frontend can render them
             if post_ids:
                 yield f"event: postIds\ndata: {_json.dumps({'postIds': post_ids})}\n\n"
 
-            # Stream tokens — this is the ONLY LLM call now
+            # Stream tokens — LLM call with RAG context injected
             async for token in ollama.stream_chat_response_with_full_context(
                 message=message,
                 chat_history=conversation_context,
                 image_description=image_description,
                 has_post=len(post_ids) > 0,
-                post_preview=post_preview,
+                post_preview="",
+                rag_context=rag_context,
             ):
                 yield f"event: token\ndata: {_json.dumps({'token': token})}\n\n"
 
@@ -450,9 +485,10 @@ class EmbedPostRequest(BaseModel):
 @router.post("/embed/post")
 async def embed_single_post(request: EmbedPostRequest):
     """
-    📌 Embed/Upsert a single post into Qdrant
+    📌 Embed/Upsert a single post into Qdrant (with chunking)
     
     Called by NestJS backend when a post is created or updated.
+    Uses professional chunking for long posts.
     """
     service = get_recommendation_service()
     
@@ -469,42 +505,75 @@ async def embed_single_post(request: EmbedPostRequest):
     
     try:
         from app.services.recommendation_service import mongo_id_to_uuid
-        
-        # Generate embedding
-        embedding = service.model.encode(request.content, convert_to_numpy=True)
-        
-        # Get current time if created_at not provided
+        from app.services.chunking_service import chunk_text
+        from app.config import get_settings
         from datetime import datetime
+        
+        settings = get_settings()
+        is_e5 = "e5" in settings.embedding_model.lower()
+        
+        # Chunk the post content
+        chunks = chunk_text(
+            request.content,
+            max_chunk_size=settings.chunk_max_size,
+            chunk_overlap=settings.chunk_overlap
+        )
+        
         created_at = request.created_at or datetime.now().isoformat()
         
-        point_id = mongo_id_to_uuid(request.post_id)
-        point = PointStruct(
-            id=point_id,
-            vector=embedding.tolist(),
-            payload={
-                "post_id": request.post_id,
-                "user_id": request.user_id,
-                "privacy": request.privacy or "PUBLIC",
-                "group_id": request.group_id or "no_group",
-                "media_type": request.media_type or "TEXT",
-                "created_at": created_at,
-                "score": 0.5,
-            }
-        )
+        # Generate embeddings for all chunks
+        chunk_texts = [f"passage: {c}" if is_e5 else c for c in chunks]
+        chunk_embeddings = service.model.encode(chunk_texts, convert_to_numpy=True, normalize_embeddings=True)
         
-        from app.config import get_settings
-        settings = get_settings()
+        # Ensure 2D array even for single chunk
+        if len(chunk_embeddings.shape) == 1:
+            chunk_embeddings = chunk_embeddings.reshape(1, -1)
+        
+        # Delete old chunks for this post first
+        try:
+            old_chunk_ids = []
+            for ci in range(20):  # Max 20 chunks per post
+                old_chunk_ids.append(mongo_id_to_uuid(f"{request.post_id}_chunk_{ci}"))
+            service.qdrant.delete(
+                collection_name=settings.qdrant_collection_posts,
+                points_selector=old_chunk_ids
+            )
+        except Exception:
+            pass
+        
+        # Upsert new chunks
+        points = []
+        for ci, emb in enumerate(chunk_embeddings):
+            chunk_id = f"{request.post_id}_chunk_{ci}"
+            point_id = mongo_id_to_uuid(chunk_id)
+            points.append(PointStruct(
+                id=point_id,
+                vector=emb.tolist(),
+                payload={
+                    "post_id": request.post_id,
+                    "chunk_index": ci,
+                    "total_chunks": len(chunks),
+                    "user_id": request.user_id,
+                    "privacy": request.privacy or "PUBLIC",
+                    "group_id": request.group_id or "no_group",
+                    "media_type": request.media_type or "TEXT",
+                    "created_at": created_at,
+                    "score": 0.5,
+                }
+            ))
+        
         service.qdrant.upsert(
             collection_name=settings.qdrant_collection_posts,
-            points=[point]
+            points=points
         )
         
-        logger.info(f"✅ Embedded post {request.post_id} (Type: {request.media_type})")
+        logger.info(f"✅ Embedded post {request.post_id} ({len(chunks)} chunks, Type: {request.media_type})")
         
         return {
             "success": True,
-            "message": "Post embedded successfully",
+            "message": f"Post embedded successfully ({len(chunks)} chunks)",
             "post_id": request.post_id,
+            "chunks": len(chunks),
             "total_posts": service.get_total_posts()
         }
         
@@ -516,7 +585,7 @@ async def embed_single_post(request: EmbedPostRequest):
 @router.delete("/embed/post/{post_id}")
 async def delete_post_embedding(post_id: str):
     """
-    🗑️ Delete a post embedding from Qdrant
+    🗑️ Delete all chunk embeddings of a post from Qdrant
     
     Called by NestJS backend when a post is deleted.
     """
@@ -530,12 +599,18 @@ async def delete_post_embedding(post_id: str):
         from app.config import get_settings
         settings = get_settings()
         
-        point_id = mongo_id_to_uuid(post_id)
+        # Delete all possible chunks for this post (up to 20)
+        chunk_ids = []
+        for ci in range(20):
+            chunk_ids.append(mongo_id_to_uuid(f"{post_id}_chunk_{ci}"))
+        # Also try legacy single-point ID
+        chunk_ids.append(mongo_id_to_uuid(post_id))
+        
         service.qdrant.delete(
             collection_name=settings.qdrant_collection_posts,
-            points_selector=[point_id]
+            points_selector=chunk_ids
         )
-        logger.info(f"🗑️ Deleted post embedding {post_id}")
+        logger.info(f"🗑️ Deleted post embedding chunks for {post_id}")
         
         return {
             "success": True,
@@ -573,6 +648,53 @@ async def track_interaction(request: InteractionRequest):
         "success": success,
         "message": "Vector updated" if success else "Update failed or post not found"
     }
+
+
+@router.get("/queries/similar")
+async def find_similar_queries(
+    q: str = Query(..., description="Query to find similar past queries"),
+    limit: int = Query(default=10, ge=1, le=50)
+):
+    """
+    🔍 Find similar past user queries from the RAG query_vectors collection.
+    Useful for query suggestion, analytics, and RAG improvement.
+    """
+    service = get_recommendation_service()
+    if not service.is_ready():
+        raise HTTPException(status_code=503, detail="Service not ready")
+    
+    try:
+        from app.config import get_settings
+        settings = get_settings()
+        is_e5 = "e5" in settings.embedding_model.lower()
+        
+        query_text = f"query: {q}" if is_e5 else q
+        query_emb = service.model.encode(query_text, convert_to_numpy=True, normalize_embeddings=True)
+        
+        results = service.qdrant.query_points(
+            collection_name=settings.qdrant_collection_queries,
+            query=query_emb.tolist(),
+            limit=limit,
+            with_payload=True
+        ).points
+        
+        queries = []
+        for hit in results:
+            queries.append({
+                "query": hit.payload.get("query", ""),
+                "score": round(hit.score, 4),
+                "user_id": hit.payload.get("user_id", ""),
+                "timestamp": hit.payload.get("timestamp", ""),
+            })
+        
+        return {
+            "query": q,
+            "similar_queries": queries,
+            "total": len(queries)
+        }
+    except Exception as e:
+        logger.error(f"Similar queries error: {e}")
+        return {"query": q, "similar_queries": [], "total": 0}
 
 
 @router.get("/status")

@@ -37,6 +37,7 @@ import StoryViewersModal from './StoryViewersModal';
 import StoryReactions from './StoryReactions';
 import { useSocket } from '@/contexts/SocketContext';
 import { conversationService } from '@/services/conversation.service';
+import { useTranslation } from 'react-i18next';
 
 // Floating emoji animation - TikTok/Facebook style vertical stream
 const floatUp = keyframes`
@@ -82,6 +83,7 @@ export default function StoryViewer({
     onClose,
 }: StoryViewerProps) {
     const [currentGroupIndex, setCurrentGroupIndex] = useState(initialGroupIndex);
+    const { t } = useTranslation();
     const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
     const [progress, setProgress] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
@@ -408,14 +410,14 @@ export default function StoryViewer({
             setIsPaused(false);
             setSnackbar({
                 open: true,
-                message: 'Đã gửi phản hồi',
+                message: t('story_viewer.reply_sent'),
                 severity: 'success',
             });
         } catch (error) {
             console.error('Error replying to story:', error);
             setSnackbar({
                 open: true,
-                message: 'Không thể gửi phản hồi',
+                message: t('story_viewer.reply_failed'),
                 severity: 'error',
             });
         }
@@ -611,7 +613,7 @@ export default function StoryViewer({
                             <ListItemIcon>
                                 <DeleteIcon fontSize="small" color="error" />
                             </ListItemIcon>
-                            <ListItemText>Xóa tin</ListItemText>
+                            <ListItemText>{t('story_viewer.delete_story')}</ListItemText>
                         </MenuItem>
                     </Menu>
 
@@ -696,7 +698,7 @@ export default function StoryViewer({
                             >
                                 <TextField
                                     fullWidth
-                                    placeholder="Gửi tin nhắn..."
+                                    placeholder={t('story_viewer.message_placeholder')}
                                     size="small"
                                     value={replyText}
                                     onChange={(e) => setReplyText(e.target.value)}
@@ -788,7 +790,7 @@ export default function StoryViewer({
                             }}>
                                 <VisibilityIcon sx={{ color: 'white', fontSize: 20 }} />
                                 <Typography color="white" fontWeight={500} fontSize={14}>
-                                    {currentStory.viewCount || currentStory.viewers?.length || 0} người xem
+                                    {currentStory.viewCount || currentStory.viewers?.length || 0} {t('story_viewer.views_count')}
                                 </Typography>
                             </Box>
                         </Box>

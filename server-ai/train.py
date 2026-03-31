@@ -2,9 +2,11 @@
 TRAIN HYBRID MODEL → QDRANT CLOUD
 ===================================
 - Lấy posts + reactions + shares + relationships + userinteractions từ MongoDB
-- Embed bằng paraphrase-multilingual-MiniLM-L12-v2 (~470MB, nhanh)
+- Chunk posts bằng sliding window (overlap) cho RAG chuyên nghiệp
+- Embed bằng intfloat/multilingual-e5-base (768-dim, fast, high quality)
 - Upload vectors lên Qdrant Cloud
 - Tính user vectors và lưu vào MongoDB
+- Tạo query_vectors collection cho RAG query embedding
 
 Chạy: python train.py
 """
@@ -43,6 +45,9 @@ QDRANT_URL = _settings.qdrant_url
 QDRANT_API_KEY = _settings.qdrant_api_key
 COLLECTION_NAME = _settings.qdrant_collection_posts
 USER_COLLECTION = _settings.qdrant_collection_users
+QUERY_COLLECTION = _settings.qdrant_collection_queries
+CHUNK_MAX_SIZE = _settings.chunk_max_size
+CHUNK_OVERLAP = _settings.chunk_overlap
 LIMIT = 100000
 
 # Weights
@@ -257,21 +262,55 @@ def train():
     
     post_owners_dict = {df.loc[i, '_id']: df.loc[i, 'userId'] for i in range(len(df))}
     
-    # 4. Load model & generate embeddings
+    # 4. Load model & chunk posts & generate embeddings
     logger.info(f"🧠 Loading model {MODEL_NAME}...")
     model = SentenceTransformer(MODEL_NAME)
     embedding_dim = model.get_sentence_embedding_dimension()
     logger.info(f"   ✅ Model loaded! Dimension: {embedding_dim}")
     
+    # Chunk posts using professional sliding window strategy
+    from app.services.chunking_service import chunk_text
+    logger.info(f"✂️ Chunking posts (max_size={CHUNK_MAX_SIZE}, overlap={CHUNK_OVERLAP})...")
+    
+    # Build chunk data: each chunk links to its parent post
+    chunk_records = []  # (chunk_text, post_idx, chunk_idx, total_chunks)
+    for i in range(len(df)):
+        content = df.loc[i, 'content']
+        chunks = chunk_text(content, max_chunk_size=CHUNK_MAX_SIZE, chunk_overlap=CHUNK_OVERLAP)
+        for ci, ct in enumerate(chunks):
+            chunk_records.append((ct, i, ci, len(chunks)))
+    
+    logger.info(f"   ✅ {len(chunk_records)} chunks from {len(df)} posts (avg {len(chunk_records)/len(df):.1f} chunks/post)")
+    
+    # E5 models require "passage: " prefix for documents
+    is_e5_model = "e5" in MODEL_NAME.lower()
+    chunk_texts = [f"passage: {cr[0]}" if is_e5_model else cr[0] for cr in chunk_records]
+    
     logger.info("📊 Generating embeddings...")
-    embeddings = model.encode(df['content'].tolist(), show_progress_bar=True, batch_size=32)
+    embeddings = model.encode(chunk_texts, show_progress_bar=True, batch_size=64, normalize_embeddings=True)
     
-    post_embeddings_dict = {df.loc[i, '_id']: embeddings[i] for i in range(len(df))}
+    # Build post-level embeddings by averaging chunk embeddings per post
+    post_embeddings = {}
+    for idx, (_, post_idx, _, _) in enumerate(chunk_records):
+        post_id = df.loc[post_idx, '_id']
+        if post_id not in post_embeddings:
+            post_embeddings[post_id] = []
+        post_embeddings[post_id].append(embeddings[idx])
     
-    # 5. Hybrid scores
+    # Average chunk embeddings per post for user vector building
+    post_embeddings_dict = {}
+    for pid, embs in post_embeddings.items():
+        avg_emb = np.mean(embs, axis=0)
+        norm = np.linalg.norm(avg_emb)
+        if norm > 0:
+            avg_emb = avg_emb / norm
+        post_embeddings_dict[pid] = avg_emb
+    
+    # 5. Hybrid scores (per post, using averaged post embeddings)
     logger.info("🔢 Tính scores...")
-    mean_emb = embeddings.mean(axis=0)
-    content_scores = cosine_similarity(embeddings, mean_emb.reshape(1, -1)).flatten()
+    post_emb_array = np.array([post_embeddings_dict[df.loc[i, '_id']] for i in range(len(df))])
+    mean_emb = post_emb_array.mean(axis=0)
+    content_scores = cosine_similarity(post_emb_array, mean_emb.reshape(1, -1)).flatten()
     content_scores = (content_scores - content_scores.min()) / (content_scores.max() - content_scores.min() + 1e-8)
     
     n_users = df['userId'].nunique()
@@ -317,8 +356,8 @@ def train():
     np.random.seed(None)
     logger.info(f"   ✅ {users_without} default vectors created")
     
-    # 7. Upload to Qdrant Cloud
-    logger.info("☁️ Uploading posts to Qdrant Cloud...")
+    # 7. Upload to Qdrant Cloud (chunk-level vectors for better RAG retrieval)
+    logger.info("☁️ Uploading chunk vectors to Qdrant Cloud...")
     
     # Recreate collection
     try:
@@ -332,29 +371,36 @@ def train():
     )
     logger.info(f"   ✅ Collection '{COLLECTION_NAME}' created (dim={embedding_dim})")
     
-    # Upload in batches
+    # Upload chunks in batches
     BATCH_SIZE = 100
-    total = len(df)
+    total = len(chunk_records)
     for batch_start in range(0, total, BATCH_SIZE):
         batch_end = min(batch_start + BATCH_SIZE, total)
         points = []
-        for i in range(batch_start, batch_end):
-            point_id = mongo_id_to_uuid(df.loc[i, '_id'])
+        for idx in range(batch_start, batch_end):
+            chunk_text_raw, post_idx, chunk_idx, total_chunks = chunk_records[idx]
+            post_id = df.loc[post_idx, '_id']
+            # Unique ID: post_id + chunk_index
+            chunk_id = f"{post_id}_chunk_{chunk_idx}"
+            point_id = mongo_id_to_uuid(chunk_id)
             points.append(PointStruct(
                 id=point_id,
-                vector=embeddings[i].tolist(),
+                vector=embeddings[idx].tolist(),
                 payload={
-                    "post_id": df.loc[i, '_id'],
-                    "user_id": str(df.loc[i, 'userId']),
-                    "group_id": str(df.loc[i, 'groupId']),
-                    "privacy": str(df.loc[i, 'privacy']),
-                    "created_at": str(df.loc[i, 'createdAt']) if 'createdAt' in df.columns else "",
-                    "score": float(hybrid_scores[i]),
+                    "post_id": post_id,
+                    "chunk_index": chunk_idx,
+                    "total_chunks": total_chunks,
+                    "user_id": str(df.loc[post_idx, 'userId']),
+                    "group_id": str(df.loc[post_idx, 'groupId']),
+                    "privacy": str(df.loc[post_idx, 'privacy']),
+                    "created_at": str(df.loc[post_idx, 'createdAt']) if 'createdAt' in df.columns else "",
+                    "score": float(hybrid_scores[post_idx]),
+                    "media_type": "TEXT",
                 }
             ))
         
         qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
-        logger.info(f"   ✅ Uploaded {batch_end}/{total} posts")
+        logger.info(f"   ✅ Uploaded {batch_end}/{total} chunks")
     
     # 8. Upload user vectors to Qdrant Cloud
     logger.info("☁️ Uploading user vectors to Qdrant Cloud...")
@@ -430,13 +476,27 @@ def train():
     mongo_client.close()
     logger.info(f"   ✅ {len(user_vectors)} user vectors saved to MongoDB")
     
-    # 10. Verify
+    # 10. Create query_vectors collection for RAG query embedding
+    logger.info("☁️ Creating query_vectors collection for RAG...")
+    try:
+        qdrant.delete_collection(QUERY_COLLECTION)
+    except: pass
+    
+    qdrant.create_collection(
+        collection_name=QUERY_COLLECTION,
+        vectors_config=VectorParams(size=embedding_dim, distance=Distance.COSINE)
+    )
+    logger.info(f"   ✅ Collection '{QUERY_COLLECTION}' created (dim={embedding_dim})")
+    
+    # 11. Verify
     posts_info = qdrant.get_collection(COLLECTION_NAME)
     users_info = qdrant.get_collection(USER_COLLECTION)
+    query_info = qdrant.get_collection(QUERY_COLLECTION)
     logger.info("=" * 50)
     logger.info("🎉 TRAINING HOÀN TẤT!")
-    logger.info(f"   📊 Posts: {posts_info.points_count} (Qdrant)")
+    logger.info(f"   📊 Chunks: {posts_info.points_count} (Qdrant)")
     logger.info(f"   👤 User Vectors: {users_info.points_count} (Qdrant)")
+    logger.info(f"   🔍 Query Vectors: {query_info.points_count} (Qdrant, ready for RAG)")
     logger.info(f"   🧠 Model: {MODEL_NAME}")
     logger.info(f"   ☁️ Qdrant: {QDRANT_URL}")
     logger.info("   👉 Chạy: python main.py")

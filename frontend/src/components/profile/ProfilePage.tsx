@@ -1535,54 +1535,56 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                                         ) : friends.length === 0 ? (
                                             <Typography color={textSecondary} fontSize={14} textAlign="center" py={2}>
                                                 {t('profile.no_friends')}
-                                                <Grid container spacing={1}>
-                                                    {friends.slice(0, 9).map((friend) => (
-                                                        <Grid size={{ xs: 4 }} key={friend._id}>
+                                            </Typography>
+                                        ) : (
+                                            <Grid container spacing={1}>
+                                                {friends.slice(0, 9).map((friend) => (
+                                                    <Grid size={{ xs: 4 }} key={friend._id}>
+                                                        <Box
+                                                            sx={{
+                                                                cursor: 'pointer',
+                                                                borderRadius: 2,
+                                                                overflow: 'hidden',
+                                                                '&:hover': { opacity: 0.9 }
+                                                            }}
+                                                            onClick={() => navigateToProfile(friend.username)}
+                                                        >
                                                             <Box
+                                                                component="img"
+                                                                src={friend.avatar || `https://ui-avatars.com/api/?name=${friend.firstName}+${friend.lastName}&background=e4e6eb&color=050505`}
                                                                 sx={{
-                                                                    cursor: 'pointer',
+                                                                    width: '100%',
+                                                                    aspectRatio: '1',
+                                                                    objectFit: 'cover',
                                                                     borderRadius: 2,
-                                                                    overflow: 'hidden',
-                                                                    '&:hover': { opacity: 0.9 }
                                                                 }}
-                                                                onClick={() => navigateToProfile(friend.username)}
+                                                            />
+                                                            <Typography
+                                                                fontSize={13}
+                                                                fontWeight={500}
+                                                                color={textPrimary}
+                                                                sx={{
+                                                                    mt: 0.5,
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    whiteSpace: 'nowrap'
+                                                                }}
                                                             >
-                                                                <Box
-                                                                    component="img"
-                                                                    src={friend.avatar || `https://ui-avatars.com/api/?name=${friend.firstName}+${friend.lastName}&background=e4e6eb&color=050505`}
-                                                                    sx={{
-                                                                        width: '100%',
-                                                                        aspectRatio: '1',
-                                                                        objectFit: 'cover',
-                                                                        borderRadius: 2,
-                                                                    }}
+                                                                {friend.firstName} {friend.lastName}
+                                                            </Typography>
+                                                            {!isOwnProfile && (
+                                                                <MutualFriendsPreview
+                                                                    count={friend.mutualFriends || 0}
+                                                                    preview={friend.mutualFriendPreview || []}
+                                                                    compact
                                                                 />
-                                                                <Typography
-                                                                    fontSize={13}
-                                                                    fontWeight={500}
-                                                                    color={textPrimary}
-                                                                    sx={{
-                                                                        mt: 0.5,
-                                                                        overflow: 'hidden',
-                                                                        textOverflow: 'ellipsis',
-                                                                        whiteSpace: 'nowrap'
-                                                                    }}
-                                                                >
-                                                                    {friend.firstName} {friend.lastName}
-                                                                </Typography>
-                                                                {!isOwnProfile && (
-                                                                    <MutualFriendsPreview
-                                                                        count={friend.mutualFriends || 0}
-                                                                        preview={friend.mutualFriendPreview || []}
-                                                                        compact
-                                                                    />
-                                                                )}
-                                                            </Box>
-                                                        </Grid>
-                                                    ))}
-                                                </Grid>
+                                                            )}
+                                                        </Box>
+                                                    </Grid>
+                                                ))}
+                                            </Grid>
                                         )}
-                                            </CardContent>
+                                    </CardContent>
                                 </Card>
                             </Grid>
 

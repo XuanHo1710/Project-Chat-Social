@@ -1,26 +1,25 @@
-name: CI pipeline
+name: CI + CD Pipeline
 
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch: 
 
 jobs:
   docker:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Lấy source code
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # 2. Login Docker Hub
     - name: Login Docker Hub
       uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    # 3. Build + Push Backend
+    # Backend
     - name: Build & Push Backend
       uses: docker/build-push-action@v5
       with:
@@ -28,7 +27,7 @@ jobs:
         push: true
         tags: xuanho17102004/project-chat-social-backend:latest
 
-    # 4. Build + Push AI
+    # AI
     - name: Build & Push AI
       uses: docker/build-push-action@v5
       with:
@@ -36,7 +35,7 @@ jobs:
         push: true
         tags: xuanho17102004/project-chat-social-server-ai:latest
 
-    # 5. Kafka server
+    # Kafka
     - name: Build & Push Kafka
       uses: docker/build-push-action@v5
       with:
@@ -44,10 +43,48 @@ jobs:
         push: true
         tags: xuanho17102004/project-chat-social-kafka-server:latest
 
-    # 6. Rabbit worker
+    # Rabbit
     - name: Build & Push Rabbit
       uses: docker/build-push-action@v5
       with:
         context: ./rabbitmq
         push: true
         tags: xuanho17102004/project-chat-social-rabbitmq-worker:latest
+
+    # Frontend
+    - name: Build & Push Frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        push: true
+        tags: xuanho17102004/project-chat-social-frontend:latest
+        build-args: |
+          NEXT_PUBLIC_BACKEND_API_URL=${{ secrets.NEXT_PUBLIC_BACKEND_API_URL }}
+          NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }}
+          NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_PRESET_KEY=${{ secrets.NEXT_PUBLIC_PRESET_KEY }}
+          NEXT_PUBLIC_CLOUD_NAME=${{ secrets.NEXT_PUBLIC_CLOUD_NAME }}
+          NEXT_PUBLIC_CLOUDINARY_API_KEY=${{ secrets.NEXT_PUBLIC_CLOUDINARY_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+          NEXT_PUBLIC_FIREBASE_VAPID_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
+          NEXT_PUBLIC_API_VIDEO_KEY=${{ secrets.NEXT_PUBLIC_API_VIDEO_KEY }}
+  deploy:
+    needs: docker   
+    runs-on: self-hosted
+    steps:
+    - name: Login Docker Hub (private)
+      run: |
+        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+    - name: Deploy on EC2
+      run: |
+        cd /home/ubuntu/Project-Chat-Social
+
+        git pull origin main
+
+        docker-compose pull
+        docker-compose up -d

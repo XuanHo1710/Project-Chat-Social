@@ -90,15 +90,13 @@ jobs:
       - name: Prepare source code
         run: |
           if [ ! -d "/home/ubuntu/Project-Chat-Social/.git" ]; then
-            git clone https://${{ secrets.SECRET_KEY }}@github.com/XuanHo1710/Project-Chat-Social.git /home/ubuntu/Project-Chat-Social
+            git clone https://XuanHo1710:${{ secrets.SECRET_KEY }}@github.com/XuanHo1710/Project-Chat-Social.git /home/ubuntu/Project-Chat-Social
           fi
 
       # 3. Deploy
       - name: Deploy on EC2
         run: |
           cd /home/ubuntu/Project-Chat-Social
-
-          git pull https://${{ secrets.SECRET_KEY }}@github.com/XuanHo1710/Project-Chat-Social.git main
-
+          git pull https://XuanHo1710:${{ secrets.SECRET_KEY }}@github.com/XuanHo1710/Project-Chat-Social.git main
           docker-compose pull
           docker-compose up -d --remove-orphans

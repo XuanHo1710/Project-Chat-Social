@@ -233,6 +233,8 @@ services:
   frontend:
     # Next.js standalone — served via nginx on /*
     image: xuanho17102004/project-chat-social-frontend:latest
+    ports:
+      - "3000:3000"
     env_file: ./frontend/.env
     networks:
       - app-net

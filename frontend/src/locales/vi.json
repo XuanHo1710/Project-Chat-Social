@@ -427,7 +427,10 @@
     "they_cancelled": "Đã hủy",
     "ongoing": "Đang diễn ra...",
     "call_back": "Gọi lại",
-    "join": "Tham gia"
+    "join": "Tham gia",
+    "just_now": "Vừa xong",
+    "minutes_ago": "phút trước",
+    "hours_ago": "giờ trước"
   },
   "friends": {
     "friends": "Bạn bè",
@@ -470,6 +473,7 @@
   "chat": {
     "messages": "Tin nhắn",
     "no_media": "Không có phương tiện nào",
+    "remove_from_group": "Xóa khỏi nhóm",
     "no_files": "Không có tệp nào",
     "restrict_user": "Hạn chế {{name}}",
     "new_message": "Tin nhắn mới",

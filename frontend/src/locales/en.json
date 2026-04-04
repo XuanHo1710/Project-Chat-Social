@@ -391,7 +391,10 @@
     "they_cancelled": "Cancelled",
     "ongoing": "Ongoing call...",
     "call_back": "Call back",
-    "join": "Join"
+    "join": "Join",
+    "just_now": "Just now",
+    "minutes_ago": "min ago",
+    "hours_ago": "hr ago"
   },
   "friends": {
     "friends": "Friends",
@@ -433,6 +436,7 @@
   },
   "chat": {
     "messages": "Messages",
+    "remove_from_group": "Remove from group",
     "no_media": "No media available",
     "no_files": "No files available",
     "restrict_user": "Restrict {{name}}",

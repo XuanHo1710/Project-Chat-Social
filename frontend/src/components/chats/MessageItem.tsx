@@ -514,7 +514,13 @@ function MessageItemInner({
                     (p) => p.user._id !== userId
                 );
                 if (otherUser) {
-                    startGroupCall(conversation._id, !isVideo);
+                    callUser(
+                        otherUser.user._id,
+                        conversation._id,
+                        !isVideo,
+                        `${otherUser.user.firstName || ''} ${otherUser.user.lastName || ''}`.trim(),
+                        otherUser.user.avatar
+                    );
                 }
             }
         };

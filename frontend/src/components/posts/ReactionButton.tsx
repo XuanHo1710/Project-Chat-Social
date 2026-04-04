@@ -9,6 +9,7 @@ import { useSocket } from "@/contexts/SocketContext";
 import { useReactionStore, ReactionType as StoreReactionType } from "@/stores/useReactionStore";
 import { PostType } from "@/types/post";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface ReactionButtonProps {
     post: PostType;
@@ -23,6 +24,7 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
     const isDark = theme.palette.mode === 'dark';
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const { t } = useTranslation();
+    const queryClient = useQueryClient();
 
     // Reaction data with emoji, label, and color
     const REACTIONS = [
@@ -68,10 +70,35 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
             action: string;
             type: ReactionType;
             totalReacts: number;
+            topReactions?: { type: string; count: number }[];
         }) => {
             if (data.postId === post._id) {
                 // Server is authoritative for totalReacts
                 setFromServer(post._id, data.totalReacts);
+
+                // Update topReactions in all query caches that may contain this post
+                if (data.topReactions) {
+                    const updatePostInCache = (oldData: any) => {
+                        if (!oldData) return oldData;
+                        if (oldData.pages) {
+                            // InfiniteQuery (news_feed, user_posts, etc.)
+                            return {
+                                ...oldData,
+                                pages: oldData.pages.map((page: any) => ({
+                                    ...page,
+                                    data: (page.data || []).map((p: any) =>
+                                        p._id === post._id ? { ...p, topReactions: data.topReactions } : p
+                                    ),
+                                })),
+                            };
+                        }
+                        return oldData;
+                    };
+                    queryClient.setQueriesData({ queryKey: ['news_feed'] }, updatePostInCache);
+                    queryClient.setQueriesData({ queryKey: ['user_posts'] }, updatePostInCache);
+                    queryClient.setQueriesData({ queryKey: ['search_feed'] }, updatePostInCache);
+                    queryClient.setQueriesData({ queryKey: ['group_posts'] }, updatePostInCache);
+                }
             }
         };
 

@@ -161,6 +161,8 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
     deploy:
       resources:
         limits:

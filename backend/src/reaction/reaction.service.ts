@@ -28,7 +28,7 @@ export class ReactionService implements OnModuleInit {
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
     private readonly notificationEmitter: NotificationEmitterService,
     private readonly kafkaProducer: KafkaProducerService
-  ) { }
+  ) {}
 
   async onModuleInit() {
     // Auto-run migration on startup
@@ -196,11 +196,9 @@ export class ReactionService implements OnModuleInit {
 
     // Emit Kafka Event for AI/Newsfeed
     if (typeFactor === TypeFactor.POST && result.action !== 'removed') {
-      this.kafkaProducer.emitPostLike(
-        user._id.toString(),
-        factorId,
-        type
-      ).catch(e => this.logger.warn(`Failed to emit Kafka interaction: ${e.message}`));
+      this.kafkaProducer
+        .emitPostLike(user._id.toString(), factorId, type)
+        .catch((e) => this.logger.warn(`Failed to emit Kafka interaction: ${e.message}`));
     }
 
     return result;
@@ -258,7 +256,7 @@ export class ReactionService implements OnModuleInit {
           user._id.toString(),
           post._id.toString(),
           this.formatReactionTypeToView(type),
-          `${userName} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bài viết của bạn`,
+          `${userName} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bài viết của bạn`
         );
         break;
 
@@ -271,7 +269,7 @@ export class ReactionService implements OnModuleInit {
           user._id.toString(),
           comment._id.toString(),
           this.formatReactionTypeToView(type),
-          `${userName} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bình luận của bạn`,
+          `${userName} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bình luận của bạn`
         );
         break;
 
@@ -496,6 +494,23 @@ export class ReactionService implements OnModuleInit {
    */
   async getPostsReactionsSummary(postIds: string[], userId: string) {
     return this.getReactionsSummary(postIds, TypeFactor.POST, userId);
+  }
+
+  /**
+   * Get top 3 reaction types for a single factor (used after toggle to broadcast)
+   */
+  async getTopReactions(
+    factorId: string,
+    typeFactor: TypeFactor
+  ): Promise<{ type: ReactionType; count: number }[]> {
+    const result = await this.reactionModel.aggregate([
+      { $match: { factorId: new Types.ObjectId(factorId), typeFactor } },
+      { $group: { _id: '$type', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 3 },
+      { $project: { _id: 0, type: '$_id', count: 1 } },
+    ]);
+    return result;
   }
 
   /**

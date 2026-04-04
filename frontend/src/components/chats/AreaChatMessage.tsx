@@ -645,18 +645,23 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         const newPages = oldData.pages.map(page => ({
                             ...page,
                             data: page.data.map(m => {
-                                if (!optimisticFound && m._isOptimistic && m._tempId?.startsWith('_optimistic_') &&
-                                    m.content === msg.content && m.type === msg.type &&
-                                    Math.abs(new Date(m.createdAt).getTime() - msgTime) < 60000) {
-                                    optimisticFound = true;
-                                    // Revoke local blob URLs to prevent memory leaks
-                                    if (m._localMediaPreviews) {
-                                        m._localMediaPreviews.forEach(url => {
-                                            try { URL.revokeObjectURL(url); } catch (_) { }
-                                        });
+                                if (!optimisticFound && m._isOptimistic && m._tempId?.startsWith('_optimistic_')) {
+                                    const timeClose = Math.abs(new Date(m.createdAt).getTime() - msgTime) < 60000;
+                                    const contentMatch = m.content === msg.content;
+                                    const typeMatch = m.type === msg.type;
+                                    // Primary: exact content + type match within time window
+                                    // Fallback: content match only within time window (type may differ e.g. TEXT→IMAGE after upload)
+                                    if (timeClose && (contentMatch && typeMatch || contentMatch)) {
+                                        optimisticFound = true;
+                                        // Revoke local blob URLs to prevent memory leaks
+                                        if (m._localMediaPreviews) {
+                                            m._localMediaPreviews.forEach(url => {
+                                                try { URL.revokeObjectURL(url); } catch (_) { }
+                                            });
+                                        }
+                                        // Replace optimistic with real message
+                                        return { ...msg };
                                     }
-                                    // Replace optimistic with real message
-                                    return { ...msg };
                                 }
                                 return m;
                             })
@@ -1553,6 +1558,30 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 // On success, the socket 'message:new' event will bring the real message.
                 // We remove the optimistic one when the real one arrives (handled in handleNewMessage).
             });
+
+            // Safety: if optimistic message is still not reconciled after 15s, clear its flag
+            // so it doesn't stay stuck as "Sending..." forever
+            setTimeout(() => {
+                queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                    [QUERY_KEYS.CHATS, selectedConversation._id],
+                    (oldData) => {
+                        if (!oldData) return oldData;
+                        const hasStale = oldData.pages.some(p => p.data.some(m => m._id === tempId && m._isOptimistic));
+                        if (!hasStale) return oldData;
+                        return {
+                            ...oldData,
+                            pages: oldData.pages.map(page => ({
+                                ...page,
+                                data: page.data.map(msg =>
+                                    msg._id === tempId && msg._isOptimistic
+                                        ? { ...msg, _isOptimistic: false, _isUploading: false }
+                                        : msg
+                                )
+                            }))
+                        };
+                    }
+                );
+            }, 15000);
         } catch (err) {
             console.error("Failed to send message:", err);
             // Mark optimistic message as failed

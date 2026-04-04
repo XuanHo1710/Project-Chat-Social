@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # Recommended: Groq with llama-3.1-8b-instant for fast + high quality
     # Or local Ollama with qwen2.5:3b for offline use
     llm_base_url: str = os.getenv("LLM_BASE_URL", "http://localhost:11434")
-    llm_model: str = os.getenv("LLM_MODEL", "qwen2.5:3b")  # qwen2.5:3b — good quality, multilingual, ~2GB
+    llm_model: str = os.getenv("LLM_MODEL", "qwen2.5:0.5b")  # qwen2.5:0.5b — lightweight, matches ollama-pull in docker-compose
     llm_api_key: str = os.getenv("LLM_API_KEY", "")  # required for Groq/OpenRouter
 
     search_top_k: int = int(os.getenv("SEARCH_TOP_K", 20))

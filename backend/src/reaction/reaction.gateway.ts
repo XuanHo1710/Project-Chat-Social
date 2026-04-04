@@ -239,6 +239,9 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
           user
         );
 
+        // Get updated top 3 reactions for broadcasting
+        const topReactions = await this.reactionService.getTopReactions(factorId, typeFactor);
+
         // Emit to all users watching this factor
         this.server.to(roomKey).emit('reaction:updated', {
           factorId,
@@ -249,6 +252,7 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
           action: result.action,
           type: pending.type,
           totalReacts: result.totalReacts,
+          topReactions,
         });
 
         // Emit specifically to sender

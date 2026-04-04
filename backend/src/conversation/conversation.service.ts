@@ -222,7 +222,7 @@ export class ConversationService {
         'participants.user',
         'firstName lastName username avatar status lastActive showActivityStatus'
       )
-      .populate('lastMessage', 'content type createdAt senderId attachments')
+      .populate('lastMessage', 'content type createdAt senderId attachments callData')
       .sort({ lastMessageAt: -1 })
       .lean()
       .exec();

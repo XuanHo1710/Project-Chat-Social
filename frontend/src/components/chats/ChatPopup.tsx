@@ -498,6 +498,13 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                                             return sender ? `${sender.firstName || ''}: ` : '';
                                                         };
 
+                                                        const getCallerDisplayName = () => {
+                                                            if (lastMsg.senderId === user?.id) return t('messenger_popup.you');
+                                                            const sender = conversation.participants.find(p => p.user._id === lastMsg.senderId)?.user;
+                                                            const fullName = `${sender?.firstName || ''} ${sender?.lastName || ''}`.trim();
+                                                            return fullName || 'Ai đó';
+                                                        };
+
                                                         const prefix = getSenderPrefix();
 
                                                         switch (lastMsg.type) {
@@ -513,6 +520,10 @@ export default function ChatPopup({ conversations, isLoading, userId }: ChatPopu
                                                                 return lastMsg.content || t('messenger_popup.system_notification');
                                                             case "CHATBOT":
                                                                 return t('messenger_popup.ai_message') + (lastMsg.content || t('messenger_popup.start_new'));
+                                                            case 'CALL':
+                                                                return (lastMsg.content && lastMsg.content.trim().length > 0)
+                                                                    ? lastMsg.content
+                                                                    : `${getCallerDisplayName()} đã gọi 1 cuộc gọi`;
                                                             default:
                                                                 if (lastMsg.attachments && lastMsg.attachments.length > 0 && !lastMsg.content) {
                                                                     return lastMsg.senderId === user?.id ? `${t('messenger_popup.you')} ${t('messenger_popup.sent_image')}` : prefix + t('messenger_popup.sent_image');

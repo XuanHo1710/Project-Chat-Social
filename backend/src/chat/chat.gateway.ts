@@ -407,14 +407,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const userId = client.data.userId;
     const conversation = await this.conversationService.findById(data.conversationId);
+    if (!conversation) {
+      return { success: false, error: 'Conversation not found' };
+    }
     const callerProfile = await this.getSenderProfile(userId);
 
-    // Get users already in the active call (don't re-notify them)
-    const activeParticipants = activeGroupCalls.get(data.conversationId);
-    const alreadyInCall = activeParticipants ? activeParticipants : new Set<string>();
+    // Clean stale participants (disconnected users) before checking active group call state.
+    const activeParticipants = activeGroupCalls.get(data.conversationId) || new Set<string>();
+    Array.from(activeParticipants).forEach((participantId) => {
+      const sockets = userSockets.get(participantId);
+      if (!sockets || sockets.size === 0) {
+        activeParticipants.delete(participantId);
+      }
+    });
+    if (activeParticipants.size === 0) {
+      activeGroupCalls.delete(data.conversationId);
+    }
+    const alreadyInCall = activeParticipants;
 
-    // Create a CALL message in the group conversation so other members can see and join
-    if (!alreadyInCall.size) {
+    // Create a CALL message whenever starter is not currently in the active call set.
+    // This avoids stale participant states blocking new joinable call messages.
+    if (!alreadyInCall.has(userId)) {
       try {
         await this.createCallMessage(
           data.conversationId,
@@ -1246,7 +1259,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // Helper: Get user display name
   private async getUserDisplayName(userId: string): Promise<string> {
     const profile = await this.getSenderProfile(userId);
-    return profile.name;
+    return profile.name || 'Ai đó';
   }
 
   // Helper: Create a CALL type message and emit to room
@@ -1258,11 +1271,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     duration: number,
     isGroup: boolean
   ) {
+    const senderName = await this.getUserDisplayName(senderId);
     const savedMessage = await this.chatService.sendMessage({
       conversationId: new Types.ObjectId(conversationId) as any,
       senderId: new Types.ObjectId(senderId) as any,
       type: MessageType.CALL,
-      content: '',
+      content: `${senderName} đã gọi 1 cuộc gọi`,
       callData: { callType, callStatus, duration, isGroup },
     } as any);
 

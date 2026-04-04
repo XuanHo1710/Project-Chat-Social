@@ -538,6 +538,13 @@ export default function ChatSidebar({
                                                             return sender ? `${sender.firstName || ''}: ` : '';
                                                         };
 
+                                                        const getCallerDisplayName = () => {
+                                                            if (lastMsg.senderId === user?.id) return t('common.you');
+                                                            const sender = conversation.participants.find(p => p.user._id === lastMsg.senderId)?.user;
+                                                            const fullName = `${sender?.firstName || ''} ${sender?.lastName || ''}`.trim();
+                                                            return fullName || 'Ai đó';
+                                                        };
+
                                                         const prefix = getSenderPrefix();
 
                                                         switch (lastMsg.type) {
@@ -553,6 +560,10 @@ export default function ChatSidebar({
                                                                 return lastMsg.content || t('chat.notification');
                                                             case "CHATBOT":
                                                                 return "AI Assistant: " + (lastMsg.content || t('chat.message_from_chatbot'));
+                                                            case 'CALL':
+                                                                return (lastMsg.content && lastMsg.content.trim().length > 0)
+                                                                    ? lastMsg.content
+                                                                    : `${getCallerDisplayName()} đã gọi 1 cuộc gọi`;
                                                             default:
                                                                 if (lastMsg.attachments && lastMsg.attachments.length > 0 && !lastMsg.content) {
                                                                     return lastMsg.senderId === user?.id ? t('chat.you_sent_image') : prefix + t('chat.sent_image');

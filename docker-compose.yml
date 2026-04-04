@@ -156,10 +156,7 @@ services:
     # FastAPI — Recommendation + Chatbot
     # Vectors: Qdrant Cloud
     # LLM: Ollama (qwen2.5:0.5b via Docker, CPU-only)
-    build:
-      context: ./server-ai
-      dockerfile: Dockerfile
-    image: project-chat-social-server-ai:latest
+    image: xuanho17102004/project-chat-social-server-ai:latest
     env_file: ./server-ai/.env
     depends_on:
       ollama:
@@ -185,10 +182,7 @@ services:
     # HTTP prefix: app.setGlobalPrefix('api') → all routes under /api/v1/* and /api/v2/*
     # WebSocket: /socket.io/ (Socket.IO on same port)
     # Also subscribes to RabbitMQ queue: backend_queue (Transport.RMQ)
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: project-chat-social-backend:latest
+    image: xuanho17102004/project-chat-social-backend:latest
     ports:
       - "${BACKEND_PORT:-5000}:8080"
     env_file: ./backend/.env
@@ -220,10 +214,7 @@ services:
     # NestJS Hybrid — HTTP :3002 (internal, no public routes) + Kafka consumer
     # Consumer groupId: newsfeed-consumer-group
     # NOT routed through nginx — internal processing only
-    build:
-      context: ./kafka-server
-      dockerfile: Dockerfile
-    image: project-chat-social-kafka-server:latest
+    image: xuanho17102004/project-chat-social-kafka-server:latest
     env_file: ./kafka-server/.env
     environment:
       NODE_ENV: production
@@ -244,10 +235,7 @@ services:
     # NO HTTP server, NO exposed port
     # Subscribes to RabbitMQ queue: social_queue (env RABBITMQ_QUEUE_NAME)
     # Calls server-ai for AI features via HTTP: /api/v1/...
-    build:
-      context: ./rabbitmq
-      dockerfile: Dockerfile
-    image: project-chat-social-rabbitmq-worker:latest
+    image: xuanho17102004/project-chat-social-rabbitmq-worker:latest
     env_file: ./rabbitmq/.env
     environment:
       NODE_ENV: production

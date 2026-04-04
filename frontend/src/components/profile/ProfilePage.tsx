@@ -2146,7 +2146,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                     </MenuItem>
                 </Menu>
 
-                {/* Profile Settings Menu */}}
+                {/* Profile Settings Menu */}
                 <Menu
                     anchorEl={profileSettingsAnchor}
                     open={Boolean(profileSettingsAnchor)}
@@ -2222,7 +2222,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
                     )}
                 </Menu>
 
-                {/* Avatar Menu */}}
+                {/* Avatar Menu */}
                 <Menu
                     anchorEl={avatarMenuAnchor}
                     open={Boolean(avatarMenuAnchor)}

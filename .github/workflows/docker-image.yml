@@ -97,12 +97,18 @@ jobs:
 
       # 3. Write .env files from GitHub Secrets (không commit .env lên git)
       - name: Write .env files
+        env:
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+          KAFKA_SERVER_ENV: ${{ secrets.KAFKA_SERVER_ENV }}
+          RABBITMQ_ENV: ${{ secrets.RABBITMQ_ENV }}
+          SERVER_AI_ENV: ${{ secrets.SERVER_AI_ENV }}
+          FRONTEND_ENV: ${{ secrets.FRONTEND_ENV }}
         run: |
-          printf '%s' "${{ secrets.BACKEND_ENV }}"      > /home/ubuntu/Project-Chat-Social/backend/.env
-          printf '%s' "${{ secrets.KAFKA_SERVER_ENV }}" > /home/ubuntu/Project-Chat-Social/kafka-server/.env
-          printf '%s' "${{ secrets.RABBITMQ_ENV }}"     > /home/ubuntu/Project-Chat-Social/rabbitmq/.env
-          printf '%s' "${{ secrets.SERVER_AI_ENV }}"    > /home/ubuntu/Project-Chat-Social/server-ai/.env
-          printf '%s' "${{ secrets.FRONTEND_ENV }}"     > /home/ubuntu/Project-Chat-Social/frontend/.env
+          [ -n "$BACKEND_ENV" ]      && printf '%s' "$BACKEND_ENV"      > /home/ubuntu/Project-Chat-Social/backend/.env
+          [ -n "$KAFKA_SERVER_ENV" ] && printf '%s' "$KAFKA_SERVER_ENV" > /home/ubuntu/Project-Chat-Social/kafka-server/.env
+          [ -n "$RABBITMQ_ENV" ]     && printf '%s' "$RABBITMQ_ENV"     > /home/ubuntu/Project-Chat-Social/rabbitmq/.env
+          [ -n "$SERVER_AI_ENV" ]    && printf '%s' "$SERVER_AI_ENV"    > /home/ubuntu/Project-Chat-Social/server-ai/.env
+          [ -n "$FRONTEND_ENV" ]     && printf '%s' "$FRONTEND_ENV"     > /home/ubuntu/Project-Chat-Social/frontend/.env
 
       # 4. Deploy
       - name: Deploy on EC2

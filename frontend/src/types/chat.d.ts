@@ -94,6 +94,14 @@ export interface MessageResponse {
 
   // AI streaming flag (transient, not from DB)
   _isStreaming?: boolean;
+
+  // Optimistic UI flags (transient, not from DB)
+  _isOptimistic?: boolean; // Message created locally, not yet confirmed by server
+  _isUploading?: boolean; // Media/files still uploading
+  _tempId?: string; // Temporary ID before server assigns real one
+  _localMediaPreviews?: string[]; // Local blob URLs for image/video previews while uploading
+  _uploadProgress?: number; // Upload progress 0-100
+  _sendFailed?: boolean; // Whether sending failed
 }
 
 export interface SendMessagePayload {

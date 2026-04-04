@@ -14,6 +14,7 @@ import {
     Popover,
     Tooltip,
     useTheme,
+    CircularProgress,
 } from '@mui/material';
 import {
     MoreHoriz as MoreHorizIcon,
@@ -31,6 +32,7 @@ import {
     Videocam as VideocamIcon,
     PhoneMissed as PhoneMissedIcon,
     CallEnd as CallEndIcon,
+    ErrorOutline as ErrorOutlineIcon,
 } from '@mui/icons-material';
 import { MessageResponse, EmotionType, AttachmentData, CallData } from '@/types/chat';
 import { formatChatTimestamp } from '@/utils/formatDate';
@@ -95,6 +97,11 @@ function MessageItemInner({
     const canEdit = isOwn && !message.isDeleted && message.content &&
         (new Date().getTime() - new Date(message.createdAt).getTime()) < 15 * 60 * 1000;
 
+    // Optimistic UI flags (must be declared before any render functions that use them)
+    const isOptimistic = message._isOptimistic;
+    const isUploadingMedia = message._isUploading;
+    const sendFailed = message._sendFailed;
+
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => setMenuAnchor(event.currentTarget);
     const handleMenuClose = () => setMenuAnchor(null);
     const handleReactionOpen = (event: React.MouseEvent<HTMLElement>) => setReactionAnchor(event.currentTarget);
@@ -129,6 +136,39 @@ function MessageItemInner({
     // Render message status indicator (SENT, DELIVERED, READ) - Messenger style
     const renderMessageStatus = () => {
         if (!isOwn || message.isDeleted) return null;
+
+        // Show failed state
+        if (sendFailed) {
+            return (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <ErrorOutlineIcon sx={{ fontSize: 14, color: '#e74c3c' }} />
+                    <Typography fontSize={11} color="#e74c3c" fontWeight={500}>
+                        {t('chat.send_failed') || 'Gửi thất bại'}
+                    </Typography>
+                </Box>
+            );
+        }
+
+        // Show uploading state
+        if (isUploadingMedia) {
+            return (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <CircularProgress size={10} sx={{ color: 'text.secondary' }} />
+                    <Typography fontSize={11} color="text.secondary">
+                        {t('chat.uploading') || 'Đang tải lên...'}
+                    </Typography>
+                </Box>
+            );
+        }
+
+        // Show optimistic "sending" state
+        if (isOptimistic) {
+            return (
+                <Typography fontSize={11} color="text.secondary">
+                    {t('chat.sending') || 'Đang gửi...'}
+                </Typography>
+            );
+        }
 
         // Show avatar of reader (Facepile) - independent of status
         if (otherAvatarsNotRead && otherAvatarsNotRead.length > 0) {
@@ -270,36 +310,55 @@ function MessageItemInner({
 
                             if (isVideo) {
                                 return (
-                                    <Box key={index} sx={{ overflow: 'hidden' }}>
+                                    <Box key={index} sx={{ overflow: 'hidden', position: 'relative' }}>
                                         <video
                                             src={url}
-                                            controls
+                                            controls={!isUploadingMedia}
                                             style={{ width: '100%', maxHeight: 240, objectFit: 'cover', display: 'block' }}
                                         />
+                                        {isUploadingMedia && (
+                                            <Box sx={{
+                                                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                bgcolor: 'rgba(0,0,0,0.4)', borderRadius: 'inherit',
+                                            }}>
+                                                <CircularProgress size={32} sx={{ color: 'white' }} />
+                                            </Box>
+                                        )}
                                     </Box>
                                 );
                             }
 
                             return (
-                                <Box
-                                    key={index}
-                                    component="img"
-                                    src={url}
-                                    alt="attachment"
-                                    loading="lazy"
-                                    sx={{
-                                        width: '100%',
-                                        height: mediaAttachments.length === 1 ? 'auto' : 140,
-                                        maxHeight: mediaAttachments.length === 1 ? 300 : 140,
-                                        minHeight: mediaAttachments.length === 1 ? 100 : 100,
-                                        objectFit: 'cover',
-                                        cursor: 'pointer',
-                                        display: 'block',
-                                        transition: 'transform 0.2s, opacity 0.2s',
-                                        '&:hover': { opacity: 0.95, transform: 'scale(1.02)' }
-                                    }}
-                                    onClick={() => setImagePreview(url)}
-                                />
+                                <Box key={index} sx={{ position: 'relative', overflow: 'hidden' }}>
+                                    <Box
+                                        component="img"
+                                        src={url}
+                                        alt="attachment"
+                                        loading="lazy"
+                                        sx={{
+                                            width: '100%',
+                                            height: mediaAttachments.length === 1 ? 'auto' : 140,
+                                            maxHeight: mediaAttachments.length === 1 ? 300 : 140,
+                                            minHeight: mediaAttachments.length === 1 ? 100 : 100,
+                                            objectFit: 'cover',
+                                            cursor: isUploadingMedia ? 'default' : 'pointer',
+                                            display: 'block',
+                                            transition: 'transform 0.2s, opacity 0.2s',
+                                            '&:hover': isUploadingMedia ? {} : { opacity: 0.95, transform: 'scale(1.02)' }
+                                        }}
+                                        onClick={() => !isUploadingMedia && setImagePreview(url)}
+                                    />
+                                    {isUploadingMedia && (
+                                        <Box sx={{
+                                            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            bgcolor: 'rgba(0,0,0,0.35)', borderRadius: 'inherit',
+                                        }}>
+                                            <CircularProgress size={32} sx={{ color: 'white' }} />
+                                        </Box>
+                                    )}
+                                </Box>
                             );
                         })}
                     </Box>
@@ -353,11 +412,15 @@ function MessageItemInner({
                                         </Typography>
                                     )}
                                     <Typography fontSize={11} sx={{ color: 'text.secondary' }}>
-                                        {fileSize ? ' · ' : ''}{t('chat.download_to_keep')}
+                                        {isUploadingMedia ? t('chat.uploading') || 'Đang tải lên...' : (fileSize ? ' · ' : '') + t('chat.download_to_keep')}
                                     </Typography>
                                 </Box>
                             </Box>
-                            <DownloadIcon sx={{ color: 'text.secondary', fontSize: 24 }} />
+                            {isUploadingMedia ? (
+                                <CircularProgress size={20} sx={{ color: 'text.secondary' }} />
+                            ) : (
+                                <DownloadIcon sx={{ color: 'text.secondary', fontSize: 24 }} />
+                            )}
                         </Box>
                     );
                 })}
@@ -423,6 +486,20 @@ function MessageItemInner({
             statusText = `${isVideo ? t('call_history.video_call') : t('call_history.voice_call')} · ${formatDuration(duration)}`;
         }
 
+        // Format relative time for call messages (e.g., "5 phút trước")
+        const getCallRelativeTime = (createdAt: string) => {
+            const now = new Date();
+            const callTime = new Date(createdAt);
+            const diffMs = now.getTime() - callTime.getTime();
+            const diffMinutes = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+
+            if (diffMinutes < 1) return t('call_history.just_now') || 'Vừa xong';
+            if (diffMinutes < 60) return `${diffMinutes} ${t('call_history.minutes_ago') || 'phút trước'}`;
+            if (diffHours < 24) return `${diffHours} ${t('call_history.hours_ago') || 'giờ trước'}`;
+            return formatChatTimestamp(createdAt);
+        };
+
         // Icon and color
         const iconColor = (isMissed || isCancelled) ? '#f44336' : isOngoing ? '#4caf50' : 'text.secondary';
         const CallIcon = (isMissed || isCancelled)
@@ -485,7 +562,7 @@ function MessageItemInner({
                         <Typography sx={{ fontSize: 11, color: (isMissed || isCancelled) ? '#f44336' : 'text.secondary', lineHeight: 1.4 }}>
                             {statusText}
                             {' · '}
-                            {formatChatTimestamp(message.createdAt)}
+                            {getCallRelativeTime(message.createdAt)}
                         </Typography>
                     </Box>
 
@@ -1119,8 +1196,6 @@ function MessageItemInner({
         );
     }
 
-
-
     return (
         <>
             <Box
@@ -1229,6 +1304,8 @@ function MessageItemInner({
                                         overflow: 'hidden',
                                         position: 'relative',
                                         zIndex: 1,
+                                        opacity: sendFailed ? 0.5 : 1,
+                                        transition: 'opacity 0.2s',
                                     }}
                                 >
                                     {/* Main Message Content */}
@@ -1272,44 +1349,46 @@ function MessageItemInner({
                                 {renderEmotionsSummary()}
                             </Box>
 
-                            {/* Hover Actions & Time */}
-                            <Box
-                                className="message-hover-actions"
-                                sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    opacity: 0,
-                                    transition: 'opacity 0.15s',
-                                    flexDirection: isOwn ? 'row-reverse' : 'row',
-                                    gap: 0.2,
-                                    zIndex: 100,
-                                    bgcolor: 'background.paper',
-                                    borderRadius: 3,
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                                    px: 0.5,
-                                    py: 0.2,
-                                }}
-                            >
-                                <IconButton size="small" onClick={handleReactionOpen} sx={{ p: 0.4, '&:hover': { bgcolor: 'action.hover' } }}>
-                                    <SentimentSatisfiedAltIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
-                                </IconButton>
-                                <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: 'action.hover' } }}>
-                                    <ReplyIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
-                                </IconButton>
-                                {isOwn &&
-                                    <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4, '&:hover': { bgcolor: 'action.hover' } }}>
-                                        <MoreHorizIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
+                            {/* Hover Actions & Time - Hide for optimistic messages */}
+                            {!isOptimistic && (
+                                <Box
+                                    className="message-hover-actions"
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        opacity: 0,
+                                        transition: 'opacity 0.15s',
+                                        flexDirection: isOwn ? 'row-reverse' : 'row',
+                                        gap: 0.2,
+                                        zIndex: 100,
+                                        bgcolor: 'background.paper',
+                                        borderRadius: 3,
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                        px: 0.5,
+                                        py: 0.2,
+                                    }}
+                                >
+                                    <IconButton size="small" onClick={handleReactionOpen} sx={{ p: 0.4, '&:hover': { bgcolor: 'action.hover' } }}>
+                                        <SentimentSatisfiedAltIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
                                     </IconButton>
-                                }
-                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11, mx: 0.5, whiteSpace: 'nowrap' }}>
-                                    {formatChatTimestamp(message.createdAt)}
-                                </Typography>
-                            </Box>
+                                    <IconButton size="small" onClick={() => onReply?.(message)} sx={{ p: 0.4, '&:hover': { bgcolor: 'action.hover' } }}>
+                                        <ReplyIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
+                                    </IconButton>
+                                    {isOwn &&
+                                        <IconButton size="small" onClick={handleMenuOpen} sx={{ p: 0.4, '&:hover': { bgcolor: 'action.hover' } }}>
+                                            <MoreHorizIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
+                                        </IconButton>
+                                    }
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11, mx: 0.5, whiteSpace: 'nowrap' }}>
+                                        {formatChatTimestamp(message.createdAt)}
+                                    </Typography>
+                                </Box>
+                            )}
                         </Box>
                     </Box>
                 </Box>
 
-                {/* Message Status Indicator - only show on last own message */}
+                {/* Message Status Indicator - show for optimistic or last own message */}
                 {isOwn && (
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pr: 2, mt: 0.3 }}>
                         {renderMessageStatus()}

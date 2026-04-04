@@ -248,6 +248,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
     // Chatbot typing indicator state
     const [isChatbotTyping, setIsChatbotTyping] = useState(false);
+    const chatbotTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // AI streaming state: tracks which messageId is currently streaming and accumulated text
     const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
@@ -615,6 +616,10 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             // Clear this message from pending cache since we're handling it here
             useMessageCacheStore.getState().clearPending(selectedConversation._id);
 
+            // Determine if this is our own message (for optimistic reconciliation)
+            const msgSenderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
+            const isOwnMessage = msgSenderId === userId;
+
             queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                 [QUERY_KEYS.CHATS, selectedConversation._id],
                 (oldData) => {
@@ -631,6 +636,38 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         return oldData;
                     }
 
+                    // If this is our own message, find and replace the optimistic placeholder
+                    if (isOwnMessage) {
+                        // Find the oldest optimistic message matching this content/type
+                        // Also check createdAt proximity (within 60s) to avoid mismatching
+                        let optimisticFound = false;
+                        const msgTime = new Date(msg.createdAt).getTime();
+                        const newPages = oldData.pages.map(page => ({
+                            ...page,
+                            data: page.data.map(m => {
+                                if (!optimisticFound && m._isOptimistic && m._tempId?.startsWith('_optimistic_') &&
+                                    m.content === msg.content && m.type === msg.type &&
+                                    Math.abs(new Date(m.createdAt).getTime() - msgTime) < 60000) {
+                                    optimisticFound = true;
+                                    // Revoke local blob URLs to prevent memory leaks
+                                    if (m._localMediaPreviews) {
+                                        m._localMediaPreviews.forEach(url => {
+                                            try { URL.revokeObjectURL(url); } catch (_) { }
+                                        });
+                                    }
+                                    // Replace optimistic with real message
+                                    return { ...msg };
+                                }
+                                return m;
+                            })
+                        }));
+
+                        if (optimisticFound) {
+                            return { ...oldData, pages: newPages };
+                        }
+                    }
+
+                    // No optimistic match - append normally
                     const newPages = [...oldData.pages];
                     const lastPageIndex = newPages.length - 1;
                     newPages[lastPageIndex] = {
@@ -648,7 +685,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             // If message is new (from anyone), we are viewing it right now, so update our cursor to this message.
             // This is critical so that if WE send a message, our "seen" cursor moves to it, 
             // alerting others that we are active up to this point.
-            if (socketChat && selectedConversation._id && msg._id) {
+            // Only send for real server IDs (not optimistic temp IDs)
+            if (socketChat && selectedConversation._id && msg._id && /^[a-fA-F0-9]{24}$/.test(msg._id)) {
                 socketChat.emit("message:read", {
                     conversationId: selectedConversation._id,
                     messageId: msg._id // Use the new message as cursor
@@ -959,6 +997,9 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         const handleChatbotTyping = (data: { conversationId: string; isTyping: boolean }) => {
             if (data.conversationId === selectedConversation._id) {
                 setIsChatbotTyping(data.isTyping);
+                if (!data.isTyping && chatbotTypingTimeoutRef.current) {
+                    clearTimeout(chatbotTypingTimeoutRef.current);
+                }
             }
         };
 
@@ -1051,6 +1092,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
             // Hide typing dots on first token
             setIsChatbotTyping(false);
+            if (chatbotTypingTimeoutRef.current) clearTimeout(chatbotTypingTimeoutRef.current);
 
             streamingTextRef.current += data.token;
             const currentText = streamingTextRef.current;
@@ -1084,6 +1126,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
             setStreamingMessageId(null);
             streamingTextRef.current = '';
+            setIsChatbotTyping(false); // Ensure typing indicator is cleared
+            if (chatbotTypingTimeoutRef.current) clearTimeout(chatbotTypingTimeoutRef.current);
 
             queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                 [QUERY_KEYS.CHATS, selectedConversation._id],
@@ -1270,14 +1314,118 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     const handleSendMessage = async () => {
         if ((!newMessageRef.current.trim() && mediaPreview.length === 0 && filePreview.length === 0) || !socketChat) return;
 
-        setIsUploading(true);
+        // Capture values before clearing UI
+        const messageContent = newMessageRef.current || '';
+        const currentMediaPreview = [...mediaPreview];
+        const currentFilePreview = [...filePreview];
+        const currentReplyMsg = replyMsg;
+        const hasMedia = currentMediaPreview.length > 0;
+        const hasFiles = currentFilePreview.length > 0;
+
+        // Determine message type for optimistic message
+        let optimisticType: 'TEXT' | 'IMAGE' | 'FILE' = 'TEXT';
+        if (hasMedia && !messageContent.trim()) optimisticType = 'IMAGE';
+        if (hasFiles && !messageContent.trim()) optimisticType = 'FILE';
+
+        // Generate temp ID for optimistic message
+        const tempId = `_optimistic_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+        // Build local preview attachments for optimistic display
+        const localMediaPreviews = currentMediaPreview.map(m => m.url);
+        const optimisticAttachments: AttachmentData[] = [
+            ...currentMediaPreview.map(m => ({
+                url: m.url, // Local blob URL
+                fileName: m.file.name,
+                fileSize: m.file.size,
+                mediaType: (m.type === 'image' ? 'IMAGE' : 'VIDEO') as 'IMAGE' | 'VIDEO' | 'RAW',
+            })),
+            ...currentFilePreview.map(f => ({
+                url: '', // No preview for files
+                fileName: f.name,
+                fileSize: f.size,
+                mediaType: 'RAW' as 'IMAGE' | 'VIDEO' | 'RAW',
+            })),
+        ];
+
+        // Get current user info from conversation participants
+        const currentUser = currentUserParticipant?.user;
+
+        // Create optimistic message
+        const optimisticMessage: MessageResponse = {
+            _id: tempId,
+            conversationId: selectedConversation._id,
+            senderId: {
+                _id: userId,
+                firstName: currentUser?.firstName || '',
+                lastName: currentUser?.lastName || '',
+                avatar: currentUser?.avatar || '',
+            },
+            type: optimisticType,
+            content: messageContent,
+            attachments: optimisticAttachments.length > 0 ? optimisticAttachments : undefined,
+            replyTo: currentReplyMsg || undefined,
+            createdAt: new Date().toISOString(),
+            isRestricted: false,
+            status: 'SENT',
+            _isOptimistic: true,
+            _isUploading: hasMedia || hasFiles,
+            _tempId: tempId,
+            _localMediaPreviews: localMediaPreviews,
+        };
+
+        // IMMEDIATELY add optimistic message to cache
+        queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+            [QUERY_KEYS.CHATS, selectedConversation._id],
+            (oldData) => {
+                if (!oldData) {
+                    return {
+                        pages: [{ data: [optimisticMessage], pagination: { page: 1, limit: 15, total: 1, hasMore: false } }],
+                        pageParams: [undefined],
+                    };
+                }
+                const newPages = [...oldData.pages];
+                const lastPageIndex = newPages.length - 1;
+                newPages[lastPageIndex] = {
+                    ...newPages[lastPageIndex],
+                    data: [...newPages[lastPageIndex].data, optimisticMessage],
+                };
+                return { ...oldData, pages: newPages };
+            }
+        );
+
+        // Clear UI immediately (user sees message appear instantly)
+        newMessageRef.current = "";
+        setDisplayMessage("");
+        setReplyMsg(null);
+        setMediaPreview([]);
+        setFilePreview([]);
+        setShowMentions(false);
+
+        // Scroll to bottom immediately
+        setTimeout(() => {
+            virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'auto' });
+        }, 50);
+
+        // Stop typing indicator
+        socketChat.emit("typing:stop", { conversationId: selectedConversation._id });
+
+        // For CHATBOT conversations, immediately show AI typing indicator
+        // so user gets instant feedback that AI is processing
+        if (isChatbot && messageContent.trim()) {
+            if (chatbotTypingTimeoutRef.current) clearTimeout(chatbotTypingTimeoutRef.current);
+            setIsChatbotTyping(true);
+            // Safety timeout: hide after 30s if AI never responds
+            chatbotTypingTimeoutRef.current = setTimeout(() => setIsChatbotTyping(false), 30000);
+        }
+
+        // Now handle uploads and actual sending in the background
         try {
             let attachments: AttachmentData[] = [];
             let messageType: 'TEXT' | 'IMAGE' | 'FILE' = 'TEXT';
 
             // Upload media if any
-            if (mediaPreview.length > 0) {
-                const files = mediaPreview.map(m => m.file);
+            if (hasMedia) {
+                const files = currentMediaPreview.map(m => m.file);
                 const uploadResult = await uploadChatMedia(files);
                 if (uploadResult.success) {
                     attachments = uploadResult.results.map(u => ({
@@ -1286,18 +1434,32 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         fileSize: u.fileSize,
                         mediaType: u.mediaType
                     }));
-                    messageType = newMessageRef.current.trim() ? 'TEXT' : 'IMAGE';
+                    messageType = messageContent.trim() ? 'TEXT' : 'IMAGE';
                 } else {
-                    console.error("Upload failed");
+                    // Mark optimistic message as failed
+                    queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                        [QUERY_KEYS.CHATS, selectedConversation._id],
+                        (oldData) => {
+                            if (!oldData) return oldData;
+                            return {
+                                ...oldData,
+                                pages: oldData.pages.map(page => ({
+                                    ...page,
+                                    data: page.data.map(msg =>
+                                        msg._id === tempId ? { ...msg, _isUploading: false, _sendFailed: true } : msg
+                                    )
+                                }))
+                            };
+                        }
+                    );
                     toast.error(uploadResult.error || t('chat.upload_failed'));
-                    setIsUploading(false);
                     return;
                 }
             }
 
             // Upload document files if any
-            if (filePreview.length > 0) {
-                const files = filePreview.map(f => f.file);
+            if (hasFiles) {
+                const files = currentFilePreview.map(f => f.file);
                 const uploadResult = await uploadChatMedia(files);
                 if (uploadResult.success) {
                     const docAttachments = uploadResult.results.map(u => ({
@@ -1307,43 +1469,108 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         mediaType: u.mediaType
                     }));
                     attachments = [...attachments, ...docAttachments];
-                    messageType = newMessageRef.current.trim() ? 'TEXT' : 'FILE';
+                    messageType = messageContent.trim() ? 'TEXT' : 'FILE';
                 } else {
-                    console.error("File upload failed");
+                    queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                        [QUERY_KEYS.CHATS, selectedConversation._id],
+                        (oldData) => {
+                            if (!oldData) return oldData;
+                            return {
+                                ...oldData,
+                                pages: oldData.pages.map(page => ({
+                                    ...page,
+                                    data: page.data.map(msg =>
+                                        msg._id === tempId ? { ...msg, _isUploading: false, _sendFailed: true } : msg
+                                    )
+                                }))
+                            };
+                        }
+                    );
                     toast.error(uploadResult.error || t('chat.upload_failed'));
-                    setIsUploading(false);
                     return;
                 }
+            }
+
+            // Update optimistic message to remove uploading state (upload done, now sending)
+            if (hasMedia || hasFiles) {
+                queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                    [QUERY_KEYS.CHATS, selectedConversation._id],
+                    (oldData) => {
+                        if (!oldData) return oldData;
+                        return {
+                            ...oldData,
+                            pages: oldData.pages.map(page => ({
+                                ...page,
+                                data: page.data.map(msg => {
+                                    if (msg._id === tempId) {
+                                        // Replace local blob URLs with real uploaded URLs
+                                        return {
+                                            ...msg,
+                                            _isUploading: false,
+                                            _localMediaPreviews: undefined,
+                                            attachments: attachments.length > 0 ? attachments : undefined,
+                                            type: messageType,
+                                        };
+                                    }
+                                    return msg;
+                                })
+                            }))
+                        };
+                    }
+                );
             }
 
             const payload: SendMessagePayload = {
                 conversationId: selectedConversation._id,
                 senderId: userId,
                 type: messageType,
-                content: newMessageRef.current || '',
+                content: messageContent,
                 attachments: attachments.length > 0 ? attachments : undefined,
-                replyTo: replyMsg?._id,
+                replyTo: currentReplyMsg?._id,
             };
 
-            // Stop typing indicator before sending
-            socketChat.emit("typing:stop", { conversationId: selectedConversation._id });
-
             // Send message with callback to handle errors
-            socketChat.emit("message", payload, (response: { success: boolean; error?: string }) => {
+            socketChat.emit("message", payload, (response: { success: boolean; error?: string; message?: MessageResponse }) => {
                 if (response && !response.success) {
+                    // Mark as failed
+                    queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                        [QUERY_KEYS.CHATS, selectedConversation._id],
+                        (oldData) => {
+                            if (!oldData) return oldData;
+                            return {
+                                ...oldData,
+                                pages: oldData.pages.map(page => ({
+                                    ...page,
+                                    data: page.data.map(msg =>
+                                        msg._id === tempId ? { ...msg, _sendFailed: true, _isOptimistic: true } : msg
+                                    )
+                                }))
+                            };
+                        }
+                    );
                     toast.error(response.error || t('chat.cannot_send'));
                 }
+                // On success, the socket 'message:new' event will bring the real message.
+                // We remove the optimistic one when the real one arrives (handled in handleNewMessage).
             });
-            newMessageRef.current = "";
-            setDisplayMessage("");
-            setReplyMsg(null);
-            setMediaPreview([]);
-            setFilePreview([]);
-            setShowMentions(false);
         } catch (err) {
             console.error("Failed to send message:", err);
-        } finally {
-            setIsUploading(false);
+            // Mark optimistic message as failed
+            queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                [QUERY_KEYS.CHATS, selectedConversation._id],
+                (oldData) => {
+                    if (!oldData) return oldData;
+                    return {
+                        ...oldData,
+                        pages: oldData.pages.map(page => ({
+                            ...page,
+                            data: page.data.map(msg =>
+                                msg._id === tempId ? { ...msg, _isUploading: false, _sendFailed: true } : msg
+                            )
+                        }))
+                    };
+                }
+            );
         }
     };
 
@@ -1468,9 +1695,63 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         setEmojiAnchor(null);
     };
 
-    // Send quick reaction as a message
+    // Send quick reaction as a message (optimistic)
     const handleSendQuickReaction = () => {
         if (!socketChat) return;
+
+        const tempId = `_optimistic_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        const currentUser = currentUserParticipant?.user;
+
+        // Create optimistic message
+        const optimisticMessage: MessageResponse = {
+            _id: tempId,
+            conversationId: selectedConversation._id,
+            senderId: {
+                _id: userId,
+                firstName: currentUser?.firstName || '',
+                lastName: currentUser?.lastName || '',
+                avatar: currentUser?.avatar || '',
+            },
+            type: 'TEXT',
+            content: quickReaction,
+            createdAt: new Date().toISOString(),
+            isRestricted: false,
+            status: 'SENT',
+            _isOptimistic: true,
+            _tempId: tempId,
+        };
+
+        // Add to cache immediately
+        queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+            [QUERY_KEYS.CHATS, selectedConversation._id],
+            (oldData) => {
+                if (!oldData) {
+                    return {
+                        pages: [{ data: [optimisticMessage], pagination: { page: 1, limit: 15, total: 1, hasMore: false } }],
+                        pageParams: [undefined],
+                    };
+                }
+                const newPages = [...oldData.pages];
+                const lastPageIndex = newPages.length - 1;
+                newPages[lastPageIndex] = {
+                    ...newPages[lastPageIndex],
+                    data: [...newPages[lastPageIndex].data, optimisticMessage],
+                };
+                return { ...oldData, pages: newPages };
+            }
+        );
+
+        // Scroll to bottom
+        setTimeout(() => {
+            virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'auto' });
+        }, 50);
+
+        // For CHATBOT conversations, show AI typing immediately
+        if (isChatbot) {
+            if (chatbotTypingTimeoutRef.current) clearTimeout(chatbotTypingTimeoutRef.current);
+            setIsChatbotTyping(true);
+            chatbotTypingTimeoutRef.current = setTimeout(() => setIsChatbotTyping(false), 30000);
+        }
 
         const payload: SendMessagePayload = {
             conversationId: selectedConversation._id,
@@ -1479,7 +1760,27 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             content: quickReaction,
         };
 
-        socketChat.emit("message", payload);
+        socketChat.emit("message", payload, (response: { success: boolean; error?: string }) => {
+            if (response && !response.success) {
+                // Mark as failed
+                queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                    [QUERY_KEYS.CHATS, selectedConversation._id],
+                    (oldData) => {
+                        if (!oldData) return oldData;
+                        return {
+                            ...oldData,
+                            pages: oldData.pages.map(page => ({
+                                ...page,
+                                data: page.data.map(msg =>
+                                    msg._id === tempId ? { ...msg, _sendFailed: true } : msg
+                                )
+                            }))
+                        };
+                    }
+                );
+                toast.error(response.error || t('chat.cannot_send'));
+            }
+        });
     };
 
     // Header component showing loading when fetching older messages
@@ -2250,9 +2551,9 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                             <IconButton size="small" sx={{ color: "#0084ff" }} onClick={(e) => setEmojiAnchor(e.currentTarget)}>
                                 <EmojiEmotionsIcon fontSize="small" />
                             </IconButton>
-                            {(displayMessage.trim() || mediaPreview.length > 0) ? (
-                                <IconButton onClick={handleSendMessage} size="small" sx={{ color: themeColor }} disabled={isUploading}>
-                                    {isUploading ? <CircularProgress size={18} /> : <SendIcon fontSize="small" />}
+                            {(displayMessage.trim() || mediaPreview.length > 0 || filePreview.length > 0) ? (
+                                <IconButton onClick={handleSendMessage} size="small" sx={{ color: themeColor }}>
+                                    <SendIcon fontSize="small" />
                                 </IconButton>
                             ) : (
                                 <IconButton

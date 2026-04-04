@@ -462,14 +462,19 @@ export class ReactionService implements OnModuleInit {
     const reactionSummaries = await this.reactionModel.aggregate([
       { $match: { factorId: { $in: objectIds }, typeFactor } },
       { $group: { _id: { factorId: '$factorId', type: '$type' }, count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
       {
         $group: {
           _id: '$_id.factorId',
           reactions: { $push: { type: '$_id.type', count: '$count' } },
         },
       },
-      { $project: { reactions: { $slice: ['$reactions', 3] } } },
+      {
+        $project: {
+          reactions: {
+            $slice: [{ $sortArray: { input: '$reactions', sortBy: { count: -1 } } }, 3],
+          },
+        },
+      },
     ]);
 
     const result: Record<

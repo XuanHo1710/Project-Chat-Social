@@ -485,6 +485,7 @@ export default memo(PostItem, (prevProps, nextProps) => {
         prevProps.post.reactInfo?.type === nextProps.post.reactInfo?.type &&
         prevProps.isHighlighted === nextProps.isHighlighted &&
         prevProps.userId === nextProps.userId &&
-        prevProps.onHidePost === nextProps.onHidePost
+        prevProps.onHidePost === nextProps.onHidePost &&
+        JSON.stringify(prevProps.post.topReactions) === JSON.stringify(nextProps.post.topReactions)
     );
 });

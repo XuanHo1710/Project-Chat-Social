@@ -213,6 +213,45 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
             totalReacts: newTotal
         });
 
+        // Optimistically update topReactions in query caches so PostItem re-renders instantly
+        const updateTopReactions = (oldData: any) => {
+            if (!oldData?.pages) return oldData;
+            return {
+                ...oldData,
+                pages: oldData.pages.map((page: any) => ({
+                    ...page,
+                    data: (page.data || []).map((p: any) => {
+                        if (p._id !== post._id) return p;
+                        const prev: { type: string; count: number }[] = [...(p.topReactions || [])];
+                        // Decrement old reaction type
+                        if (currentReaction) {
+                            const idx = prev.findIndex((r: any) => r.type === currentReaction);
+                            if (idx !== -1) {
+                                prev[idx] = { ...prev[idx], count: prev[idx].count - 1 };
+                                if (prev[idx].count <= 0) prev.splice(idx, 1);
+                            }
+                        }
+                        // Increment new reaction type
+                        if (newReaction) {
+                            const idx = prev.findIndex((r: any) => r.type === newReaction);
+                            if (idx !== -1) {
+                                prev[idx] = { ...prev[idx], count: prev[idx].count + 1 };
+                            } else {
+                                prev.push({ type: newReaction, count: 1 });
+                            }
+                        }
+                        // Sort by count desc, keep top 3
+                        prev.sort((a: any, b: any) => b.count - a.count);
+                        return { ...p, topReactions: prev.slice(0, 3) };
+                    }),
+                })),
+            };
+        };
+        queryClient.setQueriesData({ queryKey: ['news_feed'] }, updateTopReactions);
+        queryClient.setQueriesData({ queryKey: ['user_posts'] }, updateTopReactions);
+        queryClient.setQueriesData({ queryKey: ['search_feed'] }, updateTopReactions);
+        queryClient.setQueriesData({ queryKey: ['group_posts'] }, updateTopReactions);
+
         // Cancel previous debounce
         if (debounceRef.current) {
             clearTimeout(debounceRef.current);

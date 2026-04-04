@@ -6,16 +6,16 @@
 # │  nginx             :80 (host)    entry point           reverse proxy                │
 # │    ├─ /api/v1/*  ──────────────► backend :8080         NestJS globalPrefix=api      │
 # │    ├─ /api/v2/*  ──────────────► backend :8080         versioning /v1 /v2           │
-# │    └─ /socket.io/──────────────► backend :8080         WebSocket upgrade            │
+# │    ├─ /socket.io/──────────────► backend :8080         WebSocket upgrade            │
+# │    └─ /*         ──────────────► frontend :3000        Next.js standalone           │
 # │                                                                                      │
+# │  frontend          :3000 (internal)  /*                Next.js standalone           │
 # │  backend           :8080 → :5000 /api/v1/* /api/v2/*   HTTP + Socket.IO            │
 # │                                                         + RMQ consumer: backend_queue│
 # │  kafka-server      :3002 (internal only)  no public routes  Kafka consumer only     │
 # │  rabbitmq-worker   NO HTTP PORT           pure RMQ microservice (social_queue)      │
 # │  server-ai         :8000 (internal)       /api/v1/*          FastAPI                │
 # │                                           /health  /docs                            │
-# │                                                                                      │
-# │  Frontend chạy riêng (host :1710, Next.js)                                          │
 # │                                                                                      │
 # │  docker compose up -d --build                                                        │
 # │  docker compose up -d --scale backend=3                                              │
@@ -229,6 +229,26 @@ services:
     networks:
       - app-net
     restart: unless-stopped
+
+  frontend:
+    # Next.js standalone — served via nginx on /*
+    image: xuanho17102004/project-chat-social-frontend:latest
+    env_file: ./frontend/.env
+    networks:
+      - app-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
 
   rabbitmq-worker:
     # NestJS PURE microservice — NestFactory.createMicroservice() only

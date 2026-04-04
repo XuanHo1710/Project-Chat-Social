@@ -2,89 +2,103 @@ name: CI + CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch: 
+    branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   docker:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      # 1. Checkout
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Login Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+      # 2. Login Docker Hub
+      - name: Login Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-    # Backend
-    - name: Build & Push Backend
-      uses: docker/build-push-action@v5
-      with:
-        context: ./backend
-        push: true
-        tags: xuanho17102004/project-chat-social-backend:latest
+      # 3. Backend
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: xuanho17102004/project-chat-social-backend:latest
 
-    # AI
-    - name: Build & Push AI
-      uses: docker/build-push-action@v5
-      with:
-        context: ./server-ai
-        push: true
-        tags: xuanho17102004/project-chat-social-server-ai:latest
+      # 4. AI
+      - name: Build & Push AI
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server-ai
+          push: true
+          tags: xuanho17102004/project-chat-social-server-ai:latest
 
-    # Kafka
-    - name: Build & Push Kafka
-      uses: docker/build-push-action@v5
-      with:
-        context: ./kafka-server
-        push: true
-        tags: xuanho17102004/project-chat-social-kafka-server:latest
+      # 5. Kafka
+      - name: Build & Push Kafka
+        uses: docker/build-push-action@v5
+        with:
+          context: ./kafka-server
+          push: true
+          tags: xuanho17102004/project-chat-social-kafka-server:latest
 
-    # Rabbit
-    - name: Build & Push Rabbit
-      uses: docker/build-push-action@v5
-      with:
-        context: ./rabbitmq
-        push: true
-        tags: xuanho17102004/project-chat-social-rabbitmq-worker:latest
+      # 6. RabbitMQ
+      - name: Build & Push Rabbit
+        uses: docker/build-push-action@v5
+        with:
+          context: ./rabbitmq
+          push: true
+          tags: xuanho17102004/project-chat-social-rabbitmq-worker:latest
 
-    # Frontend
-    - name: Build & Push Frontend
-      uses: docker/build-push-action@v5
-      with:
-        context: ./frontend
-        push: true
-        tags: xuanho17102004/project-chat-social-frontend:latest
-        build-args: |
-          NEXT_PUBLIC_BACKEND_API_URL=${{ secrets.NEXT_PUBLIC_BACKEND_API_URL }}
-          NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }}
-          NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
-          NEXT_PUBLIC_PRESET_KEY=${{ secrets.NEXT_PUBLIC_PRESET_KEY }}
-          NEXT_PUBLIC_CLOUD_NAME=${{ secrets.NEXT_PUBLIC_CLOUD_NAME }}
-          NEXT_PUBLIC_CLOUDINARY_API_KEY=${{ secrets.NEXT_PUBLIC_CLOUDINARY_API_KEY }}
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-          NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
-          NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
-          NEXT_PUBLIC_FIREBASE_VAPID_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
-          NEXT_PUBLIC_API_VIDEO_KEY=${{ secrets.NEXT_PUBLIC_API_VIDEO_KEY }}
+      # 7. Frontend
+      - name: Build & Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: xuanho17102004/project-chat-social-frontend:latest
+          build-args: |
+            NEXT_PUBLIC_BACKEND_API_URL=${{ secrets.NEXT_PUBLIC_BACKEND_API_URL }}
+            NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }}
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_PRESET_KEY=${{ secrets.NEXT_PUBLIC_PRESET_KEY }}
+            NEXT_PUBLIC_CLOUD_NAME=${{ secrets.NEXT_PUBLIC_CLOUD_NAME }}
+            NEXT_PUBLIC_CLOUDINARY_API_KEY=${{ secrets.NEXT_PUBLIC_CLOUDINARY_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+            NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+            NEXT_PUBLIC_FIREBASE_VAPID_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
+            NEXT_PUBLIC_API_VIDEO_KEY=${{ secrets.NEXT_PUBLIC_API_VIDEO_KEY }}
+
   deploy:
-    needs: docker   
+    needs: docker
     runs-on: self-hosted
+
     steps:
-    - name: Login Docker Hub (private)
-      run: |
-        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-    - name: Deploy on EC2
-      run: |
-        cd /home/ubuntu/Project-Chat-Social
+      # 1. Login Docker Hub
+      - name: Login Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-        git pull origin main
+      # 2. Clone nếu chưa có (PRIVATE bằng TOKEN)
+      - name: Prepare source code
+        run: |
+          if [ ! -d "/home/ubuntu/Project-Chat-Social/.git" ]; then
+            git clone https://${{ secrets.SECRET_KEY }}@github.com/XuanHo1710/Project-Chat-Social.git /home/ubuntu/Project-Chat-Social
+          fi
 
-        docker-compose pull
-        docker-compose up -d
+      # 3. Deploy
+      - name: Deploy on EC2
+        run: |
+          cd /home/ubuntu/Project-Chat-Social
+
+          git pull https://${{ secrets.SECRET_KEY }}@github.com/XuanHo1710/Project-Chat-Social.git main
+
+          docker-compose pull
+          docker-compose up -d --remove-orphans

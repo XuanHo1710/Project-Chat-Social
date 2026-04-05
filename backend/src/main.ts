@@ -2,7 +2,7 @@ import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import cookieParser from 'cookie-parser';
+import * as cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from 'core/exception.filter';
 import { TransformInterceptor } from 'core/transform.interceptor';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
@@ -50,7 +50,7 @@ async function bootstrap() {
   app.useGlobalInterceptors(new TransformInterceptor(reflector));
 
   //Cookies
-  app.use(cookieParser());
+  // app.use(cookieParser());
 
   app.setGlobalPrefix('api');
   app.enableVersioning({

@@ -64,14 +64,14 @@ export class EmailService {
         body: JSON.stringify(payload),
       });
 
-      const data: BrevoResponse = await response.json();
+      await response.json();
 
       if (response.ok) {
         return true;
       } else {
         return false;
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error sending email: ${error.message}`);
       return false;
     }

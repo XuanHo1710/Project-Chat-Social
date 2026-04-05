@@ -90,7 +90,7 @@ export class PostService {
           { timeout: 10000 }
         )
       );
-    } catch (error) {
+    } catch (error: any) {
       // Log but don't throw - embedding is not critical for post creation
       console.warn(`⚠️ Failed to embed post ${post._id}:`, error.message);
     }
@@ -104,7 +104,7 @@ export class PostService {
       await firstValueFrom(
         this.httpService.delete(`${this.aiServerUrl}/embed/post/${postId}`, { timeout: 10000 })
       );
-    } catch (error) {
+    } catch (error: any) {
       console.warn(`⚠️ Failed to delete post embedding ${postId}:`, error.message);
     }
   }
@@ -215,7 +215,7 @@ export class PostService {
           groupId: post.groupId?.toString(),
         }
       );
-    } catch (error) {
+    } catch (error: any) {
       console.warn('Failed to emit post to Kafka:', error.message);
     }
   }
@@ -403,7 +403,7 @@ export class PostService {
           totalPages: Math.ceil(responseAPIAi.data.total / limit),
         };
       }
-    } catch (error) {
+    } catch (error: any) {
       console.warn('AI Server unavailable, falling back to standard newsfeed:', error.message);
     }
 
@@ -574,7 +574,7 @@ export class PostService {
         page,
         totalPages: Math.ceil(responseAPIAi.data.total / limit),
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI Server search failed:', error.message);
 
       // Fallback: basic text search with MongoDB
@@ -738,7 +738,7 @@ export class PostService {
           };
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.warn(
         'AI Server unavailable for Reels, falling back to chronological:',
         error.message

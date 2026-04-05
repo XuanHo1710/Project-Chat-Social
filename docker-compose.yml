@@ -156,13 +156,21 @@ services:
     # FastAPI — Recommendation + Chatbot
     # Vectors: Qdrant Cloud
     # LLM: Ollama (qwen2.5:0.5b via Docker, CPU-only)
+    build:
+      context: ./server-ai
+      dockerfile: Dockerfile
     image: xuanho17102004/project-chat-social-server-ai:latest
     env_file: ./server-ai/.env
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HOME: /root/.cache/huggingface
     depends_on:
       ollama:
         condition: service_healthy
       ollama-pull:
         condition: service_completed_successfully
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
     deploy:
       resources:
         limits:
@@ -282,6 +290,7 @@ volumes:
   kafka_data:
   rabbitmq_data:
   ollama_data:
+  huggingface_cache:
 
 networks:
   app-net:

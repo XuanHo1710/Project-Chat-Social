@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AccountService } from 'src/account/account.service';
@@ -19,6 +19,31 @@ export class AuthService {
     private configService: ConfigService,
     private authSessionService: AuthSessionService
   ) {}
+
+  private isAdminBlockActive(account: Partial<Account>): boolean {
+    if (!account?.isBlocked) return false;
+    if (!account?.expireBlockAt) return true;
+    return new Date(account.expireBlockAt) > new Date();
+  }
+
+  private isSelfBlockActive(account: Partial<Account>): boolean {
+    if (!account?.selfBlockedAt || !account?.selfBlockExpireAt) return false;
+    return new Date(account.selfBlockExpireAt) > new Date();
+  }
+
+  private ensureAccountCanAccess(account: Partial<Account>) {
+    if (account?.isActive === false) {
+      throw new ForbiddenException('Tài khoản đã bị vô hiệu hóa');
+    }
+
+    if (this.isAdminBlockActive(account)) {
+      throw new ForbiddenException('Tài khoản đã bị khóa bởi quản trị viên');
+    }
+
+    if (this.isSelfBlockActive(account)) {
+      throw new ForbiddenException('Tài khoản đang ở trạng thái tự khóa');
+    }
+  }
 
   async googleLogin(accountGoogle: AccountGoogleDto) {
     if (!accountGoogle) throw new BadRequestException('Account google không tồn tại');
@@ -49,6 +74,11 @@ export class AuthService {
     if (!account) {
       account = await this.accountService.findByPhone(username);
     }
+
+    if (account) {
+      this.ensureAccountCanAccess(account as unknown as Partial<Account>);
+    }
+
     const isCorrect = bcrypt.compareSync(passPlainText, account?.password || '');
     if (account && isCorrect) {
       return account;
@@ -60,6 +90,8 @@ export class AuthService {
     if (!account) {
       throw new BadRequestException('Not found bla bla');
     }
+
+    this.ensureAccountCanAccess(account);
 
     // Tăng loginCount và ghi lịch sử đăng nhập
     const today = new Date();
@@ -143,6 +175,8 @@ export class AuthService {
       if (!account) {
         throw new BadRequestException('Tài khoản không tồn tại');
       }
+
+      this.ensureAccountCanAccess(account);
 
       const payload = {
         fullname: account.firstName + ' ' + account.lastName,

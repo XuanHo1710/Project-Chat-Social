@@ -2,6 +2,10 @@ FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
+ARG EMBEDDING_MODEL=intfloat/multilingual-e5-base
+ENV EMBEDDING_MODEL=${EMBEDDING_MODEL}
+ENV HF_HOME=/root/.cache/huggingface
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -18,8 +22,8 @@ RUN pip install --no-cache-dir --timeout=120 \
 # Install remaining dependencies
 RUN pip install --no-cache-dir --timeout=120 -r requirements.txt
 
-# Pre-download embedding model (~470MB, cached in image layer)
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')"
+# Pre-download embedding model used by runtime to reduce cold start delays.
+RUN python -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.getenv('EMBEDDING_MODEL', 'intfloat/multilingual-e5-base'))"
 
 # Copy app code
 COPY . .

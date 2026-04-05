@@ -65,6 +65,9 @@ const pendingCalls = new Map<
 // Map conversationId -> Set<userId> for active group calls
 const activeGroupCalls = new Map<string, Set<string>>();
 
+// Map socketId -> Set<conversationId> that this socket joined for group calls
+const socketGroupCalls = new Map<string, Set<string>>();
+
 @WebSocketGateway({
   cors: {
     origin: '*',
@@ -91,6 +94,128 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
+  private isAdminBlockActive(account: Partial<Account>): boolean {
+    if (!account?.isBlocked) return false;
+    if (!account?.expireBlockAt) return true;
+    return new Date(account.expireBlockAt) > new Date();
+  }
+
+  private isSelfBlockActive(account: Partial<Account>): boolean {
+    if (!account?.selfBlockedAt || !account?.selfBlockExpireAt) return false;
+    return new Date(account.selfBlockExpireAt) > new Date();
+  }
+
+  private isAccountAccessDenied(account: Partial<Account> | null): boolean {
+    if (!account) return true;
+    if (account.isActive === false) return true;
+    if (this.isAdminBlockActive(account)) return true;
+    if (this.isSelfBlockActive(account)) return true;
+    return false;
+  }
+
+  private async isRealtimeAccessDenied(userId: string): Promise<boolean> {
+    const account = await this.accountModel
+      .findById(userId)
+      .select('isBlocked expireBlockAt selfBlockedAt selfBlockExpireAt isActive')
+      .lean();
+
+    return this.isAccountAccessDenied(account as Partial<Account> | null);
+  }
+
+  private ensureSocketGroupCalls(socketId: string) {
+    if (!socketGroupCalls.has(socketId)) {
+      socketGroupCalls.set(socketId, new Set());
+    }
+  }
+
+  private trackSocketGroupCall(socketId: string, conversationId: string) {
+    this.ensureSocketGroupCalls(socketId);
+    socketGroupCalls.get(socketId)!.add(conversationId);
+  }
+
+  private untrackSocketGroupCall(socketId: string, conversationId: string) {
+    const calls = socketGroupCalls.get(socketId);
+    if (!calls) return;
+
+    calls.delete(conversationId);
+    if (calls.size === 0) {
+      socketGroupCalls.delete(socketId);
+    }
+  }
+
+  private hasAnotherSocketInGroupCall(
+    userId: string,
+    conversationId: string,
+    currentSocketId: string
+  ): boolean {
+    const sockets = userSockets.get(userId);
+    if (!sockets || sockets.size === 0) return false;
+
+    for (const socketId of sockets) {
+      if (socketId === currentSocketId) continue;
+      if (socketGroupCalls.get(socketId)?.has(conversationId)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private cleanupStaleGroupParticipants(conversationId: string): Set<string> {
+    if (!activeGroupCalls.has(conversationId)) {
+      activeGroupCalls.set(conversationId, new Set());
+    }
+
+    const participants = activeGroupCalls.get(conversationId)!;
+
+    Array.from(participants).forEach((participantId) => {
+      const sockets = userSockets.get(participantId);
+      const hasJoinedSocket =
+        sockets &&
+        Array.from(sockets).some((socketId) => socketGroupCalls.get(socketId)?.has(conversationId));
+
+      if (!hasJoinedSocket) {
+        participants.delete(participantId);
+      }
+    });
+
+    if (participants.size === 0) {
+      activeGroupCalls.delete(conversationId);
+      activeGroupCalls.set(conversationId, new Set());
+    }
+
+    return activeGroupCalls.get(conversationId)!;
+  }
+
+  private async removeUserFromGroupCall(conversationId: string, userId: string, userName?: string) {
+    const currentParticipants = activeGroupCalls.get(conversationId);
+    if (!currentParticipants || !currentParticipants.has(userId)) {
+      return;
+    }
+
+    currentParticipants.delete(userId);
+
+    const name = userName || (await this.getUserDisplayName(userId)) || 'Someone';
+
+    currentParticipants.forEach((pId) => {
+      const sockets = userSockets.get(pId);
+      if (sockets) {
+        sockets.forEach((sId) => {
+          this.server.to(sId).emit('group-call:user-left', { userId, userName: name });
+        });
+      }
+    });
+
+    if (currentParticipants.size === 0) {
+      activeGroupCalls.delete(conversationId);
+      try {
+        await this.finalizeGroupCallMessage(conversationId);
+      } catch (err) {
+        this.logger.error('Failed to finalize group call message:', err);
+      }
+    }
+  }
+
   async handleConnection(client: Socket) {
     try {
       const userId = client.handshake.query.userId as string;
@@ -101,8 +226,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
+      const accessAccount = await this.accountModel
+        .findById(userId)
+        .select('isBlocked expireBlockAt selfBlockedAt selfBlockExpireAt isActive')
+        .lean();
+
+      if (this.isAccountAccessDenied(accessAccount as Partial<Account> | null)) {
+        this.logger.warn(`Blocked or inactive account tried to connect socket: ${userId}`);
+        client.emit('auth:error', {
+          message: 'Tài khoản đã bị khóa hoặc vô hiệu hóa',
+        });
+        client.disconnect();
+        return;
+      }
+
       // Store userId in client data for later use
       client.data.userId = userId;
+      this.ensureSocketGroupCalls(client.id);
 
       // Check if this is the first connection for this user
       const isFirstConnection = !userSockets.has(userId) || userSockets.get(userId)!.size === 0;
@@ -178,6 +318,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const userId = client.data.userId || (client.handshake.query.userId as string);
 
+      const joinedCalls = new Set(socketGroupCalls.get(client.id) || []);
+      let userNameForCall: string | undefined;
+
+      if (userId && joinedCalls.size > 0) {
+        for (const conversationId of joinedCalls) {
+          if (!this.hasAnotherSocketInGroupCall(userId, conversationId, client.id)) {
+            if (!userNameForCall) {
+              userNameForCall = await this.getUserDisplayName(userId);
+            }
+            await this.removeUserFromGroupCall(conversationId, userId, userNameForCall);
+          }
+        }
+      }
+
+      socketGroupCalls.delete(client.id);
+
       if (userId && userSockets.has(userId)) {
         const sockets = userSockets.get(userId)!;
         sockets.delete(client.id);
@@ -185,44 +341,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // Only update status to offline if no more connections for this user
         if (sockets.size === 0) {
           userSockets.delete(userId);
-
-          // Clean up user from active group calls
-          let userNameForCall: string | undefined;
-          for (const [convId, participants] of activeGroupCalls.entries()) {
-            if (participants.has(userId)) {
-              participants.delete(userId);
-              // Look up user name once if needed
-              if (!userNameForCall) {
-                try {
-                  const acc = await this.accountModel.findById(userId, 'firstName lastName').lean();
-                  if (acc) {
-                    userNameForCall =
-                      `${(acc as any).firstName || ''} ${(acc as any).lastName || ''}`.trim() ||
-                      undefined;
-                  }
-                } catch {}
-              }
-              // Notify remaining participants with name
-              participants.forEach((pId) => {
-                const pSockets = userSockets.get(pId);
-                if (pSockets) {
-                  pSockets.forEach((sId) => {
-                    this.server.to(sId).emit('group-call:user-left', {
-                      userId,
-                      userName: userNameForCall || 'Someone',
-                    });
-                  });
-                }
-              });
-              if (participants.size === 0) {
-                activeGroupCalls.delete(convId);
-                // Last person disconnected — finalize group call message
-                try {
-                  await this.finalizeGroupCallMessage(convId);
-                } catch {}
-              }
-            }
-          }
 
           // Update status to DEACTIVE and lastActive
           const lastActive = new Date();
@@ -268,6 +386,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('call:start')
   async handleCallStart(@MessageBody() data: CallPayload, @ConnectedSocket() client: Socket) {
     const fromUserId = client.data.userId;
+
+    if (!fromUserId) {
+      return { success: false, reason: 'User not authenticated' };
+    }
+
+    if (await this.isRealtimeAccessDenied(fromUserId)) {
+      return { success: false, reason: 'Tài khoản đã bị khóa hoặc vô hiệu hóa' };
+    }
+
+    const blocked = await this.relationshipService.isUserBlocked(fromUserId, data.toUserId);
+    if (blocked) {
+      return {
+        success: false,
+        reason: 'Không thể gọi vì một trong hai bên đã chặn nhau',
+      };
+    }
+
     // Tìm socket của người nhận
     const recipientSockets = userSockets.get(data.toUserId);
 
@@ -406,28 +541,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket
   ) {
     const userId = client.data.userId;
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    if (await this.isRealtimeAccessDenied(userId)) {
+      return { success: false, error: 'Tài khoản đã bị khóa hoặc vô hiệu hóa' };
+    }
+
     const conversation = await this.conversationService.findById(data.conversationId);
     if (!conversation) {
       return { success: false, error: 'Conversation not found' };
     }
+
     const callerProfile = await this.getSenderProfile(userId);
 
-    // Clean stale participants (disconnected users) before checking active group call state.
-    const activeParticipants = activeGroupCalls.get(data.conversationId) || new Set<string>();
-    Array.from(activeParticipants).forEach((participantId) => {
-      const sockets = userSockets.get(participantId);
-      if (!sockets || sockets.size === 0) {
-        activeParticipants.delete(participantId);
-      }
-    });
-    if (activeParticipants.size === 0) {
-      activeGroupCalls.delete(data.conversationId);
-    }
-    const alreadyInCall = activeParticipants;
+    const activeParticipants = this.cleanupStaleGroupParticipants(data.conversationId);
+    const starterAlreadyInCall = activeParticipants.has(userId);
+
+    // Track starter immediately so we can correctly finalize call history on leave/disconnect.
+    this.trackSocketGroupCall(client.id, data.conversationId);
+    activeParticipants.add(userId);
 
     // Create a CALL message whenever starter is not currently in the active call set.
     // This avoids stale participant states blocking new joinable call messages.
-    if (!alreadyInCall.has(userId)) {
+    if (!starterAlreadyInCall) {
       try {
         await this.createCallMessage(
           data.conversationId,
@@ -446,7 +584,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     conversation.participants.forEach((p) => {
       const pId = p.user._id.toString();
       if (pId === userId) return; // Don't notify self
-      if (alreadyInCall.has(pId)) return; // Don't notify users already in the call
+      if (activeParticipants.has(pId)) return; // Don't notify users already in the call
 
       const sockets = userSockets.get(pId);
       if (sockets) {
@@ -469,23 +607,32 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket
   ) {
     const userId = client.data.userId;
-    if (!activeGroupCalls.has(data.conversationId)) {
-      activeGroupCalls.set(data.conversationId, new Set());
+    if (!userId) {
+      return { success: false, users: [] };
     }
 
-    const currentParticipants = activeGroupCalls.get(data.conversationId);
+    if (await this.isRealtimeAccessDenied(userId)) {
+      return { success: false, users: [] };
+    }
+
+    const currentParticipants = this.cleanupStaleGroupParticipants(data.conversationId);
+    this.trackSocketGroupCall(client.id, data.conversationId);
 
     if (currentParticipants) {
+      const alreadyJoined = currentParticipants.has(userId);
+
       // Notify existing participants that a new user joined
-      currentParticipants.forEach((pId) => {
-        if (pId === userId) return;
-        const sockets = userSockets.get(pId);
-        if (sockets) {
-          sockets.forEach((sId) => {
-            this.server.to(sId).emit('group-call:user-joined', { userId });
-          });
-        }
-      });
+      if (!alreadyJoined) {
+        currentParticipants.forEach((pId) => {
+          if (pId === userId) return;
+          const sockets = userSockets.get(pId);
+          if (sockets) {
+            sockets.forEach((sId) => {
+              this.server.to(sId).emit('group-call:user-joined', { userId });
+            });
+          }
+        });
+      }
 
       // Add current user
       currentParticipants.add(userId);
@@ -505,53 +652,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket
   ) {
     const userId = client.data.userId;
-    if (activeGroupCalls.has(data.conversationId)) {
-      const currentParticipants = activeGroupCalls.get(data.conversationId);
+    if (!userId) return;
 
-      if (currentParticipants) {
-        currentParticipants.delete(userId);
+    this.untrackSocketGroupCall(client.id, data.conversationId);
 
-        // Look up user name for notification
-        let userName = 'Someone';
-        try {
-          const account = await this.accountModel.findById(userId, 'firstName lastName').lean();
-          if (account) {
-            userName =
-              `${(account as any).firstName || ''} ${(account as any).lastName || ''}`.trim() ||
-              'Someone';
-          }
-        } catch {}
+    if (this.hasAnotherSocketInGroupCall(userId, data.conversationId, client.id)) {
+      return;
+    }
 
-        // Notify others with name
-        currentParticipants.forEach((pId) => {
-          const sockets = userSockets.get(pId);
-          if (sockets) {
-            sockets.forEach((sId) => {
-              this.server.to(sId).emit('group-call:user-left', { userId, userName });
-            });
-          }
-        });
-
-        if (currentParticipants.size === 0) {
-          activeGroupCalls.delete(data.conversationId);
-
-          // Last person left — update the ONGOING call message to ANSWERED
-          try {
-            await this.finalizeGroupCallMessage(data.conversationId);
-          } catch (err) {
-            this.logger.error('Failed to finalize group call message:', err);
-          }
-        }
-      }
+    try {
+      const userName = await this.getUserDisplayName(userId);
+      await this.removeUserFromGroupCall(data.conversationId, userId, userName);
+    } catch (err) {
+      this.logger.error('Failed to process group call leave:', err);
     }
   }
 
   @SubscribeMessage('group-call:check')
   async handleGroupCallCheck(@MessageBody() data: { conversationId: string }) {
-    const participants = activeGroupCalls.get(data.conversationId);
+    const participants = this.cleanupStaleGroupParticipants(data.conversationId);
     if (participants && participants.size > 0) {
       return { active: true, participantCount: participants.size };
     }
+
+    activeGroupCalls.delete(data.conversationId);
     return { active: false, participantCount: 0 };
   }
 
@@ -931,6 +1055,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (!userId) {
       return { success: false, error: 'User not authenticated' };
+    }
+
+    if (await this.isRealtimeAccessDenied(userId)) {
+      return { success: false, error: 'Tài khoản đã bị khóa hoặc vô hiệu hóa' };
     }
 
     try {

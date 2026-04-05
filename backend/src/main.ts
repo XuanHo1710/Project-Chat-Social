@@ -2,7 +2,7 @@ import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as cookieParser from 'cookie-parser';
+import cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from 'core/exception.filter';
 import { TransformInterceptor } from 'core/transform.interceptor';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
@@ -61,4 +61,3 @@ async function bootstrap() {
   await app.listen(configService.get('PORT') as string);
 }
 bootstrap();
-

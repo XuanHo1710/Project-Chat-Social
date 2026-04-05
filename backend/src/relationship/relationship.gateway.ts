@@ -27,7 +27,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
   server: Server;
   private logger = new Logger('RelationshipGateway');
 
-  constructor(private readonly relationshipService: RelationshipService) { }
+  constructor(private readonly relationshipService: RelationshipService) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -50,7 +50,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
         userSockets.set(userId, new Set());
       }
       userSockets.get(userId)!.add(client.id);
-    } catch { }
+    } catch {}
   }
 
   async handleDisconnect(client: Socket) {
@@ -111,7 +111,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       this.server.to(data.friendId.toString()).emit('friend:received', receivedForFriendId);
 
       return { success: true };
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error('Failed to send friend request', err);
       return { success: false, error: err.message || 'Failed to send friend request' };
     }
@@ -164,7 +164,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       this.server.to(data.friendId.toString()).emit('friend:friends', friendsForFriendId);
 
       return { success: true };
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error('Failed to cancel friend request', err);
       return { success: false, error: err.message || 'Failed to cancel friend request' };
     }
@@ -213,7 +213,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       this.server.to(data.friendId.toString()).emit('friend:friends', friendsForFriendId);
 
       return { success: true };
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error('Failed to accept friend request', err);
       return { success: false, error: err.message || 'Failed to accept friend request' };
     }
@@ -255,7 +255,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       this.server.to(data.targetUserId).emit('friend:friends', friendsForTarget);
 
       return { success: true };
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error('Failed to block user', err);
       return { success: false, error: err.message || 'Failed to block user' };
     }
@@ -287,7 +287,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       });
 
       return { success: true };
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error('Failed to unblock user', err);
       return { success: false, error: err.message || 'Failed to unblock user' };
     }
@@ -324,7 +324,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       }
 
       return { success: true };
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error('Failed to restrict user', err);
       return { success: false, error: err.message || 'Failed to restrict user' };
     }
@@ -357,7 +357,7 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
       });
 
       return { success: true };
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error('Failed to unrestrict user', err);
       return { success: false, error: err.message || 'Failed to unrestrict user' };
     }

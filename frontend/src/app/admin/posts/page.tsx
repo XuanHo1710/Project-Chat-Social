@@ -60,7 +60,7 @@ import {
     ArrowDownward as ArrowDownwardIcon,
     ArrowUpward as ArrowUpwardIcon
 } from '@mui/icons-material';
-import { adminService, AdminPost, AdminPostDetail } from '@/services/admin.service';
+import { adminService, AdminPost } from '@/services/admin.service';
 import { getCommentsByPost } from '@/services/comment.service';
 import { Comment } from '@/types/comment';
 import { useTranslation } from 'react-i18next';
@@ -191,7 +191,7 @@ export default function PostsManagementPage() {
     };
 
     const getPrivacyBadge = (privacy: string) => {
-        const configs: Record<string, { icon: React.ReactNode; label: string; color: string; bgcolor: string }> = {
+        const configs: Record<string, { icon: React.ReactElement; label: string; color: string; bgcolor: string }> = {
             PUBLIC: {
                 icon: <PublicIcon sx={{ fontSize: 14 }} />,
                 label: t('admin.privacy_public'),
@@ -222,7 +222,7 @@ export default function PostsManagementPage() {
 
         return (
             <Chip
-                icon={config.icon as any}
+                icon={config.icon}
                 label={config.label}
                 size="small"
                 sx={{
@@ -488,29 +488,62 @@ export default function PostsManagementPage() {
             </Menu>
 
             {/* Post Detail Modal */}
-            <Modal open={viewModalOpen} onClose={handleCloseViewModal}>
+            <Modal
+                open={viewModalOpen}
+                onClose={handleCloseViewModal}
+                slotProps={{
+                    backdrop: {
+                        sx: {
+                            backdropFilter: 'blur(3px)',
+                            backgroundColor: isDark ? 'rgba(0,0,0,0.72)' : 'rgba(15,23,42,0.32)',
+                        },
+                    },
+                }}
+            >
                 <Box sx={{
                     position: 'absolute',
                     top: '50%',
                     left: '50%',
                     transform: 'translate(-50%, -50%)',
-                    width: { xs: '95%', sm: 600 },
-                    maxHeight: '85vh',
+                    width: { xs: '96vw', sm: '88vw', md: 760 },
+                    maxWidth: 900,
+                    maxHeight: { xs: '92vh', md: '88vh' },
                     bgcolor: 'background.paper',
-                    borderRadius: 3,
-                    boxShadow: 24,
+                    borderRadius: 3.5,
+                    border: `1px solid ${isDark ? '#3a3b3c' : '#dde3ef'}`,
+                    boxShadow: isDark ? '0 20px 60px rgba(0,0,0,0.45)' : '0 20px 55px rgba(15,23,42,0.2)',
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
                 }}>
                     {/* Header */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', p: 2, borderBottom: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}` }}>
+                    <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        px: 2,
+                        py: 1.5,
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        bgcolor: isDark ? '#1f2228' : '#ffffff',
+                        borderBottom: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}`,
+                    }}>
                         <Typography variant="h6" fontWeight="bold">{t('admin.post_detail')}</Typography>
-                        <IconButton onClick={handleCloseViewModal} size="small" sx={{ position: 'absolute', right: 12, bgcolor: isDark ? '#3a3b3c' : '#e4e6eb', '&:hover': { bgcolor: isDark ? '#4a4b4c' : '#d8dadf' } }}><CloseIcon fontSize="small" /></IconButton>
+                        <IconButton
+                            onClick={handleCloseViewModal}
+                            size="small"
+                            sx={{
+                                bgcolor: isDark ? '#34363a' : '#eef2f7',
+                                '&:hover': { bgcolor: isDark ? '#44474d' : '#e0e6ef' },
+                            }}
+                        >
+                            <CloseIcon fontSize="small" />
+                        </IconButton>
                     </Box>
 
                     {/* Content */}
-                    <Box sx={{ overflow: 'auto', flex: 1 }}>
+                    <Box sx={{ overflowY: 'auto', flex: 1, bgcolor: isDark ? '#181a1f' : '#fafbff' }}>
                         {isLoadingDetail ? (
                             <Box sx={{ p: 3 }}>
                                 <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
@@ -573,7 +606,16 @@ export default function PostsManagementPage() {
                                 )}
 
                                 {/* Stats bar */}
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5, mx: 2, borderTop: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}`, borderBottom: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}` }}>
+                                <Box sx={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    px: 2,
+                                    py: 1.5,
+                                    mt: 1,
+                                    borderTop: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}`,
+                                    borderBottom: `1px solid ${isDark ? '#3a3b3c' : '#e4e6eb'}`,
+                                    bgcolor: isDark ? alpha('#30343b', 0.45) : alpha('#f1f5fb', 0.85),
+                                }}>
                                     <Stack direction="row" spacing={2}>
                                         <Stack direction="row" alignItems="center" gap={0.5}>
                                             <ThumbUpIcon sx={{ fontSize: 16, color: '#1877f2' }} />
@@ -587,7 +629,7 @@ export default function PostsManagementPage() {
                                 </Box>
 
                                 {/* Comments */}
-                                <Box sx={{ p: 2 }}>
+                                <Box sx={{ p: 2, pt: 1.5 }}>
                                     <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>{t('admin.comments')}</Typography>
                                     {isLoadingComments ? (
                                         <Stack spacing={1.5}>
@@ -599,7 +641,7 @@ export default function PostsManagementPage() {
                                             ))}
                                         </Stack>
                                     ) : postComments?.data && postComments.data.length > 0 ? (
-                                        <Stack spacing={1.5}>
+                                        <Stack spacing={1.5} sx={{ maxHeight: 320, overflowY: 'auto', pr: 0.5 }}>
                                             {postComments.data.map((comment: Comment) => (
                                                 <Box key={comment._id} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
                                                     <Avatar src={comment.userId?.avatar} sx={{ width: 32, height: 32, fontSize: 14, mt: 0.5 }}>

@@ -273,7 +273,7 @@ async def chat_bot_post(request: ChatBotRequest):
                 try:
                     from bson import ObjectId
                     db = _get_mongo_db()
-                    if db:
+                    if db is not None:
                         post_oids = [ObjectId(pid) for pid in post_ids]
                         post_docs = list(db.posts.find(
                             {"_id": {"$in": post_oids}},
@@ -460,7 +460,7 @@ async def chat_bot_stream(request: ChatBotRequest):
                         try:
                             from bson import ObjectId
                             db = _get_mongo_db()
-                            if db:
+                            if db is not None:
                                 post_oids = [ObjectId(pid) for pid in post_ids]
                                 post_docs = list(db.posts.find(
                                     {"_id": {"$in": post_oids}},

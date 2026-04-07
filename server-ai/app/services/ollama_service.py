@@ -124,16 +124,29 @@ class LLMService:
         if rag_context:
             system_parts.append(
                 "\n--- RETRIEVED CONTEXT FROM SOCIAL MEDIA POSTS ---\n"
-                "Use the following post content to answer the user's question accurately. "
-                "Reference specific information from these posts when relevant. "
-                "If the context doesn't fully answer the question, supplement with your knowledge.\n\n"
+                "IMPORTANT: Your response MUST be based ONLY on the following real post content retrieved from the database. "
+                "Do NOT make up or fabricate any post content, titles, or details that are not in the context below. "
+                "Summarize and reference ONLY the information from these actual posts. "
+                "If the posts below do not contain relevant information, say that you found some related posts "
+                "and briefly describe what they are about, but do NOT invent content.\n\n"
                 f"{rag_context}\n"
-                "--- END OF CONTEXT ---"
+                "--- END OF CONTEXT ---\n"
+                "When mentioning posts, describe their actual content from the context above. "
+                "Tell the user you found related posts they can view below the message."
+            )
+        elif has_post:
+            system_parts.append(
+                "\nYou found some related posts from the social media platform. "
+                "Tell the user you found relevant posts that will be displayed below your message. "
+                "Do NOT describe or make up what the posts contain."
             )
         
-        if has_post and not rag_context:
-            system_parts.append(f'\nYou found related posts. First post preview: "{post_preview[:150]}..."')
-            system_parts.append("Mention that you found some relevant posts.")
+        if not rag_context and not has_post:
+            system_parts.append(
+                "\nYou are chatting on a social media platform. "
+                "Answer the user naturally. Do NOT make up or reference any specific posts or content "
+                "from the platform unless you have been given actual post data."
+            )
 
         messages = [{"role": "system", "content": "\n".join(system_parts)}]
         if chat_history:
@@ -236,17 +249,29 @@ Examples:
             if rag_context:
                 system_parts.append(
                     "\n--- RETRIEVED CONTEXT FROM SOCIAL MEDIA POSTS ---\n"
-                    "Use the following post content to answer the user's question accurately. "
-                    "Reference specific information from these posts when relevant. "
-                    "If the context doesn't fully answer the question, supplement with your knowledge.\n\n"
+                    "IMPORTANT: Your response MUST be based ONLY on the following real post content retrieved from the database. "
+                    "Do NOT make up or fabricate any post content, titles, or details that are not in the context below. "
+                    "Summarize and reference ONLY the information from these actual posts. "
+                    "If the posts below do not contain relevant information, say that you found some related posts "
+                    "and briefly describe what they are about, but do NOT invent content.\n\n"
                     f"{rag_context}\n"
-                    "--- END OF CONTEXT ---"
+                    "--- END OF CONTEXT ---\n"
+                    "When mentioning posts, describe their actual content from the context above. "
+                    "Tell the user you found related posts they can view below the message."
+                )
+            elif has_post:
+                system_parts.append(
+                    "\nYou found some related posts from the social media platform. "
+                    "Tell the user you found relevant posts that will be displayed below your message. "
+                    "Do NOT describe or make up what the posts contain."
                 )
             
-            if has_post and not rag_context:
-                # Fallback if only preview available
-                system_parts.append(f'\nYou found related posts. First post preview: "{post_preview[:150]}..."')
-                system_parts.append("Mention that you found some relevant posts.")
+            if not rag_context and not has_post:
+                system_parts.append(
+                    "\nYou are chatting on a social media platform. "
+                    "Answer the user naturally. Do NOT make up or reference any specific posts or content "
+                    "from the platform unless you have been given actual post data."
+                )
 
             messages = [{"role": "system", "content": "\n".join(system_parts)}]
             if chat_history:

@@ -728,6 +728,14 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             updateMessageInCache(msg);
         };
 
+        // Handle call status updates (ONGOING → ANSWERED) in real-time
+        const handleCallStatusUpdated = (msg: MessageResponse) => {
+            if (msg.conversationId !== selectedConversation._id) {
+                return;
+            }
+            updateMessageInCache(msg);
+        };
+
         const handleConversationUpdate = () => {
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER] });
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
@@ -737,6 +745,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         socketChat.on("message:edited", handleMessageEdited);
         socketChat.on("message:reaction:updated", handleMessageReaction);
         socketChat.on("message:deleted", handleMessageDeleted);
+        socketChat.on("message:call:updated", handleCallStatusUpdated);
 
         socketChat.on("conversation:updated", handleConversationUpdate);
         socketChat.on("conversation:created", handleConversationUpdate);
@@ -933,6 +942,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             socketChat.off("message:edited", handleMessageEdited);
             socketChat.off("message:reaction:updated", handleMessageReaction);
             socketChat.off("message:deleted", handleMessageDeleted);
+            socketChat.off("message:call:updated", handleCallStatusUpdated);
             socketChat.off("conversation:updated", handleConversationUpdate);
             socketChat.off("conversation:created", handleConversationUpdate);
             socketChat.off("conversation:nickname:updated", handleConversationUpdate);

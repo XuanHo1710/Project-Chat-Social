@@ -255,11 +255,10 @@ async def chat_bot_post(request: ChatBotRequest):
         )
         
         if posts:
-            available_posts = [p for p in posts][:8]
+            # Select top posts by score (best matches first)
+            available_posts = sorted(posts[:8], key=lambda p: p.get("score", 0), reverse=True)
             
             if available_posts:
-                import random
-                random.shuffle(available_posts[:6])
                 num_posts = min(4, len(available_posts))
                 selected_posts = available_posts[:num_posts]
                 post_ids = [p["post_id"] for p in selected_posts]
@@ -316,22 +315,54 @@ import re as _re
 _POST_KEYWORDS = _re.compile(
     r'(bài viết|post|bài đăng|có ai đăng|tìm bài|gợi ý|recommend|suggest|search|tìm kiếm|'
     r'nội dung|content|topic|chủ đề|xu hướng|trending|hot|viral|news|tin tức|'
-    r'có gì mới|what\'s new|show me|cho xem|chia sẻ|share)',
+    r'có gì mới|what\'s new|show me|cho xem|chia sẻ|share|'
+    r'có ai|ai đó|người nào|mọi người|cộng đồng|community|'
+    r'thông tin|info|information|kiến thức|knowledge|học|learn|'
+    r'hỏi|ask|question|câu hỏi|thắc mắc|'
+    r'review|đánh giá|nhận xét|feedback|ý kiến|opinion|'
+    r'sự kiện|event|hoạt động|activity|'
+    r'ảnh|photo|image|hình|video|clip|'
+    r'công nghệ|technology|tech|lập trình|programming|code|coding|'
+    r'du lịch|travel|ẩm thực|food|cooking|nấu ăn|'
+    r'thể thao|sport|game|gaming|music|nhạc|phim|movie|'
+    r'mẹo|tip|trick|hướng dẫn|tutorial|guide|how to|cách|làm sao|làm thế nào)',
+    _re.IGNORECASE
+)
+
+# Patterns that clearly indicate casual chat / greetings (no post search needed)
+_GREETING_PATTERNS = _re.compile(
+    r'^(xin chào|chào|hi|hello|hey|yo|ê|ơi|ok|okay|ừ|uh|vâng|dạ|cảm ơn|thank|thanks|bye|tạm biệt|good morning|good night|haha|lol|😀|😂|👋)[\s!?.]*$',
     _re.IGNORECASE
 )
 
 def _fast_intent_check(message: str) -> dict:
-    """Keyword-based intent check — instant, no LLM call."""
-    if _POST_KEYWORDS.search(message):
-        # Extract the main content as search query (strip common filler words)
+    """Keyword-based intent check — instant, no LLM call.
+    
+    Strategy: Search for related posts by default for any substantive message.
+    Only skip for very short greetings/casual chat.
+    """
+    stripped = message.strip()
+    
+    # Skip very short messages or pure greetings
+    if len(stripped) < 3 or _GREETING_PATTERNS.match(stripped):
+        return {"should_suggest_post": False, "search_query": ""}
+    
+    # For keyword matches, extract a cleaner search query
+    if _POST_KEYWORDS.search(stripped):
         query = _re.sub(
             r'(có ai|có gì|cho tôi|giúp tôi|tìm|xem|show me|give me|find|'
             r'bài viết|post|bài đăng|về|about|không|nào|đi|hả|nhỉ|vậy|nha)\s*',
-            ' ', message, flags=_re.IGNORECASE
+            ' ', stripped, flags=_re.IGNORECASE
         ).strip()
         if not query or len(query) < 2:
-            query = message
+            query = stripped
         return {"should_suggest_post": True, "search_query": query}
+    
+    # For any other substantive message (>= 5 chars), still try to search
+    # This ensures the RAG pipeline always has context to ground responses
+    if len(stripped) >= 5:
+        return {"should_suggest_post": True, "search_query": stripped}
+    
     return {"should_suggest_post": False, "search_query": ""}
 
 
@@ -382,11 +413,11 @@ async def chat_bot_stream(request: ChatBotRequest):
                 search_query = intent["search_query"]
                 posts, total = recommendation.search(query=search_query, current_user_id="", limit=15, page=1)
                 if posts:
-                    available_posts = posts[:8]
+                    # Select top posts by score (best matches first)
+                    available_posts = sorted(posts[:8], key=lambda p: p.get("score", 0), reverse=True)
                     if available_posts:
-                        import random
-                        random.shuffle(available_posts)
-                        selected_posts = available_posts[:min(4, len(available_posts))]
+                        num_posts = min(4, len(available_posts))
+                        selected_posts = available_posts[:num_posts]
                         post_ids = [p["post_id"] for p in selected_posts]
 
                         # RAG: Retrieve FULL post content for context injection

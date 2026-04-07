@@ -1417,12 +1417,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         conversationId: conversationId,
       };
 
+      // Increment unread count so conversation sidebar updates for all participants
+      const updatedUnreadCount = await this.conversationService.incrementUnreadCount(
+        conversationId,
+        senderId
+      );
+
+      // Include unreadCount in payload for synchronized update
+      const messageWithUnread = {
+        ...messageToEmit,
+        _unreadCount: updatedUnreadCount?.unreadCount,
+      };
+
       activeParticipants.forEach((participant) => {
         const participantId = participant.user._id.toString();
         const participantSockets = userSockets.get(participantId);
         if (participantSockets && participantSockets.size > 0) {
           participantSockets.forEach((socketId) => {
-            this.server.to(socketId).emit('message:new', messageToEmit);
+            this.server.to(socketId).emit('message:new', messageWithUnread);
           });
         }
       });
@@ -1439,6 +1451,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       lastCallMsg.callData.callStatus = 'ANSWERED';
       lastCallMsg.callData.duration = duration;
       await lastCallMsg.save();
+
+      // Emit the updated message to all clients in the room so UI updates in real-time
+      const updatedMessage = await this.chatService.findMessageById(lastCallMsg._id.toString());
+      if (updatedMessage) {
+        this.server.to(`room:${conversationId}`).emit('message:call:updated', {
+          ...updatedMessage.toObject(),
+          conversationId: conversationId,
+        });
+      }
     }
   }
 

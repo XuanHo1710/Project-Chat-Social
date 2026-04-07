@@ -76,13 +76,14 @@ export class ChatService {
     return message;
   }
 
-  // Find the last CALL message in a conversation (for group call finalization)
+  // Find the last ONGOING CALL message in a conversation (for group call finalization)
   async findLastCallMessage(conversationId: string) {
     return await this.messageModel
       .findOne({
         conversationId: new Types.ObjectId(conversationId),
         type: MessageType.CALL,
         isDeleted: { $ne: true },
+        'callData.callStatus': 'ONGOING',
       })
       .sort({ createdAt: -1 });
   }

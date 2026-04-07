@@ -542,16 +542,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const userId = client.data.userId;
     if (!userId) {
-      return { success: false, error: 'User not authenticated' };
+      return { success: false, error: 'User not authenticated', users: [] };
     }
 
     if (await this.isRealtimeAccessDenied(userId)) {
-      return { success: false, error: 'Tài khoản đã bị khóa hoặc vô hiệu hóa' };
+      return { success: false, error: 'Tài khoản đã bị khóa hoặc vô hiệu hóa', users: [] };
     }
 
     const conversation = await this.conversationService.findById(data.conversationId);
     if (!conversation) {
-      return { success: false, error: 'Conversation not found' };
+      return { success: false, error: 'Conversation not found', users: [] };
     }
 
     const callerProfile = await this.getSenderProfile(userId);
@@ -562,6 +562,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Track starter immediately so we can correctly finalize call history on leave/disconnect.
     this.trackSocketGroupCall(client.id, data.conversationId);
     activeParticipants.add(userId);
+
+    this.logger.log(
+      `[CALL] group-call:start conv=${data.conversationId}, user=${userId}, alreadyInCall=${starterAlreadyInCall}, participants=${Array.from(activeParticipants).join(',')}`
+    );
 
     // Create a CALL message whenever starter is not currently in the active call set.
     // This avoids stale participant states blocking new joinable call messages.
@@ -599,6 +603,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
       }
     });
+
+    // Return existing participants so starter can immediately create peers (merged start+join)
+    const participantsList = Array.from(activeParticipants).filter((id) => id !== userId);
+    return { success: true, users: participantsList };
   }
 
   @SubscribeMessage('group-call:join')
@@ -1484,7 +1492,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private async finalizeGroupCallMessage(conversationId: string) {
     try {
       const lastCallMsg = await this.chatService.findLastCallMessage(conversationId);
-      if (!lastCallMsg || lastCallMsg.callData?.callStatus !== 'ONGOING') {
+      if (!lastCallMsg) {
         this.logger.log(`[CALL] No ONGOING call message to finalize for conv=${conversationId}`);
         return;
       }

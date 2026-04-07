@@ -369,7 +369,27 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 existing.signal(data.signal);
             } else {
                 const localStream = streamRef.current;
-                if (!localStream) return;
+                if (!localStream) {
+                    // Stream not ready yet — buffer signal and retry shortly
+                    console.warn('[Call] Stream not ready for peer creation, retrying in 500ms');
+                    setTimeout(() => {
+                        if (!isInCallRef.current || !isGroupCallRef.current) return;
+                        const retryStream = streamRef.current;
+                        if (!retryStream) {
+                            console.error('[Call] Stream still not ready, dropping signal from', data.fromUserId);
+                            return;
+                        }
+                        // Check again if peer was created in the meantime
+                        const existingRetry = peersRef.current.get(data.fromUserId);
+                        if (existingRetry) {
+                            existingRetry.signal(data.signal);
+                        } else {
+                            const newPeer = acceptGroupPeer(data.signal, data.fromUserId, retryStream, data.conversationId);
+                            peersRef.current.set(data.fromUserId, newPeer);
+                        }
+                    }, 500);
+                    return;
+                }
                 const newPeer = acceptGroupPeer(data.signal, data.fromUserId, localStream, data.conversationId);
                 peersRef.current.set(data.fromUserId, newPeer);
             }
@@ -544,9 +564,16 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 setIsVideoOff(true);
             }
 
-            socket?.emit('group-call:start', { conversationId, callType: isTurnOff ? 'AUDIO' : 'VIDEO' });
-            socket?.emit('group-call:join', { conversationId }, (response: GroupJoinResponse) => {
-                console.log('[Call] Joined group:', response);
+            // Use merged start+join: backend handles both tracking and returns existing users
+            // This eliminates the race condition between separate start and join events
+            socket?.emit('group-call:start', { conversationId, callType: isTurnOff ? 'AUDIO' : 'VIDEO' }, (response: GroupJoinResponse) => {
+                console.log('[Call] Started + joined group:', response);
+                if (response?.success && response?.users?.length > 0) {
+                    response.users.forEach(targetUserId => {
+                        const peer = createGroupPeer(targetUserId, currentStream, conversationId);
+                        peersRef.current.set(targetUserId, peer);
+                    });
+                }
             });
         } catch (err) {
             console.error('[Call] Group call error:', err);

@@ -20,10 +20,9 @@ class Settings(BaseSettings):
     mongodb_uri: str = os.getenv("MONGODB_URI", "")
     mongodb_database: str = os.getenv("MONGODB_DATABASE", "project-chat-social")
     
-    # Embedding Model — intfloat/multilingual-e5-base: 768-dim, fast, high quality
-    # Supports 100+ languages including Vietnamese, ~1.1GB, 2x better than MiniLM
-    # For 100k posts: ~15min training, ~50ms/query — optimal speed/quality tradeoff
-    embedding_model: str = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-base")
+    # Embedding Model — must match Qdrant Cloud collection dimension
+    # paraphrase-multilingual-MiniLM-L12-v2: 384-dim, multilingual, ~470MB
+    embedding_model: str = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
     
     # Chunking config
     chunk_max_size: int = int(os.getenv("CHUNK_MAX_SIZE", 500))

@@ -2,7 +2,7 @@ FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-ARG EMBEDDING_MODEL=intfloat/multilingual-e5-base
+ARG EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 ENV EMBEDDING_MODEL=${EMBEDDING_MODEL}
 ENV HF_HOME=/root/.cache/huggingface
 
@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir --timeout=120 \
 RUN pip install --no-cache-dir --timeout=120 -r requirements.txt
 
 # Pre-download embedding model used by runtime to reduce cold start delays.
-RUN python -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.getenv('EMBEDDING_MODEL', 'intfloat/multilingual-e5-base'))"
+RUN python -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.getenv('EMBEDDING_MODEL', 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'))"
 
 # Copy app code
 COPY . .

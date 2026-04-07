@@ -366,22 +366,29 @@ def _fast_intent_check(message: str) -> dict:
     
     # For keyword matches, extract a cleaner search query
     if _POST_KEYWORDS.search(stripped):
-        # Remove filler words but keep the meaningful content
+        # Remove Vietnamese/English filler words, keep only topic keywords
         query = _re.sub(
-            r'\b(có ai|có gì|cho tôi|giúp tôi|tìm|xem|show me|give me|find|'
-            r'bài viết|post|bài đăng|về|about|không|nào|đi|hả|nhỉ|vậy|nha|'
-            r'gợi ý|recommend|suggest|có hông|có không|được không|nhé|nè|ơi|'
-            r'cho xem|cho mình|tôi muốn|muốn xem|muốn tìm)\b',
+            r'\b(có ai|có gì|có bài|có cái|cho tôi|giúp tôi|tìm|xem|show me|give me|find|'
+            r'bài viết|bài đăng|post|posts|về|about|không|nào|đi|hả|nhỉ|vậy|nha|'
+            r'gợi ý|recommend|suggest|có hông|có không|được không|nhé|nè|ơi|á|ạ|'
+            r'cho xem|cho mình|tôi muốn|muốn xem|muốn tìm|'
+            r'liên quan|liên quan đến|liên quan tới|related to|'
+            r'nào đó|gì đó|cái gì|cái nào|'
+            r'luôn|ngay|đi nào|thử|coi|xem coi|mình|tui|tôi|bạn|'
+            r'có thể|please|can you|could you|'
+            r'đến|tới|hay|hoặc|và|với|của|trong|trên|dưới|'
+            r'một số|vài|các|những|mấy|nhiều|ít)\b',
             ' ', stripped, flags=_re.IGNORECASE
         ).strip()
-        # Clean up multiple spaces and trailing punctuation
-        query = _re.sub(r'\s+', ' ', query).strip(' ?.!,')
+        # Remove remaining punctuation and clean up
+        query = _re.sub(r'[?.!,;:()"\']', ' ', query)
+        query = _re.sub(r'\s+', ' ', query).strip()
         if not query or len(query) < 2:
             query = stripped
+        logger.info(f"🔍 Intent: cleaned query '{stripped}' → '{query}'")
         return {"should_suggest_post": True, "search_query": query}
     
     # For any other substantive message (>= 5 chars), still try to search
-    # This ensures the RAG pipeline always has context to ground responses
     if len(stripped) >= 5:
         return {"should_suggest_post": True, "search_query": stripped}
     

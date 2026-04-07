@@ -123,29 +123,28 @@ class LLMService:
         # RAG: Inject retrieved context from vector DB
         if rag_context:
             system_parts.append(
-                "\n--- RETRIEVED CONTEXT FROM SOCIAL MEDIA POSTS ---\n"
-                "IMPORTANT: Your response MUST be based ONLY on the following real post content retrieved from the database. "
-                "Do NOT make up or fabricate any post content, titles, or details that are not in the context below. "
-                "Summarize and reference ONLY the information from these actual posts. "
-                "If the posts below do not contain relevant information, say that you found some related posts "
-                "and briefly describe what they are about, but do NOT invent content.\n\n"
+                "\n--- REAL POST DATA FROM DATABASE ---\n"
+                "Below are REAL posts retrieved from the social media database.\n"
+                "RULES:\n"
+                "1. ONLY mention information that exists in the posts below.\n"
+                "2. NEVER invent, fabricate or imagine post titles, content, or topics.\n"
+                "3. Tell the user: 'Mình đã tìm thấy một số bài viết liên quan, bạn có thể xem bên dưới.'\n"
+                "4. Briefly summarize what the real posts are about based on the data below.\n\n"
                 f"{rag_context}\n"
-                "--- END OF CONTEXT ---\n"
-                "When mentioning posts, describe their actual content from the context above. "
-                "Tell the user you found related posts they can view below the message."
+                "--- END OF REAL POST DATA ---"
             )
         elif has_post:
             system_parts.append(
-                "\nYou found some related posts from the social media platform. "
-                "Tell the user you found relevant posts that will be displayed below your message. "
-                "Do NOT describe or make up what the posts contain."
+                "\nYou found some related posts. Say: 'Mình đã tìm thấy một số bài viết liên quan hiển thị bên dưới.' "
+                "Do NOT list, describe, or make up any post content."
             )
-        
-        if not rag_context and not has_post:
+        else:
             system_parts.append(
-                "\nYou are chatting on a social media platform. "
-                "Answer the user naturally. Do NOT make up or reference any specific posts or content "
-                "from the platform unless you have been given actual post data."
+                "\nIMPORTANT: You do NOT have access to any posts or articles right now. "
+                "NEVER list, suggest, or make up any post titles or article names. "
+                "If the user asks for posts, say: 'Hiện tại mình chưa tìm thấy bài viết liên quan. "
+                "Bạn có thể thử tìm kiếm trên trang chủ nhé!' "
+                "Do NOT create numbered lists of fake posts or articles."
             )
 
         messages = [{"role": "system", "content": "\n".join(system_parts)}]
@@ -248,29 +247,28 @@ Examples:
             # RAG: Inject retrieved context from vector DB
             if rag_context:
                 system_parts.append(
-                    "\n--- RETRIEVED CONTEXT FROM SOCIAL MEDIA POSTS ---\n"
-                    "IMPORTANT: Your response MUST be based ONLY on the following real post content retrieved from the database. "
-                    "Do NOT make up or fabricate any post content, titles, or details that are not in the context below. "
-                    "Summarize and reference ONLY the information from these actual posts. "
-                    "If the posts below do not contain relevant information, say that you found some related posts "
-                    "and briefly describe what they are about, but do NOT invent content.\n\n"
+                    "\n--- REAL POST DATA FROM DATABASE ---\n"
+                    "Below are REAL posts retrieved from the social media database.\n"
+                    "RULES:\n"
+                    "1. ONLY mention information that exists in the posts below.\n"
+                    "2. NEVER invent, fabricate or imagine post titles, content, or topics.\n"
+                    "3. Tell the user: 'Mình đã tìm thấy một số bài viết liên quan, bạn có thể xem bên dưới.'\n"
+                    "4. Briefly summarize what the real posts are about based on the data below.\n\n"
                     f"{rag_context}\n"
-                    "--- END OF CONTEXT ---\n"
-                    "When mentioning posts, describe their actual content from the context above. "
-                    "Tell the user you found related posts they can view below the message."
+                    "--- END OF REAL POST DATA ---"
                 )
             elif has_post:
                 system_parts.append(
-                    "\nYou found some related posts from the social media platform. "
-                    "Tell the user you found relevant posts that will be displayed below your message. "
-                    "Do NOT describe or make up what the posts contain."
+                    "\nYou found some related posts. Say: 'Mình đã tìm thấy một số bài viết liên quan hiển thị bên dưới.' "
+                    "Do NOT list, describe, or make up any post content."
                 )
-            
-            if not rag_context and not has_post:
+            else:
                 system_parts.append(
-                    "\nYou are chatting on a social media platform. "
-                    "Answer the user naturally. Do NOT make up or reference any specific posts or content "
-                    "from the platform unless you have been given actual post data."
+                    "\nIMPORTANT: You do NOT have access to any posts or articles right now. "
+                    "NEVER list, suggest, or make up any post titles or article names. "
+                    "If the user asks for posts, say: 'Hiện tại mình chưa tìm thấy bài viết liên quan. "
+                    "Bạn có thể thử tìm kiếm trên trang chủ nhé!' "
+                    "Do NOT create numbered lists of fake posts or articles."
                 )
 
             messages = [{"role": "system", "content": "\n".join(system_parts)}]

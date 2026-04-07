@@ -241,10 +241,11 @@ async def chat_bot_post(request: ChatBotRequest):
     
     # 2. Analyze intent - does user want posts / info?
     intent = ollama.analyze_chat_intent(message)
-    logger.info(f"Chat intent: {intent}")
+    logger.info(f"Chat intent: {intent}, service_ready={recommendation.is_ready()}")
     
     if intent.get("should_suggest_post") and intent.get("search_query") and recommendation.is_ready():
         search_query = intent["search_query"]
+        logger.info(f"🔍 Searching embeddings for: '{search_query}'")
         
         # RAG Step 2: Search vector DB for relevant chunks
         posts, total = recommendation.search(
@@ -253,15 +254,20 @@ async def chat_bot_post(request: ChatBotRequest):
             limit=15,
             page=1
         )
+        logger.info(f"🔍 Embedding search returned {len(posts) if posts else 0} posts (total={total})")
         
         if posts:
-            # Select top posts by score (best matches first)
-            available_posts = sorted(posts[:8], key=lambda p: p.get("score", 0), reverse=True)
+            # Filter by minimum relevance score to avoid irrelevant results
+            MIN_SCORE = 0.35
+            relevant_posts = [p for p in posts[:8] if p.get("score", 0) >= MIN_SCORE]
+            logger.info(f"🔍 Posts with score >= {MIN_SCORE}: {len(relevant_posts)} (scores: {[p.get('score') for p in posts[:8]]})")
+            available_posts = sorted(relevant_posts, key=lambda p: p.get("score", 0), reverse=True)
             
             if available_posts:
                 num_posts = min(4, len(available_posts))
                 selected_posts = available_posts[:num_posts]
                 post_ids = [p["post_id"] for p in selected_posts]
+                logger.info(f"📌 Selected {len(post_ids)} post IDs: {post_ids}")
                 
                 # RAG Step 3: Retrieve FULL post content from MongoDB for context injection
                 try:
@@ -286,10 +292,21 @@ async def chat_bot_post(request: ChatBotRequest):
                         if context_parts:
                             rag_context = "\n\n".join(context_parts)
                             logger.info(f"📚 RAG context: {len(context_parts)} posts, {len(rag_context)} chars injected")
+                        else:
+                            logger.warning(f"⚠️ MongoDB returned {len(post_docs)} docs but no content, clearing post_ids")
+                            post_ids = []
+                    else:
+                        logger.warning("⚠️ MongoDB connection failed, clearing post_ids")
+                        post_ids = []
                 except Exception as e:
-                    logger.warning(f"Could not fetch RAG context: {e}")
+                    logger.warning(f"⚠️ Could not fetch RAG context: {e}, clearing post_ids")
+                    post_ids = []
+                    rag_context = ""
                 
-                logger.info(f"Suggesting {len(post_ids)} posts")
+                if post_ids:
+                    logger.info(f"✅ Suggesting {len(post_ids)} posts with RAG context")
+    elif intent.get("should_suggest_post") and not recommendation.is_ready():
+        logger.warning("⚠️ Recommendation service NOT READY - cannot search embeddings")
     
     # RAG Step 4: Generate AI response with retrieved context injected
     response = ollama.generate_chat_response_with_full_context(
@@ -349,11 +366,16 @@ def _fast_intent_check(message: str) -> dict:
     
     # For keyword matches, extract a cleaner search query
     if _POST_KEYWORDS.search(stripped):
+        # Remove filler words but keep the meaningful content
         query = _re.sub(
-            r'(có ai|có gì|cho tôi|giúp tôi|tìm|xem|show me|give me|find|'
-            r'bài viết|post|bài đăng|về|about|không|nào|đi|hả|nhỉ|vậy|nha)\s*',
+            r'\b(có ai|có gì|cho tôi|giúp tôi|tìm|xem|show me|give me|find|'
+            r'bài viết|post|bài đăng|về|about|không|nào|đi|hả|nhỉ|vậy|nha|'
+            r'gợi ý|recommend|suggest|có hông|có không|được không|nhé|nè|ơi|'
+            r'cho xem|cho mình|tôi muốn|muốn xem|muốn tìm)\b',
             ' ', stripped, flags=_re.IGNORECASE
         ).strip()
+        # Clean up multiple spaces and trailing punctuation
+        query = _re.sub(r'\s+', ' ', query).strip(' ?.!,')
         if not query or len(query) < 2:
             query = stripped
         return {"should_suggest_post": True, "search_query": query}
@@ -408,17 +430,24 @@ async def chat_bot_stream(request: ChatBotRequest):
 
             # Fast keyword intent check — NO LLM CALL, instant
             intent = _fast_intent_check(message)
+            logger.info(f"🔍 Stream intent: {intent}, service_ready={recommendation.is_ready()}")
 
             if intent["should_suggest_post"] and intent["search_query"] and recommendation.is_ready():
                 search_query = intent["search_query"]
+                logger.info(f"🔍 Searching embeddings for: '{search_query}'")
                 posts, total = recommendation.search(query=search_query, current_user_id="", limit=15, page=1)
+                logger.info(f"🔍 Embedding search returned {len(posts) if posts else 0} posts (total={total})")
                 if posts:
-                    # Select top posts by score (best matches first)
-                    available_posts = sorted(posts[:8], key=lambda p: p.get("score", 0), reverse=True)
+                    # Filter by minimum relevance score to avoid irrelevant results
+                    MIN_SCORE = 0.35
+                    relevant_posts = [p for p in posts[:8] if p.get("score", 0) >= MIN_SCORE]
+                    logger.info(f"🔍 Posts with score >= {MIN_SCORE}: {len(relevant_posts)} (scores: {[p.get('score') for p in posts[:8]]})")
+                    available_posts = sorted(relevant_posts, key=lambda p: p.get("score", 0), reverse=True)
                     if available_posts:
                         num_posts = min(4, len(available_posts))
                         selected_posts = available_posts[:num_posts]
                         post_ids = [p["post_id"] for p in selected_posts]
+                        logger.info(f"📌 Selected {len(post_ids)} post IDs: {post_ids}")
 
                         # RAG: Retrieve FULL post content for context injection
                         try:
@@ -439,8 +468,18 @@ async def chat_bot_stream(request: ChatBotRequest):
                                 if context_parts:
                                     rag_context = "\n\n".join(context_parts)
                                     logger.info(f"📚 RAG context: {len(context_parts)} posts, {len(rag_context)} chars")
+                                else:
+                                    logger.warning(f"⚠️ MongoDB returned {len(post_docs)} docs but no content found, clearing post_ids")
+                                    post_ids = []
+                            else:
+                                logger.warning("⚠️ MongoDB connection failed, clearing post_ids")
+                                post_ids = []
                         except Exception as e:
-                            logger.warning(f"Could not fetch RAG context: {e}")
+                            logger.warning(f"⚠️ Could not fetch RAG context: {e}, clearing post_ids")
+                            post_ids = []
+                            rag_context = ""
+            elif intent["should_suggest_post"] and not recommendation.is_ready():
+                logger.warning("⚠️ Recommendation service NOT READY - cannot search embeddings")
 
             # Emit postIds early so frontend can render them
             if post_ids:

@@ -23,6 +23,13 @@ export class CreateMessageDto {
 
   postIdsRecommendationfromAI?: string[]; // Danh sách post IDs được AI gợi ý (cho type=CHATBOT)
 
+  callData?: {
+    callType: 'AUDIO' | 'VIDEO';
+    callStatus: 'ANSWERED' | 'MISSED' | 'CANCELLED' | 'ONGOING';
+    duration?: number;
+    isGroup?: boolean;
+  }; // Dữ liệu cuộc gọi (cho type=CALL)
+
   // Story reply data (cho type=STORY_REPLY)
   storyReply?: {
     storyId: string;

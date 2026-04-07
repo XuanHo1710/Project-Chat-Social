@@ -1400,66 +1400,138 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     isGroup: boolean
   ) {
     const senderName = await this.getUserDisplayName(senderId);
+    this.logger.log(
+      `[CALL] Creating call message: conv=${conversationId}, sender=${senderId}, type=${callType}, status=${callStatus}, isGroup=${isGroup}`
+    );
+
     const savedMessage = await this.chatService.sendMessage({
       conversationId: new Types.ObjectId(conversationId) as any,
       senderId: new Types.ObjectId(senderId) as any,
       type: MessageType.CALL,
       content: `${senderName} đã gọi 1 cuộc gọi`,
       callData: { callType, callStatus, duration, isGroup },
-    } as any);
+    });
 
-    if (savedMessage) {
-      const conversation = await this.conversationService.findById(conversationId);
-      const activeParticipants = conversation.participants.filter((p) => !p.kickedAt && !p.leftAt);
+    if (!savedMessage) {
+      this.logger.error(`[CALL] sendMessage returned null for conv=${conversationId}`);
+      return;
+    }
 
-      const messageToEmit = {
-        ...savedMessage.toObject(),
-        conversationId: conversationId,
-      };
+    this.logger.log(`[CALL] Message saved: id=${savedMessage._id}, conv=${conversationId}`);
 
-      // Increment unread count so conversation sidebar updates for all participants
+    const messageToEmit = {
+      ...savedMessage.toObject(),
+      conversationId: conversationId,
+    };
+
+    // Try to increment unread count (non-blocking for emit)
+    let unreadCount: Record<string, number> | undefined;
+    try {
       const updatedUnreadCount = await this.conversationService.incrementUnreadCount(
         conversationId,
         senderId
       );
+      unreadCount = updatedUnreadCount?.unreadCount;
+    } catch (err) {
+      this.logger.error(`[CALL] incrementUnreadCount failed: ${err.message}`);
+    }
 
-      // Include unreadCount in payload for synchronized update
-      const messageWithUnread = {
-        ...messageToEmit,
-        _unreadCount: updatedUnreadCount?.unreadCount,
-      };
+    const messageWithUnread = {
+      ...messageToEmit,
+      _unreadCount: unreadCount,
+    };
 
-      activeParticipants.forEach((participant) => {
-        const participantId = participant.user._id.toString();
-        const participantSockets = userSockets.get(participantId);
-        if (participantSockets && participantSockets.size > 0) {
-          participantSockets.forEach((socketId) => {
-            this.server.to(socketId).emit('message:new', messageWithUnread);
-          });
-        }
-      });
+    // Emit to individual sockets of all active participants
+    try {
+      const conversation = await this.conversationService.findById(conversationId);
+      if (conversation && conversation.participants) {
+        const activeParticipants = conversation.participants.filter(
+          (p) => !p.kickedAt && !p.leftAt
+        );
+        this.logger.log(`[CALL] Emitting message:new to ${activeParticipants.length} participants`);
 
+        activeParticipants.forEach((participant) => {
+          const participantId = participant.user?._id?.toString();
+          if (!participantId) return;
+          const participantSockets = userSockets.get(participantId);
+          if (participantSockets && participantSockets.size > 0) {
+            participantSockets.forEach((socketId) => {
+              this.server.to(socketId).emit('message:new', messageWithUnread);
+            });
+          }
+        });
+      } else {
+        this.logger.warn(
+          `[CALL] Conversation not found or no participants, falling back to room emit`
+        );
+      }
+    } catch (err) {
+      this.logger.error(`[CALL] Error emitting to individual sockets: ${err.message}`);
+    }
+
+    // Always also emit to Socket.IO room as a reliable fallback
+    this.server.to(`room:${conversationId}`).emit('message:new', messageWithUnread);
+
+    // Update lastMessage (non-blocking)
+    try {
       await this.conversationService.updateLastMessage(conversationId, savedMessage._id.toString());
+    } catch (err) {
+      this.logger.error(`[CALL] updateLastMessage failed: ${err.message}`);
     }
   }
 
   // Helper: Update ONGOING group call message to ANSWERED with duration
   private async finalizeGroupCallMessage(conversationId: string) {
-    const lastCallMsg = await this.chatService.findLastCallMessage(conversationId);
-    if (lastCallMsg && lastCallMsg.callData?.callStatus === 'ONGOING') {
+    try {
+      const lastCallMsg = await this.chatService.findLastCallMessage(conversationId);
+      if (!lastCallMsg || lastCallMsg.callData?.callStatus !== 'ONGOING') {
+        this.logger.log(`[CALL] No ONGOING call message to finalize for conv=${conversationId}`);
+        return;
+      }
+
       const duration = Math.round((Date.now() - new Date(lastCallMsg.createdAt).getTime()) / 1000);
       lastCallMsg.callData.callStatus = 'ANSWERED';
       lastCallMsg.callData.duration = duration;
       await lastCallMsg.save();
+      this.logger.log(
+        `[CALL] Finalized call message: id=${lastCallMsg._id}, duration=${duration}s`
+      );
 
-      // Emit the updated message to all clients in the room so UI updates in real-time
+      // Fetch populated message for emit
       const updatedMessage = await this.chatService.findMessageById(lastCallMsg._id.toString());
       if (updatedMessage) {
-        this.server.to(`room:${conversationId}`).emit('message:call:updated', {
+        const messageToEmit = {
           ...updatedMessage.toObject(),
           conversationId: conversationId,
-        });
+        };
+
+        // Emit to room so all clients in the conversation see the update
+        this.server.to(`room:${conversationId}`).emit('message:call:updated', messageToEmit);
+
+        // Also emit to individual sockets for clients that might not be in the room
+        try {
+          const conversation = await this.conversationService.findById(conversationId);
+          if (conversation && conversation.participants) {
+            const activeParticipants = conversation.participants.filter(
+              (p) => !p.kickedAt && !p.leftAt
+            );
+            activeParticipants.forEach((participant) => {
+              const participantId = participant.user?._id?.toString();
+              if (!participantId) return;
+              const participantSockets = userSockets.get(participantId);
+              if (participantSockets && participantSockets.size > 0) {
+                participantSockets.forEach((socketId) => {
+                  this.server.to(socketId).emit('message:call:updated', messageToEmit);
+                });
+              }
+            });
+          }
+        } catch (err) {
+          this.logger.error(`[CALL] Error emitting finalize to individual sockets: ${err.message}`);
+        }
       }
+    } catch (err) {
+      this.logger.error(`[CALL] finalizeGroupCallMessage error: ${err.message}`);
     }
   }
 

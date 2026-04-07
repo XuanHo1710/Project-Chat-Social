@@ -1497,6 +1497,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
+      if (!lastCallMsg.callData) {
+        this.logger.log(`[CALL] lastCallMsg has no callData for conv=${conversationId}`);
+        return;
+      }
+
       const duration = Math.round((Date.now() - new Date(lastCallMsg.createdAt).getTime()) / 1000);
       lastCallMsg.callData.callStatus = 'ANSWERED';
       lastCallMsg.callData.duration = duration;

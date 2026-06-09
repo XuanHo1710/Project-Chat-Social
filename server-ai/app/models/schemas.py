@@ -167,7 +167,7 @@ class HealthResponse(BaseModel):
     """Health check response"""
     status: str
     version: str
-    ollama_status: str
+    llm_status: str
     vector_db_status: str
     mongodb_status: str
     posts_indexed: int

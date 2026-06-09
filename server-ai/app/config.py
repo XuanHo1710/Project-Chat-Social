@@ -1,15 +1,15 @@
 """
-Configuration: Qdrant Cloud + Ollama LLM (OpenAI-compatible)
-All values loaded from environment / .env file — no hardcoded credentials.
+Configuration: Qdrant Cloud + Groq LLM API.
+All values are loaded from environment / .env files.
 """
 import os
 from pydantic_settings import BaseSettings
+from pydantic import field_validator, model_validator
 from functools import lru_cache
-from typing import Optional
 from pathlib import Path
 
 
-_ENV_FILE = Path(__file__).resolve().parent / ".env"
+_ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 
 
 class Settings(BaseSettings):
@@ -35,23 +35,38 @@ class Settings(BaseSettings):
     qdrant_collection_users: str = os.getenv("QDRANT_COLLECTION_USERS", "user_vectors")
     qdrant_collection_queries: str = os.getenv("QDRANT_COLLECTION_QUERIES", "query_vectors")
     
-    # LLM - OpenAI-compatible API (Ollama, Groq, OpenRouter, etc.)
-    # Recommended: Groq with llama-3.1-8b-instant for fast + high quality
-    # Or local Ollama with qwen2.5:3b for offline use
-    llm_base_url: str = os.getenv("LLM_BASE_URL", "http://localhost:11434")
-    llm_model: str = os.getenv("LLM_MODEL", "qwen2.5:0.5b")  # qwen2.5:0.5b — lightweight, matches ollama-pull in docker-compose
-    llm_api_key: str = os.getenv("LLM_API_KEY", "")  # required for Groq/OpenRouter
+    # LLM - Groq OpenAI-compatible API
+    groq_api_key: str = os.getenv("GROQ_API_KEY", "")
+    groq_model: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+    llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.groq.com/openai")
+    llm_model: str = os.getenv("LLM_MODEL", os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"))
+    llm_api_key: str = os.getenv("LLM_API_KEY", os.getenv("GROQ_API_KEY", ""))
 
     search_top_k: int = int(os.getenv("SEARCH_TOP_K", 20))
     recommendation_limit: int = int(os.getenv("RECOMMENDATION_LIMIT", 20))
     sync_batch_size: int = int(os.getenv("SYNC_BATCH_SIZE", 100))
 
     class Config:
-        env_file = ".env"
         env_file = str(_ENV_FILE)
         env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def parse_debug(cls, value):
+        if isinstance(value, str) and value.lower() in {"release", "production", "prod"}:
+            return False
+        return value
+
+    @model_validator(mode="after")
+    def prefer_groq_settings(self):
+        if self.groq_api_key:
+            self.llm_api_key = self.groq_api_key
+        if self.groq_model:
+            self.llm_model = self.groq_model
+        self.llm_base_url = "https://api.groq.com/openai"
+        return self
 
 @lru_cache()
 def get_settings() -> Settings:

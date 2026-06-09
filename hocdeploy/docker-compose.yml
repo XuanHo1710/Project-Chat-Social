@@ -117,45 +117,10 @@ services:
 
   # ── Application Services ────────────────────────────────────────────
 
-  ollama:
-    # Ollama LLM server — CPU-only, serves qwen2.5:0.5b
-    # OpenAI-compatible API at http://ollama:11434/v1/chat/completions
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - app-net
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-        reservations:
-          memory: 1G
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 15s
-      timeout: 10s
-      start_period: 10s
-      retries: 10
-
-  ollama-pull:
-    # One-shot init container — pulls the model then exits
-    image: ollama/ollama:latest
-    depends_on:
-      ollama:
-        condition: service_healthy
-    entrypoint: ["ollama", "pull", "qwen2.5:0.5b"]
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-    networks:
-      - app-net
-    restart: "no"
-
   server-ai:
     # FastAPI — Recommendation + Chatbot
     # Vectors: Qdrant Cloud
-    # LLM: Ollama (qwen2.5:0.5b via Docker, CPU-only)
+    # LLM: Groq API (configured by server-ai/.env)
     build:
       context: ./server-ai
       dockerfile: Dockerfile
@@ -164,9 +129,6 @@ services:
     environment:
       HF_TOKEN: ${HF_TOKEN:-}
       HF_HOME: /root/.cache/huggingface
-    depends_on:
-      ollama:
-        condition: service_healthy
     volumes:
       - huggingface_cache:/root/.cache/huggingface
     deploy:
@@ -274,7 +236,6 @@ volumes:
   zookeeper_data:
   kafka_data:
   rabbitmq_data:
-  ollama_data:
   huggingface_cache:
 
 networks:

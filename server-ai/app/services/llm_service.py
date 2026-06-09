@@ -1,13 +1,13 @@
 """
-LLM Service — External API (OpenAI-compatible)
-===============================================
+LLM Service - Groq API (OpenAI-compatible)
+==========================================
 Uses OpenAI-compatible API with API key authentication.
-Supports: OpenAI, Groq, Together, OpenRouter, or any compatible provider.
+Default provider: Groq.
 
 Configure via .env:
-- LLM_BASE_URL: API base URL (e.g. https://api.groq.com/openai)
-- LLM_MODEL: Model name (e.g. llama-3.1-8b-instant)
-- LLM_API_KEY: API key for authentication
+- GROQ_API_KEY: API key for authentication
+- GROQ_MODEL: Model name (e.g. llama-3.1-8b-instant)
+- LLM_BASE_URL: optional OpenAI-compatible base URL
 """
 
 import httpx
@@ -42,7 +42,7 @@ class LLMService:
         return headers
     
     def _chat(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 1000) -> str:
-        """Call OpenAI-compatible chat API (Ollama or external)."""
+        """Call the OpenAI-compatible chat API."""
         try:
             response = httpx.post(
                 f"{self.base_url}/v1/chat/completions",
@@ -283,46 +283,25 @@ Examples:
             return "Xin lỗi, tôi gặp sự cố. Vui lòng thử lại!"
 
     def analyze_images(self, image_urls: List[str]) -> str:
-        """Image analysis — Qwen3 0.6B doesn't support vision, return empty."""
+        """Image analysis is not enabled for the configured Groq text model."""
         if not image_urls:
             return ""
         logger.info("⚠️ Image analysis not supported with current LLM model")
         return ""
 
     def is_available(self) -> bool:
-        """Check if the LLM API (Ollama or external) is accessible."""
+        """Check if the configured LLM API is accessible."""
         try:
-            # Try Ollama-style tags endpoint first, fallback to OpenAI models
-            for path in ["/api/tags", "/v1/models"]:
-                try:
-                    response = httpx.get(
-                        f"{self.base_url}{path}",
-                        headers=self._headers,
-                        timeout=5.0,
-                    )
-                    if response.status_code == 200:
-                        self._is_available = True
-                        return True
-                except:
-                    continue
-            self._is_available = False
-            return False
+            response = httpx.get(f"{self.base_url}/v1/models", headers=self._headers, timeout=5.0)
+            self._is_available = response.status_code == 200
+            return self._is_available
         except:
             self._is_available = False
             return False
 
     def list_models(self) -> List[str]:
-        """List available models from Ollama or OpenAI-compatible API."""
+        """List available models from the OpenAI-compatible API."""
         try:
-            # Try Ollama native endpoint
-            try:
-                response = httpx.get(f"{self.base_url}/api/tags", headers=self._headers, timeout=5.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    return [m.get("name", "") for m in data.get("models", [])]
-            except:
-                pass
-            # Fallback OpenAI-compatible
             response = httpx.get(f"{self.base_url}/v1/models", headers=self._headers, timeout=5.0)
             if response.status_code == 200:
                 data = response.json()
@@ -387,6 +366,3 @@ def get_llm_service():
         _llm_service = LLMService()
     return _llm_service
 
-# Backward compatibility alias
-def get_ollama_service():
-    return get_llm_service()

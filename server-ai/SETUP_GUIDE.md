@@ -2,12 +2,13 @@
 
 ## 1. Cài đặt Môi trường (Local)
 
-### Bước 1: Cài đặt Ollama
-- Tải và cài đặt từ: [ollama.ai](https://ollama.ai)
-- Mở terminal chạy lệnh pull models:
-  ```bash
-  ollama pull llama3.2          # Model LLM (thông minh, để phân tích)
-  ollama pull nomic-embed-text  # Model Embedding (để search vector)
+### Bước 1: Cấu hình Groq API
+- Tạo hoặc cập nhật file `server-ai/.env`:
+  ```env
+  GROQ_API_KEY=your_groq_api_key
+  GROQ_MODEL=llama-3.1-8b-instant
+  LLM_BASE_URL=https://api.groq.com/openai
+  LLM_MODEL=llama-3.1-8b-instant
   ```
 
 ### Bước 2: Chạy AI Server

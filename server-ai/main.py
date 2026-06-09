@@ -1,5 +1,5 @@
 """
-AI SERVER — QDRANT CLOUD + LLM (qwen2.5:3b / Groq)
+AI SERVER — QDRANT CLOUD + GROQ LLM
 =====================================================
 Endpoints:
 - GET /api/v1/search?q=...        (chunk-level search + post dedup)
@@ -12,7 +12,7 @@ Endpoints:
 - POST /retrain
 
 Vector DB: Qdrant Cloud
-LLM: qwen2.5:3b (multilingual, good quality) or Groq llama-3.1-8b-instant  
+LLM: Groq llama-3.1-8b-instant
 Embedding: intfloat/multilingual-e5-base (768-dim, high quality, fast)
 Chunking: Sliding window with overlap (500 chars, 100 overlap)
 """
@@ -67,15 +67,15 @@ async def lifespan(app: FastAPI):
         else:
             logger.error("❌ Auto-train thất bại!")
     
-    # 2. Check LLM (Ollama)
-    from app.services.ollama_service import get_llm_service
+    # 2. Check LLM API
+    from app.services.llm_service import get_llm_service
     llm = get_llm_service()
     if llm.is_available():
         models = llm.list_models()
         logger.info(f"✅ LLM Ready! Models: {models}")
     else:
         logger.warning(f"⚠️ LLM not available at {settings.llm_base_url}")
-        logger.warning(f"   Ensure Ollama is running with model: {settings.llm_model}")
+        logger.warning(f"   Check GROQ_API_KEY and model: {settings.llm_model}")
     
     logger.info(f"📖 API Docs: http://localhost:{settings.port}/docs")
     
@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Recommendation Server",
     description="""
-## Qdrant Cloud + LLM (qwen2.5:3b / Groq)
+## Qdrant Cloud + Groq LLM
 
 ### Features:
 - 🧩 **Professional chunking** with sliding window overlap

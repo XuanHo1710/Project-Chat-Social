@@ -19,7 +19,7 @@ from qdrant_client.models import PointStruct
 
 from app.services.recommendation_service import get_recommendation_service
 
-from app.services.ollama_service import get_ollama_service
+from app.services.llm_service import get_llm_service
 import os
 from functools import lru_cache
 
@@ -203,10 +203,10 @@ async def chat_bot_post(request: ChatBotRequest):
     - response: AI response (grounded in retrieved context)
     - postIds: Array of relevant post IDs (3-4 posts)
     """
-    ollama = get_ollama_service()
+    llm = get_llm_service()
     recommendation = get_recommendation_service()
     
-    if not ollama.is_available():
+    if not llm.is_available():
         logger.warning("LLM unavailable — returning fallback for chat/bot")
         return {
             "message": request.message,
@@ -235,12 +235,12 @@ async def chat_bot_post(request: ChatBotRequest):
     image_description = ""
     if image_urls and len(image_urls) > 0:
         logger.info(f"Analyzing {len(image_urls)} images...")
-        image_description = ollama.analyze_images(image_urls)
+        image_description = llm.analyze_images(image_urls)
         if image_description:
             logger.info(f"Image analysis: {image_description[:100]}...")
     
     # 2. Analyze intent - does user want posts / info?
-    intent = ollama.analyze_chat_intent(message)
+    intent = llm.analyze_chat_intent(message)
     logger.info(f"Chat intent: {intent}, service_ready={recommendation.is_ready()}")
     
     if intent.get("should_suggest_post") and intent.get("search_query") and recommendation.is_ready():
@@ -309,7 +309,7 @@ async def chat_bot_post(request: ChatBotRequest):
         logger.warning("⚠️ Recommendation service NOT READY - cannot search embeddings")
     
     # RAG Step 4: Generate AI response with retrieved context injected
-    response = ollama.generate_chat_response_with_full_context(
+    response = llm.generate_chat_response_with_full_context(
         message=message,
         chat_history=conversation_context,
         image_description=image_description,
@@ -410,12 +410,12 @@ async def chat_bot_stream(request: ChatBotRequest):
     """
     import json as _json
 
-    ollama = get_ollama_service()
+    llm = get_llm_service()
     recommendation = get_recommendation_service()
 
     async def event_stream():
         try:
-            if not ollama.is_available():
+            if not llm.is_available():
                 yield f"event: error\ndata: {_json.dumps({'error': 'AI đang khởi động hoặc tạm thời không khả dụng.'})}\n\n"
                 return
 
@@ -433,7 +433,7 @@ async def chat_bot_stream(request: ChatBotRequest):
             # Image analysis (currently no-op for this model)
             image_description = ""
             if image_urls:
-                image_description = ollama.analyze_images(image_urls)
+                image_description = llm.analyze_images(image_urls)
 
             # Fast keyword intent check — NO LLM CALL, instant
             intent = _fast_intent_check(message)
@@ -493,7 +493,7 @@ async def chat_bot_stream(request: ChatBotRequest):
                 yield f"event: postIds\ndata: {_json.dumps({'postIds': post_ids})}\n\n"
 
             # Stream tokens — LLM call with RAG context injected
-            async for token in ollama.stream_chat_response_with_full_context(
+            async for token in llm.stream_chat_response_with_full_context(
                 message=message,
                 chat_history=conversation_context,
                 image_description=image_description,

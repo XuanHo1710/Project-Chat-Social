@@ -1,14 +1,28 @@
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { ValidationPipe, VersioningType, ConsoleLogger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from 'core/exception.filter';
 import { TransformInterceptor } from 'core/transform.interceptor';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+      logger: new ConsoleLogger({
+        json: true,
+        colors: false,
+        logLevels: [
+          'log',
+          'fatal',
+          'error',
+          'warn',
+          'debug',
+          'verbose',
+        ],
+      })
+  });
 
   const configService = app.get(ConfigService);
   const reflector = app.get(Reflector);

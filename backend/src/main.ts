@@ -12,7 +12,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
       logger: new ConsoleLogger({
         json: true,
-        colors: false,
+        colors: true,
         logLevels: [
           'log',
           'fatal',

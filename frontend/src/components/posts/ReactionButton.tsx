@@ -52,6 +52,12 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
     const leaveTimeout = useRef<NodeJS.Timeout | null>(null);
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
+    const updateQueryCache = useCallback((prefix: string, updater: any) => {
+        queryClient.getQueryCache().findAll({ queryKey: [prefix] }).forEach((query) => {
+            queryClient.setQueryData(query.queryKey, updater);
+        });
+    }, [queryClient]);
+
     // Initialize store with post data
     useEffect(() => {
         initPostReaction(post._id, initialTotalReacts);
@@ -92,12 +98,25 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                                 })),
                             };
                         }
+                        if (Array.isArray(oldData.data)) {
+                            return {
+                                ...oldData,
+                                data: oldData.data.map((p: any) =>
+                                    p._id === post._id ? { ...p, topReactions: data.topReactions } : p
+                                ),
+                            };
+                        }
+                        if (Array.isArray(oldData)) {
+                            return oldData.map((p: any) =>
+                                p._id === post._id ? { ...p, topReactions: data.topReactions } : p
+                            );
+                        }
                         return oldData;
                     };
-                    queryClient.setQueriesData({ queryKey: ['news_feed'] }, updatePostInCache);
-                    queryClient.setQueriesData({ queryKey: ['user_posts'] }, updatePostInCache);
-                    queryClient.setQueriesData({ queryKey: ['search_feed'] }, updatePostInCache);
-                    queryClient.setQueriesData({ queryKey: ['group_posts'] }, updatePostInCache);
+                    updateQueryCache('news_feed', updatePostInCache);
+                    updateQueryCache('user_posts', updatePostInCache);
+                    updateQueryCache('search_feed', updatePostInCache);
+                    updateQueryCache('group_posts', updatePostInCache);
                 }
             }
         };
@@ -123,7 +142,7 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
             socketReaction.off('reaction:updated', handleReactionUpdated);
             socketReaction.off('reaction:result', handleReactionResult);
         };
-    }, [socketReaction, post._id, setFromServer]);
+    }, [socketReaction, post._id, setFromServer, updateQueryCache]);
 
     // Set initial reaction from API (ONLY if no local updates)
     useEffect(() => {
@@ -215,42 +234,57 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
 
         // Optimistically update topReactions in query caches so PostItem re-renders instantly
         const updateTopReactions = (oldData: any) => {
-            if (!oldData?.pages) return oldData;
-            return {
-                ...oldData,
-                pages: oldData.pages.map((page: any) => ({
-                    ...page,
-                    data: (page.data || []).map((p: any) => {
-                        if (p._id !== post._id) return p;
-                        const prev: { type: string; count: number }[] = [...(p.topReactions || [])];
-                        // Decrement old reaction type
-                        if (currentReaction) {
-                            const idx = prev.findIndex((r: any) => r.type === currentReaction);
-                            if (idx !== -1) {
-                                prev[idx] = { ...prev[idx], count: prev[idx].count - 1 };
-                                if (prev[idx].count <= 0) prev.splice(idx, 1);
-                            }
-                        }
-                        // Increment new reaction type
-                        if (newReaction) {
-                            const idx = prev.findIndex((r: any) => r.type === newReaction);
-                            if (idx !== -1) {
-                                prev[idx] = { ...prev[idx], count: prev[idx].count + 1 };
-                            } else {
-                                prev.push({ type: newReaction, count: 1 });
-                            }
-                        }
-                        // Sort by count desc, keep top 3
-                        prev.sort((a: any, b: any) => b.count - a.count);
-                        return { ...p, topReactions: prev.slice(0, 3) };
-                    }),
-                })),
+            if (!oldData) return oldData;
+
+            const updateSinglePost = (p: any) => {
+                if (p._id !== post._id) return p;
+                const prev: { type: string; count: number }[] = [...(p.topReactions || [])];
+                // Decrement old reaction type
+                if (currentReaction) {
+                    const idx = prev.findIndex((r: any) => r.type === currentReaction);
+                    if (idx !== -1) {
+                        prev[idx] = { ...prev[idx], count: prev[idx].count - 1 };
+                        if (prev[idx].count <= 0) prev.splice(idx, 1);
+                    }
+                }
+                // Increment new reaction type
+                if (newReaction) {
+                    const idx = prev.findIndex((r: any) => r.type === newReaction);
+                    if (idx !== -1) {
+                        prev[idx] = { ...prev[idx], count: prev[idx].count + 1 };
+                    } else {
+                        prev.push({ type: newReaction, count: 1 });
+                    }
+                }
+                // Sort by count desc, keep top 3
+                prev.sort((a: any, b: any) => b.count - a.count);
+                return { ...p, topReactions: prev.slice(0, 3) };
             };
+
+            if (oldData.pages) {
+                return {
+                    ...oldData,
+                    pages: oldData.pages.map((page: any) => ({
+                        ...page,
+                        data: (page.data || []).map(updateSinglePost),
+                    })),
+                };
+            }
+            if (Array.isArray(oldData.data)) {
+                return {
+                    ...oldData,
+                    data: oldData.data.map(updateSinglePost),
+                };
+            }
+            if (Array.isArray(oldData)) {
+                return oldData.map(updateSinglePost);
+            }
+            return oldData;
         };
-        queryClient.setQueriesData({ queryKey: ['news_feed'] }, updateTopReactions);
-        queryClient.setQueriesData({ queryKey: ['user_posts'] }, updateTopReactions);
-        queryClient.setQueriesData({ queryKey: ['search_feed'] }, updateTopReactions);
-        queryClient.setQueriesData({ queryKey: ['group_posts'] }, updateTopReactions);
+        updateQueryCache('news_feed', updateTopReactions);
+        updateQueryCache('user_posts', updateTopReactions);
+        updateQueryCache('search_feed', updateTopReactions);
+        updateQueryCache('group_posts', updateTopReactions);
 
         // Cancel previous debounce
         if (debounceRef.current) {
@@ -263,7 +297,7 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                 socketReaction.emit('reaction:toggle', { postId: post._id, type });
             }
         }, 400);
-    }, [post._id, socketReaction, setPostReaction, initialTotalReacts]);
+    }, [post._id, socketReaction, setPostReaction, initialTotalReacts, updateQueryCache]);
 
     const handleClick = () => {
         handleReactionSelect("LIKE");

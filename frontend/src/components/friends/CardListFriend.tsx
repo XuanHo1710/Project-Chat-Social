@@ -60,11 +60,11 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
                             cursor: 'pointer',
                             '&:hover': { textDecoration: 'underline' },
                             display: '-webkit-box',
-                            WebkitLineClamp: 2,
+                            WebkitLineClamp: 1,
                             WebkitBoxOrient: 'vertical',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            height: '40px',
+                            height: '20px',
                             lineHeight: '20px',
                         }}
                     >

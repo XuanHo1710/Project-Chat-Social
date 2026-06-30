@@ -142,12 +142,26 @@ function SearchContent() {
         return postsData.pages.flatMap((page) => page.data || []);
     }, [postsData]);
 
-    // Sync API data with store - only when IDs differ
+    // Sync API data with store - when API data or reactions actually change
     useEffect(() => {
         if (allApiPosts.length > 0) {
             const currentIds = storePosts.map((p: PostType) => p._id).join(',');
             const newIds = allApiPosts.map((p: PostType) => p._id).join(',');
-            if (currentIds !== newIds) {
+            
+            const isDifferent = currentIds !== newIds || allApiPosts.some((apiPost) => {
+                const storePost = storePosts.find((sp: PostType) => sp._id === apiPost._id);
+                if (!storePost) return true;
+                return (
+                    storePost.totalReacts !== apiPost.totalReacts ||
+                    storePost.totalComments !== apiPost.totalComments ||
+                    storePost.totalShares !== apiPost.totalShares ||
+                    JSON.stringify(storePost.topReactions) !== JSON.stringify(apiPost.topReactions) ||
+                    storePost.reactInfo?.isReact !== apiPost.reactInfo?.isReact ||
+                    storePost.reactInfo?.type !== apiPost.reactInfo?.type
+                );
+            });
+
+            if (isDifferent) {
                 setStorePosts(allApiPosts);
             }
         }

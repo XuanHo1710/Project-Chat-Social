@@ -10,6 +10,7 @@ import { useReactionStore, ReactionType as StoreReactionType } from "@/stores/us
 import { PostType } from "@/types/post";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 interface ReactionButtonProps {
     post: PostType;
@@ -25,6 +26,7 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
     const { t } = useTranslation();
     const queryClient = useQueryClient();
+    const { user } = useAuthStore();
 
     // Reaction data with emoji, label, and color
     const REACTIONS = [
@@ -82,34 +84,46 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
                 // Server is authoritative for totalReacts
                 setFromServer(post._id, data.totalReacts);
 
-                // Update topReactions in all query caches that may contain this post
+                // Update topReactions, totalReacts and reactInfo in all query caches that may contain this post
                 if (data.topReactions) {
+                    const isCurrentUser = data.userId === user?.id;
                     const updatePostInCache = (oldData: any) => {
                         if (!oldData) return oldData;
+
+                        const updateSinglePost = (p: any) => {
+                            if (p._id !== post._id) return p;
+                            const newReactInfo = isCurrentUser
+                                ? {
+                                      isReact: data.action !== 'REMOVE',
+                                      type: data.action !== 'REMOVE' ? data.type : null,
+                                  }
+                                : p.reactInfo;
+                            return {
+                                ...p,
+                                totalReacts: data.totalReacts,
+                                reactInfo: newReactInfo,
+                                topReactions: data.topReactions,
+                            };
+                        };
+
                         if (oldData.pages) {
                             // InfiniteQuery (news_feed, user_posts, etc.)
                             return {
                                 ...oldData,
                                 pages: oldData.pages.map((page: any) => ({
                                     ...page,
-                                    data: (page.data || []).map((p: any) =>
-                                        p._id === post._id ? { ...p, topReactions: data.topReactions } : p
-                                    ),
+                                    data: (page.data || []).map(updateSinglePost),
                                 })),
                             };
                         }
                         if (Array.isArray(oldData.data)) {
                             return {
                                 ...oldData,
-                                data: oldData.data.map((p: any) =>
-                                    p._id === post._id ? { ...p, topReactions: data.topReactions } : p
-                                ),
+                                data: oldData.data.map(updateSinglePost),
                             };
                         }
                         if (Array.isArray(oldData)) {
-                            return oldData.map((p: any) =>
-                                p._id === post._id ? { ...p, topReactions: data.topReactions } : p
-                            );
+                            return oldData.map(updateSinglePost);
                         }
                         return oldData;
                     };
@@ -142,7 +156,7 @@ export default function ReactionButton({ post, initialTotalReacts = 0, variant =
             socketReaction.off('reaction:updated', handleReactionUpdated);
             socketReaction.off('reaction:result', handleReactionResult);
         };
-    }, [socketReaction, post._id, setFromServer, updateQueryCache]);
+    }, [socketReaction, post._id, setFromServer, updateQueryCache, user]);
 
     // Set initial reaction from API (ONLY if no local updates)
     useEffect(() => {

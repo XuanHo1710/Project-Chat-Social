@@ -896,9 +896,11 @@ export class PostService {
     const postIds = data.map((p) => p._id);
     const postIdStrings = postIds.map((id) => id.toString());
 
+    const reactionViewerId = currentUserId || userId;
+
     const [userReactions, reactionsSummary] = await Promise.all([
-      this.reactionService.userReactions(postIds, userId),
-      this.reactionService.getPostsReactionsSummary(postIdStrings, userId),
+      this.reactionService.userReactions(postIds, reactionViewerId),
+      this.reactionService.getPostsReactionsSummary(postIdStrings, reactionViewerId),
     ]);
 
     const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));

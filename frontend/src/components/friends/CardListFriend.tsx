@@ -27,9 +27,13 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
         router.push(CLIENT_PATH.PROFILE_BY_USERNAME(friend.username));
     };
 
+    const friendName = friend.firstName || friend.lastName
+        ? `${friend.firstName || ''} ${friend.lastName || ''}`.trim()
+        : 'Người dùng';
+
     return (
-        <Card key={friend._id} sx={{ borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
-            <CardContent sx={{ p: 0 }}>
+        <Card key={friend._id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
+            <CardContent sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
                 <Box sx={{ position: 'relative', pb: '100%', bgcolor: hoverBg, borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
                     <Avatar
                         onClick={navigateToProfile}
@@ -45,22 +49,33 @@ export default function CardListFriendComponent({ friend }: { friend: FriendType
                         }}
                     />
                 </Box>
-                <Box sx={{ p: 2 }}>
+                <Box sx={{ p: 2, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                     <Typography
                         onClick={navigateToProfile}
                         fontWeight={600}
                         fontSize={15}
                         color="text.primary"
-                        sx={{ mb: 0.5, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                        sx={{
+                            mb: 1,
+                            cursor: 'pointer',
+                            '&:hover': { textDecoration: 'underline' },
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            height: '40px',
+                            lineHeight: '20px',
+                        }}
                     >
-                        {friend.firstName + " " + friend.lastName}
+                        {friendName}
                     </Typography>
                     <MutualFriendsPreview
                         count={friend.mutualFriends || 0}
                         preview={friend.mutualFriendPreview || []}
                     />
 
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box sx={{ mt: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
                         <Button
                             onClick={navigateToProfile}
                             fullWidth

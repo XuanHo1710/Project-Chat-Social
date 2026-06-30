@@ -75,12 +75,11 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
     };
 
     return (
-        <Card key={friend.id} sx={{ borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
-            <CardContent sx={{ p: 0 }}>
+        <Card key={friend.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 2, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.1)' }}>
+            <CardContent sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
                 <Box sx={{ position: 'relative', pb: '100%', bgcolor: hoverBg, borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
                     <Avatar
                         onClick={navigateToProfile}
-
                         src={friend.avatar || ""}
                         sx={{
                             position: 'absolute',
@@ -93,83 +92,92 @@ export default function CardFriendShowAllComponent({ friend }: { friend: Account
                         }}
                     />
                 </Box>
-                <Box sx={{ p: 2 }}>
+                <Box sx={{ p: 2, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                     <Typography
                         onClick={navigateToProfile}
                         fontWeight={600}
                         fontSize={15}
                         color="text.primary"
-                        sx={{ mb: 0.5, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                        sx={{
+                            mb: 1,
+                            cursor: 'pointer',
+                            '&:hover': { textDecoration: 'underline' },
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            height: '40px',
+                            lineHeight: '20px',
+                        }}
                     >
-                        {friend.name}
+                        {friend.name || 'Người dùng'}
                     </Typography>
                     <MutualFriendsPreview
                         count={friend.mutualFriends || 0}
                         preview={friend.mutualFriendPreview || []}
                     />
 
-
-                    {!addFriend ?
-                        // Chưa kết bạn
-                        <Button
-                            fullWidth
-                            onClick={() => handleAddFriend(friend.id)}
-                            disabled={isLoading}
-                            variant="contained"
-                            startIcon={isLoading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <PersonAddIcon />}
-                            sx={{
-                                bgcolor: '#1877f2',
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                fontSize: 14,
-                                py: 1,
-                                boxShadow: 'none',
-                                '&:hover': {
-                                    bgcolor: '#166fe5',
-                                    boxShadow: 'none',
-                                },
-                                '&.Mui-disabled': {
+                    <Box sx={{ mt: 'auto' }}>
+                        {!addFriend ? (
+                            // Chưa kết bạn
+                            <Button
+                                fullWidth
+                                onClick={() => handleAddFriend(friend.id)}
+                                disabled={isLoading}
+                                variant="contained"
+                                startIcon={isLoading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <PersonAddIcon />}
+                                sx={{
                                     bgcolor: '#1877f2',
-                                    color: 'white',
-                                    opacity: 0.7,
-                                },
-                            }}
-                        >
-                            {isLoading ? t('card_friend.sending') : t('card_friend.add_friend')}
-                        </Button>
-                        :
-                        // Đã gửi lời mời
-                        <Button
-                            fullWidth
-                            onClick={() => handleCancelAddFriend(friend.id)}
-                            disabled={isLoading}
-                            variant="contained"
-                            startIcon={isLoading ? <CircularProgress size={16} sx={{ color: 'text.primary' }} /> : null}
-                            sx={{
-                                bgcolor: cancelBg,
-                                color: 'text.primary',
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                fontSize: 14,
-                                py: 1,
-                                boxShadow: 'none',
-                                '&:hover': {
-                                    bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf',
+                                    textTransform: 'none',
+                                    fontWeight: 600,
+                                    fontSize: 14,
+                                    py: 1,
                                     boxShadow: 'none',
-                                },
-                                '&.Mui-disabled': {
+                                    '&:hover': {
+                                        bgcolor: '#166fe5',
+                                        boxShadow: 'none',
+                                    },
+                                    '&.Mui-disabled': {
+                                        bgcolor: '#1877f2',
+                                        color: 'white',
+                                        opacity: 0.7,
+                                    },
+                                }}
+                            >
+                                {isLoading ? t('card_friend.sending') : t('card_friend.add_friend')}
+                            </Button>
+                        ) : (
+                            // Đã gửi lời mời
+                            <Button
+                                fullWidth
+                                onClick={() => handleCancelAddFriend(friend.id)}
+                                disabled={isLoading}
+                                variant="contained"
+                                startIcon={isLoading ? <CircularProgress size={16} sx={{ color: 'text.primary' }} /> : null}
+                                sx={{
                                     bgcolor: cancelBg,
                                     color: 'text.primary',
-                                    opacity: 0.7,
-                                },
-                            }}
-                        >
-                            {isLoading ? t('card_friend.canceling') : t('card_friend.cancel')}
-                        </Button>
-                    }
-
-
-
+                                    textTransform: 'none',
+                                    fontWeight: 600,
+                                    fontSize: 14,
+                                    py: 1,
+                                    boxShadow: 'none',
+                                    '&:hover': {
+                                        bgcolor: isDark ? 'rgba(255,255,255,0.2)' : '#d8dadf',
+                                        boxShadow: 'none',
+                                    },
+                                    '&.Mui-disabled': {
+                                        bgcolor: cancelBg,
+                                        color: 'text.primary',
+                                        opacity: 0.7,
+                                    },
+                                }}
+                            >
+                                {isLoading ? t('card_friend.canceling') : t('card_friend.cancel')}
+                            </Button>
+                        )}
+                    </Box>
                 </Box>
             </CardContent>
         </Card>

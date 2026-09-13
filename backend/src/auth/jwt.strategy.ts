@@ -23,10 +23,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: any) {
-    const account = await this.accountService.findOne(payload?._id);
+    const account = await this.accountService.findAuthState(payload?._id);
 
     if (!account) {
       throw new UnauthorizedException('Tài khoản không tồn tại');
+    }
+
+    if (Number(payload?.av ?? -1) !== Number(account.authVersion || 0)) {
+      throw new UnauthorizedException('Phiên đăng nhập đã bị thu hồi');
     }
 
     const now = new Date();

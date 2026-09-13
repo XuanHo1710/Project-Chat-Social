@@ -1,176 +1,93 @@
-const PRESET_KEY = process.env.NEXT_PUBLIC_PRESET_KEY;
-const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUD_NAME;
-const CLOUDINARY_API_KEY = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
+import {
+  deleteCloudinaryMedia,
+  uploadMedia,
+} from "@/services/cloudinary.service";
 
-// Type definitions
 export interface MediaUploadResult {
   url: string;
   publicId: string;
   mediaType: "IMAGE" | "VIDEO";
   width?: number;
   height?: number;
-  duration?: number; // For videos
-}
-
-export interface CloudinaryResponse {
-  secure_url: string;
-  public_id: string;
-  resource_type: string;
-  width: number;
-  height: number;
   duration?: number;
 }
 
-// Helper function to determine media type
-const getMediaType = (file: File): "IMAGE" | "VIDEO" => {
-  return file.type.startsWith("video/") ? "VIDEO" : "IMAGE";
-};
+const MAX_FILES_PER_REQUEST = 10;
 
-// Helper function to get upload endpoint based on media type
-const getUploadEndpoint = (mediaType: "IMAGE" | "VIDEO"): string => {
-  const resourceType = mediaType === "VIDEO" ? "video" : "image";
-  return `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
+const assertSupportedMedia = (file: File): void => {
+  if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+    throw new Error("Only image and video files are supported");
+  }
 };
 
 /**
- * Upload multiple media files (images/videos) with optimized parallel processing
- * Returns array of MediaUploadResult with publicId for deletion support
+ * Upload through the authenticated backend. Cloudinary credentials and
+ * unsigned presets never cross the browser boundary.
  */
 export const UploadMediaFiles = async function (
-  fileList: Array<File>,
-  onProgress?: (progress: number) => void
-): Promise<Array<MediaUploadResult>> {
-  const totalFiles = fileList.length;
-  let completedFiles = 0;
+  fileList: File[],
+  onProgress?: (progress: number) => void,
+): Promise<MediaUploadResult[]> {
+  if (fileList.length === 0) return [];
+  if (fileList.length > MAX_FILES_PER_REQUEST) {
+    throw new Error(`A maximum of ${MAX_FILES_PER_REQUEST} files can be uploaded at once`);
+  }
+  fileList.forEach(assertSupportedMedia);
 
-  const uploadPromises = fileList.map(async (file) => {
-    const mediaType = getMediaType(file);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", PRESET_KEY!);
-
-    const response = await fetch(getUploadEndpoint(mediaType), {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.statusText}`);
-    }
-
-    const data: CloudinaryResponse = await response.json();
-
-    // Update progress
-    completedFiles++;
-    if (onProgress) {
-      onProgress(Math.round((completedFiles / totalFiles) * 100));
-    }
-
-    return {
-      url: data.secure_url,
-      publicId: data.public_id,
-      mediaType,
-      width: data.width,
-      height: data.height,
-      duration: data.duration,
-    } as MediaUploadResult;
-  });
-
-  return Promise.all(uploadPromises);
-};
-
-/**
- * Upload single media file (image/video)
- * Returns MediaUploadResult with publicId for deletion support
- */
-export const UploadMediaFile = async function (
-  file: File
-): Promise<MediaUploadResult> {
-  const mediaType = getMediaType(file);
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", PRESET_KEY!);
-
-  const response = await fetch(getUploadEndpoint(mediaType), {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!response.ok) {
-    throw new Error(`Upload failed: ${response.statusText}`);
+  const response = await uploadMedia(fileList, onProgress);
+  if (!response.success) {
+    throw new Error(response.error || "Upload failed");
+  }
+  if (response.results.length !== fileList.length) {
+    throw new Error("The server returned an incomplete upload result");
   }
 
-  const data: CloudinaryResponse = await response.json();
-
-  return {
-    url: data.secure_url,
-    publicId: data.public_id,
-    mediaType,
-    width: data.width,
-    height: data.height,
-    duration: data.duration,
-  };
+  return response.results.map((result) => {
+    if (result.mediaType === "RAW") {
+      throw new Error("The server rejected an unsupported media type");
+    }
+    return {
+      url: result.url,
+      publicId: result.publicId,
+      mediaType: result.mediaType,
+    };
+  });
 };
 
-/**
- * Delete media from Cloudinary by publicId
- * Note: This requires signature generation from backend for security
- * For client-side deletion, use unsigned preset with delete enabled
- */
+export const UploadMediaFile = async function (
+  file: File,
+): Promise<MediaUploadResult> {
+  const [result] = await UploadMediaFiles([file]);
+  return result;
+};
+
+/** Delete media through the authenticated backend ownership boundary. */
 export const DeleteMedia = async function (
   publicId: string,
-  mediaType: "IMAGE" | "VIDEO" = "IMAGE"
+  mediaType: "IMAGE" | "VIDEO" = "IMAGE",
 ): Promise<boolean> {
-  try {
-    const resourceType = mediaType === "VIDEO" ? "video" : "image";
-    const timestamp = Math.round(new Date().getTime() / 1000);
-
-    // For client-side deletion, we'll use the destroy endpoint
-    // Note: You need to enable "Allow unsigned destroying" in Cloudinary settings
-    // Or implement a backend endpoint for secure deletion
-    const formData = new FormData();
-    formData.append("public_id", publicId);
-    formData.append("api_key", CLOUDINARY_API_KEY!);
-    formData.append("timestamp", timestamp.toString());
-
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/destroy`,
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-
-    const data = await response.json();
-    return data.result === "ok";
-  } catch (error) {
-    console.error("Failed to delete media:", error);
-    return false;
-  }
+  if (!publicId.trim()) return false;
+  const response = await deleteCloudinaryMedia([{ publicId, mediaType }]);
+  return response.success && response.results[0]?.success === true;
 };
 
-/**
- * Delete multiple media files from Cloudinary
- * Optimized with Promise.all for parallel deletion
- */
 export const DeleteMediaFiles = async function (
-  mediaItems: Array<{ publicId: string; mediaType: "IMAGE" | "VIDEO" }>
+  mediaItems: Array<{ publicId: string; mediaType: "IMAGE" | "VIDEO" }>,
 ): Promise<boolean[]> {
-  const deletePromises = mediaItems.map((item) =>
-    DeleteMedia(item.publicId, item.mediaType)
+  if (mediaItems.length === 0) return [];
+  const response = await deleteCloudinaryMedia(mediaItems);
+  const statusByPublicId = new Map(
+    response.results.map((result) => [result.publicId, result.success]),
   );
-  return Promise.all(deletePromises);
+  return mediaItems.map((item) => statusByPublicId.get(item.publicId) === true);
 };
 
-// Legacy functions for backward compatibility
-export const UploadImages = async function (
-  fileList: Array<File>
-): Promise<Array<string>> {
+// Legacy exports retained while callers migrate to structured results.
+export const UploadImages = async function (fileList: File[]): Promise<string[]> {
   const results = await UploadMediaFiles(fileList);
-  return results.map((r) => r.url);
+  return results.map((result) => result.url);
 };
 
-export const UploadImage = async function (img: File): Promise<string> {
-  const result = await UploadMediaFile(img);
-  return result.url;
+export const UploadImage = async function (image: File): Promise<string> {
+  return (await UploadMediaFile(image)).url;
 };

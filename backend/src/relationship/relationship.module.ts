@@ -8,6 +8,12 @@ import { Conversation, ConversationSchema } from 'src/conversation/entities/conv
 import { RelationshipGateway } from 'src/relationship/relationship.gateway';
 import { AccountModule } from 'src/account/account.module';
 import { NotificationModule } from 'src/notification/notification.module';
+import { AuthModule } from 'src/auth/auth.module';
+import { UserBlock, UserBlockSchema } from './entities/user-block.entity';
+import {
+  UserRestriction,
+  UserRestrictionSchema,
+} from './entities/user-restriction.entity';
 
 @Module({
   imports: [
@@ -15,9 +21,12 @@ import { NotificationModule } from 'src/notification/notification.module';
       { name: Relationship.name, schema: RelationshipSchema },
       { name: Account.name, schema: AccountSchema },
       { name: Conversation.name, schema: ConversationSchema },
+      { name: UserBlock.name, schema: UserBlockSchema },
+      { name: UserRestriction.name, schema: UserRestrictionSchema },
     ]),
     AccountModule,
     NotificationModule,
+    AuthModule,
   ],
   controllers: [RelationshipController],
   providers: [RelationshipGateway, RelationshipService],

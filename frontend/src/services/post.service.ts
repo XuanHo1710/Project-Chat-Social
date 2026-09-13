@@ -1,4 +1,4 @@
-import axios from "@/config/axios";
+import axios, { unwrap } from "@/config/axios";
 import {
   CreatePostRequest,
   PostPageResponse,
@@ -29,27 +29,22 @@ class PostService {
       `/${PREFIX}`,
       { params },
     );
-    return response.data.data;
+    return unwrap<PostPageResponse>(response.data);
   }
 
   /**
    * Get news feed posts (public + friends' posts + own posts)
    */
-  async getNewsFeed(params?: {
-    page?: number;
-    limit?: number;
-    friendIds?: string[];
-  }) {
+  async getNewsFeed(params?: { page?: number; limit?: number }) {
     const queryParams = {
       page: params?.page,
       limit: params?.limit,
-      friendIds: params?.friendIds?.join(","),
     };
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}/news-feed`,
       { params: queryParams },
     );
-    return response.data.data;
+    return unwrap<PostPageResponse>(response.data);
   }
 
   /**
@@ -58,38 +53,35 @@ class PostService {
   async searchFeed(params?: {
     page?: number;
     limit?: number;
-    friendIds?: string[];
     keyword?: string;
   }) {
     const queryParams = {
       page: params?.page,
       limit: params?.limit,
-      friendIds: params?.friendIds?.join(","),
       keyword: params?.keyword,
     };
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}/search`,
       { params: queryParams },
     );
-    return response.data.data;
+    return unwrap<PostPageResponse>(response.data);
   }
   /**
    * Get posts by user ID with privacy filtering
    */
   async getPostsByUserId(
     userId: string,
-    params?: { page?: number; limit?: number; friendIds?: string[] },
+    params?: { page?: number; limit?: number },
   ) {
     const queryParams = {
       page: params?.page,
       limit: params?.limit,
-      friendIds: params?.friendIds?.join(","),
     };
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}/user/${userId}`,
       { params: queryParams },
     );
-    return response.data.data;
+    return unwrap<PostPageResponse>(response.data);
   }
 
   /**
@@ -99,7 +91,7 @@ class PostService {
     const response = await axios.get<APIResponse<PostType>>(
       `/${PREFIX}/${postId}`,
     );
-    return response.data.data;
+    return unwrap<PostType>(response.data);
   }
 
   /**
@@ -134,27 +126,22 @@ class PostService {
       `/${PREFIX}/group/${groupId}`,
       { params },
     );
-    return response.data.data;
+    return unwrap<PostPageResponse>(response.data);
   }
 
   /**
    * Get video reels (posts with VIDEO media only)
    */
-  async getVideoReels(params?: {
-    page?: number;
-    limit?: number;
-    friendIds?: string[];
-  }) {
+  async getVideoReels(params?: { page?: number; limit?: number }) {
     const queryParams = {
       page: params?.page,
       limit: params?.limit,
-      friendIds: params?.friendIds?.join(","),
     };
     const response = await axios.get<APIResponse<PostPageResponse>>(
       `/${PREFIX}/reels`,
       { params: queryParams },
     );
-    return response.data.data;
+    return unwrap<PostPageResponse>(response.data);
   }
 
   /**

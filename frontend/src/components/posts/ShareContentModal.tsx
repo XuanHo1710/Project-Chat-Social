@@ -92,7 +92,6 @@ export default function ShareContentModal({ handleCloseShare, user, sharePrivacy
         setIsSharing(true);
         try {
             const response = await postService.createPost({
-                userId: user.id,
                 content: shareCaption || '',
                 privacy: sharePrivacy,
                 sharedPostId: sharingPost._id,

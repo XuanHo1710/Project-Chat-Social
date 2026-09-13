@@ -1,4 +1,4 @@
-import axios from "@/config/axios";
+import axios, { unwrap } from "@/config/axios";
 import { FriendType } from "@/types/account";
 import { APIResponse } from "@/types/common";
 import { RelationshipEnum } from "@/types/relationship";
@@ -95,7 +95,7 @@ class RelationshipService {
     const response = await axios.post<APIResponse<{ message: string }>>(
       `/relationship/block/${targetUserId}`
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   // Unblock a user
@@ -103,7 +103,7 @@ class RelationshipService {
     const response = await axios.delete<APIResponse<{ message: string }>>(
       `/relationship/block/${targetUserId}`
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   // Get blocked users list
@@ -111,7 +111,7 @@ class RelationshipService {
     const response = await axios.get<APIResponse<BlockedUser[]>>(
       "/relationship/blocked"
     );
-    return response.data.data;
+    return unwrap<BlockedUser[]>(response.data);
   }
 
   // Check if a user is blocked
@@ -119,7 +119,7 @@ class RelationshipService {
     const response = await axios.get<APIResponse<boolean>>(
       `/relationship/is-blocked/${targetUserId}`
     );
-    return response.data.data;
+    return unwrap<boolean>(response.data);
   }
 
   // ==================== RESTRICT ====================
@@ -129,7 +129,7 @@ class RelationshipService {
     const response = await axios.post<APIResponse<{ message: string }>>(
       `/relationship/restrict/${targetUserId}`
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   // Unrestrict a user
@@ -137,7 +137,7 @@ class RelationshipService {
     const response = await axios.delete<APIResponse<{ message: string }>>(
       `/relationship/unrestrict/${targetUserId}`
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   // Get restricted users list
@@ -145,7 +145,7 @@ class RelationshipService {
     const response = await axios.get<APIResponse<RestrictedUser[]>>(
       "/relationship/restricted"
     );
-    return response.data.data;
+    return unwrap<RestrictedUser[]>(response.data);
   }
 }
 

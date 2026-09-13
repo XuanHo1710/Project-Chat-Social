@@ -26,6 +26,7 @@ export type MessageStatus = "SENT" | "DELIVERED" | "READ";
 
 export interface AttachmentData {
   url: string;
+  publicId: string;
   fileName: string;
   fileSize: number;
   mediaType: "IMAGE" | "VIDEO" | "RAW";
@@ -109,6 +110,7 @@ export interface SendMessagePayload {
   senderId: string;
   type: MessageType;
   content: string;
+  tempId?: string;
   attachments?: AttachmentData[];
   replyTo?: string;
   postId?: string;

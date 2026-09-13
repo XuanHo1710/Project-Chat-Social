@@ -32,9 +32,9 @@ import {
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useThemeStore, ThemeMode, FontSize } from '@/stores/useThemeStore';
-import { authService } from '@/services/auth.service';
-import { accountService } from '@/services/account.service';
-import { getFirebaseToken } from '@/lib/firebase';
+import { performLogout } from '@/utils/logout';
+import { changeAppLanguage, AppLanguage } from '@/lib/i18n';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
@@ -48,8 +48,8 @@ type MenuPanel = 'main' | 'display' | 'language';
 
 export default function AvatarMenu({ onClose }: AvatarMenuProps) {
     const user = useAuthStore((state) => state.user);
-    const logout = useAuthStore((state) => state.logout);
     const router = useRouter();
+    const queryClient = useQueryClient();
     const muiTheme = useTheme();
     const { t, i18n } = useTranslation();
     const isDark = muiTheme.palette.mode === 'dark';
@@ -62,26 +62,16 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
     const handleLogout = async () => {
         onClose();
 
-        // Remove FCM token for this device before logging out
-        try {
-            const fcmToken = await getFirebaseToken();
-            if (fcmToken) {
-                await accountService.removeFMCToken(fcmToken);
-            }
-        } catch {
-            // Ignore FCM cleanup errors - don't block logout
-        }
+        const success = await performLogout({
+            queryClient,
+            navigate: () => router.push(CLIENT_PATH.LOGIN),
+        });
 
-        const response = await authService.logout();
-        if (response?.success) {
-            logout();
+        if (success) {
             toast.success(t('avatar_menu.logout_success'));
         } else {
-            // Still clear local state even on API failure
-            logout();
             toast.error(t('avatar_menu.logout_failed'));
         }
-        router.push(CLIENT_PATH.LOGIN);
     };
 
     const handleViewProfile = () => {
@@ -104,8 +94,8 @@ export default function AvatarMenu({ onClose }: AvatarMenuProps) {
         setActivePanel('language');
     };
 
-    const handleLanguageChange = (lang: string) => {
-        i18n.changeLanguage(lang);
+    const handleLanguageChange = (lang: AppLanguage) => {
+        changeAppLanguage(lang);
     };
 
     const handleBackToMain = () => {

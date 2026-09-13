@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Box, Typography, Button, Paper, useTheme } from "@mui/material";
+import { Box, Typography, Button, useTheme } from "@mui/material";
 import { PlayArrow, Refresh } from "@mui/icons-material";
+import GameShell from "@/components/games/GameShell";
+import { useTranslation } from "react-i18next";
 
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 400;
@@ -19,6 +21,7 @@ const BRICK_OFFSET_LEFT = 10; // Centered roughly
 
 export default function BreakoutPage() {
     const theme = useTheme();
+    const { t } = useTranslation('games');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [score, setScore] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -173,43 +176,35 @@ export default function BreakoutPage() {
     }, [theme]);
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', pt: 4 }}>
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3 }}>
-                <Paper elevation={3} sx={{ p: 4, borderRadius: 4, width: 'fit-content', textAlign: 'center', bgcolor: 'background.paper' }}>
-                    <Typography variant="h4" fontWeight={900} sx={{ mb: 2, color: 'primary.main' }}>
-                        Phá Gạch (Breakout)
-                    </Typography>
+        <GameShell titleKey="breakout.heading" fitContent>
+            <Typography variant="h3" fontWeight={700} sx={{ mb: 3, color: 'text.primary' }}>
+                {score}
+            </Typography>
 
-                    <Typography variant="h3" fontWeight={700} sx={{ mb: 3, color: 'text.primary' }}>
-                        {score}
-                    </Typography>
-
-                    <Box sx={{ border: '4px solid #333', borderRadius: 2, overflow: 'hidden', lineHeight: 0, mb: 3 }}>
-                        <canvas
-                            ref={canvasRef}
-                            width={CANVAS_WIDTH}
-                            height={CANVAS_HEIGHT}
-                            style={{ maxWidth: '100%', height: 'auto', cursor: 'none' }}
-                        />
-                    </Box>
-
-                    <Typography color="text.secondary" sx={{ mb: 3 }}>
-                        Di chuyển chuột trái/phải để hứng bóng
-                    </Typography>
-
-                    {!isPlaying && (
-                        <Button
-                            variant="contained"
-                            size="large"
-                            onClick={initGame}
-                            startIcon={gameOver ? <Refresh /> : <PlayArrow />}
-                            sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
-                        >
-                            {gameOver ? "Chơi Lại" : "Bắt Đầu"}
-                        </Button>
-                    )}
-                </Paper>
+            <Box sx={{ border: '4px solid #333', borderRadius: 2, overflow: 'hidden', lineHeight: 0, mb: 3 }}>
+                <canvas
+                    ref={canvasRef}
+                    width={CANVAS_WIDTH}
+                    height={CANVAS_HEIGHT}
+                    style={{ maxWidth: '100%', height: 'auto', cursor: 'none' }}
+                />
             </Box>
-        </Box>
+
+            <Typography color="text.secondary" sx={{ mb: 3 }}>
+                {t('breakout.instructions')}
+            </Typography>
+
+            {!isPlaying && (
+                <Button
+                    variant="contained"
+                    size="large"
+                    onClick={initGame}
+                    startIcon={gameOver ? <Refresh /> : <PlayArrow />}
+                    sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
+                >
+                    {gameOver ? t('common.playAgain') : t('common.start')}
+                </Button>
+            )}
+        </GameShell>
     );
 }

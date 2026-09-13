@@ -1,791 +1,469 @@
-"""
-API ROUTES - OPTIMIZED (v5.0)
-======================
-Endpoints:
-1. GET /search - Tìm posts theo query (chunk-level search + post dedup)
-2. GET /recommend/{user_id} - Gợi ý cho user
-3. GET /newsfeed/{user_id} - Newsfeed (alias của recommend)
-4. GET /similar/{post_id} - Posts tương tự
-5. POST /embed/post - Embed single post (with chunking)
-6. GET /queries/similar - Find similar past queries (RAG feedback)
-7. GET /status - Trạng thái service
-"""
+"""Authenticated internal API for recommendation, indexing and chatbot flows."""
 
-from typing import Optional, List
-from fastapi import APIRouter, Query, HTTPException
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+from typing import Dict, List, Literal, Optional
+from urllib.parse import urlparse
+
+from bson import ObjectId
+from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from loguru import logger
-from qdrant_client.models import PointStruct
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from qdrant_client.models import FieldCondition, Filter, MatchValue
 
+from app.config import get_settings
+from app.services.llm_service import get_llm_service
 from app.services.recommendation_service import get_recommendation_service
 
-from app.services.llm_service import get_llm_service
-import os
-from functools import lru_cache
 
 router = APIRouter(tags=["Recommendations"])
+settings = get_settings()
+
+MediaType = Literal["TEXT", "IMAGE", "VIDEO"]
 
 
-# Lazy shared MongoDB connection for post preview lookups
-@lru_cache()
-def _get_mongo_db():
-    try:
-        from pymongo import MongoClient
-        client = MongoClient(os.getenv("MONGODB_URI"), maxPoolSize=5, serverSelectionTimeoutMS=3000)
-        return client[os.getenv("MONGODB_DATABASE", "project-chat-social")]
-    except Exception as e:
-        logger.warning(f"MongoDB not available for preview lookups: {e}")
-        return None
+def _valid_object_id(value: str) -> bool:
+    return bool(value) and ObjectId.is_valid(value)
+
+
+def _require_object_id(value: str, label: str) -> str:
+    if not _valid_object_id(value):
+        raise HTTPException(status_code=400, detail=f"Invalid {label}")
+    return value
+
+
+def _ensure_ready() -> None:
+    if not get_recommendation_service().is_ready():
+        raise HTTPException(status_code=503, detail="AI index is not ready")
+
+
+def _page_metadata(total: int, page: int, limit: int) -> Dict[str, int]:
+    """Clamp totals to the hard-capped candidate pool so deep pages are never overpromised."""
+    supported = min(total, settings.vector_candidate_limit)
+    return {
+        "page": page,
+        "limit": limit,
+        "total": supported,
+        "total_pages": (supported + limit - 1) // limit if supported else 0,
+    }
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ChatMessage(StrictModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+    senderName: Optional[str] = Field(default=None, max_length=100)
+
+
+class ChatBotRequest(StrictModel):
+    message: str = Field(min_length=1, max_length=4000)
+    chatHistory: List[ChatMessage] = Field(default_factory=list, max_length=20)
+    imageUrls: List[str] = Field(default_factory=list, max_length=4)
+    currentUserId: Optional[str] = None
+
+    @field_validator("message")
+    @classmethod
+    def normalize_message(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("message must not be blank")
+        return value
+
+    @field_validator("imageUrls")
+    @classmethod
+    def validate_image_urls(cls, values: List[str]) -> List[str]:
+        validated: List[str] = []
+        for value in values:
+            if len(value) > 2048:
+                raise ValueError("image URL is too long")
+            parsed = urlparse(value)
+            if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
+                raise ValueError("image URLs must be absolute HTTPS URLs")
+            validated.append(value)
+        return validated
+
+    @field_validator("currentUserId")
+    @classmethod
+    def validate_current_user_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and not _valid_object_id(value):
+            raise ValueError("currentUserId must be a MongoDB ObjectId")
+        return value
+
+
+class EmbedPostRequest(StrictModel):
+    post_id: str
+    # Kept for wire compatibility. Indexing always reloads canonical values
+    # from MongoDB instead of trusting these caller-controlled copies.
+    content: str = Field(default="", max_length=10000)
+    user_id: str = ""
+    privacy: Literal["PUBLIC", "FRIEND", "PRIVATE", "GROUP"] = "PUBLIC"
+    group_id: Optional[str] = None
+    created_at: Optional[str] = Field(default=None, max_length=64)
+    media_type: MediaType = "TEXT"
+
+    @field_validator("post_id")
+    @classmethod
+    def validate_post_id(cls, value: str) -> str:
+        if not _valid_object_id(value):
+            raise ValueError("post_id must be a MongoDB ObjectId")
+        return value
+
+
+class InteractionRequest(StrictModel):
+    user_id: str
+    target_id: str
+    interaction_type: str = Field(min_length=1, max_length=50)
+    event_id: Optional[str] = Field(default=None, max_length=128)
+    metadata: Dict = Field(default_factory=dict)
+
+    @field_validator("user_id", "target_id")
+    @classmethod
+    def validate_ids(cls, value: str) -> str:
+        if not _valid_object_id(value):
+            raise ValueError("identifier must be a MongoDB ObjectId")
+        return value
+
+    @field_validator("metadata")
+    @classmethod
+    def validate_metadata_size(cls, value: Dict) -> Dict:
+        if len(json.dumps(value, default=str)) > 4096:
+            raise ValueError("metadata is too large")
+        return value
 
 
 @router.get("/search")
 async def search_posts(
-    q: str = Query(..., description="Search query"),
-    current_user_id: str = Query(default="", description="Current user ID for privacy filter"),
-    friend_ids: str = Query(default="", description="Comma-separated friend IDs"),
+    q: str = Query(..., min_length=1, max_length=500),
+    current_user_id: str = Query(default="", max_length=24),
+    friend_ids: str = Query(default="", max_length=10000),
     limit: int = Query(default=20, ge=1, le=100),
-    page: int = Query(default=1, ge=1),
-    media_type: Optional[str] = Query(default=None, description="Filter by media type (VIDEO, IMAGE, TEXT)")
+    page: int = Query(default=1, ge=1, le=1000),
+    media_type: Optional[MediaType] = None,
 ):
-    """
-    🔍 Tìm kiếm posts theo query
-    
-    Sử dụng cosine similarity để tìm posts tương tự với query.
-    """
+    del friend_ids
+    if current_user_id:
+        _require_object_id(current_user_id, "current user identifier")
+    await run_in_threadpool(_ensure_ready)
     service = get_recommendation_service()
-    
-    if not service.is_ready():
-        logger.warning("Search called but service not ready")
-        raise HTTPException(status_code=503, detail="Service not ready. Run: python train.py")
-    
-    friend_list = [fid.strip() for fid in friend_ids.split(",") if fid.strip()] if friend_ids else []
-    
-    logger.info(f"🔍 Search request: q='{q}', page={page}, limit={limit}")
-    
-    posts, total_count = service.search(
-        query=q,
-        current_user_id=current_user_id,
-        friend_ids=friend_list,
-        limit=limit,
-        page=page,
-        media_type=media_type
+    posts, total = await run_in_threadpool(
+        service.search,
+        q,
+        current_user_id,
+        None,
+        limit,
+        page,
+        media_type,
     )
-    
     return {
         "query": q,
-        "page": page,
-        "limit": limit,
-        "total": total_count,
-        "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 0,
-        "posts": posts
+        **_page_metadata(total, page, limit),
+        "posts": posts,
     }
 
 
 @router.get("/recommend/{user_id}")
 async def recommend_for_user(
     user_id: str,
-    friend_ids: str = Query(default="", description="Comma-separated friend IDs"),
+    friend_ids: str = Query(default="", max_length=10000),
     limit: int = Query(default=20, ge=1, le=100),
-    page: int = Query(default=1, ge=1),
-    media_type: Optional[str] = Query(default=None, description="Filter by media type (VIDEO, IMAGE, TEXT)")
+    page: int = Query(default=1, ge=1, le=1000),
+    media_type: Optional[MediaType] = None,
 ):
-    """
-    🎯 Gợi ý posts cho user
-    
-    Dựa trên:
-    - User interactions (reactions, comments, shares)
-    - Cosine similarity (góc tọa độ)
-    - Friend boost (+20%)
-    """
+    del friend_ids
+    _require_object_id(user_id, "user identifier")
+    await run_in_threadpool(_ensure_ready)
     service = get_recommendation_service()
-    
-    if not service.is_ready():
-        raise HTTPException(status_code=503, detail="Chưa train! Chạy: python train.py")
-    
-    friend_list = [fid.strip() for fid in friend_ids.split(",") if fid.strip()] if friend_ids else []
-    
-    posts, total_count = service.recommend(
-        user_id=user_id,
-        friend_ids=friend_list,
-        limit=limit,
-        page=page,
-        media_type=media_type
+    posts, total = await run_in_threadpool(
+        service.recommend,
+        user_id,
+        None,
+        limit,
+        page,
+        media_type,
     )
-    
     return {
         "user_id": user_id,
-        "page": page,
-        "limit": limit,
-        "total": total_count,
-        "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 0,
-        "posts": posts
+        **_page_metadata(total, page, limit),
+        "posts": posts,
     }
 
 
 @router.get("/newsfeed/{user_id}")
 async def get_newsfeed(
     user_id: str,
-    friend_ids: str = Query(default="", description="Comma-separated friend IDs"),
+    friend_ids: str = Query(default="", max_length=10000),
     limit: int = Query(default=20, ge=1, le=100),
-    page: int = Query(default=1, ge=1),
-    media_type: Optional[str] = Query(default=None, description="Filter by media type (VIDEO, IMAGE, TEXT)")
+    page: int = Query(default=1, ge=1, le=1000),
+    media_type: Optional[MediaType] = None,
 ):
-    """
-    📰 Lấy newsfeed cho user
-    
-    Alias của /recommend/{user_id}
-    """
+    del friend_ids
+    _require_object_id(user_id, "user identifier")
+    await run_in_threadpool(_ensure_ready)
     service = get_recommendation_service()
-    
-    if not service.is_ready():
-        raise HTTPException(status_code=503, detail="Chưa train! Chạy: python train.py")
-    
-    friend_list = [fid.strip() for fid in friend_ids.split(",") if fid.strip()] if friend_ids else []
-    
-    posts, total_count = service.get_newsfeed(
-        user_id=user_id,
-        friend_ids=friend_list,
-        limit=limit,
-        page=page,
-        media_type=media_type
+    posts, total = await run_in_threadpool(
+        service.get_newsfeed,
+        user_id,
+        None,
+        limit,
+        page,
+        media_type,
     )
-    
     return {
         "user_id": user_id,
-        "page": page,
-        "limit": limit,
-        "total": total_count,
-        "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 0,
-        "posts": posts
+        **_page_metadata(total, page, limit),
+        "posts": posts,
     }
-    
-# ... (skip ChatBot part which is mostly unchanged but large block) ...
-# I will supply the necessary ChatBot parts in the replacement block if needed, 
-# or use multiple chunks. To avoid large output, I will replace blocks safely.
-
-# The above block replaced lines 23-133 efficiently.
-# Now I need to handle EmbedPostRequest and embed_single_post which are further down.
-# I will use a second chunk for that.
 
 
-from pydantic import BaseModel
-from typing import List, Optional
+_POST_KEYWORDS = re.compile(
+    r"(post|posts|bài viết|bài đăng|search|tìm|gợi ý|recommend|news|tin tức|"
+    r"content|nội dung|topic|chủ đề|video|ảnh|photo|hướng dẫn|guide)",
+    re.IGNORECASE,
+)
+_GREETING = re.compile(
+    r"^(xin chào|chào|hi|hello|hey|ok|okay|cảm ơn|thanks|bye)[\s!?.]*$",
+    re.IGNORECASE,
+)
 
-class ChatMessage(BaseModel):
-    role: str  # 'user' or 'assistant'
-    content: str
-    senderName: Optional[str] = None
 
-class ChatBotRequest(BaseModel):
-    message: str
-    chatHistory: Optional[List[ChatMessage]] = []
-    imageUrls: Optional[List[str]] = []
+def _fast_intent_check(message: str) -> Dict[str, object]:
+    stripped = message.strip()
+    if len(stripped) < 3 or _GREETING.match(stripped):
+        return {"should_suggest_post": False, "search_query": ""}
+    if _POST_KEYWORDS.search(stripped) or len(stripped) >= 5:
+        return {"should_suggest_post": True, "search_query": stripped[:500]}
+    return {"should_suggest_post": False, "search_query": ""}
+
+
+def _prepare_rag(message: str, user_id: str) -> tuple[List[str], str]:
+    intent = _fast_intent_check(message)
+    service = get_recommendation_service()
+    if not intent["should_suggest_post"] or not service.is_ready():
+        return [], ""
+    posts, _ = service.search(
+        query=str(intent["search_query"]),
+        current_user_id=user_id,
+        limit=12,
+        page=1,
+    )
+    selected = [post for post in posts if float(post.get("score", 0)) >= 0.35][:4]
+    post_ids = [post["post_id"] for post in selected]
+    documents = service.get_rag_documents(post_ids, user_id)
+    document_by_id = {str(document["_id"]): document for document in documents}
+    allowed_ids = [post_id for post_id in post_ids if post_id in document_by_id]
+    context_parts = []
+    for post_id in allowed_ids:
+        content = str(document_by_id[post_id].get("content", "")).strip()
+        if not content:
+            continue
+        content = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", content)[:1200]
+        context_parts.append(
+            f"Retrieved post {post_id}; JSON-encoded untrusted content: {json.dumps(content, ensure_ascii=False)}"
+        )
+    return allowed_ids[: len(context_parts)], "\n".join(context_parts)[:5000]
+
+
+def _conversation_history(request: ChatBotRequest) -> List[Dict[str, str]]:
+    return [
+        {"role": message.role, "content": message.content}
+        for message in request.chatHistory[-10:]
+    ]
+
 
 @router.post("/chat/bot")
 async def chat_bot_post(request: ChatBotRequest):
-    """
-    🤖 RAG-powered chatbot with full context injection
-    
-    RAG Workflow (matching the diagram):
-    1. User sends query
-    2. Query is embedded and searched against vector DB (chunks)
-    3. Retrieved chunks are injected into LLM prompt as context
-    4. LLM generates response grounded in actual post content
-    5. Response + relevant post IDs returned to user
-    
-    Request Body:
-    - message: current message
-    - chatHistory: last 15 messages for context
-    - imageUrls: attached image URLs (if any)
-    
-    Returns:
-    - message: original message
-    - response: AI response (grounded in retrieved context)
-    - postIds: Array of relevant post IDs (3-4 posts)
-    """
     llm = get_llm_service()
-    recommendation = get_recommendation_service()
-    
-    if not llm.is_available():
-        logger.warning("LLM unavailable — returning fallback for chat/bot")
-        return {
-            "message": request.message,
-            "response": "Xin lỗi, AI đang khởi động hoặc tạm thời không khả dụng. Vui lòng thử lại sau ít phút!",
-            "postIds": []
-        }
-    
-    message = request.message
-    chat_history = request.chatHistory or []
-    image_urls = request.imageUrls or []
-    
-    post_ids = []
-    rag_context = ""
-    
-    logger.info(f"Chat request: '{message[:50]}...' with {len(chat_history)} history, {len(image_urls)} images")
-    
-    # Build conversation context from history
-    conversation_context = []
-    for msg in chat_history[-10:]:
-        conversation_context.append({
-            "role": msg.role,
-            "content": msg.content
-        })
-    
-    # 1. Check if there are images to analyze
-    image_description = ""
-    if image_urls and len(image_urls) > 0:
-        logger.info(f"Analyzing {len(image_urls)} images...")
-        image_description = llm.analyze_images(image_urls)
-        if image_description:
-            logger.info(f"Image analysis: {image_description[:100]}...")
-    
-    # 2. Analyze intent - does user want posts / info?
-    intent = llm.analyze_chat_intent(message)
-    logger.info(f"Chat intent: {intent}, service_ready={recommendation.is_ready()}")
-    
-    if intent.get("should_suggest_post") and intent.get("search_query") and recommendation.is_ready():
-        search_query = intent["search_query"]
-        logger.info(f"🔍 Searching embeddings for: '{search_query}'")
-        
-        # RAG Step 2: Search vector DB for relevant chunks
-        posts, total = recommendation.search(
-            query=search_query,
-            current_user_id="",
-            limit=15,
-            page=1
-        )
-        logger.info(f"🔍 Embedding search returned {len(posts) if posts else 0} posts (total={total})")
-        
-        if posts:
-            # Filter by minimum relevance score to avoid irrelevant results
-            MIN_SCORE = 0.35
-            relevant_posts = [p for p in posts[:8] if p.get("score", 0) >= MIN_SCORE]
-            logger.info(f"🔍 Posts with score >= {MIN_SCORE}: {len(relevant_posts)} (scores: {[p.get('score') for p in posts[:8]]})")
-            available_posts = sorted(relevant_posts, key=lambda p: p.get("score", 0), reverse=True)
-            
-            if available_posts:
-                num_posts = min(4, len(available_posts))
-                selected_posts = available_posts[:num_posts]
-                post_ids = [p["post_id"] for p in selected_posts]
-                logger.info(f"📌 Selected {len(post_ids)} post IDs: {post_ids}")
-                
-                # RAG Step 3: Retrieve FULL post content from MongoDB for context injection
-                try:
-                    from bson import ObjectId
-                    db = _get_mongo_db()
-                    if db is not None:
-                        post_oids = [ObjectId(pid) for pid in post_ids]
-                        post_docs = list(db.posts.find(
-                            {"_id": {"$in": post_oids}},
-                            {"content": 1, "userId": 1, "createdAt": 1}
-                        ))
-                        
-                        # Build RAG context string with full post content
-                        context_parts = []
-                        for i, doc in enumerate(post_docs, 1):
-                            content = doc.get("content", "").strip()
-                            if content:
-                                # Truncate very long posts but keep much more than before
-                                truncated = content[:1500] + ("..." if len(content) > 1500 else "")
-                                context_parts.append(f"[Post {i}]: {truncated}")
-                        
-                        if context_parts:
-                            rag_context = "\n\n".join(context_parts)
-                            logger.info(f"📚 RAG context: {len(context_parts)} posts, {len(rag_context)} chars injected")
-                        else:
-                            logger.warning(f"⚠️ MongoDB returned {len(post_docs)} docs but no content, clearing post_ids")
-                            post_ids = []
-                    else:
-                        logger.warning("⚠️ MongoDB connection failed, clearing post_ids")
-                        post_ids = []
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not fetch RAG context: {e}, clearing post_ids")
-                    post_ids = []
-                    rag_context = ""
-                
-                if post_ids:
-                    logger.info(f"✅ Suggesting {len(post_ids)} posts with RAG context")
-    elif intent.get("should_suggest_post") and not recommendation.is_ready():
-        logger.warning("⚠️ Recommendation service NOT READY - cannot search embeddings")
-    
-    # RAG Step 4: Generate AI response with retrieved context injected
-    response = llm.generate_chat_response_with_full_context(
-        message=message,
-        chat_history=conversation_context,
-        image_description=image_description,
-        has_post=len(post_ids) > 0,
-        post_preview="",
-        rag_context=rag_context,
+    if not await run_in_threadpool(llm.is_available):
+        raise HTTPException(status_code=503, detail="AI provider is unavailable")
+    user_id = request.currentUserId or ""
+    post_ids, rag_context = await run_in_threadpool(_prepare_rag, request.message, user_id)
+    image_description = await run_in_threadpool(llm.analyze_images, request.imageUrls)
+    response = await run_in_threadpool(
+        llm.generate_chat_response_with_full_context,
+        request.message,
+        _conversation_history(request),
+        image_description,
+        bool(post_ids),
+        "",
+        rag_context,
     )
-    
-    # RAG Step 5: Return response + related posts to user
-    return {
-        "message": message,
-        "response": response,
-        "postIds": post_ids
-    }
-
-
-import re as _re
-
-# Fast keyword-based intent detection (no LLM call needed)
-_POST_KEYWORDS = _re.compile(
-    r'(bài viết|post|bài đăng|có ai đăng|tìm bài|gợi ý|recommend|suggest|search|tìm kiếm|'
-    r'nội dung|content|topic|chủ đề|xu hướng|trending|hot|viral|news|tin tức|'
-    r'có gì mới|what\'s new|show me|cho xem|chia sẻ|share|'
-    r'có ai|ai đó|người nào|mọi người|cộng đồng|community|'
-    r'thông tin|info|information|kiến thức|knowledge|học|learn|'
-    r'hỏi|ask|question|câu hỏi|thắc mắc|'
-    r'review|đánh giá|nhận xét|feedback|ý kiến|opinion|'
-    r'sự kiện|event|hoạt động|activity|'
-    r'ảnh|photo|image|hình|video|clip|'
-    r'công nghệ|technology|tech|lập trình|programming|code|coding|'
-    r'du lịch|travel|ẩm thực|food|cooking|nấu ăn|'
-    r'thể thao|sport|game|gaming|music|nhạc|phim|movie|'
-    r'mẹo|tip|trick|hướng dẫn|tutorial|guide|how to|cách|làm sao|làm thế nào)',
-    _re.IGNORECASE
-)
-
-# Patterns that clearly indicate casual chat / greetings (no post search needed)
-_GREETING_PATTERNS = _re.compile(
-    r'^(xin chào|chào|hi|hello|hey|yo|ê|ơi|ok|okay|ừ|uh|vâng|dạ|cảm ơn|thank|thanks|bye|tạm biệt|good morning|good night|haha|lol|😀|😂|👋)[\s!?.]*$',
-    _re.IGNORECASE
-)
-
-def _fast_intent_check(message: str) -> dict:
-    """Keyword-based intent check — instant, no LLM call.
-    
-    Strategy: Search for related posts by default for any substantive message.
-    Only skip for very short greetings/casual chat.
-    """
-    stripped = message.strip()
-    
-    # Skip very short messages or pure greetings
-    if len(stripped) < 3 or _GREETING_PATTERNS.match(stripped):
-        return {"should_suggest_post": False, "search_query": ""}
-    
-    # For keyword matches, extract a cleaner search query
-    if _POST_KEYWORDS.search(stripped):
-        # Remove Vietnamese/English filler words, keep only topic keywords
-        query = _re.sub(
-            r'\b(có ai|có gì|có bài|có cái|cho tôi|giúp tôi|tìm|xem|show me|give me|find|'
-            r'bài viết|bài đăng|post|posts|về|about|không|nào|đi|hả|nhỉ|vậy|nha|'
-            r'gợi ý|recommend|suggest|có hông|có không|được không|nhé|nè|ơi|á|ạ|'
-            r'cho xem|cho mình|tôi muốn|muốn xem|muốn tìm|'
-            r'liên quan|liên quan đến|liên quan tới|related to|'
-            r'nào đó|gì đó|cái gì|cái nào|'
-            r'luôn|ngay|đi nào|thử|coi|xem coi|mình|tui|tôi|bạn|'
-            r'có thể|please|can you|could you|'
-            r'đến|tới|hay|hoặc|và|với|của|trong|trên|dưới|'
-            r'một số|vài|các|những|mấy|nhiều|ít)\b',
-            ' ', stripped, flags=_re.IGNORECASE
-        ).strip()
-        # Remove remaining punctuation and clean up
-        query = _re.sub(r'[?.!,;:()"\']', ' ', query)
-        query = _re.sub(r'\s+', ' ', query).strip()
-        if not query or len(query) < 2:
-            query = stripped
-        logger.info(f"🔍 Intent: cleaned query '{stripped}' → '{query}'")
-        return {"should_suggest_post": True, "search_query": query}
-    
-    # For any other substantive message (>= 5 chars), still try to search
-    if len(stripped) >= 5:
-        return {"should_suggest_post": True, "search_query": stripped}
-    
-    return {"should_suggest_post": False, "search_query": ""}
+    return {"message": request.message, "response": response, "postIds": post_ids}
 
 
 @router.post("/chat/bot/stream")
 async def chat_bot_stream(request: ChatBotRequest):
-    """
-    🤖 SSE streaming RAG chatbot - returns tokens in real-time
-
-    RAG Workflow: query → embed → search vector DB → inject context → stream LLM response
-
-    Returns SSE stream with events:
-    - event: token   → data: {"token": "..."}
-    - event: postIds → data: {"postIds": [...]}
-    - event: done    → data: {}
-    - event: error   → data: {"error": "..."}
-    """
-    import json as _json
-
     llm = get_llm_service()
-    recommendation = get_recommendation_service()
 
     async def event_stream():
         try:
-            if not llm.is_available():
-                yield f"event: error\ndata: {_json.dumps({'error': 'AI đang khởi động hoặc tạm thời không khả dụng.'})}\n\n"
+            if not await run_in_threadpool(llm.is_available):
+                yield f"event: error\ndata: {json.dumps({'error': 'AI provider is unavailable'})}\n\n"
                 return
-
-            message = request.message
-            chat_history = request.chatHistory or []
-            image_urls = request.imageUrls or []
-
-            post_ids = []
-            rag_context = ""
-
-            conversation_context = []
-            for msg in chat_history[-10:]:
-                conversation_context.append({"role": msg.role, "content": msg.content})
-
-            # Image analysis (currently no-op for this model)
-            image_description = ""
-            if image_urls:
-                image_description = llm.analyze_images(image_urls)
-
-            # Fast keyword intent check — NO LLM CALL, instant
-            intent = _fast_intent_check(message)
-            logger.info(f"🔍 Stream intent: {intent}, service_ready={recommendation.is_ready()}")
-
-            if intent["should_suggest_post"] and intent["search_query"] and recommendation.is_ready():
-                search_query = intent["search_query"]
-                logger.info(f"🔍 Searching embeddings for: '{search_query}'")
-                posts, total = recommendation.search(query=search_query, current_user_id="", limit=15, page=1)
-                logger.info(f"🔍 Embedding search returned {len(posts) if posts else 0} posts (total={total})")
-                if posts:
-                    # Filter by minimum relevance score to avoid irrelevant results
-                    MIN_SCORE = 0.35
-                    relevant_posts = [p for p in posts[:8] if p.get("score", 0) >= MIN_SCORE]
-                    logger.info(f"🔍 Posts with score >= {MIN_SCORE}: {len(relevant_posts)} (scores: {[p.get('score') for p in posts[:8]]})")
-                    available_posts = sorted(relevant_posts, key=lambda p: p.get("score", 0), reverse=True)
-                    if available_posts:
-                        num_posts = min(4, len(available_posts))
-                        selected_posts = available_posts[:num_posts]
-                        post_ids = [p["post_id"] for p in selected_posts]
-                        logger.info(f"📌 Selected {len(post_ids)} post IDs: {post_ids}")
-
-                        # RAG: Retrieve FULL post content for context injection
-                        try:
-                            from bson import ObjectId
-                            db = _get_mongo_db()
-                            if db is not None:
-                                post_oids = [ObjectId(pid) for pid in post_ids]
-                                post_docs = list(db.posts.find(
-                                    {"_id": {"$in": post_oids}},
-                                    {"content": 1}
-                                ))
-                                context_parts = []
-                                for i, doc in enumerate(post_docs, 1):
-                                    content = doc.get("content", "").strip()
-                                    if content:
-                                        truncated = content[:1500] + ("..." if len(content) > 1500 else "")
-                                        context_parts.append(f"[Post {i}]: {truncated}")
-                                if context_parts:
-                                    rag_context = "\n\n".join(context_parts)
-                                    logger.info(f"📚 RAG context: {len(context_parts)} posts, {len(rag_context)} chars")
-                                else:
-                                    logger.warning(f"⚠️ MongoDB returned {len(post_docs)} docs but no content found, clearing post_ids")
-                                    post_ids = []
-                            else:
-                                logger.warning("⚠️ MongoDB connection failed, clearing post_ids")
-                                post_ids = []
-                        except Exception as e:
-                            logger.warning(f"⚠️ Could not fetch RAG context: {e}, clearing post_ids")
-                            post_ids = []
-                            rag_context = ""
-            elif intent["should_suggest_post"] and not recommendation.is_ready():
-                logger.warning("⚠️ Recommendation service NOT READY - cannot search embeddings")
-
-            # Emit postIds early so frontend can render them
+            user_id = request.currentUserId or ""
+            post_ids, rag_context = await run_in_threadpool(
+                _prepare_rag,
+                request.message,
+                user_id,
+            )
             if post_ids:
-                yield f"event: postIds\ndata: {_json.dumps({'postIds': post_ids})}\n\n"
-
-            # Stream tokens — LLM call with RAG context injected
+                yield f"event: postIds\ndata: {json.dumps({'postIds': post_ids})}\n\n"
+            image_description = await run_in_threadpool(llm.analyze_images, request.imageUrls)
             async for token in llm.stream_chat_response_with_full_context(
-                message=message,
-                chat_history=conversation_context,
+                message=request.message,
+                chat_history=_conversation_history(request),
                 image_description=image_description,
-                has_post=len(post_ids) > 0,
-                post_preview="",
+                has_post=bool(post_ids),
                 rag_context=rag_context,
             ):
-                yield f"event: token\ndata: {_json.dumps({'token': token})}\n\n"
-
+                yield f"event: token\ndata: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Chat stream failed")
+            yield f"event: error\ndata: {json.dumps({'error': 'AI response failed'})}\n\n"
 
-        except Exception as e:
-            logger.error(f"Stream error: {e}")
-            yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+    )
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-    })
-@router.get("/chat/bot/{message}")
-async def chat_bot_get(message: str):
-    """Deprecated: Use POST /chat/bot instead"""
-    request = ChatBotRequest(message=message, chatHistory=[], imageUrls=[])
-    return await chat_bot_post(request)
+
+@router.get("/chat/bot/{message}", deprecated=True)
+async def chat_bot_get(message: str = Path(..., min_length=1, max_length=1000)):
+    return await chat_bot_post(ChatBotRequest(message=message))
 
 
 @router.get("/similar/{post_id}")
 async def similar_posts(
     post_id: str,
+    current_user_id: str = Query(default="", max_length=24),
     limit: int = Query(default=10, ge=1, le=50),
-    page: int = Query(default=1, ge=1)
+    page: int = Query(default=1, ge=1, le=1000),
 ):
-    """
-    📎 Tìm posts tương tự với post_id
-    """
+    _require_object_id(post_id, "post identifier")
+    if current_user_id:
+        _require_object_id(current_user_id, "current user identifier")
+    await run_in_threadpool(_ensure_ready)
     service = get_recommendation_service()
-    
-    if not service.is_ready():
-        raise HTTPException(status_code=503, detail="Chưa train! Chạy: python train.py")
-    
-    posts, total_count = service.similar(post_id, limit, page)
-    
-    if total_count == 0 and page == 1:
-        raise HTTPException(status_code=404, detail=f"Post {post_id} không tồn tại hoặc không có posts tương tự")
-    
+    posts, total = await run_in_threadpool(
+        service.similar,
+        post_id,
+        limit,
+        page,
+        current_user_id,
+    )
     return {
         "post_id": post_id,
-        "page": page,
-        "limit": limit,
-        "total": total_count,
-        "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 0,
-        "posts": posts
+        **_page_metadata(total, page, limit),
+        "posts": posts,
     }
-
-
-class EmbedPostRequest(BaseModel):
-    post_id: str
-    content: str
-    user_id: str
-    privacy: Optional[str] = "PUBLIC"
-    group_id: Optional[str] = None
-    created_at: Optional[str] = None  # ISO format datetime string
-    media_type: Optional[str] = "TEXT" 
 
 
 @router.post("/embed/post")
 async def embed_single_post(request: EmbedPostRequest):
-    """
-    📌 Embed/Upsert a single post into Qdrant (with chunking)
-    
-    Called by NestJS backend when a post is created or updated.
-    Uses professional chunking for long posts.
-    """
-    service = get_recommendation_service()
-    
-    if not service.is_ready():
-        raise HTTPException(status_code=503, detail="AI Server chưa sẵn sàng! Chạy: python train.py")
-    
-    # Skip if content is too short
-    if not request.content or len(request.content.strip()) < 5:
-        return {
-            "success": False,
-            "message": "Content too short (min 5 characters)",
-            "post_id": request.post_id
-        }
-    
+    await run_in_threadpool(_ensure_ready)
     try:
-        from app.services.recommendation_service import mongo_id_to_uuid
-        from app.services.chunking_service import chunk_text
-        from app.config import get_settings
-        from datetime import datetime
-        
-        settings = get_settings()
-        is_e5 = "e5" in settings.embedding_model.lower()
-        
-        # Chunk the post content
-        chunks = chunk_text(
-            request.content,
-            max_chunk_size=settings.chunk_max_size,
-            chunk_overlap=settings.chunk_overlap
+        chunks = await run_in_threadpool(
+            get_recommendation_service().replace_post_embedding,
+            request.post_id,
         )
-        
-        created_at = request.created_at or datetime.now().isoformat()
-        
-        # Generate embeddings for all chunks
-        chunk_texts = [f"passage: {c}" if is_e5 else c for c in chunks]
-        chunk_embeddings = service.model.encode(chunk_texts, convert_to_numpy=True, normalize_embeddings=True)
-        
-        # Ensure 2D array even for single chunk
-        if len(chunk_embeddings.shape) == 1:
-            chunk_embeddings = chunk_embeddings.reshape(1, -1)
-        
-        # Delete old chunks for this post first
-        try:
-            old_chunk_ids = []
-            for ci in range(20):  # Max 20 chunks per post
-                old_chunk_ids.append(mongo_id_to_uuid(f"{request.post_id}_chunk_{ci}"))
-            service.qdrant.delete(
-                collection_name=settings.qdrant_collection_posts,
-                points_selector=old_chunk_ids
-            )
-        except Exception:
-            pass
-        
-        # Upsert new chunks
-        points = []
-        for ci, emb in enumerate(chunk_embeddings):
-            chunk_id = f"{request.post_id}_chunk_{ci}"
-            point_id = mongo_id_to_uuid(chunk_id)
-            points.append(PointStruct(
-                id=point_id,
-                vector=emb.tolist(),
-                payload={
-                    "post_id": request.post_id,
-                    "chunk_index": ci,
-                    "total_chunks": len(chunks),
-                    "user_id": request.user_id,
-                    "privacy": request.privacy or "PUBLIC",
-                    "group_id": request.group_id or "no_group",
-                    "media_type": request.media_type or "TEXT",
-                    "created_at": created_at,
-                    "score": 0.5,
-                }
-            ))
-        
-        service.qdrant.upsert(
-            collection_name=settings.qdrant_collection_posts,
-            points=points
-        )
-        
-        logger.info(f"✅ Embedded post {request.post_id} ({len(chunks)} chunks, Type: {request.media_type})")
-        
         return {
-            "success": True,
-            "message": f"Post embedded successfully ({len(chunks)} chunks)",
+            "success": chunks > 0,
+            "message": "Post embedded successfully" if chunks else "Post has no indexable content",
             "post_id": request.post_id,
-            "chunks": len(chunks),
-            "total_posts": service.get_total_posts()
+            "chunks": chunks,
         }
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to embed post {request.post_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to embed post: {str(e)}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Post embedding failed")
+        raise HTTPException(status_code=502, detail="Vector index update failed") from exc
 
 
 @router.delete("/embed/post/{post_id}")
 async def delete_post_embedding(post_id: str):
-    """
-    🗑️ Delete all chunk embeddings of a post from Qdrant
-    
-    Called by NestJS backend when a post is deleted.
-    """
-    service = get_recommendation_service()
-    
-    if not service.is_ready():
-        raise HTTPException(status_code=503, detail="AI Server chưa sẵn sàng!")
-    
+    _require_object_id(post_id, "post identifier")
+    await run_in_threadpool(_ensure_ready)
     try:
-        from app.services.recommendation_service import mongo_id_to_uuid
-        from app.config import get_settings
-        settings = get_settings()
-        
-        # Delete all possible chunks for this post (up to 20)
-        chunk_ids = []
-        for ci in range(20):
-            chunk_ids.append(mongo_id_to_uuid(f"{post_id}_chunk_{ci}"))
-        # Also try legacy single-point ID
-        chunk_ids.append(mongo_id_to_uuid(post_id))
-        
-        service.qdrant.delete(
-            collection_name=settings.qdrant_collection_posts,
-            points_selector=chunk_ids
+        await run_in_threadpool(
+            get_recommendation_service().delete_post_embeddings,
+            post_id,
         )
-        logger.info(f"🗑️ Deleted post embedding chunks for {post_id}")
-        
-        return {
-            "success": True,
-            "message": "Post embedding deleted",
-            "post_id": post_id
-        }
-    except Exception as e:
-        logger.error(f"❌ Failed to delete post embedding {post_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to delete: {str(e)}")
+        return {"success": True, "message": "Post embedding deleted", "post_id": post_id}
+    except Exception as exc:
+        logger.exception("Post embedding deletion failed")
+        raise HTTPException(status_code=502, detail="Vector index deletion failed") from exc
 
-
-class InteractionRequest(BaseModel):
-    user_id: str
-    target_id: str  # post_id
-    interaction_type: str  # LIKE, COMMENT, SHARE, VIEW
-    metadata: Optional[dict] = {}
 
 @router.post("/interaction")
 async def track_interaction(request: InteractionRequest):
-    """
-    ⚡ Real-time Interaction Tracking
-    Called by Kafka Server to update user vector immediately.
-    """
-    service = get_recommendation_service()
-    if not service.is_ready():
-        return {"success": False, "message": "Server not ready"}
-    
-    # Use full interaction type (POST_LIKE, POST_COMMENT, etc.)
-    # Also support legacy short names (LIKE, COMMENT, SHARE)
-    itype = request.interaction_type
-    
-    success = service.update_realtime_vector(request.user_id, request.target_id, itype)
-    
+    await run_in_threadpool(_ensure_ready)
+    success = await run_in_threadpool(
+        get_recommendation_service().update_realtime_vector,
+        request.user_id,
+        request.target_id,
+        request.interaction_type,
+    )
     return {
         "success": success,
-        "message": "Vector updated" if success else "Update failed or post not found"
+        "event_id": request.event_id,
+        "message": "Vector rebuilt" if success else "No canonical interactions found",
     }
+
+
+def _similar_queries(query: str, user_id: str, limit: int):
+    service = get_recommendation_service()
+    query_text = f"query: {query}" if "e5" in settings.embedding_model.lower() else query
+    embedding = service._encode(query_text)  # Kept inside the service's model lock.
+    results = service.qdrant.query_points(
+        collection_name=settings.qdrant_collection_queries,
+        query=embedding.tolist(),
+        query_filter=Filter(
+            must=[FieldCondition(key="user_id", match=MatchValue(value=user_id))]
+        ),
+        limit=limit,
+        with_payload=True,
+    ).points
+    return [
+        {
+            "query": hit.payload.get("query", ""),
+            "score": round(float(hit.score), 4),
+            "timestamp": hit.payload.get("timestamp", ""),
+        }
+        for hit in results
+    ]
 
 
 @router.get("/queries/similar")
 async def find_similar_queries(
-    q: str = Query(..., description="Query to find similar past queries"),
-    limit: int = Query(default=10, ge=1, le=50)
+    q: str = Query(..., min_length=1, max_length=500),
+    current_user_id: str = Query(..., max_length=24),
+    limit: int = Query(default=10, ge=1, le=50),
 ):
-    """
-    🔍 Find similar past user queries from the RAG query_vectors collection.
-    Useful for query suggestion, analytics, and RAG improvement.
-    """
-    service = get_recommendation_service()
-    if not service.is_ready():
-        raise HTTPException(status_code=503, detail="Service not ready")
-    
-    try:
-        from app.config import get_settings
-        settings = get_settings()
-        is_e5 = "e5" in settings.embedding_model.lower()
-        
-        query_text = f"query: {q}" if is_e5 else q
-        query_emb = service.model.encode(query_text, convert_to_numpy=True, normalize_embeddings=True)
-        
-        results = service.qdrant.query_points(
-            collection_name=settings.qdrant_collection_queries,
-            query=query_emb.tolist(),
-            limit=limit,
-            with_payload=True
-        ).points
-        
-        queries = []
-        for hit in results:
-            queries.append({
-                "query": hit.payload.get("query", ""),
-                "score": round(hit.score, 4),
-                "user_id": hit.payload.get("user_id", ""),
-                "timestamp": hit.payload.get("timestamp", ""),
-            })
-        
-        return {
-            "query": q,
-            "similar_queries": queries,
-            "total": len(queries)
-        }
-    except Exception as e:
-        logger.error(f"Similar queries error: {e}")
-        return {"query": q, "similar_queries": [], "total": 0}
+    if not settings.enable_query_history_api:
+        raise HTTPException(status_code=404, detail="Query history is disabled")
+    _require_object_id(current_user_id, "current user identifier")
+    await run_in_threadpool(_ensure_ready)
+    queries = await run_in_threadpool(_similar_queries, q, current_user_id, limit)
+    return {"query": q, "similar_queries": queries, "total": len(queries)}
 
 
 @router.get("/status")
 async def get_status():
-    """
-    📊 Kiểm tra trạng thái service
-    """
     service = get_recommendation_service()
-    
-    ready = service.is_ready()
-    count = service.get_total_posts() if ready else 0
-    
+    ready = await run_in_threadpool(service.is_ready)
     return {
         "ready": ready,
-        "total_posts": count,
-        "message": "OK" if ready else "Chưa train! Chạy: python train.py"
+        "total_posts": await run_in_threadpool(service.get_total_posts) if ready else 0,
+        "message": "OK" if ready else "Index rebuild required",
     }

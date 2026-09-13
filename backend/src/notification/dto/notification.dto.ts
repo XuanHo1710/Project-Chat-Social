@@ -1,11 +1,11 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsMongoId, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import { NotificationType } from '../entities/notification.entity';
 
 export class CreateNotificationDto {
-  @IsString()
+  @IsMongoId()
   recipientId: string;
 
-  @IsString()
+  @IsMongoId()
   @IsOptional()
   senderId?: string; // Single sender - will be added to senderIds array in service
 
@@ -13,32 +13,47 @@ export class CreateNotificationDto {
   type: NotificationType;
 
   @IsString()
+  @MaxLength(200)
   title: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(1000)
   message?: string;
 
-  @IsString()
+  @IsMongoId()
   @IsOptional()
   groupId?: string;
 
-  @IsString()
+  @IsMongoId()
   @IsOptional()
   postId?: string;
 
-  @IsString()
+  @IsMongoId()
   @IsOptional()
   commentId?: string;
 
   @IsOptional()
+  @IsObject()
   metadata?: Record<string, any>;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
   typeReaction?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  templateKey?: string;
+
+  @IsOptional()
+  @IsObject()
+  templateParams?: Record<string, string | number>;
 }
 
 export class RespondGroupInvitationDto {
-  @IsString()
+  @IsMongoId()
   notificationId: string;
 
   @IsEnum(['ACCEPT', 'REJECT'])

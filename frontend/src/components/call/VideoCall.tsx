@@ -11,8 +11,10 @@ import {
     SwitchCamera
 } from 'lucide-react';
 import { useCall } from '@/contexts/CallContext';
+import { useTranslation } from 'react-i18next';
 
 export default function VideoCall() {
+    const { t } = useTranslation();
     const {
         isInCall,
         leaveCall,
@@ -90,7 +92,7 @@ export default function VideoCall() {
                                 playsInline
                             />
                             <div className="absolute bottom-2 left-2 text-white bg-black/50 px-2 py-0.5 rounded text-xs font-medium">
-                                {item.peerId === 'me' ? 'Bạn' : 'Người dùng'}
+                                {item.peerId === 'me' ? t('common.you') : t('call.default_user')}
                             </div>
                         </div>
                     ) : null
@@ -137,8 +139,8 @@ export default function VideoCall() {
                                         className="w-full h-full object-cover"
                                     />
                                 </div>
-                                <h3 className="text-white text-2xl font-semibold">Đang kết nối...</h3>
-                                <p className="text-gray-400 mt-2">Đang gọi cho {callerInfo?.name}...</p>
+                                <h3 className="text-white text-2xl font-semibold">{t('call.connecting')}</h3>
+                                <p className="text-gray-400 mt-2">{t('call.calling_user', { name: callerInfo?.name ?? '' })}</p>
                             </div>
                         )}
                     </div>
@@ -166,11 +168,11 @@ export default function VideoCall() {
                             />
                             {isVideoOff && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-gray-600 text-white text-xs">
-                                    Camera Off
+                                    {t('call.camera_off')}
                                 </div>
                             )}
                             <div className="absolute bottom-2 left-2 text-white bg-black/50 px-2 py-0.5 rounded text-xs">
-                                Bạn
+                                {t('common.you')}
                             </div>
                         </motion.div>
                     )}
@@ -204,7 +206,7 @@ export default function VideoCall() {
                     <button
                         onClick={switchCamera}
                         className="p-3 md:p-4 rounded-full bg-gray-700 text-white hover:bg-gray-600 transition-colors"
-                        title="Chuyển camera"
+                        title={t('call.switch_camera')}
                     >
                         <SwitchCamera size={24} />
                     </button>

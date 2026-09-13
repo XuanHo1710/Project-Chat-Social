@@ -26,7 +26,16 @@ from scipy.sparse import csr_matrix
 from sentence_transformers import SentenceTransformer
 from pymongo import MongoClient
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct, UpdateStatus
+from qdrant_client.models import (
+    CreateAlias,
+    CreateAliasOperation,
+    DeleteAlias,
+    DeleteAliasOperation,
+    Distance,
+    PayloadSchemaType,
+    PointStruct,
+    VectorParams,
+)
 from loguru import logger
 from dotenv import load_dotenv
 import warnings
@@ -49,6 +58,7 @@ QUERY_COLLECTION = _settings.qdrant_collection_queries
 CHUNK_MAX_SIZE = _settings.chunk_max_size
 CHUNK_OVERLAP = _settings.chunk_overlap
 LIMIT = 100000
+RECONCILE_MAX_POSTS = 500
 
 # Weights
 REACTION_WEIGHTS = {
@@ -81,14 +91,22 @@ def mongo_id_to_uuid(mongo_id: str) -> str:
 def clean_text(text):
     if not isinstance(text, str): return ""
     text = text.encode('utf-8', errors='ignore').decode('utf-8')
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r'\s+', ' ', text).strip()[:10000]
     return text
 
 
 def normalize_privacy(privacy):
     if not privacy: return "PUBLIC"
     privacy = str(privacy).upper()
-    return privacy if privacy in ["PUBLIC", "FRIEND", "PRIVATE", "GROUP"] else "PUBLIC"
+    return privacy if privacy in ["PUBLIC", "FRIEND", "PRIVATE", "GROUP"] else "PRIVATE"
+
+
+def get_media_type(media):
+    if not isinstance(media, list) or not media:
+        return "TEXT"
+    if any(isinstance(item, dict) and item.get("mediaType") == "VIDEO" for item in media):
+        return "VIDEO"
+    return "IMAGE"
 
 
 def build_friend_graph(relationships_df):
@@ -159,6 +177,105 @@ def build_user_vectors(reactions_df, shares_df, ui_df, post_embeddings_dict, pos
     return user_vectors
 
 
+def _activate_versioned_collection(qdrant, alias_name, build_name):
+    """Point an alias at a fully built collection before removing the old version."""
+    aliases = {alias.alias_name: alias.collection_name for alias in qdrant.get_aliases().aliases}
+    previous_target = aliases.get(alias_name)
+    if previous_target:
+        qdrant.update_collection_aliases([
+            DeleteAliasOperation(delete_alias=DeleteAlias(alias_name=alias_name)),
+            CreateAliasOperation(
+                create_alias=CreateAlias(collection_name=build_name, alias_name=alias_name)
+            ),
+        ])
+    else:
+        # One-time migration from a physical collection to an alias. The new
+        # collection is already complete before this short compatibility swap.
+        if qdrant.collection_exists(alias_name):
+            qdrant.delete_collection(alias_name)
+        qdrant.update_collection_aliases([
+            CreateAliasOperation(
+                create_alias=CreateAlias(collection_name=build_name, alias_name=alias_name)
+            )
+        ])
+    if previous_target and previous_target != build_name and previous_target.startswith(f"{alias_name}__build_"):
+        # Cleanup is best-effort: a 404 (or transient error) after the alias
+        # swap succeeded must not report the whole training run as failed.
+        try:
+            qdrant.delete_collection(previous_target)
+        except Exception as exc:
+            logger.warning(f"Could not remove previous collection {previous_target}: {exc}")
+
+
+def _create_payload_indexes(qdrant, collection_name, fields):
+    for field_name in fields:
+        qdrant.create_payload_index(
+            collection_name=collection_name,
+            field_name=field_name,
+            field_schema=PayloadSchemaType.KEYWORD,
+            wait=True,
+        )
+
+
+def _reconcile_dirty_posts(since_utc):
+    """Re-embed posts modified while the staged build was in flight.
+
+    Incremental replace_post_embedding writes land on the live collection that
+    the alias is about to abandon, so the staged snapshot misses them and stale
+    copies win at swap time. Replaying the incremental path for everything
+    touched since the snapshot began restores them on the fresh index.
+    """
+    try:
+        client = MongoClient(
+            MONGO_URI,
+            maxPoolSize=5,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=5000,
+            socketTimeoutMS=30000,
+        )
+        try:
+            docs = list(
+                client[DB_NAME].posts.find(
+                    {
+                        "updatedAt": {"$gt": since_utc},
+                        "isDeleted": {"$ne": True},
+                        "isActive": {"$ne": False},
+                    },
+                    {"_id": 1},
+                )
+                .sort("updatedAt", 1)
+                .limit(RECONCILE_MAX_POSTS + 1)
+            )
+        finally:
+            client.close()
+
+        truncated = len(docs) > RECONCILE_MAX_POSTS
+        docs = docs[:RECONCILE_MAX_POSTS]
+        if not docs:
+            logger.info("No dirty posts to reconcile after retrain swap")
+            return
+
+        logger.info(f"🔁 Re-embedding {len(docs)} post(s) changed during training...")
+        from app.services.recommendation_service import get_recommendation_service
+
+        service = get_recommendation_service()
+        refreshed = 0
+        for doc in docs:
+            try:
+                service.replace_post_embedding(str(doc["_id"]))
+                refreshed += 1
+            except Exception as exc:
+                logger.warning(f"Dirty-post re-embed failed for {doc['_id']}: {exc}")
+        summary = f"   ✅ Reconciled {refreshed}/{len(docs)} dirty posts after alias swap"
+        if truncated:
+            summary += f" (capped at {RECONCILE_MAX_POSTS}; remaining posts refresh on the next run)"
+            logger.warning(summary)
+        else:
+            logger.info(summary)
+    except Exception as exc:
+        logger.warning(f"Dirty-post reconciliation skipped: {exc}")
+
+
 def train():
     logger.info("=" * 50)
     logger.info("🔥 TRAIN → QDRANT CLOUD (Lightweight Model)")
@@ -170,26 +287,45 @@ def train():
     logger.info("🔌 Connecting to Qdrant Cloud...")
     qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=120)
     logger.info("   ✅ Connected!")
+    build_stamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+    post_build = f"{COLLECTION_NAME}__build_{build_stamp}"
+    user_build = f"{USER_COLLECTION}__build_{build_stamp}"
+    query_build = f"{QUERY_COLLECTION}__build_{build_stamp}"
     
     # 2. Fetch data from MongoDB
     logger.info(f"📥 Lấy posts từ MongoDB...")
-    client = MongoClient(MONGO_URI)
+    reconcile_since = datetime.utcnow()
+    client = MongoClient(
+        MONGO_URI,
+        maxPoolSize=10,
+        serverSelectionTimeoutMS=5000,
+        connectTimeoutMS=5000,
+        socketTimeoutMS=30000,
+    )
     db = client[DB_NAME]
     
     data = list(db.posts.find(
-        {"isDeleted": {"$ne": True}},
-        {"_id": 1, "userId": 1, "groupId": 1, "content": 1, "privacy": 1, "sharedPostId": 1, "createdAt": 1}
+        {"isDeleted": {"$ne": True}, "isActive": {"$ne": False}},
+        {"_id": 1, "userId": 1, "groupId": 1, "content": 1, "privacy": 1, "sharedPostId": 1, "createdAt": 1, "media": 1}
     ))
     logger.info(f"   ✅ {len(data)} posts")
     
     reactions_data = list(db.reactions.find(
-        {"factorId": {"$in": [doc['_id'] for doc in data]}, "typeFactor": "POST"},
+        {
+            "factorId": {"$in": [doc['_id'] for doc in data]},
+            "typeFactor": "POST",
+            "isDeleted": {"$ne": True},
+        },
         {"_id": 1, "factorId": 1, "userId": 1, "type": 1}
     ))
     logger.info(f"   ✅ {len(reactions_data)} reactions")
     
     shares_data = list(db.posts.find(
-        {"sharedPostId": {"$ne": None}, "isDeleted": {"$ne": True}},
+        {
+            "sharedPostId": {"$ne": None},
+            "isDeleted": {"$ne": True},
+            "isActive": {"$ne": False},
+        },
         {"_id": 1, "userId": 1, "sharedPostId": 1}
     ))
     logger.info(f"   ✅ {len(shares_data)} shares")
@@ -206,7 +342,12 @@ def train():
     ))
     logger.info(f"   ✅ {len(ui_data)} userinteractions (Kafka)")
     
-    all_accounts = list(db.accounts.find({}, {"_id": 1}))
+    all_accounts = list(
+        db.accounts.find(
+            {"isDeleted": {"$ne": True}, "isActive": {"$ne": False}},
+            {"_id": 1},
+        )
+    )
     all_user_ids = [str(acc['_id']) for acc in all_accounts]
     logger.info(f"   ✅ {len(all_user_ids)} accounts")
     
@@ -214,7 +355,8 @@ def train():
     
     if not data:
         logger.error("❌ Không có dữ liệu!")
-        return
+        qdrant.close()
+        return False
     
     # 3. Chuẩn hóa
     logger.info("🔧 Chuẩn hóa dữ liệu...")
@@ -224,10 +366,15 @@ def train():
     df['groupId'] = df['groupId'].apply(lambda x: str(x) if pd.notna(x) and x else "no_group") if 'groupId' in df.columns else "no_group"
     df['content'] = df['content'].fillna("").apply(clean_text)
     df['privacy'] = df['privacy'].apply(normalize_privacy) if 'privacy' in df.columns else "PUBLIC"
+    df['mediaType'] = df['media'].apply(get_media_type) if 'media' in df.columns else "TEXT"
     df['createdAt'] = df['createdAt'].apply(lambda x: x.isoformat() if pd.notna(x) and hasattr(x, 'isoformat') else "") if 'createdAt' in df.columns else ""
     
     df = df[df['content'].str.len() > 0].reset_index(drop=True)
     logger.info(f"   ✅ {len(df)} posts sau khi lọc")
+    if df.empty:
+        logger.error("No indexable post content found")
+        qdrant.close()
+        return False
     
     # Process reactions, shares, relationships
     reactions_df = pd.DataFrame(reactions_data) if reactions_data else pd.DataFrame()
@@ -322,13 +469,18 @@ def train():
         (np.ones(n_posts), (df['user_enc'].values, np.arange(n_posts))),
         shape=(n_users, n_posts)
     )
-    n_factors = min(20, min(n_users, n_posts) - 1)
-    svd = TruncatedSVD(n_components=n_factors, n_iter=10, random_state=42)
-    user_factors = svd.fit_transform(interaction_matrix)
-    item_factors = svd.components_.T
-    cf_matrix = np.dot(user_factors, item_factors.T)
-    cf_scores = cf_matrix.max(axis=0)
-    cf_scores = (cf_scores - cf_scores.min()) / (cf_scores.max() - cf_scores.min() + 1e-8)
+    if min(n_users, n_posts) > 1:
+        n_factors = max(1, min(20, min(n_users, n_posts) - 1))
+        svd = TruncatedSVD(n_components=n_factors, n_iter=10, random_state=42)
+        user_factors = svd.fit_transform(interaction_matrix)
+        item_factors = svd.components_.T
+        cf_matrix = np.dot(user_factors, item_factors.T)
+        cf_scores = cf_matrix.max(axis=0)
+        cf_scores = (cf_scores - cf_scores.min()) / (
+            cf_scores.max() - cf_scores.min() + 1e-8
+        )
+    else:
+        cf_scores = np.zeros(n_posts)
     
     hybrid_scores = 0.6 * content_scores + 0.4 * cf_scores
     
@@ -359,17 +511,16 @@ def train():
     # 7. Upload to Qdrant Cloud (chunk-level vectors for better RAG retrieval)
     logger.info("☁️ Uploading chunk vectors to Qdrant Cloud...")
     
-    # Recreate collection
-    try:
-        qdrant.delete_collection(COLLECTION_NAME)
-        logger.info(f"   🗑️ Old collection '{COLLECTION_NAME}' deleted")
-    except: pass
-    
     qdrant.create_collection(
-        collection_name=COLLECTION_NAME,
+        collection_name=post_build,
         vectors_config=VectorParams(size=embedding_dim, distance=Distance.COSINE)
     )
-    logger.info(f"   ✅ Collection '{COLLECTION_NAME}' created (dim={embedding_dim})")
+    _create_payload_indexes(
+        qdrant,
+        post_build,
+        ["post_id", "user_id", "group_id", "privacy", "media_type", "embedding_model"],
+    )
+    logger.info(f"   ✅ Staging collection created (dim={embedding_dim})")
     
     # Upload chunks in batches
     BATCH_SIZE = 100
@@ -395,40 +546,45 @@ def train():
                     "privacy": str(df.loc[post_idx, 'privacy']),
                     "created_at": str(df.loc[post_idx, 'createdAt']) if 'createdAt' in df.columns else "",
                     "score": float(hybrid_scores[post_idx]),
-                    "media_type": "TEXT",
+                    "media_type": str(df.loc[post_idx, 'mediaType']),
+                    "embedding_model": MODEL_NAME,
                 }
             ))
         
-        qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
+        qdrant.upsert(collection_name=post_build, points=points, wait=True)
         logger.info(f"   ✅ Uploaded {batch_end}/{total} chunks")
     
     # 8. Upload user vectors to Qdrant Cloud
     logger.info("☁️ Uploading user vectors to Qdrant Cloud...")
     
-    # Recreate user_vectors collection
-    try:
-        qdrant.delete_collection(USER_COLLECTION)
-        logger.info(f"   🗑️ Old '{USER_COLLECTION}' deleted")
-    except: pass
-    
     qdrant.create_collection(
-        collection_name=USER_COLLECTION,
+        collection_name=user_build,
         vectors_config=VectorParams(size=embedding_dim, distance=Distance.COSINE)
     )
-    logger.info(f"   ✅ Collection '{USER_COLLECTION}' created (dim={embedding_dim})")
+    _create_payload_indexes(qdrant, user_build, ["user_id", "embedding_model"])
+    logger.info(f"   ✅ User-vector staging collection created (dim={embedding_dim})")
     
     # Upload user vectors in batches
     # Pre-compute interaction counts per user
-    user_interaction_counts = {}
-    for uid in user_vectors.keys():
-        count = 0
-        if not reactions_df.empty and 'userId' in reactions_df.columns:
-            count += len(reactions_df[reactions_df['userId'] == uid])
-        if not shares_df.empty and 'userId' in shares_df.columns:
-            count += len(shares_df[shares_df['userId'] == uid])
-        if not ui_df.empty and 'userId' in ui_df.columns:
-            count += len(ui_df[ui_df['userId'] == uid])
-        user_interaction_counts[uid] = count
+    reaction_counts = (
+        reactions_df['userId'].value_counts().to_dict()
+        if not reactions_df.empty and 'userId' in reactions_df.columns
+        else {}
+    )
+    share_counts = (
+        shares_df['userId'].value_counts().to_dict()
+        if not shares_df.empty and 'userId' in shares_df.columns
+        else {}
+    )
+    ui_counts = (
+        ui_df['userId'].value_counts().to_dict()
+        if not ui_df.empty and 'userId' in ui_df.columns
+        else {}
+    )
+    user_interaction_counts = {
+        uid: int(reaction_counts.get(uid, 0) + share_counts.get(uid, 0) + ui_counts.get(uid, 0))
+        for uid in user_vectors
+    }
     
     user_list = list(user_vectors.items())
     BATCH_SIZE = 100
@@ -443,14 +599,21 @@ def train():
                 payload={
                     "user_id": uid,
                     "interaction_count": user_interaction_counts.get(uid, 0),
+                    "embedding_model": MODEL_NAME,
                 }
             ))
-        qdrant.upsert(collection_name=USER_COLLECTION, points=points)
+        qdrant.upsert(collection_name=user_build, points=points, wait=True)
         logger.info(f"   ✅ Uploaded {batch_end}/{len(user_list)} user vectors")
     
     # 9. Also save to MongoDB (backup + fast access)
     logger.info("💾 Saving user vectors to MongoDB (backup)...")
-    mongo_client = MongoClient(MONGO_URI)
+    mongo_client = MongoClient(
+        MONGO_URI,
+        maxPoolSize=10,
+        serverSelectionTimeoutMS=5000,
+        connectTimeoutMS=5000,
+        socketTimeoutMS=30000,
+    )
     mongo_db = mongo_client[DB_NAME]
     
     bulk_ops = []
@@ -462,6 +625,7 @@ def train():
                 "user_id": uid,
                 "vector": vec.tolist(),
                 "count": user_interaction_counts.get(uid, 0),
+                "embedding_model": MODEL_NAME,
                 "last_updated": datetime.now()
             }},
             upsert=True
@@ -476,17 +640,34 @@ def train():
     mongo_client.close()
     logger.info(f"   ✅ {len(user_vectors)} user vectors saved to MongoDB")
     
-    # 10. Create query_vectors collection for RAG query embedding
-    logger.info("☁️ Creating query_vectors collection for RAG...")
-    try:
-        qdrant.delete_collection(QUERY_COLLECTION)
-    except: pass
-    
-    qdrant.create_collection(
-        collection_name=QUERY_COLLECTION,
-        vectors_config=VectorParams(size=embedding_dim, distance=Distance.COSINE)
+    # 10. Create query_vectors collection for RAG query embedding.
+    # With STORE_QUERY_EMBEDDINGS=true the existing collection holds live
+    # query history, so it is preserved instead of being rebuilt empty.
+    preserve_query_history = (
+        _settings.store_query_embeddings and qdrant.collection_exists(QUERY_COLLECTION)
     )
-    logger.info(f"   ✅ Collection '{QUERY_COLLECTION}' created (dim={embedding_dim})")
+    if preserve_query_history:
+        logger.info(f"☁️ Preserving existing {QUERY_COLLECTION} collection (STORE_QUERY_EMBEDDINGS=true)")
+    else:
+        logger.info("☁️ Creating query_vectors collection for RAG...")
+        qdrant.create_collection(
+            collection_name=query_build,
+            vectors_config=VectorParams(size=embedding_dim, distance=Distance.COSINE)
+        )
+        _create_payload_indexes(qdrant, query_build, ["user_id", "embedding_model"])
+        logger.info(f"   ✅ Query-vector staging collection created (dim={embedding_dim})")
+
+    # Activate only after all three replacement collections are complete.
+    _activate_versioned_collection(qdrant, COLLECTION_NAME, post_build)
+    _activate_versioned_collection(qdrant, USER_COLLECTION, user_build)
+    if not preserve_query_history:
+        _activate_versioned_collection(qdrant, QUERY_COLLECTION, query_build)
+
+    reconcile_until = datetime.utcnow()
+    logger.info(
+        f"⏱️ Build window {reconcile_since.isoformat()} → {reconcile_until.isoformat()}"
+    )
+    _reconcile_dirty_posts(reconcile_since)
     
     # 11. Verify
     posts_info = qdrant.get_collection(COLLECTION_NAME)
@@ -501,6 +682,8 @@ def train():
     logger.info(f"   ☁️ Qdrant: {QDRANT_URL}")
     logger.info("   👉 Chạy: python main.py")
     logger.info("=" * 50)
+    qdrant.close()
+    return True
 
 
 if __name__ == "__main__":

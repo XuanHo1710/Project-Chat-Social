@@ -1,6 +1,7 @@
 # compiled output
 /dist
 /node_modules
+/.npm-cache
 /build
 /documentation
 # Logs
@@ -41,9 +42,6 @@ lerna-debug.log*
 .env.test.local
 .env.production.local
 .env.local
-
-.json*
-*.json
 
 # temp directory
 .temp

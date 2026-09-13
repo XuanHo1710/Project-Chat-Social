@@ -668,7 +668,7 @@ export default function PostsManagementPage() {
                                                         )}
                                                         <Stack direction="row" spacing={2} sx={{ mt: 0.5, pl: 1 }}>
                                                             <Typography variant="caption" color="text.secondary" sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
-                                                                {t('common.like')}
+                                                                {t('post.like')}
                                                             </Typography>
                                                             <Typography variant="caption" color="text.secondary" sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
                                                                 {t('common.reply')}

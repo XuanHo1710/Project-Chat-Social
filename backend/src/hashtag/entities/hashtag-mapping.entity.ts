@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose, { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { Hashtag } from './hashtag.entity';
 
 export type HashtagMappingDocument = HydratedDocument<HashtagMapping>;
@@ -20,14 +20,14 @@ export enum HashtagEntityType {
  */
 @Schema({ timestamps: true })
 export class HashtagMapping {
-    _id: mongoose.Schema.Types.ObjectId;
+    _id: Types.ObjectId;
 
-    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Hashtag.name, required: true, index: true })
-    hashtagId: mongoose.Schema.Types.ObjectId;
+    @Prop({ type: Types.ObjectId, ref: Hashtag.name, required: true, index: true })
+    hashtagId: Types.ObjectId;
 
     // The entity (post, comment, etc.) that contains this hashtag
-    @Prop({ type: mongoose.Schema.Types.ObjectId, required: true, index: true })
-    entityId: mongoose.Schema.Types.ObjectId;
+    @Prop({ type: Types.ObjectId, required: true, index: true })
+    entityId: Types.ObjectId;
 
     // Type of entity for polymorphic relationship
     @Prop({ type: String, enum: HashtagEntityType, required: true, index: true })
@@ -47,3 +47,5 @@ HashtagMappingSchema.index({ entityId: 1, entityType: 1 });
 
 // Index for finding all entities with a hashtag
 HashtagMappingSchema.index({ hashtagId: 1, entityType: 1 });
+HashtagMappingSchema.index({ entityType: 1, createdAt: -1, hashtagId: 1 });
+HashtagMappingSchema.index({ hashtagId: 1, entityType: 1, createdAt: -1 });

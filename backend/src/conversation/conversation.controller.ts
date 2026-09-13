@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ConversationService } from './conversation.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
@@ -15,8 +24,8 @@ export class ConversationController {
   }
 
   @Post()
-  create(@Body() createConversationDto: CreateConversationDto) {
-    return this.conversationService.create(createConversationDto);
+  create(@UserInfo() user: Account, @Body() createConversationDto: CreateConversationDto) {
+    return this.conversationService.create(user._id.toString(), createConversationDto);
   }
 
   @Get()
@@ -43,17 +52,25 @@ export class ConversationController {
   }
 
   @Get(':id')
-  findConversationByUserId(@Param('id') userId: string) {
-    return this.conversationService.findConversationByUserId(userId);
+  findConversationByUserId(@Param('id') userId: string, @UserInfo() user: Account) {
+    const actorId = user._id.toString();
+    if (userId !== actorId) {
+      throw new ForbiddenException('You can only list your own conversations');
+    }
+    return this.conversationService.findConversationByUserId(actorId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateConversationDto: UpdateConversationDto) {
-    return this.conversationService.update(id, updateConversationDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateConversationDto: UpdateConversationDto,
+    @UserInfo() user: Account
+  ) {
+    return this.conversationService.update(id, user._id.toString(), updateConversationDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.conversationService.remove(id);
+  remove(@Param('id') id: string, @UserInfo() user: Account) {
+    return this.conversationService.remove(id, user._id.toString());
   }
 }

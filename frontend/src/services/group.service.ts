@@ -1,4 +1,4 @@
-import axios from "@/config/axios";
+import axios, { unwrap } from "@/config/axios";
 import { APIResponse } from "@/types/common";
 import {
   Group,
@@ -16,7 +16,7 @@ class GroupService {
 
   async createGroup(data: CreateGroupData): Promise<Group> {
     const response = await axios.post<APIResponse<Group>>("/group", data);
-    return response.data.data;
+    return unwrap<Group>(response.data);
   }
 
   async updateGroup(groupId: string, data: UpdateGroupData): Promise<Group> {
@@ -24,39 +24,39 @@ class GroupService {
       `/group/${groupId}`,
       data,
     );
-    return response.data.data;
+    return unwrap<Group>(response.data);
   }
 
   async deleteGroup(groupId: string): Promise<{ message: string }> {
     const response = await axios.delete<APIResponse<{ message: string }>>(
       `/group/${groupId}`,
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async getGroupById(groupId: string): Promise<Group> {
     const response = await axios.get<APIResponse<Group>>(`/group/${groupId}`);
-    return response.data.data;
+    return unwrap<Group>(response.data);
   }
 
   async getMyGroups(): Promise<GroupWithMembership[]> {
     const response =
       await axios.get<APIResponse<GroupWithMembership[]>>("/group/my-groups");
-    return response.data.data;
+    return unwrap<GroupWithMembership[]>(response.data);
   }
 
   async getSuggestedGroups(limit = 10): Promise<Group[]> {
     const response = await axios.get<APIResponse<Group[]>>(
       `/group/suggested?limit=${limit}`,
     );
-    return response.data.data;
+    return unwrap<Group[]>(response.data);
   }
 
   async searchGroups(query: string, page = 1, limit = 20): Promise<Group[]> {
     const response = await axios.get<APIResponse<Group[]>>(
       `/group/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`,
     );
-    return response.data.data;
+    return unwrap<Group[]>(response.data);
   }
 
   // ==================== MEMBERSHIP ====================
@@ -67,21 +67,21 @@ class GroupService {
     const response = await axios.post<
       APIResponse<{ message: string; status: string }>
     >(`/group/${groupId}/join`);
-    return response.data.data;
+    return unwrap<{ message: string; status: string }>(response.data);
   }
 
   async leaveGroup(groupId: string): Promise<{ message: string }> {
     const response = await axios.post<APIResponse<{ message: string }>>(
       `/group/${groupId}/leave`,
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async cancelJoinRequest(groupId: string): Promise<{ message: string }> {
     const response = await axios.delete<APIResponse<{ message: string }>>(
       `/group/${groupId}/cancel-request`,
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async getMembers(
@@ -92,14 +92,14 @@ class GroupService {
     const response = await axios.get<APIResponse<GroupMembersResponse>>(
       `/group/${groupId}/members?page=${page}&limit=${limit}`,
     );
-    return response.data.data;
+    return unwrap<GroupMembersResponse>(response.data);
   }
 
   async getTopMembers(groupId: string, limit = 12): Promise<GroupCreator[]> {
     const response = await axios.get<APIResponse<GroupCreator[]>>(
       `/group/${groupId}/members/top?limit=${limit}`,
     );
-    return response.data.data;
+    return unwrap<GroupCreator[]>(response.data);
   }
 
   async getPendingMembers(
@@ -110,7 +110,7 @@ class GroupService {
     const response = await axios.get<APIResponse<PendingMembersResponse>>(
       `/group/${groupId}/members/pending?page=${page}&limit=${limit}`,
     );
-    return response.data.data;
+    return unwrap<PendingMembersResponse>(response.data);
   }
 
   async approveMember(
@@ -120,7 +120,7 @@ class GroupService {
     const response = await axios.post<APIResponse<{ message: string }>>(
       `/group/${groupId}/members/${userId}/approve`,
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async rejectMember(
@@ -130,7 +130,7 @@ class GroupService {
     const response = await axios.post<APIResponse<{ message: string }>>(
       `/group/${groupId}/members/${userId}/reject`,
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async removeMember(
@@ -140,7 +140,7 @@ class GroupService {
     const response = await axios.delete<APIResponse<{ message: string }>>(
       `/group/${groupId}/members/${userId}`,
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async updateMemberRole(
@@ -152,7 +152,7 @@ class GroupService {
       `/group/${groupId}/members/${userId}/role`,
       { role },
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async inviteMember(
@@ -163,7 +163,7 @@ class GroupService {
       `/group/${groupId}/invite`,
       { userId },
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async transferOwnership(
@@ -174,7 +174,7 @@ class GroupService {
       `/group/${groupId}/transfer-ownership`,
       { userId },
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 }
 

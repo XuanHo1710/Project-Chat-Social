@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Put } from '@nestjs/common';
-import { ChatService } from './chat.service';
+import { ChatService, MarkAsReadResult, MessageHistoryPage } from './chat.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { UserInfo } from '../../decorators/customize';
@@ -15,8 +15,11 @@ export class ChatController {
   ) { }
 
   @Post('/messages')
-  sendMessageByConversationId(@Body() createMessageDto: CreateMessageDto) {
-    return this.chatService.sendMessage(createMessageDto);
+  sendMessageByConversationId(
+    @Body() createMessageDto: CreateMessageDto,
+    @UserInfo() user: any
+  ) {
+    return this.chatService.sendMessage(createMessageDto, user._id.toString());
   }
 
   @Put('/conversations/:id/read')
@@ -24,11 +27,14 @@ export class ChatController {
     @Param('id') conversationId: string,
     @UserInfo() user: any,
     @Body() body?: { messageId?: string }
-  ) {
+  ): Promise<MarkAsReadResult> {
     const userId = user._id.toString();
     const result = await this.chatService.markAsRead(conversationId, userId, body?.messageId);
 
-    // Also reset unread count in ConversationService
+    if (result.modifiedCount !== 1) {
+      return result;
+    }
+
     const conversationUpdated = await this.conversationService.resetUnreadCount(
       conversationId,
       userId
@@ -73,7 +79,7 @@ export class ChatController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('before') before?: string
-  ) {
+  ): Promise<MessageHistoryPage> {
     return this.chatService.findAllMessagesByConversationId(
       conversationId,
       user._id.toString(),
@@ -87,11 +93,13 @@ export class ChatController {
   @Get('/messages/:id/media')
   findMediaMessages(
     @Param('id') conversationId: string,
+    @UserInfo() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string
   ) {
     return this.chatService.findMediaMessages(
       conversationId,
+      user._id.toString(),
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 20
     );
@@ -101,28 +109,34 @@ export class ChatController {
   @Get('/messages/:id/files')
   findFileMessages(
     @Param('id') conversationId: string,
+    @UserInfo() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string
   ) {
     return this.chatService.findFileMessages(
       conversationId,
+      user._id.toString(),
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 20
     );
   }
 
   @Get('/:id')
-  findOne(@Param('id') id: string) {
-    return this.chatService.findOne(id);
+  findOne(@Param('id') id: string, @UserInfo() user: any) {
+    return this.chatService.findOne(id, user._id.toString());
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateMessageDto: UpdateMessageDto) {
-    return this.chatService.update(id, updateMessageDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateMessageDto: UpdateMessageDto,
+    @UserInfo() user: any
+  ) {
+    return this.chatService.editMessage(id, user._id.toString(), updateMessageDto.content || '');
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.chatService.remove(+id);
+  remove(@Param('id') id: string, @UserInfo() user: any) {
+    return this.chatService.deleteMessage(id, user._id.toString());
   }
 }

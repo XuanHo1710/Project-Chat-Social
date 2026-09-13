@@ -25,10 +25,15 @@ interface GroupPostStore {
 
   // Clear posts for a specific group
   clearGroupPosts: (groupId: string) => void;
+
+  // Restore initial state
+  reset: () => void;
 }
 
 export const useGroupPostStore = create<GroupPostStore>((set, get) => ({
   groupPosts: {},
+
+  reset: () => set({ groupPosts: {} }),
 
   setGroupPosts: (groupId, posts) =>
     set((state) => ({

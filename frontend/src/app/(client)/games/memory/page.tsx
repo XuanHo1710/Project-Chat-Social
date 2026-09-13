@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Box, Typography, Button, Paper, Grid, useTheme } from "@mui/material";
+import { Box, Typography, Grid, Paper, useTheme } from "@mui/material";
+import type { SvgIconComponent } from "@mui/icons-material";
 import {
-    Refresh as RefreshIcon,
     Pets,
     AcUnit,
     AccessAlarm,
@@ -13,19 +13,22 @@ import {
     Apartment,
     AttachFile
 } from "@mui/icons-material";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import GameShell from "@/components/games/GameShell";
+import { useTranslation } from "react-i18next";
 
-const ICONS = [Pets, AcUnit, AccessAlarm, AccountBalance, AddReaction, AirplanemodeActive, Apartment, AttachFile];
+const ICONS: SvgIconComponent[] = [Pets, AcUnit, AccessAlarm, AccountBalance, AddReaction, AirplanemodeActive, Apartment, AttachFile];
 
 interface Card {
     id: number;
-    icon: any;
+    icon: SvgIconComponent;
     isFlipped: boolean;
     isMatched: boolean;
 }
 
 export default function MemoryPage() {
     const theme = useTheme();
+    const { t } = useTranslation('games');
     const [cards, setCards] = useState<Card[]>([]);
     const [flippedCards, setFlippedCards] = useState<number[]>([]);
     const [moves, setMoves] = useState(0);
@@ -97,66 +100,47 @@ export default function MemoryPage() {
     };
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', pt: 4 }}>
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3 }}>
-                <Paper elevation={3} sx={{ p: 4, borderRadius: 4, maxWidth: 600, width: '100%', textAlign: 'center', bgcolor: 'background.paper' }}>
-                    <Typography variant="h4" fontWeight={900} sx={{ mb: 2, color: 'primary.main' }}>
-                        Lật Hình
-                    </Typography>
-
-                    <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center', gap: 4 }}>
-                        <Typography variant="h6" color="text.secondary">Lượt: {moves}</Typography>
-                        {isWon && <Typography variant="h6" color="success.main" fontWeight={700}>CHIẾN THẮNG!</Typography>}
-                    </Box>
-
-                    <Grid container spacing={2} sx={{ maxWidth: 400, mx: 'auto', mb: 4 }}>
-                        {cards.map((card) => {
-                            const IconComponent = card.icon;
-                            return (
-                                // @ts-ignore
-                                <Grid item xs={3} key={card.id}>
-                                    <motion.div
-                                        animate={{ rotateY: card.isFlipped ? 180 : 0 }}
-                                        transition={{ duration: 0.3 }}
-                                        style={{ perspective: 1000 }}
-                                    >
-                                        <Paper
-                                            onClick={() => handleCardClick(card.id)}
-                                            sx={{
-                                                height: 80,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                cursor: 'pointer',
-                                                bgcolor: card.isFlipped
-                                                    ? (card.isMatched ? 'success.light' : 'primary.light')
-                                                    : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'grey.200'),
-                                                transform: card.isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-                                                // Prevent symbol from being mirrored
-                                                '& svg': {
-                                                    transform: 'rotateY(180deg)'
-                                                }
-                                            }}
-                                        >
-                                            {card.isFlipped && <IconComponent sx={{ fontSize: 40, color: 'white' }} />}
-                                        </Paper>
-                                    </motion.div>
-                                </Grid>
-                            );
-                        })}
-                    </Grid>
-
-                    <Button
-                        variant="contained"
-                        size="large"
-                        onClick={initializeGame}
-                        startIcon={<RefreshIcon />}
-                        sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
-                    >
-                        Chơi lại
-                    </Button>
-                </Paper>
+        <GameShell titleKey="memory.name" maxWidth={600} onRestart={initializeGame} restartLabelKey="common.playAgain">
+            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center', gap: 4 }}>
+                <Typography variant="h6" color="text.secondary">{t('memory.moves', { moves })}</Typography>
+                {isWon && <Typography variant="h6" color="success.main" fontWeight={700}>{t('common.win')}</Typography>}
             </Box>
-        </Box>
+
+            <Grid container spacing={2} sx={{ maxWidth: 400, mx: 'auto', mb: 4 }}>
+                {cards.map((card) => {
+                    const IconComponent = card.icon;
+                    return (
+                        <Grid size={3} key={card.id}>
+                            <motion.div
+                                animate={{ rotateY: card.isFlipped ? 180 : 0 }}
+                                transition={{ duration: 0.3 }}
+                                style={{ perspective: 1000 }}
+                            >
+                                <Paper
+                                    onClick={() => handleCardClick(card.id)}
+                                    sx={{
+                                        height: 80,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        bgcolor: card.isFlipped
+                                            ? (card.isMatched ? 'success.light' : 'primary.light')
+                                            : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'grey.200'),
+                                        transform: card.isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                                        // Prevent symbol from being mirrored
+                                        '& svg': {
+                                            transform: 'rotateY(180deg)'
+                                        }
+                                    }}
+                                >
+                                    {card.isFlipped && <IconComponent sx={{ fontSize: 40, color: 'white' }} />}
+                                </Paper>
+                            </motion.div>
+                        </Grid>
+                    );
+                })}
+            </Grid>
+        </GameShell>
     );
 }

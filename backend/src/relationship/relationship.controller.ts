@@ -20,24 +20,29 @@ export class RelationshipController {
 
   // Add friend with PENDING status by default
   @Post('/add-friend')
-  addFriend(@Body() createRelationshipDto: CreateRelationshipDto) {
-    createRelationshipDto.status = RelationshipStatus.PENDING;
-    return this.relationshipService.addFriend(createRelationshipDto);
+  addFriend(@UserInfo() user: any, @Body() createRelationshipDto: CreateRelationshipDto) {
+    return this.relationshipService.addFriend({
+      ...createRelationshipDto,
+      userId: user._id,
+      status: RelationshipStatus.PENDING,
+    });
   }
 
   // Cancel friend request or unfriend or rejected friend request
   @Patch('/update-status')
-  updateStatusRelationship(@Body() updateRelationshipDto: UpdateRelationshipDto) {
+  updateStatusRelationship(
+    @UserInfo() user: any,
+    @Body() updateRelationshipDto: UpdateRelationshipDto
+  ) {
     if (
       !updateRelationshipDto ||
       !updateRelationshipDto.status ||
-      !updateRelationshipDto.userId ||
       !updateRelationshipDto.friendId
     ) {
       throw new NotFoundException('Invalid data provided');
     }
     return this.relationshipService.updateStatusRelationship(
-      updateRelationshipDto?.userId.toString(),
+      user._id.toString(),
       updateRelationshipDto?.friendId.toString(),
       updateRelationshipDto?.status.toString()
     );
@@ -45,17 +50,13 @@ export class RelationshipController {
 
   // Chấp nhận kết bạn
   @Patch('/accept-friend')
-  acceptFriend(@Body() updateRelationshipDto: UpdateRelationshipDto) {
-    if (
-      !updateRelationshipDto ||
-      !updateRelationshipDto.userId ||
-      !updateRelationshipDto.friendId
-    ) {
+  acceptFriend(@UserInfo() user: any, @Body() updateRelationshipDto: UpdateRelationshipDto) {
+    if (!updateRelationshipDto || !updateRelationshipDto.friendId) {
       throw new NotFoundException('Invalid data provided');
     }
     return this.relationshipService.acceptFriend(
-      updateRelationshipDto?.userId.toString(),
-      updateRelationshipDto?.friendId.toString()
+      user._id.toString(),
+      updateRelationshipDto.friendId.toString()
     );
   }
 
@@ -78,9 +79,18 @@ export class RelationshipController {
   }
 
   // Lấy danh sách bạn bè của một người dùng cụ thể (theo userId)
+  // Privacy: full list only for the owner or a friend of the target;
+  // everyone else gets an empty list (same success envelope).
   @Get('/friends/:userId')
-  getFriendsByUserId(@UserInfo() user: any, @Param('userId') userId: string) {
-    return this.relationshipService.getFriendsList(userId, user._id);
+  async getFriendsByUserId(@UserInfo() user: any, @Param('userId') userId: string) {
+    const callerId = user._id.toString();
+    if (callerId !== userId) {
+      const { isFriend } = await this.relationshipService.checkFriendship(callerId, userId);
+      if (!isFriend) {
+        return [];
+      }
+    }
+    return this.relationshipService.getFriendsList(userId, callerId);
   }
 
   // Kiểm tra xem 2 người dùng có phải là bạn bè không

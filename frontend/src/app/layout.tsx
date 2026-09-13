@@ -16,6 +16,9 @@ import { CallProvider } from "@/contexts/CallContext";
 import CallOverlay from "@/components/call/CallOverlay";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  ),
   title: {
     default: "Social Chat - Mạng xã hội kết nối bạn bè",
     template: "%s | Social Chat",
@@ -56,9 +59,6 @@ export const metadata: Metadata = {
       "max-image-preview": "large",
       "max-snippet": -1,
     },
-  },
-  verification: {
-    google: "your-google-verification-code",
   },
   icons: {
     icon: [

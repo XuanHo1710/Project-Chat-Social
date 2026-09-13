@@ -171,7 +171,7 @@ export default function GroupDetailPage() {
     useEffect(() => {
         if (!groupId || !accessToken) return;
 
-        const socket: Socket = io(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
+        const socket: Socket = io(`${process.env.NEXT_PUBLIC_SOCKET_URL}/groups`, {
             auth: { token: accessToken },
             transports: ['websocket'],
         });

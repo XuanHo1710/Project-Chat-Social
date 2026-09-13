@@ -1,3 +1,5 @@
+import i18n from "@/lib/i18n";
+
 export const formatDate = (isoString: Date | string | undefined) => {
   if (isoString === undefined) return "";
   const date = new Date(isoString);
@@ -71,25 +73,25 @@ export const timeAgo = (input: Date | string) => {
 
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (seconds < 5) return "Vừa xong";
-  if (seconds < 60) return `${seconds} giây trước`;
+  if (seconds < 5) return i18n.t("time.just_now");
+  if (seconds < 60) return i18n.t("time.seconds_ago", { count: seconds });
 
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} phút trước`;
+  if (minutes < 60) return i18n.t("time.minutes_ago", { count: minutes });
 
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} giờ trước`;
+  if (hours < 24) return i18n.t("time.hours_ago", { count: hours });
 
   const days = Math.floor(hours / 24);
-  if (days === 1) return "Hôm qua";
-  if (days < 7) return `${days} ngày trước`;
+  if (days === 1) return i18n.t("time.yesterday");
+  if (days < 7) return i18n.t("time.days_ago", { count: days });
 
   const weeks = Math.floor(days / 7);
-  if (weeks < 4) return `${weeks} tuần trước`;
+  if (weeks < 4) return i18n.t("time.weeks_ago", { count: weeks });
 
   const months = Math.floor(days / 30);
-  if (months < 12) return `${months} tháng trước`;
+  if (months < 12) return i18n.t("time.months_ago", { count: months });
 
   const years = Math.floor(days / 365);
-  return `${years} năm trước`;
+  return i18n.t("time.years_ago", { count: years });
 };

@@ -1,4 +1,4 @@
-import axiosInstance from "@/config/axios";
+import axiosInstance, { unwrap } from "@/config/axios";
 import rawAxios from "axios";
 import { LoginRequest, LoginResponseData } from "@/types/auth";
 import { APIResponse } from "@/types/common";
@@ -28,6 +28,16 @@ class AuthService {
     return response.data;
   }
 
+  async exchangeGoogleCode(
+    code: string,
+  ): Promise<APIResponse<LoginResponseData>> {
+    const response = await axiosInstance.post<APIResponse<LoginResponseData>>(
+      "/auth/google/exchange",
+      { code },
+    );
+    return response.data;
+  }
+
   async logout() {
     try {
       // Use raw axios (no baseURL) to call the Next.js API route directly
@@ -51,27 +61,32 @@ class AuthService {
     const response = await axiosInstance.post<
       APIResponse<{ success: boolean; message: string; expiresAt?: string }>
     >("/auth/password/forgot", { email });
-    return response.data.data;
+    return unwrap<{ success: boolean; message: string; expiresAt?: string }>(
+      response.data,
+    );
   }
 
   async verifyOtp(
     email: string,
     otp: string,
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<{ success: boolean; message: string; resetToken: string }> {
     const response = await axiosInstance.post<
-      APIResponse<{ success: boolean; message: string }>
+      APIResponse<{ success: boolean; message: string; resetToken: string }>
     >("/auth/password/verify-otp", { email, otp });
-    return response.data.data;
+    return unwrap<{ success: boolean; message: string; resetToken: string }>(
+      response.data,
+    );
   }
 
   async resetPassword(
     email: string,
     newPassword: string,
+    resetToken: string,
   ): Promise<{ success: boolean; message: string }> {
     const response = await axiosInstance.post<
       APIResponse<{ success: boolean; message: string }>
-    >("/auth/password/reset", { email, newPassword });
-    return response.data.data;
+    >("/auth/password/reset", { email, newPassword, resetToken });
+    return unwrap<{ success: boolean; message: string }>(response.data);
   }
 
   async resendOtp(
@@ -80,7 +95,9 @@ class AuthService {
     const response = await axiosInstance.post<
       APIResponse<{ success: boolean; message: string; expiresAt?: string }>
     >("/auth/password/resend-otp", { email });
-    return response.data.data;
+    return unwrap<{ success: boolean; message: string; expiresAt?: string }>(
+      response.data,
+    );
   }
 }
 

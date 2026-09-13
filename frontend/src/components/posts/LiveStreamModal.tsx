@@ -95,7 +95,6 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
     const [commentInput, setCommentInput] = useState('');
     const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
     const [duration, setDuration] = useState(0);
-    const [isSavingVideo, setIsSavingVideo] = useState(false);
     const [liveStreamId, setLiveStreamId] = useState<string>(''); // For api.video livestream container
 
     // Refs
@@ -105,6 +104,58 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const recordedChunksRef = useRef<Blob[]>([]);
     const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const socketRef = useRef<typeof socket>(socket);
+    const streamRef = useRef<MediaStream | null>(null);
+    const isLiveRef = useRef(isLive);
+    const livePostIdRef = useRef<string | null>(postId);
+
+    useEffect(() => {
+        socketRef.current = socket;
+    }, [socket]);
+
+    useEffect(() => {
+        streamRef.current = stream;
+    }, [stream]);
+
+    useEffect(() => {
+        isLiveRef.current = isLive;
+    }, [isLive]);
+
+    useEffect(() => {
+        livePostIdRef.current = postId;
+    }, [postId]);
+
+    // Unmount teardown: if the broadcaster unmounts while live (e.g. route change mid-broadcast),
+    // run the same cleanup as handleEndLive so camera/mic turn off, viewer peers are destroyed,
+    // viewers are notified and the post does not stay stuck as LIVE.
+    useEffect(() => {
+        return () => {
+            if (!isLiveRef.current) return;
+
+            const endedPostId = livePostIdRef.current;
+
+            socketRef.current?.emit('livestream:end', { postId: endedPostId });
+
+            streamRef.current?.getTracks().forEach(track => track.stop());
+
+            try {
+                if (mediaRecorderRef.current?.state !== 'inactive') {
+                    mediaRecorderRef.current?.stop();
+                }
+            } catch (err) {
+                console.error('[Livestream] Failed to stop recorder during unmount:', err);
+            }
+
+            peersRef.current.forEach(p => p.destroy());
+            peersRef.current.clear();
+
+            if (endedPostId) {
+                postService.endLivestream(endedPostId).catch(err => {
+                    console.error('[Livestream] Failed to end stream during unmount:', err);
+                });
+            }
+        };
+    }, []);
 
     // Format duration
     const formatDuration = (seconds: number) => {
@@ -160,10 +211,16 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
             if (videoRef.current) videoRef.current.srcObject = combinedStream;
             setStreamSource('screen');
 
-            displayStream.getVideoTracks()[0].onended = () => {
-                stopStream();
-                setStreamSource(null);
-            };
+            // Stop tracks directly instead of via the stale stopStream closure (which captured
+            // stream === null on first render), so a browser-initiated share-end also stops the mic.
+            const displayVideoTrack = displayStream.getVideoTracks()[0];
+            if (displayVideoTrack) {
+                displayVideoTrack.onended = () => {
+                    combinedStream.getTracks().forEach(track => track.stop());
+                    setStream(null);
+                    setStreamSource(null);
+                };
+            }
         } catch (err) {
             console.error("Screen Share Error:", err);
             toast.error(t('livestream.screen_share_error'));
@@ -198,48 +255,6 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
             console.error('Failed to start recording:', err);
         }
     }, []);
-
-    // Stop Recording & Save
-    const stopRecordingAndSave = useCallback(async (): Promise<{ url: string; publicId: string; duration: number } | null> => {
-        return new Promise((resolve) => {
-            const recorder = mediaRecorderRef.current;
-            if (!recorder || recorder.state === 'inactive') {
-                resolve(null);
-                return;
-            }
-
-            recorder.onstop = async () => {
-                try {
-                    const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-                    if (blob.size < 1000) {
-                        resolve(null);
-                        return;
-                    }
-
-                    const file = new File([blob], `livestream_${Date.now()}.webm`, { type: 'video/webm' });
-                    console.log('[Livestream] Uploading video...', file.size);
-
-                    // Use api.video or fallback to Cloudinary
-                    const uploadResult = await uploadLivestreamVideo(file, `Livestream ${new Date().toLocaleString()}`);
-                    if (uploadResult) {
-                        console.log('[Livestream] Upload success via:', uploadResult.provider);
-                        resolve({
-                            url: uploadResult.url,
-                            publicId: uploadResult.publicId,
-                            duration: duration
-                        });
-                    } else {
-                        resolve(null);
-                    }
-                } catch (err) {
-                    console.error('Failed to upload recording:', err);
-                    resolve(null);
-                }
-            };
-
-            recorder.stop();
-        });
-    }, [duration]);
 
     useEffect(() => {
         if (stream && videoRef.current) {
@@ -435,8 +450,8 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
             // Use camera stream for recording
             if (stream) startRecording(stream);
 
-            // 3. Join socket room for P2P viewing
-            socket?.emit('livestream:join', { postId: post._id });
+            // Note: 'livestream:join' is emitted by the socket handlers effect once
+            // isLive/postId are set — do not double-emit here.
 
             toast.success(t('livestream.started'));
         } catch (error) {
@@ -476,7 +491,6 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
         setPostId(null);
         setComments([]);
         setDuration(0);
-        setIsSavingVideo(false);
         // Clean peers
         peersRef.current.forEach(p => p.destroy());
         peersRef.current.clear();
@@ -498,7 +512,6 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
 
                 if (uploadResult) {
                     await postService.updatePost(currentPostId, {
-                        livestreamStatus: 'ENDED',
                         media: [{
                             mediaType: 'VIDEO',
                             url: uploadResult.url,
@@ -516,24 +529,6 @@ export default function LiveStreamModal({ open, onClose }: LiveStreamModalProps)
 
     return (
         <Dialog open={open} onClose={handleClose} fullScreen PaperProps={{ sx: { bgcolor: bgPrimary } }}>
-            {/* Saving overlay */}
-            {isSavingVideo && (
-                <Box sx={{
-                    position: 'fixed',
-                    inset: 0,
-                    bgcolor: 'rgba(0,0,0,0.8)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 9999,
-                    flexDirection: 'column',
-                    gap: 2
-                }}>
-                    <CircularProgress sx={{ color: 'white' }} size={48} />
-                    <Typography sx={{ color: 'white', fontWeight: 500 }}>{t('livestream.saving_video')}</Typography>
-                </Box>
-            )}
-
             <Box sx={{ height: '100%', display: 'flex', flexDirection: { xs: 'column', lg: 'row' } }}>
                 {/* Main Video Area */}
                 <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>

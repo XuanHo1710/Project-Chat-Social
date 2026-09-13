@@ -2,13 +2,13 @@
 import { useAuthStore } from "@/stores/useAuthStore";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import axios from "axios";
+import { ensureAccessToken } from "@/config/axios";
 import { CLIENT_PATH } from "@/constants/paths";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { setUser, logout, setLoading, setAccessToken } = useAuthStore();
+    const { logout, setLoading } = useAuthStore();
     const hasCheckedRef = useRef(false);
 
     useEffect(() => {
@@ -28,33 +28,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             hasCheckedRef.current = true;
 
             try {
-                // Call API route to verify token with cookie
-                const res = await axios.post("/api/auth/token");
+                // Single-flight bootstrap shared with the axios instance
+                const accessToken = await ensureAccessToken();
 
-                if (res.status === 200 && res.data !== null) {
-                    const { accessToken, data } = res.data;
-                    const { account } = data;
-                    if (accessToken) {
-                        setAccessToken(accessToken);
-                    }
-
-                    setUser({
-                        id: account._id || account.username,
-                        username: account.username,
-                        fullName: account.fullname || `${account.firstName || ''} ${account.lastName || ''}`.trim(),
-                        email: account.email,
-                        avatar: account.avatar,
-                        role: account.role,
-                        gender: account.gender,
-                    });
-
-                    // If on login page but already authenticated, redirect to home
-                    if (pathname === CLIENT_PATH.LOGIN && account) {
-                        router.replace(CLIENT_PATH.HOME);
-                    }
-                } else {
-                    // Token invalid — clear state, let page components handle redirect
+                if (!accessToken) {
                     logout();
+                    return;
+                }
+
+                const account = useAuthStore.getState().user;
+
+                // If on login page but already authenticated, redirect to home
+                if (pathname === CLIENT_PATH.LOGIN && account) {
+                    router.replace(CLIENT_PATH.HOME);
                 }
             } catch (error) {
                 console.error("Failed to fetch account:", error);

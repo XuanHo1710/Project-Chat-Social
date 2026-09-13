@@ -21,14 +21,17 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     done: VerifyCallback
   ): Promise<any> {
     const { name, emails, photos } = profile;
+    const email = emails?.[0]?.value;
+    const isVerified = profile?._json?.email_verified;
+    if (!email || isVerified === false) {
+      return done(new Error('Google account does not have a verified email'), false);
+    }
 
     const user = {
-      email: emails[0].value,
-      firstName: name.familyName,
-      lastName: name.givenName,
-      picture: photos[0].value,
-      accessToken,
-      refreshToken,
+      email,
+      firstName: name?.givenName || '',
+      lastName: name?.familyName || '',
+      picture: photos?.[0]?.value || '',
       googleId: profile.id,
     };
 

@@ -26,7 +26,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD:-123} --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required} --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
@@ -39,7 +39,7 @@ services:
         reservations:
           memory: 64M
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-123}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -92,11 +92,11 @@ services:
     image: rabbitmq:4.0-management-alpine
     hostname: rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-user}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-123123123}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS is required}
       RABBITMQ_DEFAULT_VHOST: /
     ports:
-      - "15672:15672" # Management UI — bỏ nếu không cần debug
+      - "127.0.0.1:15672:15672" # Management UI is host-local only
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -127,10 +127,12 @@ services:
     image: xuanho17102004/project-chat-social-server-ai:latest
     env_file: ./server-ai/.env
     environment:
+      AI_INTERNAL_API_KEY: ${AI_INTERNAL_API_KEY:?AI_INTERNAL_API_KEY is required}
+      CORS_ORIGINS: ${CLIENT_URL:?CLIENT_URL is required}
       HF_TOKEN: ${HF_TOKEN:-}
-      HF_HOME: /root/.cache/huggingface
+      HF_HOME: /home/app/.cache/huggingface
     volumes:
-      - huggingface_cache:/root/.cache/huggingface
+      - huggingface_cache:/home/app/.cache/huggingface
     deploy:
       resources:
         limits:
@@ -154,7 +156,7 @@ services:
     # Also subscribes to RabbitMQ queue: backend_queue (Transport.RMQ)
     image: xuanho17102004/project-chat-social-backend:latest
     ports:
-      - "${BACKEND_PORT:-5000}:8080"
+      - "127.0.0.1:${BACKEND_PORT:-5000}:8080"
     env_file: ./backend/.env
     environment:
       PORT: "8080"
@@ -162,11 +164,14 @@ services:
       # ── localhost → Docker service names ──
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-123}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       RABBITMQ_HOST: rabbitmq
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-user}:${RABBITMQ_PASS:-123123123}@rabbitmq:5672
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?RABBITMQ_USER is required}:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672
+      RABBITMQ_QUEUE_NAME: ${RABBITMQ_QUEUE_NAME:-social_queue}
+      RABBITMQ_BACKEND_QUEUE: ${RABBITMQ_BACKEND_QUEUE:-backend_queue}
       KAFKA_BROKER: kafka:9092
       AI_SERVER_URL: http://server-ai:8000/api/v1
+      AI_INTERNAL_API_KEY: ${AI_INTERNAL_API_KEY:?AI_INTERNAL_API_KEY is required}
     depends_on:
       redis:
         condition: service_healthy
@@ -179,6 +184,12 @@ services:
     networks:
       - app-net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
 
   kafka-server:
     # NestJS Hybrid — HTTP :3002 (internal, no public routes) + Kafka consumer
@@ -190,7 +201,9 @@ services:
       NODE_ENV: production
       PORT: "3002"
       KAFKA_BROKER: kafka:9092
+      KAFKA_BROKERS: kafka:9092
       AI_SERVER_URL: http://server-ai:8000/api/v1
+      AI_INTERNAL_API_KEY: ${AI_INTERNAL_API_KEY:?AI_INTERNAL_API_KEY is required}
     depends_on:
       kafka:
         condition: service_started
@@ -204,7 +217,7 @@ services:
     # Next.js standalone — served via nginx on /*
     image: xuanho17102004/project-chat-social-frontend:latest
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     env_file: ./frontend/.env
     networks:
       - app-net
@@ -232,9 +245,12 @@ services:
     environment:
       NODE_ENV: production
       RABBITMQ_HOST: rabbitmq
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-user}:${RABBITMQ_PASS:-123123123}@rabbitmq:5672
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?RABBITMQ_USER is required}:${RABBITMQ_PASS:?RABBITMQ_PASS is required}@rabbitmq:5672
+      RABBITMQ_QUEUE_NAME: ${RABBITMQ_QUEUE_NAME:-social_queue}
+      RABBITMQ_BACKEND_QUEUE: ${RABBITMQ_BACKEND_QUEUE:-backend_queue}
       # server-ai FastAPI prefix is /api/v1
       AI_SERVER_URL: http://server-ai:8000/api/v1
+      AI_INTERNAL_API_KEY: ${AI_INTERNAL_API_KEY:?AI_INTERNAL_API_KEY is required}
     depends_on:
       rabbitmq:
         condition: service_healthy

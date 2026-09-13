@@ -1,4 +1,4 @@
-import axios from "@/config/axios";
+import axios, { unwrap } from "@/config/axios";
 import { APIResponse } from "@/types/common";
 
 const PREFIX = "admin";
@@ -136,35 +136,35 @@ class AdminService {
     const response = await axios.get<APIResponse<DashboardStats>>(
       `/${PREFIX}/stats`,
     );
-    return response.data.data;
+    return unwrap<DashboardStats>(response.data);
   }
 
   async getWeeklyPostsStats(): Promise<WeeklyPostStat[]> {
     const response = await axios.get<APIResponse<WeeklyPostStat[]>>(
       `/${PREFIX}/stats/weekly-posts`,
     );
-    return response.data.data;
+    return unwrap<WeeklyPostStat[]>(response.data);
   }
 
   async getTopPagesStats(): Promise<TopPageStat[]> {
     const response = await axios.get<APIResponse<TopPageStat[]>>(
       `/${PREFIX}/stats/top-pages`,
     );
-    return response.data.data;
+    return unwrap<TopPageStat[]>(response.data);
   }
 
   async getRecentComments(): Promise<RecentComment[]> {
     const response = await axios.get<APIResponse<RecentComment[]>>(
       `/${PREFIX}/stats/recent-comments`,
     );
-    return response.data.data;
+    return unwrap<RecentComment[]>(response.data);
   }
 
   async getEmotionStats(): Promise<EmotionStat[]> {
     const response = await axios.get<APIResponse<EmotionStat[]>>(
       `/${PREFIX}/stats/emotions`,
     );
-    return response.data.data;
+    return unwrap<EmotionStat[]>(response.data);
   }
 
   async getTrafficData(
@@ -173,7 +173,9 @@ class AdminService {
     const response = await axios.get<
       APIResponse<Array<{ date: string; logins: number; activeUsers: number }>>
     >(`/${PREFIX}/stats/traffic`, { params: { days } });
-    return response.data.data;
+    return unwrap<Array<{ date: string; logins: number; activeUsers: number }>>(
+      response.data,
+    );
   }
 
   // ========== USER MANAGEMENT ==========
@@ -184,14 +186,14 @@ class AdminService {
     const response = await axios.get<
       APIResponse<PaginationResponse<AdminUser>>
     >(`/${PREFIX}/users`, { params });
-    return response.data.data;
+    return unwrap<PaginationResponse<AdminUser>>(response.data);
   }
 
   async getUserById(id: string): Promise<AdminUser> {
     const response = await axios.get<APIResponse<AdminUser>>(
       `/${PREFIX}/users/${id}`,
     );
-    return response.data.data;
+    return unwrap<AdminUser>(response.data);
   }
 
   async blockUser(
@@ -203,14 +205,14 @@ class AdminService {
       `/${PREFIX}/users/${id}/block`,
       { reason, expireAt },
     );
-    return response.data.data;
+    return unwrap<AdminUser>(response.data);
   }
 
   async unblockUser(id: string): Promise<AdminUser> {
     const response = await axios.put<APIResponse<AdminUser>>(
       `/${PREFIX}/users/${id}/unblock`,
     );
-    return response.data.data;
+    return unwrap<AdminUser>(response.data);
   }
 
   async updateUserRole(id: string, role: string): Promise<AdminUser> {
@@ -218,7 +220,7 @@ class AdminService {
       `/${PREFIX}/users/${id}/role`,
       { role },
     );
-    return response.data.data;
+    return unwrap<AdminUser>(response.data);
   }
 
   async createAccount(data: any): Promise<AdminUser> {
@@ -226,7 +228,7 @@ class AdminService {
       `/${PREFIX}/users`,
       data,
     );
-    return response.data.data;
+    return unwrap<AdminUser>(response.data);
   }
 
   // ========== POST MANAGEMENT ==========
@@ -237,14 +239,14 @@ class AdminService {
     const response = await axios.get<
       APIResponse<PaginationResponse<AdminPost>>
     >(`/${PREFIX}/posts`, { params });
-    return response.data.data;
+    return unwrap<PaginationResponse<AdminPost>>(response.data);
   }
 
   async getPostById(id: string): Promise<AdminPostDetail> {
     const response = await axios.get<APIResponse<AdminPostDetail>>(
       `/${PREFIX}/posts/${id}`,
     );
-    return response.data.data;
+    return unwrap<AdminPostDetail>(response.data);
   }
 
   async deletePost(id: string): Promise<void> {
@@ -255,14 +257,14 @@ class AdminService {
     const response = await axios.put<APIResponse<AdminPost>>(
       `/${PREFIX}/posts/${id}/hide`,
     );
-    return response.data.data;
+    return unwrap<AdminPost>(response.data);
   }
 
   async showPost(id: string): Promise<AdminPost> {
     const response = await axios.put<APIResponse<AdminPost>>(
       `/${PREFIX}/posts/${id}/show`,
     );
-    return response.data.data;
+    return unwrap<AdminPost>(response.data);
   }
 }
 

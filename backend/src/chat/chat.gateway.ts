@@ -9,70 +9,33 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { randomUUID } from 'crypto';
+import { lastValueFrom } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import { ChatService } from 'src/chat/chat.service';
 import { CreateMessageDto } from 'src/chat/dto/create-message.dto';
 import { ConversationService } from 'src/conversation/conversation.service';
 import { InjectModel } from '@nestjs/mongoose';
 import { Account, AccountDocument } from 'src/account/entities/account.entity';
-import { Model, Types } from 'mongoose';
-import { EmotionType, MessageType } from './entities/message.entity';
+import { Model } from 'mongoose';
+import { EmotionType } from './entities/message.entity';
 import { RelationshipService } from 'src/relationship/relationship.service';
-import { HttpService } from '@nestjs/axios';
-import { AxiosResponse } from 'axios';
-import { firstValueFrom } from 'rxjs';
 import { Conversation } from 'src/conversation/entities/conversation.entity';
-import { FirebaseService } from 'src/firebase/firebase.service';
-import { CommentService } from 'src/comment/comment.service';
-import { ReactionService } from 'src/reaction/reaction.service';
-import { TypeFactor } from 'src/reaction/entities/reaction.entity';
-import { ClientProxy } from '@nestjs/microservices';
-
-interface CallPayload {
-  toUserId: string;
-  offer: any;
-  conversationId: string;
-  callType?: 'AUDIO' | 'VIDEO';
-}
-
-interface AnswerPayload {
-  toUserId: string;
-  answer: any;
-  conversationId: string;
-}
-
-interface IceCandidatePayload {
-  toUserId: string;
-  candidate: any;
-  conversationId: string;
-}
-
-// Map để lưu userId -> Set<socketId> (support multiple connections per user)
-const userSockets = new Map<string, Set<string>>();
-
-// Store pending calls for persistence on reload (recipientId -> CallData)
-const pendingCalls = new Map<
-  string,
-  {
-    fromUserId: string;
-    offer: any;
-    conversationId: string;
-    timestamp: number;
-    callType: 'AUDIO' | 'VIDEO';
-    answered: boolean;
-  }
->();
-
-// Map conversationId -> Set<userId> for active group calls
-const activeGroupCalls = new Map<string, Set<string>>();
-
-// Map socketId -> Set<conversationId> that this socket joined for group calls
-const socketGroupCalls = new Map<string, Set<string>>();
+import { GroupCallStateService } from 'src/chat/services/group-call-state.service';
+import {
+  AnswerPayload,
+  CallPayload,
+  CallSignalingHandler,
+  IceCandidatePayload,
+} from 'src/chat/services/call-signaling.handler';
+import { LivestreamSignalingService } from 'src/chat/services/livestream-signaling.service';
+import { ClientProxy, RmqRecordBuilder } from '@nestjs/microservices';
+import { SocketAuthService } from 'src/auth/socket-auth.service';
+import { socketCorsOptions } from 'src/common/config/cors.config';
+import { PresenceService } from 'src/common/presence/presence.service';
 
 @WebSocketGateway({
-  cors: {
-    origin: '*',
-    credentials: true,
-  },
+  cors: socketCorsOptions,
   namespace: '/chat',
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -84,15 +47,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly conversationService: ConversationService,
     private readonly chatService: ChatService,
     private readonly relationshipService: RelationshipService,
-    private readonly httpService: HttpService,
-    private readonly firebaseService: FirebaseService,
     @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
     @Inject('RABBITMQ_SERVICE') private readonly rabbitMQService: ClientProxy,
-    private readonly commentService: CommentService,
-    private readonly reactionService: ReactionService
+    private readonly socketAuthService: SocketAuthService,
+    private readonly presenceService: PresenceService,
+    private readonly groupCallStateService: GroupCallStateService,
+    private readonly callSignalingHandler: CallSignalingHandler,
+    private readonly livestreamSignalingService: LivestreamSignalingService
   ) {}
-
-  private readonly aiServerUrl = 'http://localhost:8000/api/v1';
 
   private isAdminBlockActive(account: Partial<Account>): boolean {
     if (!account?.isBlocked) return false;
@@ -122,114 +84,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return this.isAccountAccessDenied(account as Partial<Account> | null);
   }
 
-  private ensureSocketGroupCalls(socketId: string) {
-    if (!socketGroupCalls.has(socketId)) {
-      socketGroupCalls.set(socketId, new Set());
-    }
-  }
-
-  private trackSocketGroupCall(socketId: string, conversationId: string) {
-    this.ensureSocketGroupCalls(socketId);
-    socketGroupCalls.get(socketId)!.add(conversationId);
-  }
-
-  private untrackSocketGroupCall(socketId: string, conversationId: string) {
-    const calls = socketGroupCalls.get(socketId);
-    if (!calls) return;
-
-    calls.delete(conversationId);
-    if (calls.size === 0) {
-      socketGroupCalls.delete(socketId);
-    }
-  }
-
-  private hasAnotherSocketInGroupCall(
-    userId: string,
-    conversationId: string,
-    currentSocketId: string
-  ): boolean {
-    const sockets = userSockets.get(userId);
-    if (!sockets || sockets.size === 0) return false;
-
-    for (const socketId of sockets) {
-      if (socketId === currentSocketId) continue;
-      if (socketGroupCalls.get(socketId)?.has(conversationId)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  private cleanupStaleGroupParticipants(conversationId: string): Set<string> {
-    if (!activeGroupCalls.has(conversationId)) {
-      activeGroupCalls.set(conversationId, new Set());
-    }
-
-    const participants = activeGroupCalls.get(conversationId)!;
-
-    Array.from(participants).forEach((participantId) => {
-      const sockets = userSockets.get(participantId);
-      const hasJoinedSocket =
-        sockets &&
-        Array.from(sockets).some((socketId) => socketGroupCalls.get(socketId)?.has(conversationId));
-
-      if (!hasJoinedSocket) {
-        participants.delete(participantId);
-      }
-    });
-
-    if (participants.size === 0) {
-      activeGroupCalls.delete(conversationId);
-      activeGroupCalls.set(conversationId, new Set());
-    }
-
-    return activeGroupCalls.get(conversationId)!;
-  }
-
-  private async removeUserFromGroupCall(conversationId: string, userId: string, userName?: string) {
-    const currentParticipants = activeGroupCalls.get(conversationId);
-    if (!currentParticipants || !currentParticipants.has(userId)) {
-      return;
-    }
-
-    currentParticipants.delete(userId);
-
-    const name = userName || (await this.getUserDisplayName(userId)) || 'Someone';
-
-    currentParticipants.forEach((pId) => {
-      const sockets = userSockets.get(pId);
-      if (sockets) {
-        sockets.forEach((sId) => {
-          this.server.to(sId).emit('group-call:user-left', { userId, userName: name });
-        });
-      }
-    });
-
-    if (currentParticipants.size === 0) {
-      activeGroupCalls.delete(conversationId);
-      try {
-        await this.finalizeGroupCallMessage(conversationId);
-      } catch (err) {
-        this.logger.error('Failed to finalize group call message:', err);
-      }
-    }
-  }
-
   async handleConnection(client: Socket) {
     try {
-      const userId = client.handshake.query.userId as string;
-
-      if (!userId) {
-        this.logger.warn(`Client ${client.id} connected without userId`);
-        client.disconnect();
-        return;
-      }
-
-      const accessAccount = await this.accountModel
-        .findById(userId)
-        .select('isBlocked expireBlockAt selfBlockedAt selfBlockExpireAt isActive')
-        .lean();
+      const { userId, account: accessAccount } = await this.socketAuthService.authenticate(client);
 
       if (this.isAccountAccessDenied(accessAccount as Partial<Account> | null)) {
         this.logger.warn(`Blocked or inactive account tried to connect socket: ${userId}`);
@@ -240,18 +97,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      // Store userId in client data for later use
-      client.data.userId = userId;
-      this.ensureSocketGroupCalls(client.id);
+      this.groupCallStateService.ensureSocketGroupCalls(client.id);
 
       // Check if this is the first connection for this user
-      const isFirstConnection = !userSockets.has(userId) || userSockets.get(userId)!.size === 0;
+      const isFirstConnection = !this.presenceService.isOnline(userId);
 
       // Lưu mapping userId -> Set<socketId> (support multiple devices)
-      if (!userSockets.has(userId)) {
-        userSockets.set(userId, new Set());
-      }
-      userSockets.get(userId)!.add(client.id);
+      this.presenceService.register(userId, client.id);
 
       // Join user vào room của chính họ
       client.join(`user:${userId}`);
@@ -289,7 +141,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // CHECK PENDING CALLS (Persistence)
       // Check 1v1 pending calls
-      const pendingCall = pendingCalls.get(userId);
+      const pendingCall = this.callSignalingHandler.getPendingCall(userId);
       if (pendingCall) {
         // Check expiry (e.g. 45 seconds)
         if (Date.now() - pendingCall.timestamp < 45000) {
@@ -303,69 +155,73 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           });
           this.logger.log(`Re-emitted pending call to ${userId}`);
         } else {
-          pendingCalls.delete(userId);
+          this.callSignalingHandler.deletePendingCall(userId);
         }
       }
 
       // Check active group calls? Maybe notify if a group call is active in one of their rooms?
       // (Optional - for now user sees it via UI "Join" button if we implement that, or Notification Persistence)
     } catch (error) {
-      this.logger.error('Connection error:', error);
+      this.logger.warn(`Rejected unauthorized chat socket ${client.id}`);
+      this.socketAuthService.reject(client);
     }
   }
 
   async handleDisconnect(client: Socket) {
     try {
-      const userId = client.data.userId || (client.handshake.query.userId as string);
+      const userId = client.data.userId as string | undefined;
 
-      const joinedCalls = new Set(socketGroupCalls.get(client.id) || []);
+      const joinedCalls = this.groupCallStateService.getJoinedGroupCalls(client.id);
       let userNameForCall: string | undefined;
 
       if (userId && joinedCalls.size > 0) {
         for (const conversationId of joinedCalls) {
-          if (!this.hasAnotherSocketInGroupCall(userId, conversationId, client.id)) {
+          if (
+            !this.groupCallStateService.hasAnotherSocketInGroupCall(
+              userId,
+              conversationId,
+              client.id
+            )
+          ) {
             if (!userNameForCall) {
               userNameForCall = await this.getUserDisplayName(userId);
             }
-            await this.removeUserFromGroupCall(conversationId, userId, userNameForCall);
+            await this.groupCallStateService.removeUserFromGroupCall(
+              this.server,
+              conversationId,
+              userId,
+              userNameForCall
+            );
           }
         }
       }
 
-      socketGroupCalls.delete(client.id);
+      this.groupCallStateService.clearSocketGroupCalls(client.id);
 
-      if (userId && userSockets.has(userId)) {
-        const sockets = userSockets.get(userId)!;
-        sockets.delete(client.id);
+      if (userId && this.presenceService.unregister(userId, client.id)) {
+        // Update status to DEACTIVE and lastActive
+        const lastActive = new Date();
+        const account = await this.accountModel.findByIdAndUpdate(
+          userId,
+          {
+            status: 'DEACTIVE',
+            lastActive,
+          },
+          { new: true }
+        );
 
-        // Only update status to offline if no more connections for this user
-        if (sockets.size === 0) {
-          userSockets.delete(userId);
-
-          // Update status to DEACTIVE and lastActive
-          const lastActive = new Date();
-          const account = await this.accountModel.findByIdAndUpdate(
+        // Only broadcast offline status if user allows showing activity status
+        if (account?.showActivityStatus !== false) {
+          this.server.emit('user:offline', {
             userId,
-            {
-              status: 'DEACTIVE',
-              lastActive,
-            },
-            { new: true }
-          );
-
-          // Only broadcast offline status if user allows showing activity status
-          if (account?.showActivityStatus !== false) {
-            this.server.emit('user:offline', {
-              userId,
-              status: 'DEACTIVE',
-              lastActive,
-            });
-          }
-
-          this.logger.log(
-            `User ${userId} is now OFFLINE (showActivityStatus: ${account?.showActivityStatus})`
-          );
+            status: 'DEACTIVE',
+            lastActive,
+          });
         }
+
+        this.logger.log(
+          `User ${userId} is now OFFLINE (showActivityStatus: ${account?.showActivityStatus})`
+        );
       }
     } catch (error) {
       this.logger.error('Disconnect error:', error);
@@ -377,6 +233,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { conversationId: string },
     @ConnectedSocket() client: Socket
   ) {
+    const userId = client.data.userId as string | undefined;
+    if (
+      !userId ||
+      !(await this.conversationService.isUserInConversation(data.conversationId, userId))
+    ) {
+      return { success: false, error: 'Forbidden' };
+    }
     client.join(`room:${data.conversationId}`);
     return { success: true };
   }
@@ -385,79 +248,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('call:start')
   async handleCallStart(@MessageBody() data: CallPayload, @ConnectedSocket() client: Socket) {
-    const fromUserId = client.data.userId;
-
-    if (!fromUserId) {
-      return { success: false, reason: 'User not authenticated' };
-    }
-
-    if (await this.isRealtimeAccessDenied(fromUserId)) {
-      return { success: false, reason: 'Tài khoản đã bị khóa hoặc vô hiệu hóa' };
-    }
-
-    const blocked = await this.relationshipService.isUserBlocked(fromUserId, data.toUserId);
-    if (blocked) {
-      return {
-        success: false,
-        reason: 'Không thể gọi vì một trong hai bên đã chặn nhau',
-      };
-    }
-
-    // Tìm socket của người nhận
-    const recipientSockets = userSockets.get(data.toUserId);
-
-    // Lấy thông tin người gọi
-    const callerProfile = await this.getSenderProfile(fromUserId);
-
-    // Save pending call for reliability/refresh
-    pendingCalls.set(data.toUserId, {
-      fromUserId,
-      offer: data.offer,
-      conversationId: data.conversationId,
-      timestamp: Date.now(),
-      callType: data.callType || 'VIDEO',
-      answered: false,
-    });
-
-    if (recipientSockets && recipientSockets.size > 0) {
-      recipientSockets.forEach((socketId) => {
-        this.server.to(socketId).emit('call:incoming', {
-          fromUserId,
-          callerName: callerProfile.name,
-          callerAvatar: callerProfile.avatar,
-          offer: data.offer,
-          conversationId: data.conversationId,
-        });
-      });
-      // Báo lại cho người gọi là đã đổ chuông
-      return { success: true };
-    } else {
-      // Người nhận offline, vẫn giữ pending call một lúcเผื่อ online lại
-      return { success: false, reason: 'User offline (Calling...)' };
-    }
+    return this.callSignalingHandler.handleCallStart(this.server, client, data);
   }
 
   @SubscribeMessage('call:answer')
   async handleCallAnswer(@MessageBody() data: AnswerPayload, @ConnectedSocket() client: Socket) {
-    const fromUserId = client.data.userId; // Người nhận (Callee) trả lời
-
-    // Mark call as answered (keep pending for duration tracking)
-    const pending = pendingCalls.get(fromUserId);
-    if (pending) {
-      pending.answered = true;
-      pending.timestamp = Date.now(); // Reset timestamp to track call duration from answer
-    }
-
-    // Gửi answer lại cho người gọi (Caller)
-    const callerSockets = userSockets.get(data.toUserId);
-    if (callerSockets) {
-      callerSockets.forEach((socketId) => {
-        this.server.to(socketId).emit('call:accepted', {
-          fromUserId, // ID của người nhận
-          answer: data.answer,
-        });
-      });
-    }
+    return this.callSignalingHandler.handleCallAnswer(this.server, client, data);
   }
 
   @SubscribeMessage('call:ice-candidate')
@@ -465,17 +261,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: IceCandidatePayload,
     @ConnectedSocket() client: Socket
   ) {
-    const fromUserId = client.data.userId;
-
-    const targetSockets = userSockets.get(data.toUserId);
-    if (targetSockets) {
-      targetSockets.forEach((socketId) => {
-        this.server.to(socketId).emit('call:ice-candidate', {
-          fromUserId,
-          candidate: data.candidate,
-        });
-      });
-    }
+    return this.callSignalingHandler.handleIceCandidate(this.server, client, data);
   }
 
   @SubscribeMessage('call:end')
@@ -483,55 +269,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { toUserId: string; conversationId?: string },
     @ConnectedSocket() client: Socket
   ) {
-    const fromUserId = client.data.userId;
-    const targetSockets = userSockets.get(data.toUserId);
-
-    // Find the pending call to determine status and duration
-    const pendingAsCallee = pendingCalls.get(fromUserId); // callee rejects/ends
-    const pendingAsCaller = pendingCalls.get(data.toUserId); // caller cancels/ends
-    const pending = pendingAsCallee || pendingAsCaller;
-
-    // Remove pending calls
-    pendingCalls.delete(data.toUserId);
-    pendingCalls.delete(fromUserId);
-
-    if (targetSockets) {
-      targetSockets.forEach((socketId) => {
-        this.server.to(socketId).emit('call:ended', { fromUserId });
-      });
-    }
-
-    // Create call history message
-    const conversationId = data.conversationId || pending?.conversationId;
-    if (conversationId) {
-      try {
-        let callStatus: 'ANSWERED' | 'MISSED' | 'CANCELLED' = 'CANCELLED';
-        let duration = 0;
-        const callType = pending?.callType || 'VIDEO';
-
-        if (pending?.answered) {
-          callStatus = 'ANSWERED';
-          duration = Math.round((Date.now() - pending.timestamp) / 1000);
-        } else if (pendingAsCaller) {
-          // Caller cancelled before answer
-          callStatus = 'CANCELLED';
-        } else {
-          // Callee rejected or timeout
-          callStatus = 'MISSED';
-        }
-
-        await this.createCallMessage(
-          conversationId,
-          fromUserId,
-          callType,
-          callStatus,
-          duration,
-          false
-        );
-      } catch (err) {
-        this.logger.error('Failed to create call message:', err);
-      }
-    }
+    return this.callSignalingHandler.handleCallEnd(this.server, client, data);
   }
 
   // ============ GROUP VIDEO CALL ============
@@ -540,73 +278,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { conversationId: string; callType?: 'AUDIO' | 'VIDEO' },
     @ConnectedSocket() client: Socket
   ) {
-    const userId = client.data.userId;
-    if (!userId) {
-      return { success: false, error: 'User not authenticated', users: [] };
-    }
-
-    if (await this.isRealtimeAccessDenied(userId)) {
-      return { success: false, error: 'Tài khoản đã bị khóa hoặc vô hiệu hóa', users: [] };
-    }
-
-    const conversation = await this.conversationService.findById(data.conversationId);
-    if (!conversation) {
-      return { success: false, error: 'Conversation not found', users: [] };
-    }
-
-    const callerProfile = await this.getSenderProfile(userId);
-
-    const activeParticipants = this.cleanupStaleGroupParticipants(data.conversationId);
-    const starterAlreadyInCall = activeParticipants.has(userId);
-
-    // Track starter immediately so we can correctly finalize call history on leave/disconnect.
-    this.trackSocketGroupCall(client.id, data.conversationId);
-    activeParticipants.add(userId);
-
-    this.logger.log(
-      `[CALL] group-call:start conv=${data.conversationId}, user=${userId}, alreadyInCall=${starterAlreadyInCall}, participants=${Array.from(activeParticipants).join(',')}`
-    );
-
-    // Create a CALL message whenever starter is not currently in the active call set.
-    // This avoids stale participant states blocking new joinable call messages.
-    if (!starterAlreadyInCall) {
-      try {
-        await this.createCallMessage(
-          data.conversationId,
-          userId,
-          data.callType || 'VIDEO',
-          'ONGOING',
-          0,
-          true
-        );
-      } catch (err) {
-        this.logger.error('Failed to create group call message:', err);
-      }
-    }
-
-    // Notify only participants NOT already in the call
-    conversation.participants.forEach((p) => {
-      const pId = p.user._id.toString();
-      if (pId === userId) return; // Don't notify self
-      if (activeParticipants.has(pId)) return; // Don't notify users already in the call
-
-      const sockets = userSockets.get(pId);
-      if (sockets) {
-        sockets.forEach((sId) => {
-          this.server.to(sId).emit('group-call:incoming', {
-            conversationId: data.conversationId,
-            callerName: callerProfile.name,
-            callerAvatar: callerProfile.avatar,
-            fromUserId: userId,
-            isGroup: true,
-          });
-        });
-      }
-    });
-
-    // Return existing participants so starter can immediately create peers (merged start+join)
-    const participantsList = Array.from(activeParticipants).filter((id) => id !== userId);
-    return { success: true, users: participantsList };
+    return this.groupCallStateService.handleGroupCallStart(this.server, client, data);
   }
 
   @SubscribeMessage('group-call:join')
@@ -614,44 +286,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { conversationId: string },
     @ConnectedSocket() client: Socket
   ) {
-    const userId = client.data.userId;
-    if (!userId) {
-      return { success: false, users: [] };
-    }
-
-    if (await this.isRealtimeAccessDenied(userId)) {
-      return { success: false, users: [] };
-    }
-
-    const currentParticipants = this.cleanupStaleGroupParticipants(data.conversationId);
-    this.trackSocketGroupCall(client.id, data.conversationId);
-
-    if (currentParticipants) {
-      const alreadyJoined = currentParticipants.has(userId);
-
-      // Notify existing participants that a new user joined
-      if (!alreadyJoined) {
-        currentParticipants.forEach((pId) => {
-          if (pId === userId) return;
-          const sockets = userSockets.get(pId);
-          if (sockets) {
-            sockets.forEach((sId) => {
-              this.server.to(sId).emit('group-call:user-joined', { userId });
-            });
-          }
-        });
-      }
-
-      // Add current user
-      currentParticipants.add(userId);
-
-      // Return list of existing users to the joiner
-      // They will initiate P2P connections to these users
-      const participantsList = Array.from(currentParticipants).filter((id) => id !== userId);
-      return { success: true, users: participantsList };
-    }
-
-    return { success: false, users: [] };
+    return this.groupCallStateService.handleGroupCallJoin(this.server, client, data);
   }
 
   @SubscribeMessage('group-call:leave')
@@ -659,32 +294,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { conversationId: string },
     @ConnectedSocket() client: Socket
   ) {
-    const userId = client.data.userId;
-    if (!userId) return;
-
-    this.untrackSocketGroupCall(client.id, data.conversationId);
-
-    if (this.hasAnotherSocketInGroupCall(userId, data.conversationId, client.id)) {
-      return;
-    }
-
-    try {
-      const userName = await this.getUserDisplayName(userId);
-      await this.removeUserFromGroupCall(data.conversationId, userId, userName);
-    } catch (err) {
-      this.logger.error('Failed to process group call leave:', err);
-    }
+    return this.groupCallStateService.handleGroupCallLeave(this.server, client, data);
   }
 
   @SubscribeMessage('group-call:check')
-  async handleGroupCallCheck(@MessageBody() data: { conversationId: string }) {
-    const participants = this.cleanupStaleGroupParticipants(data.conversationId);
-    if (participants && participants.size > 0) {
-      return { active: true, participantCount: participants.size };
-    }
-
-    activeGroupCalls.delete(data.conversationId);
-    return { active: false, participantCount: 0 };
+  async handleGroupCallCheck(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    return this.groupCallStateService.handleGroupCallCheck(this.server, client, data);
   }
 
   @SubscribeMessage('call:signal')
@@ -693,77 +311,32 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket
   ) {
     const fromUserId = client.data.userId;
-    const targetSockets = userSockets.get(data.toUserId);
-    if (targetSockets) {
-      targetSockets.forEach((sId) => {
-        this.server.to(sId).emit('call:signal', {
-          fromUserId,
-          signal: data.signal,
-          conversationId: data.conversationId,
-        });
-      });
+    if (
+      !fromUserId ||
+      !(await this.conversationService.areUsersInConversation(data.conversationId, [
+        fromUserId,
+        data.toUserId,
+      ]))
+    ) {
+      return { success: false, error: 'Forbidden' };
     }
+    const targetSockets = this.presenceService.getSockets(data.toUserId);
+    targetSockets.forEach((sId) => {
+      this.server.to(sId).emit('call:signal', {
+        fromUserId,
+        signal: data.signal,
+        conversationId: data.conversationId,
+      });
+    });
   }
 
   // ============ LIVESTREAM SIGNALING ============
-  // Map to store broadcaster ID for each livestream
-  private livestreamBroadcasters = new Map<string, string>(); // postId -> broadcasterId
-  // Map to store viewer IDs for each livestream (manual tracking since adapter.rooms doesn't work reliably)
-  private livestreamViewers = new Map<string, Set<string>>(); // postId -> Set of viewer userIds
-
   @SubscribeMessage('livestream:join')
   async handleLivestreamJoin(
     @MessageBody() data: { postId: string; broadcasterId?: string },
     @ConnectedSocket() client: Socket
   ) {
-    const userId = client.data.userId;
-    const roomName = `livestream:${data.postId}`;
-    client.join(roomName);
-
-    // Check if this is the broadcaster joining (broadcasterId matches current user)
-    const isBroadcaster = data.broadcasterId && data.broadcasterId === userId;
-
-    if (isBroadcaster) {
-      // Store broadcaster ID for this livestream
-      this.livestreamBroadcasters.set(data.postId, userId);
-      // Initialize viewers set for this livestream
-      if (!this.livestreamViewers.has(data.postId)) {
-        this.livestreamViewers.set(data.postId, new Set());
-      }
-      this.logger.log(`[Livestream] Broadcaster ${userId} joined room ${data.postId}`);
-    } else {
-      // Add viewer to the set
-      if (!this.livestreamViewers.has(data.postId)) {
-        this.livestreamViewers.set(data.postId, new Set());
-      }
-      this.livestreamViewers.get(data.postId)!.add(userId);
-      this.logger.log(`[Livestream] Viewer ${userId} joined room ${data.postId}`);
-    }
-
-    // Get viewer count from our manual tracking
-    const viewerCount = this.livestreamViewers.get(data.postId)?.size || 0;
-
-    this.logger.log(`[Livestream] Room ${data.postId}: viewerCount=${viewerCount}`);
-
-    // Emit to entire room (including broadcaster)
-    this.server.to(roomName).emit('livestream:viewers', {
-      postId: data.postId,
-      count: viewerCount,
-    });
-
-    // Also emit directly to broadcaster's sockets to ensure they receive update
-    const broadcasterId = this.livestreamBroadcasters.get(data.postId);
-    if (broadcasterId) {
-      const broadcasterSockets = userSockets.get(broadcasterId);
-      if (broadcasterSockets) {
-        broadcasterSockets.forEach((socketId) => {
-          this.server.to(socketId).emit('livestream:viewers', {
-            postId: data.postId,
-            count: viewerCount,
-          });
-        });
-      }
-    }
+    return this.livestreamSignalingService.handleLivestreamJoin(this.server, client, data);
   }
 
   @SubscribeMessage('livestream:leave')
@@ -771,41 +344,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { postId: string; broadcasterId?: string },
     @ConnectedSocket() client: Socket
   ) {
-    const userId = client.data.userId;
-    const roomName = `livestream:${data.postId}`;
-    client.leave(roomName);
-
-    this.logger.log(`[Livestream] User ${userId} left room ${data.postId}`);
-
-    // Remove viewer from Set
-    if (this.livestreamViewers.has(data.postId)) {
-      this.livestreamViewers.get(data.postId)!.delete(userId);
-    }
-
-    // Get viewer count from our manual tracking
-    const viewerCount = this.livestreamViewers.get(data.postId)?.size || 0;
-
-    this.logger.log(`[Livestream] Room ${data.postId} after leave: viewerCount=${viewerCount}`);
-
-    // Emit to entire room
-    this.server.to(roomName).emit('livestream:viewers', {
-      postId: data.postId,
-      count: viewerCount,
-    });
-
-    // Also emit directly to broadcaster to ensure they receive update
-    const broadcasterId = this.livestreamBroadcasters.get(data.postId);
-    if (broadcasterId) {
-      const broadcasterSockets = userSockets.get(broadcasterId);
-      if (broadcasterSockets) {
-        broadcasterSockets.forEach((socketId) => {
-          this.server.to(socketId).emit('livestream:viewers', {
-            postId: data.postId,
-            count: viewerCount,
-          });
-        });
-      }
-    }
+    return this.livestreamSignalingService.handleLivestreamLeave(this.server, client, data);
   }
 
   @SubscribeMessage('livestream:signal')
@@ -813,18 +352,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { toUserId: string; signal: any; postId: string }, // Generic P2P signal
     @ConnectedSocket() client: Socket
   ) {
-    const fromUserId = client.data.userId;
-    const targetSockets = userSockets.get(data.toUserId);
-
-    if (targetSockets) {
-      targetSockets.forEach((sId) => {
-        this.server.to(sId).emit('livestream:signal', {
-          fromUserId,
-          signal: data.signal,
-          postId: data.postId,
-        });
-      });
-    }
+    return this.livestreamSignalingService.handleLivestreamSignal(this.server, client, data);
   }
 
   @SubscribeMessage('livestream:end')
@@ -832,15 +360,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { postId: string },
     @ConnectedSocket() client: Socket
   ) {
-    this.logger.log(`[Livestream] Ending livestream ${data.postId}`);
-
-    // Notify all viewers in the room
-    this.server.to(`livestream:${data.postId}`).emit('livestream:ended', { postId: data.postId });
-    // Clear room
-    this.server.in(`livestream:${data.postId}`).socketsLeave(`livestream:${data.postId}`);
-    // Cleanup broadcaster mapping
-    this.livestreamBroadcasters.delete(data.postId);
-    this.livestreamViewers.delete(data.postId);
+    return this.livestreamSignalingService.handleLivestreamEnd(this.server, client, data);
   }
 
   // ============ LIVESTREAM COMMENTS & REACTIONS ============
@@ -849,50 +369,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { postId: string; content: string },
     @ConnectedSocket() client: Socket
   ) {
-    const userId = client.data.userId;
-    if (!userId) {
-      return { success: false, error: 'User not authenticated' };
-    }
-
-    try {
-      // Fetch full user info for comment service and response
-      const user = await this.accountModel
-        .findById(userId)
-        .select('firstName lastName avatar _id username');
-      if (!user) {
-        return { success: false, error: 'User not found' };
-      }
-
-      // 1. Save to database
-      const savedComment = await this.commentService.create(
-        {
-          content: data.content,
-          postId: data.postId,
-        },
-        user // Pass full user object
-      );
-
-      // 2. Prepare payload for socket
-      const comment = {
-        id: savedComment._id.toString(), // Use DB ID
-        userId: userId,
-        userName: user.firstName ? `${user.firstName} ${user.lastName}` : user.username,
-        userAvatar: user.avatar,
-        content: data.content,
-        createdAt: savedComment.createdAt.toISOString(),
-      };
-
-      // 3. Broadcast to all viewers in livestream room
-      this.server.to(`livestream:${data.postId}`).emit('livestream:comment:new', {
-        postId: data.postId,
-        comment,
-      });
-
-      return { success: true, comment };
-    } catch (err) {
-      this.logger.error('Failed to send livestream comment', err);
-      return { success: false, error: err.message };
-    }
+    return this.livestreamSignalingService.handleLivestreamComment(this.server, client, data);
   }
 
   @SubscribeMessage('livestream:reaction')
@@ -900,69 +377,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { postId: string; emoji: string },
     @ConnectedSocket() client: Socket
   ) {
-    const userId = client.data.userId;
-    if (!userId) {
-      return { success: false, error: 'User not authenticated' };
-    }
-
-    try {
-      // Map emoji to ReactionType
-      const emojiMap: Record<string, string> = {
-        '👍': 'LIKE',
-        '❤️': 'LOVE',
-        '😂': 'HAHA',
-        '😯': 'WOW',
-        '😢': 'SAD',
-        '😡': 'ANGRY',
-      };
-      const reactionType = emojiMap[data.emoji] || 'LIKE';
-
-      // Fetch user info for reaction service (notification logic needs firstName/lastName)
-      const user = await this.accountModel.findById(userId).select('firstName lastName avatar _id');
-      if (!user) {
-        return { success: false, error: 'User not found' };
-      }
-
-      // 1. Save reaction to DB (toggle)
-      const result = await this.reactionService.toggleReaction(
-        {
-          type: reactionType as any,
-          factorId: data.postId,
-          typeFactor: TypeFactor.POST,
-        },
-        user
-      );
-
-      // Only emit if added or moved (not removed) - though for livestream we might want to show flying hearts even if toggled off
-      // But standard logic is persistent state.
-      // For floating animations, we might want to emit anyway.
-
-      const reaction = {
-        id: `${Date.now()}`, // Floating reaction doesn't need persistent ID for animation
-        userId,
-        emoji: data.emoji,
-        createdAt: new Date().toISOString(),
-        action: result.action,
-      };
-
-      // 2. Broadcast to all viewers in livestream room
-      this.server.to(`livestream:${data.postId}`).emit('livestream:reaction:new', {
-        postId: data.postId,
-        reaction,
-      });
-
-      // 3. Global broadcast for Feed reaction counters
-      this.server.emit('post:reaction:update', {
-        postId: data.postId,
-        action: result.action,
-        reactionType,
-      });
-
-      return { success: true, reaction };
-    } catch (err) {
-      this.logger.error('Failed to send livestream reaction', err);
-      return { success: false, error: err.message };
-    }
+    return this.livestreamSignalingService.handleLivestreamReaction(this.server, client, data);
   }
 
   @SubscribeMessage('livestream:viewer-count')
@@ -970,17 +385,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { postId: string },
     @ConnectedSocket() client: Socket
   ) {
-    try {
-      const roomName = `livestream:${data.postId}`;
-
-      // Get viewer count from our manual tracking
-      const viewerCount = this.livestreamViewers.get(data.postId)?.size || 0;
-
-      return { success: true, viewerCount };
-    } catch (err) {
-      this.logger.error('[Livestream] Error in viewer-count:', err);
-      return { success: false, viewerCount: 0 };
-    }
+    return this.livestreamSignalingService.handleLivestreamViewerCount(this.server, client, data);
   }
 
   // ============ ACTIVITY STATUS TOGGLE ============
@@ -1032,6 +437,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const userId = client.data.userId;
     if (!userId) return;
+    if (!(await this.conversationService.isUserInConversation(data.conversationId, userId))) {
+      return;
+    }
 
     // Emit typing event to all users in the conversation except sender
     client.to(`room:${data.conversationId}`).emit('typing:start', {
@@ -1047,6 +455,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const userId = client.data.userId;
     if (!userId) return;
+    if (!(await this.conversationService.isUserInConversation(data.conversationId, userId))) {
+      return;
+    }
 
     client.to(`room:${data.conversationId}`).emit('typing:stop', {
       conversationId: data.conversationId,
@@ -1071,7 +482,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       // Kiểm tra user có bị kick hoặc left trước khi cho gửi message
-      const conversation = await this.conversationService.findById(data.conversationId.toString());
+      const conversation = await this.conversationService.findById(
+        data.conversationId.toString(),
+        userId
+      );
 
       const senderParticipant = conversation.participants.find(
         (p) => p.user._id.toString() === userId.toString()
@@ -1104,7 +518,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
       }
 
-      const savedMessage = await this.chatService.sendMessage(data);
+      const savedMessage = await this.chatService.sendMessage(data, userId);
 
       if (!savedMessage) {
         return { success: false, error: 'Failed to save message' };
@@ -1134,13 +548,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .filter((p) => {
           const participantId = p.user._id.toString();
           if (participantId === userId) return false; // Skip sender
-          const participantSockets = userSockets.get(participantId);
-          return !participantSockets || participantSockets.size === 0; // Only offline users
+          return !this.presenceService.isOnline(participantId); // Only offline users
         })
         .map((p) => p.user._id.toString());
 
       // Emit to RabbitMQ with all necessary data
-      this.rabbitMQService.emit('chat.message.created', {
+      const eventId = randomUUID();
+      const messageCreatedRecord = new RmqRecordBuilder({
         messageId: savedMessage._id.toString(),
         conversationId: data.conversationId.toString(),
         senderId: userId,
@@ -1156,7 +570,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         participantIds: offlineParticipantIds,
         senderName: senderProfile.name,
         senderAvatar: senderProfile.avatar,
-      });
+      })
+        .setOptions({
+          persistent: true,
+          headers: { 'x-event-id': eventId },
+        })
+        .build();
+
+      try {
+        await lastValueFrom(
+          this.rabbitMQService.emit('chat.message.created', messageCreatedRecord).pipe(timeout(5000)),
+          { defaultValue: undefined }
+        );
+      } catch (publishError) {
+        this.logger.error(
+          `Failed to publish chat.message.created for message ${savedMessage._id.toString()}`,
+          publishError as Error
+        );
+        client.emit('message:error', {
+          messageId: savedMessage._id.toString(),
+          conversationId: data.conversationId.toString(),
+          error: 'Không thể chuyển tin nhắn sang bộ xử lý sự kiện',
+        });
+      }
 
       // Log for debugging
       if (isChatbotConversation || isChatbotMentioned) {
@@ -1171,7 +607,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         );
       }
 
-      return { success: true, message: savedMessage };
+      return {
+        success: true,
+        message: {
+          ...savedMessage.toObject(),
+          ...(typeof (data as any)?.tempId === 'string' ? { tempId: (data as any).tempId } : {}),
+        },
+      };
     } catch (err) {
       this.logger.error('Failed to save message', err);
       return { success: false, error: 'Failed to save message' };
@@ -1189,6 +631,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const messageToEmit = {
       ...savedMessage.toObject(),
       conversationId: data.conversationId.toString(),
+      ...(typeof (data as any)?.tempId === 'string' ? { tempId: (data as any).tempId } : {}),
     };
 
     // Chỉ emit message cho những participants chưa bị kick/left
@@ -1222,13 +665,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     activeParticipants.forEach(async (participant) => {
       const participantId = participant.user._id.toString();
-      const participantSockets = userSockets.get(participantId);
+      const participantSockets = this.presenceService.getSockets(participantId);
       const messageWithMutedAndUnread = {
         ...messageWithUnread,
         isMuted: conversation.mutedBy.includes(participantId) ? true : false,
       };
 
-      if (participantSockets && participantSockets.size > 0) {
+      if (participantSockets.size > 0) {
         participantSockets.forEach((socketId) => {
           this.server.to(socketId).emit('message:new', messageWithMutedAndUnread);
         });
@@ -1243,9 +686,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Also emit conversation:unread:updated for backward compatibility with conversation list
     activeParticipants.forEach((participant) => {
       const participantId = participant.user._id.toString();
-      const participantSockets = userSockets.get(participantId);
+      const participantSockets = this.presenceService.getSockets(participantId);
 
-      if (participantSockets && participantSockets.size > 0) {
+      if (participantSockets.size > 0) {
         participantSockets.forEach((socketId) => {
           this.server.to(socketId).emit('conversation:unread:updated', {
             conversationId: data.conversationId.toString(),
@@ -1278,7 +721,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userId,
         data.content
       );
-      this.server.to(`room:${data.conversationId}`).emit('message:edited', updatedMessage);
+      this.server
+        .to(`room:${updatedMessage!.conversationId.toString()}`)
+        .emit('message:edited', updatedMessage);
       return { success: true, message: updatedMessage };
     } catch (err) {
       this.logger.error('Failed to edit message', err);
@@ -1304,7 +749,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         data.emotionType
       );
       this.server
-        .to(`room:${data.conversationId}`)
+        .to(`room:${updatedMessage!.conversationId.toString()}`)
         .emit('message:reaction:updated', updatedMessage);
       return { success: true, message: updatedMessage };
     } catch (err) {
@@ -1327,7 +772,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const updatedMessage = await this.chatService.removeReaction(data.messageId, userId);
       this.server
-        .to(`room:${data.conversationId}`)
+        .to(`room:${updatedMessage!.conversationId.toString()}`)
         .emit('message:reaction:updated', updatedMessage);
       return { success: true, message: updatedMessage };
     } catch (err) {
@@ -1351,7 +796,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const deletedMessage = await this.chatService.deleteMessage(data.messageId, userId);
       // Xóa media liên quan nếu có
 
-      this.server.to(`room:${data.conversationId}`).emit('message:deleted', deletedMessage);
+      this.server
+        .to(`room:${deletedMessage!.conversationId.toString()}`)
+        .emit('message:deleted', deletedMessage);
       return { success: true, message: deletedMessage };
     } catch (err) {
       this.logger.error('Failed to delete message', err);
@@ -1398,153 +845,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return profile.name || 'Ai đó';
   }
 
-  // Helper: Create a CALL type message and emit to room
-  private async createCallMessage(
-    conversationId: string,
-    senderId: string,
-    callType: 'AUDIO' | 'VIDEO',
-    callStatus: 'ANSWERED' | 'MISSED' | 'CANCELLED' | 'ONGOING',
-    duration: number,
-    isGroup: boolean
+  // Tạo cuộc trò chuyện DIRECT (dùng khi trả lời story mà chưa có cuộc trò chuyện)
+  @SubscribeMessage('createConversation')
+  async handleCreateConversation(
+    @MessageBody() data: { participantId: string },
+    @ConnectedSocket() client: Socket
   ) {
-    const senderName = await this.getUserDisplayName(senderId);
-    this.logger.log(
-      `[CALL] Creating call message: conv=${conversationId}, sender=${senderId}, type=${callType}, status=${callStatus}, isGroup=${isGroup}`
-    );
-
-    const savedMessage = await this.chatService.sendMessage({
-      conversationId: new Types.ObjectId(conversationId) as any,
-      senderId: new Types.ObjectId(senderId) as any,
-      type: MessageType.CALL,
-      content: `${senderName} đã gọi 1 cuộc gọi`,
-      callData: { callType, callStatus, duration, isGroup },
-    });
-
-    if (!savedMessage) {
-      this.logger.error(`[CALL] sendMessage returned null for conv=${conversationId}`);
-      return;
+    const userId = client.data.userId;
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
     }
 
-    this.logger.log(`[CALL] Message saved: id=${savedMessage._id}, conv=${conversationId}`);
-
-    const messageToEmit = {
-      ...savedMessage.toObject(),
-      conversationId: conversationId,
-    };
-
-    // Try to increment unread count (non-blocking for emit)
-    let unreadCount: Record<string, number> | undefined;
     try {
-      const updatedUnreadCount = await this.conversationService.incrementUnreadCount(
-        conversationId,
-        senderId
+      const conversation = await this.conversationService.findOrCreateDirectConversation(
+        userId,
+        data.participantId
       );
-      unreadCount = updatedUnreadCount?.unreadCount;
+      return { success: true, conversationId: conversation._id.toString() };
     } catch (err) {
-      this.logger.error(`[CALL] incrementUnreadCount failed: ${err.message}`);
-    }
-
-    const messageWithUnread = {
-      ...messageToEmit,
-      _unreadCount: unreadCount,
-    };
-
-    // Emit to individual sockets of all active participants
-    try {
-      const conversation = await this.conversationService.findById(conversationId);
-      if (conversation && conversation.participants) {
-        const activeParticipants = conversation.participants.filter(
-          (p) => !p.kickedAt && !p.leftAt
-        );
-        this.logger.log(`[CALL] Emitting message:new to ${activeParticipants.length} participants`);
-
-        activeParticipants.forEach((participant) => {
-          const participantId = participant.user?._id?.toString();
-          if (!participantId) return;
-          const participantSockets = userSockets.get(participantId);
-          if (participantSockets && participantSockets.size > 0) {
-            participantSockets.forEach((socketId) => {
-              this.server.to(socketId).emit('message:new', messageWithUnread);
-            });
-          }
-        });
-      } else {
-        this.logger.warn(
-          `[CALL] Conversation not found or no participants, falling back to room emit`
-        );
-      }
-    } catch (err) {
-      this.logger.error(`[CALL] Error emitting to individual sockets: ${err.message}`);
-    }
-
-    // Always also emit to Socket.IO room as a reliable fallback
-    this.server.to(`room:${conversationId}`).emit('message:new', messageWithUnread);
-
-    // Update lastMessage (non-blocking)
-    try {
-      await this.conversationService.updateLastMessage(conversationId, savedMessage._id.toString());
-    } catch (err) {
-      this.logger.error(`[CALL] updateLastMessage failed: ${err.message}`);
-    }
-  }
-
-  // Helper: Update ONGOING group call message to ANSWERED with duration
-  private async finalizeGroupCallMessage(conversationId: string) {
-    try {
-      const lastCallMsg = await this.chatService.findLastCallMessage(conversationId);
-      if (!lastCallMsg) {
-        this.logger.log(`[CALL] No ONGOING call message to finalize for conv=${conversationId}`);
-        return;
-      }
-
-      if (!lastCallMsg.callData) {
-        this.logger.log(`[CALL] lastCallMsg has no callData for conv=${conversationId}`);
-        return;
-      }
-
-      const duration = Math.round((Date.now() - new Date(lastCallMsg.createdAt).getTime()) / 1000);
-      lastCallMsg.callData.callStatus = 'ANSWERED';
-      lastCallMsg.callData.duration = duration;
-      await lastCallMsg.save();
-      this.logger.log(
-        `[CALL] Finalized call message: id=${lastCallMsg._id}, duration=${duration}s`
-      );
-
-      // Fetch populated message for emit
-      const updatedMessage = await this.chatService.findMessageById(lastCallMsg._id.toString());
-      if (updatedMessage) {
-        const messageToEmit = {
-          ...updatedMessage.toObject(),
-          conversationId: conversationId,
-        };
-
-        // Emit to room so all clients in the conversation see the update
-        this.server.to(`room:${conversationId}`).emit('message:call:updated', messageToEmit);
-
-        // Also emit to individual sockets for clients that might not be in the room
-        try {
-          const conversation = await this.conversationService.findById(conversationId);
-          if (conversation && conversation.participants) {
-            const activeParticipants = conversation.participants.filter(
-              (p) => !p.kickedAt && !p.leftAt
-            );
-            activeParticipants.forEach((participant) => {
-              const participantId = participant.user?._id?.toString();
-              if (!participantId) return;
-              const participantSockets = userSockets.get(participantId);
-              if (participantSockets && participantSockets.size > 0) {
-                participantSockets.forEach((socketId) => {
-                  this.server.to(socketId).emit('message:call:updated', messageToEmit);
-                });
-              }
-            });
-          }
-        } catch (err) {
-          this.logger.error(`[CALL] Error emitting finalize to individual sockets: ${err.message}`);
-        }
-      }
-    } catch (err) {
-      this.logger.error(`[CALL] finalizeGroupCallMessage error: ${err.message}`);
+      this.logger.error('Failed to create direct conversation', err);
+      return { success: false, error: err.message };
     }
   }
 
@@ -1566,6 +886,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         data.emoji
       );
       this.server.to(`room:${data.conversationId}`).emit('conversation:updated', updated);
+      this.server.to(`room:${data.conversationId}`).emit('conversation:quick-reaction:updated', {
+        conversationId: data.conversationId,
+        quickReaction: updated?.quickReaction,
+      });
 
       // Send system message
       const userName = await this.getUserDisplayName(userId);
@@ -1758,8 +1082,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       // Join new member vào room
-      const newUserSockets = userSockets.get(data.newUserId);
-      if (newUserSockets && newUserSockets.size > 0) {
+      const newUserSockets = this.presenceService.getSockets(data.newUserId);
+      if (newUserSockets.size > 0) {
         newUserSockets.forEach((socketId) => {
           const socket = this.server.sockets.sockets?.get(socketId);
           if (socket) {
@@ -1810,8 +1134,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       // Remove kicked member khỏi room
-      const kickedUserSockets = userSockets.get(data.targetUserId);
-      if (kickedUserSockets && kickedUserSockets.size > 0) {
+      const kickedUserSockets = this.presenceService.getSockets(data.targetUserId);
+      if (kickedUserSockets.size > 0) {
         kickedUserSockets.forEach((socketId) => {
           const socket = this.server.sockets.sockets?.get(socketId);
           if (socket) {
@@ -1971,8 +1295,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Join all members vào room nếu online
       for (const memberId of data.memberIds) {
-        const memberSockets = userSockets.get(memberId);
-        if (memberSockets && memberSockets.size > 0) {
+        const memberSockets = this.presenceService.getSockets(memberId);
+        if (memberSockets.size > 0) {
           memberSockets.forEach((socketId) => {
             const socket = this.server.sockets.sockets?.get(socketId);
             if (socket) {
@@ -2027,7 +1351,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
     }
 
-    const isOnline = userSockets.has(data.userId) && userSockets.get(data.userId)!.size > 0;
+    const isOnline = this.presenceService.isOnline(data.userId);
 
     return {
       userId: data.userId,
@@ -2040,7 +1364,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // Get list of online users (excludes users who hide activity status)
   @SubscribeMessage('users:online')
   async handleGetOnlineUsers(@ConnectedSocket() client: Socket) {
-    const onlineUserIds = Array.from(userSockets.keys());
+    const onlineUserIds = this.presenceService.getOnlineUserIds();
 
     // Filter out users who have hidden activity status
     const users = await this.accountModel
@@ -2092,7 +1416,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // Mark messages as read when user views conversation
   @SubscribeMessage('message:read')
-  async handleMarkAsRead(@MessageBody() rawData: any, @ConnectedSocket() client: Socket) {
+  async handleMarkAsRead(
+    @MessageBody() rawData: any,
+    @ConnectedSocket() client: Socket
+  ): Promise<Record<string, unknown>> {
     const userId = client.data.userId;
     if (!userId) {
       return { success: false, error: 'User not authenticated' };
@@ -2111,6 +1438,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       // Mark messages as read (with optional messageId for cursor)
       const result = await this.chatService.markAsRead(data.conversationId, userId, data.messageId);
+
+      if (result.modifiedCount !== 1) {
+        return { success: true, ...result };
+      }
 
       // Reset unread count for this user
       const conversationUpdated = await this.conversationService.resetUnreadCount(
@@ -2131,20 +1462,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           }
         : null;
 
+      const persistedConversationId =
+        (result.readStatus?.conversationId as string | undefined) || data.conversationId;
+
       // CRITICAL: Only emit to OTHER users in the conversation, NOT to the user who updated their cursor
       // This prevents the user from seeing their own read status in the UI
-      this.server.to(`room:${data.conversationId}`).except(client.id).emit('message:read:updated', {
-        conversationId: data.conversationId,
-        readBy: readByUser,
-        readByUserId: userId, // Keep userId for backward compatibility
-        modifiedCount: result.modifiedCount,
-        lastReadMessageId: result.lastReadMessageId, // New field for cursor Logic
-        readStatus: result.readStatus, // Full status object
-      });
+      this.server
+        .to(`room:${persistedConversationId}`)
+        .except(client.id)
+        .emit('message:read:updated', {
+          conversationId: persistedConversationId,
+          readBy: readByUser,
+          readByUserId: userId, // Keep userId for backward compatibility
+          modifiedCount: result.modifiedCount,
+          lastReadMessageId: result.lastReadMessageId, // New field for cursor Logic
+          readStatus: result.readStatus, // Full status object
+        });
 
       // Also emit unread reset for conversation list update
-      this.server.to(`room:${data.conversationId}`).emit('conversation:unread:reset', {
-        conversationId: data.conversationId,
+      this.server.to(`room:${persistedConversationId}`).emit('conversation:unread:reset', {
+        conversationId: persistedConversationId,
         unreadCount: conversationUpdated.unreadCount,
       });
 
@@ -2160,14 +1497,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleGetReadStatus(
     @MessageBody() data: { conversationId: string },
     @ConnectedSocket() client: Socket
-  ) {
+  ): Promise<Record<string, unknown>> {
     const userId = client.data.userId;
     if (!userId) {
       return { success: false, error: 'User not authenticated' };
     }
 
     try {
-      const result = await this.chatService.getReadStatus(data.conversationId);
+      const result = await this.chatService.getReadStatus(data.conversationId, userId);
       return { success: true, lastMessage: result };
     } catch (err) {
       return { success: false, error: err.message };

@@ -8,10 +8,13 @@ interface PostStore {
   updatePost: (postId: string, updatedPost: Partial<PostType>) => void;
   deletePost: (postId: string) => void;
   incrementShareCount: (postId: string) => void;
+  reset: () => void;
 }
 
 export const usePostStore = create<PostStore>((set) => ({
   posts: [],
+
+  reset: () => set({ posts: [] }),
 
   setPosts: (posts) => set({ posts }),
 

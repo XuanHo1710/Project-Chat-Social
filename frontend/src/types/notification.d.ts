@@ -50,6 +50,8 @@ export interface Notification {
   createdAt: string;
   updatedAt: string;
   typeReaction?: string;
+  templateKey?: string;
+  templateParams?: Record<string, string | number>;
 }
 
 export interface NotificationResponse {

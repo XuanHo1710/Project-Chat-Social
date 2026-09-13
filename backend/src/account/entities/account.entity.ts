@@ -1,10 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose, { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 export type AccountDocument = HydratedDocument<Account>;
 
 @Schema({ timestamps: true })
 export class Account {
-  _id: mongoose.Schema.Types.ObjectId;
+  _id: Types.ObjectId;
   // Thông tin cho profile của người dùng
   @Prop()
   firstName: string;
@@ -12,7 +12,7 @@ export class Account {
   @Prop()
   lastName: string;
 
-  @Prop()
+  @Prop({ lowercase: true, trim: true, sparse: true, unique: true })
   email: string;
 
   @Prop({ sparse: true, unique: true })
@@ -34,7 +34,7 @@ export class Account {
         code: { type: Number, required: true },
         name: { type: String, required: true },
       },
-      detailAddress: { type: String, required: true },
+      detailAddress: { type: String, default: '' },
       isDefault: { type: Boolean, default: false },
     },
   ])
@@ -63,28 +63,31 @@ export class Account {
   @Prop()
   birthday?: Date;
 
-  @Prop()
+  @Prop({ select: false })
   resetPasswordToken?: string;
 
-  @Prop()
+  @Prop({ select: false })
   resetPasswordExpires?: Date;
 
   // Thông tin cơ bản cho account
 
-  @Prop({ unique: true })
+  @Prop({ unique: true, trim: true })
   username: string;
 
-  @Prop()
+  @Prop({ select: false })
   password: string;
+
+  @Prop({ default: 0, select: false })
+  authVersion: number;
 
   @Prop({ enum: ['USER', 'ADMIN', 'EMPLOYEE', 'BOT'], default: 'USER' })
   role: string; //USER, ADMIN, EMPLOYEE
 
-  @Prop()
+  @Prop({ select: false })
   accessToken: string;
 
   // Google OAuth fields
-  @Prop()
+  @Prop({ select: false })
   googleId?: string;
 
   @Prop({ enum: ['LOCAL', 'GOOGLE'], default: 'LOCAL' })
@@ -105,6 +108,12 @@ export class Account {
   @Prop()
   expireBlockAt: Date;
 
+  @Prop()
+  blockedAt: Date;
+
+  @Prop({ maxlength: 500 })
+  blockReason: string;
+
   @Prop({ default: true })
   isActive: boolean; // Người dùng có thể deactive tài khoản nếu muốn
 
@@ -121,7 +130,7 @@ export class Account {
   createdAt: Date;
 
   @Prop()
-  updatedAt: Array<Date>;
+  updatedAt: Date;
 
   @Prop({ default: false })
   isDeleted: boolean;
@@ -133,19 +142,26 @@ export class Account {
   loginCount: number; // Tổng số lần đăng nhập
 
   // Lịch sử đăng nhập để thống kê traffic
-  @Prop([
-    {
-      date: { type: Date, required: true },
-      count: { type: Number, default: 1 },
-    },
-  ])
+  @Prop({
+    type: [
+      {
+        date: { type: Date, required: true },
+        count: { type: Number, default: 1 },
+      },
+    ],
+    select: false,
+  })
   loginHistory: Array<{
     date: Date;
     count: number;
   }>;
 
-  @Prop({ type: [String], default: [] })
+  @Prop({ type: [String], default: [], select: false })
   fcmTokens: string[]; // Lưu các FCM tokens của thiết bị người dùng
 }
 
 export const AccountSchema = SchemaFactory.createForClass(Account);
+
+AccountSchema.index({ isActive: 1, isDeleted: 1, role: 1 });
+AccountSchema.index({ status: 1, lastActive: -1 });
+AccountSchema.index({ username: 'text', email: 'text', firstName: 'text', lastName: 'text' });

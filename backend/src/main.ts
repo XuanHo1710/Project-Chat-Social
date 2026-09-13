@@ -1,11 +1,13 @@
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, VersioningType, ConsoleLogger } from '@nestjs/common';
+import { ValidationPipe, VersioningType, ConsoleLogger, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from 'core/exception.filter';
 import { TransformInterceptor } from 'core/transform.interceptor';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { validateCorsOrigin } from './common/config/cors.config';
+import helmet from 'helmet';
 
 
 async function bootstrap() {
@@ -35,36 +37,49 @@ async function bootstrap() {
       transport: Transport.RMQ,
       options: {
         urls: [rabbitmqUrl],
-        queue: 'backend_queue', // Queue for receiving events from RabbitMQ consumer
+        queue: configService.get<string>('RABBITMQ_BACKEND_QUEUE') || 'backend_queue',
         queueOptions: {
           durable: true,
         },
         noAck: false, // Enable manual acknowledgment
+        prefetchCount: 1,
       },
     });
 
     // Start microservice listeners
     await app.startAllMicroservices();
-    console.log('✅ RabbitMQ microservice listener started on backend_queue');
+    Logger.log('✅ RabbitMQ microservice listener started on backend_queue', 'Bootstrap');
   }
 
   // Config CORS
   app.enableCors({
-    origin: true,
+    origin: validateCorsOrigin,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     preflightContinue: false,
     credentials: true,
   });
 
-  app.useGlobalPipes(new ValidationPipe());
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
-  // app.useGlobalGuards(new JwtAuthGuard(reflector));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      forbidUnknownValues: true,
+      transformOptions: { enableImplicitConversion: false },
+    })
+  );
 
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new TransformInterceptor(reflector));
 
-  //Cookies
-  // app.use(cookieParser());
+  app.use(cookieParser());
 
   app.setGlobalPrefix('api');
   app.enableVersioning({
@@ -72,6 +87,10 @@ async function bootstrap() {
     defaultVersion: ['1', '2'],
   });
 
-  await app.listen(configService.get('PORT') as string);
+  await app.listen(Number(configService.get<string>('PORT') || 8080));
 }
-bootstrap();
+void bootstrap().catch((error: unknown) => {
+  const message = error instanceof Error ? error.stack || error.message : String(error);
+  Logger.error(message, 'Bootstrap');
+  process.exitCode = 1;
+});

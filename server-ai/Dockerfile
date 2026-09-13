@@ -4,7 +4,7 @@ WORKDIR /app
 
 ARG EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 ENV EMBEDDING_MODEL=${EMBEDDING_MODEL}
-ENV HF_HOME=/root/.cache/huggingface
+ENV HF_HOME=/home/app/.cache/huggingface
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -22,13 +22,17 @@ RUN pip install --no-cache-dir --timeout=120 \
 # Install remaining dependencies
 RUN pip install --no-cache-dir --timeout=120 -r requirements.txt
 
+RUN groupadd --system app && useradd --system --gid app --create-home app \
+    && mkdir -p /home/app/.cache/huggingface /app/logs \
+    && chown -R app:app /home/app /app
+
+USER app
+
 # Pre-download embedding model used by runtime to reduce cold start delays.
 RUN python -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.getenv('EMBEDDING_MODEL', 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'))"
 
 # Copy app code
-COPY . .
-
-RUN mkdir -p logs
+COPY --chown=app:app . .
 
 EXPOSE 8000
 

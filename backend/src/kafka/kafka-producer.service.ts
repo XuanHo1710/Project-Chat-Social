@@ -1,5 +1,7 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
+import { randomUUID } from 'crypto';
+import { lastValueFrom } from 'rxjs';
 
 export enum InteractionType {
   POST_VIEW = 'POST_VIEW',
@@ -24,6 +26,7 @@ export enum PostEventType {
 }
 
 export interface UserInteractionEvent {
+  eventId?: string;
   userId: string;
   interactionType: InteractionType;
   targetId?: string;
@@ -40,6 +43,7 @@ export interface UserInteractionEvent {
 }
 
 export interface PostEvent {
+  eventId?: string;
   eventType: PostEventType;
   postId: string;
   authorId: string;
@@ -64,6 +68,11 @@ export interface PostEvent {
 export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger('KafkaProducer');
   private isConnected = false;
+  private isConnecting = false;
+  private isDestroyed = false;
+  private reconnectAttempts = 0;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private readonly maxReconnectDelayMs = 30_000;
 
   constructor(
     @Inject('KAFKA_SERVICE')
@@ -71,21 +80,60 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit() {
-    try {
-      await this.kafkaClient.connect();
-      this.isConnected = true;
-      this.logger.log('✅ Connected to Kafka broker');
-    } catch (error: any) {
-      this.logger.warn('⚠️ Failed to connect to Kafka, events will be skipped:', error.message);
-      this.isConnected = false;
-    }
+    await this.tryConnect();
   }
 
   async onModuleDestroy() {
+    this.isDestroyed = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.isConnected) {
       await this.kafkaClient.close();
       this.logger.log('Disconnected from Kafka');
     }
+  }
+
+  private async tryConnect(): Promise<void> {
+    if (this.isConnected || this.isConnecting || this.isDestroyed) return;
+    this.isConnecting = true;
+    try {
+      await this.kafkaClient.connect();
+      this.isConnected = true;
+      this.reconnectAttempts = 0;
+      this.logger.log('✅ Connected to Kafka broker');
+    } catch (error: any) {
+      this.isConnected = false;
+      this.logger.warn(`⚠️ Failed to connect to Kafka, will retry: ${error?.message ?? error}`);
+      this.scheduleReconnect();
+    } finally {
+      this.isConnecting = false;
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.isDestroyed || this.isConnected || this.reconnectTimer) return;
+    const delayMs = Math.min(
+      this.maxReconnectDelayMs,
+      1000 * 2 ** Math.min(this.reconnectAttempts, 5)
+    );
+    this.reconnectAttempts += 1;
+    this.logger.warn(
+      `Retrying Kafka connection in ${delayMs}ms (attempt ${this.reconnectAttempts})`
+    );
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.tryConnect();
+    }, delayMs);
+    this.reconnectTimer.unref();
+  }
+
+  private handleSendFailure(scope: string, error: unknown): void {
+    this.isConnected = false;
+    const message = error instanceof Error ? error.message : String(error);
+    this.logger.warn(`⚠️ Kafka send failed (${scope}), scheduling reconnect: ${message}`);
+    this.scheduleReconnect();
   }
 
   /**
@@ -93,18 +141,21 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
    */
   async emitPostEvent(event: PostEvent): Promise<void> {
     if (!this.isConnected) {
-      this.logger.debug('Kafka not connected, skipping post event');
-      return;
+      this.scheduleReconnect();
+      throw new Error('Kafka is not connected');
     }
 
     try {
-      this.kafkaClient.emit('post-events', {
+      const eventId = event.eventId || randomUUID();
+      await lastValueFrom(this.kafkaClient.emit('post-events', {
         key: event.postId, // Partition by postId
-        value: event,
-      });
+        value: { ...event, eventId },
+        headers: { 'x-event-id': eventId },
+      }), { defaultValue: undefined });
       this.logger.debug(`Emitted post event: ${event.eventType} for post ${event.postId}`);
     } catch (error) {
-      this.logger.error('Error emitting post event:', error);
+      this.handleSendFailure(`post event ${event.eventType} for ${event.postId}`, error);
+      throw error;
     }
   }
 
@@ -113,18 +164,24 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
    */
   async emitInteractionEvent(event: UserInteractionEvent): Promise<void> {
     if (!this.isConnected) {
-      this.logger.debug('Kafka not connected, skipping interaction event');
-      return;
+      this.scheduleReconnect();
+      throw new Error('Kafka is not connected');
     }
 
     try {
-      this.kafkaClient.emit('user-interactions', {
+      const eventId = event.eventId || randomUUID();
+      await lastValueFrom(this.kafkaClient.emit('user-interactions', {
         key: event.userId, // Partition by userId
-        value: event,
-      });
+        value: { ...event, eventId },
+        headers: { 'x-event-id': eventId },
+      }), { defaultValue: undefined });
       this.logger.debug(`Emitted interaction: ${event.interactionType} by ${event.userId}`);
     } catch (error) {
-      this.logger.error('Error emitting interaction event:', error);
+      this.handleSendFailure(
+        `interaction ${event.interactionType} by ${event.userId}`,
+        error
+      );
+      throw error;
     }
   }
 

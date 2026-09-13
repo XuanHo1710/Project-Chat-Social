@@ -1,4 +1,4 @@
-import axios from "@/config/axios";
+import axios, { unwrap } from "@/config/axios";
 import {
   AccountCardFriendType,
   AccountType,
@@ -23,7 +23,7 @@ class AccountService {
     const response = await axios.get<
       APIResponse<PageResponse<AccountCardFriendType>>
     >(`/${PREFIX}`, { params });
-    return response.data.data;
+    return unwrap<PageResponse<AccountCardFriendType>>(response.data);
   }
 
   async updateFMCToken(token: string): Promise<{ message: string }> {
@@ -31,7 +31,7 @@ class AccountService {
       `/${PREFIX}/fcm-token`,
       { token },
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async removeFMCToken(token: string): Promise<{ message: string }> {
@@ -39,14 +39,14 @@ class AccountService {
       `/${PREFIX}/fcm-token`,
       { data: { token } },
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async getAccountById(id: string): Promise<AccountType> {
     const response = await axios.get<APIResponse<AccountType>>(
       `/${PREFIX}/${id}`,
     );
-    return response.data.data;
+    return unwrap<AccountType>(response.data);
   }
 
   // Get profile by username
@@ -54,7 +54,7 @@ class AccountService {
     const response = await axios.get<APIResponse<ProfileType>>(
       `/${PREFIX}/profile/${username}`,
     );
-    return response.data.data;
+    return unwrap<ProfileType>(response.data);
   }
 
   // Update own profile (no need to pass id - backend uses authenticated user)
@@ -63,7 +63,7 @@ class AccountService {
       `/${PREFIX}/profile`,
       data,
     );
-    return response.data.data;
+    return unwrap<ProfileType>(response.data);
   }
 
   // ==================== SETTINGS ====================
@@ -73,7 +73,7 @@ class AccountService {
     const response = await axios.get<APIResponse<UserSettings>>(
       `/${PREFIX}/settings`,
     );
-    return response.data.data;
+    return unwrap<UserSettings>(response.data);
   }
 
   // Toggle activity status visibility
@@ -82,7 +82,7 @@ class AccountService {
       `/${PREFIX}/settings/activity-status`,
       { show },
     );
-    return response.data.data;
+    return unwrap<ProfileType>(response.data);
   }
 
   // Self-block account for 30 days
@@ -98,7 +98,11 @@ class AccountService {
         selfBlockExpireAt: string;
       }>
     >(`/${PREFIX}/settings/self-block`);
-    return response.data.data;
+    return unwrap<{
+      message: string;
+      selfBlockedAt: string;
+      selfBlockExpireAt: string;
+    }>(response.data);
   }
 
   // Cancel self-block
@@ -106,7 +110,7 @@ class AccountService {
     const response = await axios.delete<APIResponse<{ message: string }>>(
       `/${PREFIX}/settings/self-block`,
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 }
 

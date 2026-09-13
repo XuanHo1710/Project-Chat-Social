@@ -33,10 +33,15 @@ interface OnlineStatusStore {
 
   // Check if user is online
   isUserOnline: (userId: string) => boolean;
+
+  // Restore initial state
+  reset: () => void;
 }
 
 export const useOnlineStatusStore = create<OnlineStatusStore>((set, get) => ({
   onlineUsers: {},
+
+  reset: () => set({ onlineUsers: {} }),
 
   setUserOnline: (userId) => {
     set((prev) => ({

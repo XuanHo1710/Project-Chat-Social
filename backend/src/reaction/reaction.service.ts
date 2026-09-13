@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  OnModuleInit,
   Logger,
   BadRequestException,
 } from '@nestjs/common';
@@ -17,9 +16,10 @@ import { Post, PostDocument } from 'src/post/entities/post.entity';
 import { Comment, CommentDocument } from 'src/comment/entities/comment.entity';
 import { NotificationEmitterService } from 'src/notification/notification-emitter.service';
 import { KafkaProducerService } from 'src/kafka/kafka-producer.service';
+import { PostAccessService } from 'src/post/post-access.service';
 
 @Injectable()
-export class ReactionService implements OnModuleInit {
+export class ReactionService {
   private readonly logger = new Logger(ReactionService.name);
 
   constructor(
@@ -27,42 +27,9 @@ export class ReactionService implements OnModuleInit {
     @InjectModel(Post.name) private postModel: Model<PostDocument>,
     @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
     private readonly notificationEmitter: NotificationEmitterService,
-    private readonly kafkaProducer: KafkaProducerService
+    private readonly kafkaProducer: KafkaProducerService,
+    private readonly postAccessService: PostAccessService
   ) {}
-
-  async onModuleInit() {
-    // Auto-run migration on startup
-    this.logger.log('Checking reactions schema and indexes...');
-    await this.ensureIndexes();
-  }
-
-  private async ensureIndexes() {
-    try {
-      // Drop old index if exists
-      try {
-        await this.reactionModel.collection.dropIndex('postId_1_userId_1');
-        this.logger.log('Dropped old index: postId_1_userId_1');
-      } catch (e: any) {
-        // Index doesn't exist, that's ok
-      }
-
-      // Ensure new index exists
-      const indexes = await this.reactionModel.collection.indexes();
-      const hasNewIndex = indexes.some(
-        (idx: any) => idx.key?.factorId && idx.key?.typeFactor && idx.key?.userId
-      );
-
-      if (!hasNewIndex) {
-        await this.reactionModel.collection.createIndex(
-          { factorId: 1, typeFactor: 1, userId: 1 },
-          { unique: true }
-        );
-        this.logger.log('Created new index: factorId_1_typeFactor_1_userId_1');
-      }
-    } catch (e: any) {
-      this.logger.error('Error ensuring indexes:', e.message);
-    }
-  }
 
   async userReactions(factorIds: ObjectId[], currentUserId: string): Promise<any> {
     return await this.reactionModel
@@ -113,9 +80,19 @@ export class ReactionService implements OnModuleInit {
 
   async toggleReaction(createReactionDto: CreateReactionDto, user: any) {
     const { factorId, typeFactor, type } = createReactionDto;
+    const userId = user?._id?.toString();
+    if (
+      !userId ||
+      !Types.ObjectId.isValid(userId) ||
+      !Types.ObjectId.isValid(factorId) ||
+      !Object.values(TypeFactor).includes(typeFactor) ||
+      !Object.values(ReactionType).includes(type)
+    ) {
+      throw new BadRequestException('Invalid reaction payload');
+    }
 
     // Validate the factor exists
-    await this.validateFactor(factorId, typeFactor);
+    await this.validateFactor(factorId, typeFactor, userId);
 
     // Find existing reaction
     const existingReaction = await this.reactionModel.findOne({
@@ -198,7 +175,12 @@ export class ReactionService implements OnModuleInit {
     if (typeFactor === TypeFactor.POST && result.action !== 'removed') {
       this.kafkaProducer
         .emitPostLike(user._id.toString(), factorId, type)
-        .catch((e) => this.logger.warn(`Failed to emit Kafka interaction: ${e.message}`));
+        .catch(
+          (e) =>
+            this.logger.warn(
+              `Kafka PostLike Emit Error for post ${factorId} by user ${user._id.toString()}: ${e?.message || e}`
+            )
+        );
     }
 
     return result;
@@ -244,7 +226,7 @@ export class ReactionService implements OnModuleInit {
 
     switch (typeFactor) {
       case TypeFactor.POST:
-        const post = await this.postModel.findById(id);
+        const post = await this.postModel.findById(id).select('userId allowReactions');
         if (!post) throw new NotFoundException('Post not found');
         // Check if reactions are allowed
         if (post.allowReactions === false) {
@@ -256,12 +238,13 @@ export class ReactionService implements OnModuleInit {
           user._id.toString(),
           post._id.toString(),
           this.formatReactionTypeToView(type),
-          `${userName} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bài viết của bạn`
+          this.formatReactionTypeToVietnamese(type),
+          userName
         );
         break;
 
       case TypeFactor.COMMENT:
-        const comment = await this.commentModel.findById(id);
+        const comment = await this.commentModel.findById(id).select('userId');
         if (!comment) throw new NotFoundException('Comment not found');
         // Emit notification event via RabbitMQ (will be aggregated)
         await this.notificationEmitter.emitCommentReaction(
@@ -269,7 +252,8 @@ export class ReactionService implements OnModuleInit {
           user._id.toString(),
           comment._id.toString(),
           this.formatReactionTypeToView(type),
-          `${userName} đã thả cảm xúc "${this.formatReactionTypeToVietnamese(type)}" về bình luận của bạn`
+          this.formatReactionTypeToVietnamese(type),
+          userName
         );
         break;
 
@@ -282,12 +266,20 @@ export class ReactionService implements OnModuleInit {
   /**
    * Validate that the factor (post/comment/message) exists
    */
-  private async validateFactor(factorId: string, typeFactor: TypeFactor): Promise<void> {
+  private async validateFactor(
+    factorId: string,
+    typeFactor: TypeFactor,
+    userId: string
+  ): Promise<void> {
+    if (!Types.ObjectId.isValid(factorId)) {
+      throw new BadRequestException('Invalid reaction target');
+    }
     const id = new Types.ObjectId(factorId);
 
     switch (typeFactor) {
       case TypeFactor.POST:
-        const post = await this.postModel.findById(id);
+        await this.postAccessService.assertCanViewPost(factorId, userId);
+        const post = await this.postModel.findById(id).select('allowReactions').lean();
         if (!post) throw new NotFoundException('Post not found');
         // Check if reactions are allowed
         if (post.allowReactions === false) {
@@ -295,12 +287,15 @@ export class ReactionService implements OnModuleInit {
         }
         break;
       case TypeFactor.COMMENT:
-        const comment = await this.commentModel.findById(id);
+        const comment = await this.commentModel
+          .findOne({ _id: id, isActive: true })
+          .select('postId')
+          .lean();
         if (!comment) throw new NotFoundException('Comment not found');
+        await this.postAccessService.assertCanViewPost(comment.postId.toString(), userId);
         break;
       case TypeFactor.MESSAGE:
-        // TODO: Add message validation when Message model is available
-        break;
+        throw new BadRequestException('Message reactions must use the chat API');
     }
   }
 
@@ -316,15 +311,15 @@ export class ReactionService implements OnModuleInit {
 
     switch (typeFactor) {
       case TypeFactor.POST:
-        const post = await this.postModel.findByIdAndUpdate(
-          id,
+        const post = await this.postModel.findOneAndUpdate(
+          { _id: id, ...(delta < 0 ? { totalReacts: { $gt: 0 } } : {}) },
           { $inc: { totalReacts: delta } },
           { new: true }
         );
         return Math.max(0, post?.totalReacts ?? 0);
       case TypeFactor.COMMENT:
-        const comment = await this.commentModel.findByIdAndUpdate(
-          id,
+        const comment = await this.commentModel.findOneAndUpdate(
+          { _id: id, ...(delta < 0 ? { totalLikes: { $gt: 0 } } : {}) },
           { $inc: { totalLikes: delta } },
           { new: true }
         );
@@ -345,10 +340,10 @@ export class ReactionService implements OnModuleInit {
 
     switch (typeFactor) {
       case TypeFactor.POST:
-        const post = await this.postModel.findById(id);
+        const post = await this.postModel.findById(id).select('totalReacts').lean();
         return post?.totalReacts ?? 0;
       case TypeFactor.COMMENT:
-        const comment = await this.commentModel.findById(id);
+        const comment = await this.commentModel.findById(id).select('totalLikes').lean();
         return comment?.totalLikes ?? 0;
       case TypeFactor.MESSAGE:
         return 0;
@@ -361,6 +356,7 @@ export class ReactionService implements OnModuleInit {
    * Get user's reaction on a factor
    */
   async getUserReaction(factorId: string, typeFactor: TypeFactor, userId: string): Promise<any> {
+    await this.validateFactor(factorId, typeFactor, userId);
     const reaction = await this.reactionModel
       .findOne({
         factorId: new Types.ObjectId(factorId),
@@ -391,9 +387,13 @@ export class ReactionService implements OnModuleInit {
   async getFactorReactions(
     factorId: string,
     typeFactor: TypeFactor,
+    userId: string,
     page: number = 1,
     limit: number = 20
   ): Promise<any> {
+    await this.validateFactor(factorId, typeFactor, userId);
+    page = Math.max(1, Number.isFinite(page) ? Math.floor(page) : 1);
+    limit = Math.min(100, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 20));
     const skip = (page - 1) * limit;
     const factorObjId = new Types.ObjectId(factorId);
 
@@ -434,22 +434,70 @@ export class ReactionService implements OnModuleInit {
   /**
    * Legacy: Get all reactions for a post
    */
-  async getPostReactions(postId: string, page: number = 1, limit: number = 20): Promise<any> {
-    return this.getFactorReactions(postId, TypeFactor.POST, page, limit);
+  async getPostReactions(
+    postId: string,
+    userId: string,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<any> {
+    return this.getFactorReactions(postId, TypeFactor.POST, userId, page, limit);
   }
 
   /**
    * Legacy: Get all reactions for a comment
    */
-  async getCommentReactions(commentId: string, page: number = 1, limit: number = 20): Promise<any> {
-    return this.getFactorReactions(commentId, TypeFactor.COMMENT, page, limit);
+  async getCommentReactions(
+    commentId: string,
+    userId: string,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<any> {
+    return this.getFactorReactions(commentId, TypeFactor.COMMENT, userId, page, limit);
   }
 
   /**
    * Get reaction summary for multiple factors (for feed)
    */
-  async getReactionsSummary(factorIds: string[], typeFactor: TypeFactor, userId: string) {
-    const objectIds = factorIds.map((id) => new Types.ObjectId(id));
+  async getReactionsSummary(
+    factorIds: string[],
+    typeFactor: TypeFactor,
+    userId: string,
+    assumeAccessible = false
+  ) {
+    const uniqueFactorIds = Array.from(new Set(factorIds)).filter((id) =>
+      Types.ObjectId.isValid(id)
+    );
+    let accessibleFactorIds: string[];
+    if (assumeAccessible) {
+      accessibleFactorIds = uniqueFactorIds;
+    } else if (typeFactor === TypeFactor.POST) {
+      accessibleFactorIds = await this.postAccessService.filterAccessiblePostIds(
+        uniqueFactorIds,
+        userId
+      );
+    } else if (typeFactor === TypeFactor.COMMENT) {
+      const comments = await this.commentModel
+        .find({
+          _id: { $in: uniqueFactorIds.map((id) => new Types.ObjectId(id)) },
+          isActive: true,
+        })
+        .select('_id postId')
+        .lean();
+      const accessiblePostIds = new Set(
+        await this.postAccessService.filterAccessiblePostIds(
+          comments.map((comment) => comment.postId.toString()),
+          userId
+        )
+      );
+      accessibleFactorIds = comments
+        .filter((comment) => accessiblePostIds.has(comment.postId.toString()))
+        .map((comment) => comment._id.toString());
+    } else {
+      throw new BadRequestException('Message reactions must use the chat API');
+    }
+
+    const objectIds = accessibleFactorIds.map((id) => new Types.ObjectId(id));
+    if (objectIds.length === 0) return {};
 
     const userReactions = await this.reactionModel
       .find({
@@ -477,14 +525,21 @@ export class ReactionService implements OnModuleInit {
       },
     ]);
 
+    const userReactionMap = new Map(
+      userReactions.map((reaction) => [reaction.factorId.toString(), reaction])
+    );
+    const summaryMap = new Map(
+      reactionSummaries.map((summary) => [summary._id.toString(), summary])
+    );
+
     const result: Record<
       string,
       { userReaction: ReactionType | null; topReactions: { type: ReactionType; count: number }[] }
     > = {};
 
-    factorIds.forEach((factorId) => {
-      const userReaction = userReactions.find((r) => r.factorId.toString() === factorId);
-      const summary = reactionSummaries.find((s) => s._id.toString() === factorId);
+    accessibleFactorIds.forEach((factorId) => {
+      const userReaction = userReactionMap.get(factorId);
+      const summary = summaryMap.get(factorId);
       result[factorId] = {
         userReaction: userReaction?.type || null,
         topReactions: summary?.reactions || [],
@@ -499,6 +554,18 @@ export class ReactionService implements OnModuleInit {
    */
   async getPostsReactionsSummary(postIds: string[], userId: string) {
     return this.getReactionsSummary(postIds, TypeFactor.POST, userId);
+  }
+
+  async assertFactorAccess(
+    factorId: string,
+    typeFactor: TypeFactor,
+    userId: string
+  ): Promise<void> {
+    await this.validateFactor(factorId, typeFactor, userId);
+  }
+
+  async getVisiblePostsReactionsSummary(postIds: string[], userId: string) {
+    return this.getReactionsSummary(postIds, TypeFactor.POST, userId, true);
   }
 
   /**
@@ -525,6 +592,10 @@ export class ReactionService implements OnModuleInit {
     return this.getReactionsSummary(commentIds, TypeFactor.COMMENT, userId);
   }
 
+  async getVisibleCommentsReactionsSummary(commentIds: string[], userId: string) {
+    return this.getReactionsSummary(commentIds, TypeFactor.COMMENT, userId, true);
+  }
+
   /**
    * Migrate old reactions (postId-based) to new schema (factorId-based)
    */
@@ -535,40 +606,62 @@ export class ReactionService implements OnModuleInit {
         $or: [{ factorId: { $exists: false } }, { typeFactor: { $exists: false } }],
       });
 
-      let migratedCount = 0;
-      for (const reaction of oldReactions) {
-        const reactionObj = reaction.toObject() as any;
-
-        // If it has postId, use that as factorId
-        if (reactionObj.postId && !reactionObj.factorId) {
-          await this.reactionModel.updateOne(
-            { _id: reaction._id },
-            {
+      const migrationOps = oldReactions
+        .map((reaction) => reaction.toObject() as any)
+        .filter((reactionObj) => reactionObj.postId && !reactionObj.factorId)
+        .map((reactionObj) => ({
+          updateOne: {
+            filter: { _id: reactionObj._id },
+            update: {
               $set: {
                 factorId: reactionObj.postId,
                 typeFactor: TypeFactor.POST,
               },
-            }
-          );
-          migratedCount++;
-        }
+            },
+          },
+        }));
+
+      let migratedCount = 0;
+      if (migrationOps.length > 0) {
+        const bulkResult = await this.reactionModel.bulkWrite(migrationOps);
+        migratedCount = bulkResult.modifiedCount ?? 0;
       }
 
       // Drop old index and create new one
       try {
         await this.reactionModel.collection.dropIndex('postId_1_userId_1');
       } catch (e: any) {
-        console.log('Old index may not exist:', e.message);
+        this.logger.log(`Old index may not exist: ${e.message}`);
       }
 
-      // Create new index
+      // Create new index only if it does not already exist
+      const newIndexKey = JSON.stringify({ factorId: 1, typeFactor: 1, userId: 1 });
+      let indexExists = false;
       try {
-        await this.reactionModel.collection.createIndex(
-          { factorId: 1, typeFactor: 1, userId: 1 },
-          { unique: true }
-        );
+        const existingIndexes = await this.reactionModel.collection.listIndexes().toArray();
+        indexExists = existingIndexes.some((index) => JSON.stringify(index.key) === newIndexKey);
       } catch (e: any) {
-        console.log('New index may already exist:', e.message);
+        indexExists = false;
+      }
+
+      if (!indexExists) {
+        try {
+          await this.reactionModel.collection.createIndex(
+            { factorId: 1, typeFactor: 1, userId: 1 },
+            { unique: true }
+          );
+        } catch (e: any) {
+          if (e?.code === 11000 || e?.codeName === 'DuplicateKey') {
+            const message = `Failed to create unique reactions index (duplicate data): ${e.message}`;
+            this.logger.error(message);
+            return {
+              success: false,
+              migratedCount,
+              error: message,
+            };
+          }
+          throw e;
+        }
       }
 
       return {
@@ -577,7 +670,7 @@ export class ReactionService implements OnModuleInit {
         message: `Migrated ${migratedCount} reactions to new schema`,
       };
     } catch (error: any) {
-      console.error('Migration error:', error);
+      this.logger.error(`Migration error: ${error?.stack || error}`);
       return {
         success: false,
         error: error.message,

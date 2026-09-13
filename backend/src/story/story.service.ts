@@ -1,426 +1,592 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Story, StoryDocument, StoryPrivacy } from './entities/story.entity';
-import { CreateStoryDto, UpdateStoryDto } from './dto/story.dto';
-import { Relationship, RelationshipDocument } from 'src/relationship/entities/relationship.entity';
+import { RelationshipStatus } from 'src/relationship/entities/relationship.entity';
+import { RelationshipService } from 'src/relationship/relationship.service';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { CreateStoryDto, StoryCaptionStyleDto, UpdateStoryDto } from './dto/story.dto';
+import { Story, StoryDocument, StoryPrivacy, StoryType } from './entities/story.entity';
+
+type StoryRecord = Story & { _id: Types.ObjectId };
+
+interface StoryViewerAccount {
+  _id: Types.ObjectId;
+  firstName?: string;
+  lastName?: string;
+  avatar?: string;
+  status?: string;
+}
+
+export interface StoryViewerDetails {
+  userId: Types.ObjectId;
+  viewedAt: Date;
+  user: StoryViewerAccount | null;
+  reaction: string | null;
+}
 
 @Injectable()
 export class StoryService {
   constructor(
-    @InjectModel(Story.name) private storyModel: Model<StoryDocument>,
-    @InjectModel(Relationship.name) private relationshipModel: Model<RelationshipDocument>
+    @InjectModel(Story.name) private readonly storyModel: Model<StoryDocument>,
+    private readonly relationshipService: RelationshipService,
+    private readonly cloudinaryService: CloudinaryService
   ) {}
 
-  /**
-   * Create a new story
-   */
-  async create(userId: string, createStoryDto: CreateStoryDto): Promise<Story> {
-    // Validate video duration
-    if (
-      createStoryDto.type === 'VIDEO' &&
-      createStoryDto.duration &&
-      createStoryDto.duration > 15
-    ) {
-      throw new ForbiddenException('Video duration cannot exceed 15 seconds');
+  private toObjectId(value: string, fieldName: string): Types.ObjectId {
+    if (!Types.ObjectId.isValid(value)) {
+      throw new BadRequestException(`${fieldName} is invalid`);
+    }
+    return new Types.ObjectId(value);
+  }
+
+  private optionalObjectId(value: unknown): Types.ObjectId | null {
+    if (value instanceof Types.ObjectId) return value;
+    if (typeof value === 'string' && Types.ObjectId.isValid(value)) {
+      return new Types.ObjectId(value);
+    }
+    return null;
+  }
+
+  private getOwnerId(story: { userId: unknown }): string {
+    const owner = story.userId;
+    if (owner instanceof Types.ObjectId) return owner.toHexString();
+    if (typeof owner === 'string') return owner;
+    if (!owner || typeof owner !== 'object' || !('_id' in owner)) return '';
+    const populatedId = owner._id;
+    if (populatedId instanceof Types.ObjectId) return populatedId.toHexString();
+    return typeof populatedId === 'string' ? populatedId : '';
+  }
+
+  private normalizeCaptionStyle(style: StoryCaptionStyleDto): StoryCaptionStyleDto {
+    return {
+      x: style.x,
+      y: style.y,
+      ...(style.fontSize !== undefined ? { fontSize: style.fontSize } : {}),
+      ...(style.color !== undefined ? { color: style.color } : {}),
+      ...(style.backgroundColor !== undefined ? { backgroundColor: style.backgroundColor } : {}),
+    };
+  }
+
+  private async findActiveStory(storyId: string): Promise<StoryRecord> {
+    const _id = this.toObjectId(storyId, 'storyId');
+    const story = await this.storyModel
+      .findOne({
+        _id,
+        isDeleted: false,
+        expiresAt: { $gt: new Date() },
+      })
+      .lean<StoryRecord>();
+
+    if (!story) {
+      throw new NotFoundException('Story not found');
+    }
+    return story;
+  }
+
+  private async assertCanViewStory(story: StoryRecord, viewerId: string): Promise<void> {
+    this.toObjectId(viewerId, 'viewerId');
+    const ownerId = this.getOwnerId(story);
+    if (ownerId === viewerId) return;
+
+    if (story.privacy === StoryPrivacy.PRIVATE || story.privacy === StoryPrivacy.CUSTOM) {
+      throw new ForbiddenException('You cannot view this story');
     }
 
+    const relationship = await this.relationshipService.checkFriendship(ownerId, viewerId);
+    if (relationship.status === RelationshipStatus.BLOCKED) {
+      throw new ForbiddenException('You cannot view this story');
+    }
+    if (story.privacy === StoryPrivacy.FRIENDS && !relationship.isFriend) {
+      throw new ForbiddenException('You cannot view this story');
+    }
+  }
+
+  private sanitizeStory<T extends Record<string, any>>(story: T, includeEngagement: boolean): T {
+    const viewers = Array.isArray(story.viewers) ? story.viewers : [];
+    const plainStory = {
+      ...story,
+      viewCount: viewers.length,
+    };
+
+    if (includeEngagement) return plainStory;
+    return {
+      ...plainStory,
+      viewers: [],
+      reactions: [],
+    };
+  }
+
+  async create(userId: string, createStoryDto: CreateStoryDto): Promise<Story> {
+    const ownerId = this.toObjectId(userId, 'userId');
+    const mediaUrl = createStoryDto.mediaUrl.trim();
+    if (!mediaUrl) throw new BadRequestException('mediaUrl is required');
+    if (!!createStoryDto.thumbnail !== !!createStoryDto.thumbnailPublicId) {
+      throw new BadRequestException('thumbnail and thumbnailPublicId must be provided together');
+    }
+    if (
+      createStoryDto.type === StoryType.VIDEO &&
+      createStoryDto.duration !== undefined &&
+      createStoryDto.duration > 15
+    ) {
+      throw new BadRequestException('Video duration cannot exceed 15 seconds');
+    }
+
+    await this.cloudinaryService.assertOwnedMedia(userId, [
+      {
+        publicId: createStoryDto.mediaPublicId.trim(),
+        url: mediaUrl,
+        mediaType: createStoryDto.type,
+      },
+      ...(createStoryDto.thumbnail && createStoryDto.thumbnailPublicId
+        ? [
+            {
+              publicId: createStoryDto.thumbnailPublicId.trim(),
+              url: createStoryDto.thumbnail.trim(),
+              mediaType: 'IMAGE' as const,
+            },
+          ]
+        : []),
+    ]);
+
     const story = new this.storyModel({
-      ...createStoryDto,
-      userId: new Types.ObjectId(userId),
+      userId: ownerId,
+      type: createStoryDto.type,
+      mediaUrl,
+      mediaPublicId: createStoryDto.mediaPublicId.trim(),
+      privacy: createStoryDto.privacy ?? StoryPrivacy.FRIENDS,
+      ...(createStoryDto.thumbnail ? { thumbnail: createStoryDto.thumbnail.trim() } : {}),
+      ...(createStoryDto.thumbnailPublicId
+        ? { thumbnailPublicId: createStoryDto.thumbnailPublicId.trim() }
+        : {}),
+      ...(createStoryDto.type === StoryType.VIDEO && createStoryDto.duration !== undefined
+        ? { duration: createStoryDto.duration }
+        : {}),
+      ...(createStoryDto.caption !== undefined ? { caption: createStoryDto.caption.trim() } : {}),
+      ...(createStoryDto.captionStyle
+        ? { captionStyle: this.normalizeCaptionStyle(createStoryDto.captionStyle) }
+        : {}),
     });
 
     return story.save();
   }
 
-  /**
-   * Get stories from friends (for feed)
-   */
-  async getFriendsStories(userId: string): Promise<any[]> {
-    // Get list of friends
-    const friendships = await this.relationshipModel.find({
-      $or: [
-        { friendId: new Types.ObjectId(userId), status: 'ACCEPTED' },
-        { userId: new Types.ObjectId(userId), status: 'ACCEPTED' },
-      ],
-    });
+  async getFriendsStories(userId: string): Promise<unknown[]> {
+    const viewerObjectId = this.toObjectId(userId, 'userId');
+    const [friendIdStrings, relationshipFilters] = await Promise.all([
+      this.relationshipService.getAcceptedFriendIdStrings(userId),
+      this.relationshipService.getRelationshipFilters(userId),
+    ]);
+    const ownerIds = [userId, ...friendIdStrings]
+      .filter((id, index, ids) => ids.indexOf(id) === index)
+      .filter((id) => id === userId || !relationshipFilters.blockedUserIds.has(id))
+      .map((id) => new Types.ObjectId(id));
 
-    const friendIds = friendships.map((f) =>
-      f.userId.toString() === userId
-        ? new Types.ObjectId(f.friendId.toString())
-        : new Types.ObjectId(f.userId.toString())
-    );
-
-    // Add self to see own stories
-    friendIds.push(new Types.ObjectId(userId));
-
-    // Get active stories (not expired, not deleted)
-    const stories = await this.storyModel.aggregate([
+    return this.storyModel.aggregate([
       {
         $match: {
-          userId: { $in: friendIds },
+          userId: { $in: ownerIds },
           isDeleted: false,
           expiresAt: { $gt: new Date() },
           $or: [
+            { userId: viewerObjectId },
             { privacy: StoryPrivacy.PUBLIC },
             { privacy: StoryPrivacy.FRIENDS },
-            { userId: new Types.ObjectId(userId) }, // Always show own stories
           ],
         },
       },
+      { $sort: { createdAt: -1 } },
       {
-        $sort: { createdAt: -1 },
-      },
-      // Add viewCount to each story
-      {
-        $addFields: {
-          viewCount: { $size: '$viewers' },
+        $set: {
+          viewCount: { $size: { $ifNull: ['$viewers', []] } },
+          isOwnStory: { $eq: ['$userId', viewerObjectId] },
+          hasViewed: {
+            $in: [
+              viewerObjectId,
+              {
+                $map: {
+                  input: { $ifNull: ['$viewers', []] },
+                  as: 'viewer',
+                  in: { $ifNull: ['$$viewer.userId', '$$viewer'] },
+                },
+              },
+            ],
+          },
         },
       },
       {
         $group: {
           _id: '$userId',
-          stories: { $push: '$$ROOT' },
-          latestStory: { $first: '$$ROOT' },
+          stories: {
+            $push: {
+              _id: '$_id',
+              userId: '$userId',
+              type: '$type',
+              mediaUrl: '$mediaUrl',
+              mediaPublicId: '$mediaPublicId',
+              thumbnail: '$thumbnail',
+              thumbnailPublicId: '$thumbnailPublicId',
+              duration: '$duration',
+              caption: '$caption',
+              captionStyle: '$captionStyle',
+              privacy: '$privacy',
+              viewCount: '$viewCount',
+              createdAt: '$createdAt',
+              expiresAt: '$expiresAt',
+              isArchived: '$isArchived',
+              isDeleted: '$isDeleted',
+              viewers: { $literal: [] },
+              reactions: { $literal: [] },
+            },
+          },
+          hasUnviewedValue: {
+            $max: {
+              $cond: [{ $or: ['$isOwnStory', '$hasViewed'] }, 0, 1],
+            },
+          },
+          isOwnGroup: { $max: { $cond: ['$isOwnStory', 1, 0] } },
         },
       },
       {
         $lookup: {
           from: 'accounts',
-          localField: '_id',
-          foreignField: '_id',
+          let: { ownerId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', '$$ownerId'] },
+                isActive: { $ne: false },
+              },
+            },
+            { $project: { _id: 1, firstName: 1, lastName: 1, avatar: 1 } },
+          ],
           as: 'user',
         },
       },
+      { $unwind: '$user' },
       {
-        $unwind: '$user',
+        $set: {
+          latestStory: { $arrayElemAt: ['$stories', 0] },
+          hasUnviewed: { $eq: ['$hasUnviewedValue', 1] },
+        },
       },
+      { $sort: { isOwnGroup: -1, hasUnviewed: -1, 'latestStory.createdAt': -1 } },
       {
         $project: {
           _id: 1,
-          user: {
-            _id: 1,
-            firstName: 1,
-            lastName: 1,
-            avatar: 1,
-          },
+          user: 1,
           stories: 1,
           latestStory: 1,
-          hasUnviewed: {
-            $anyElementTrue: {
-              $map: {
-                input: '$stories',
-                as: 'story',
-                in: {
-                  $not: {
-                    $in: [
-                      new Types.ObjectId(userId),
-                      {
-                        $map: {
-                          input: '$$story.viewers',
-                          as: 'v',
-                          in: '$$v.userId',
-                        },
-                      },
-                    ],
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      {
-        $sort: {
-          // Own stories first, then unviewed, then by latest
-          _id: userId === '$_id' ? -1 : 1,
-          hasUnviewed: -1,
-          'latestStory.createdAt': -1,
+          hasUnviewed: 1,
         },
       },
     ]);
-
-    // Sort: own stories first
-    stories.sort((a, b) => {
-      if (a._id.toString() === userId) return -1;
-      if (b._id.toString() === userId) return 1;
-      if (a.hasUnviewed && !b.hasUnviewed) return -1;
-      if (!a.hasUnviewed && b.hasUnviewed) return 1;
-      return (
-        new Date(b.latestStory.createdAt).getTime() - new Date(a.latestStory.createdAt).getTime()
-      );
-    });
-
-    return stories;
   }
 
-  /**
-   * Get user's own stories
-   */
   async getMyStories(userId: string): Promise<Story[]> {
-    return this.storyModel
+    const ownerId = this.toObjectId(userId, 'userId');
+    const stories = await this.storyModel
       .find({
-        userId: new Types.ObjectId(userId),
+        userId: ownerId,
         isDeleted: false,
         expiresAt: { $gt: new Date() },
       })
       .sort({ createdAt: -1 })
       .lean();
+
+    return stories.map((story) => this.sanitizeStory(story, true)) as Story[];
   }
 
-  /**
-   * Get a single story by ID
-   */
   async getStoryById(storyId: string, viewerId: string): Promise<Story> {
-    const story = await this.storyModel
-      .findById(storyId)
+    const story = await this.findActiveStory(storyId);
+    await this.assertCanViewStory(story, viewerId);
+    const populatedStory = await this.storyModel
+      .findById(story._id)
       .populate('userId', 'firstName lastName avatar')
       .lean();
 
-    if (!story || story.isDeleted) {
+    if (!populatedStory) {
       throw new NotFoundException('Story not found');
     }
-
-    // Check if expired
-    if (new Date(story.expiresAt) < new Date()) {
-      throw new NotFoundException('Story has expired');
-    }
-
-    // Check privacy
-    if (story.privacy === StoryPrivacy.FRIENDS && story.userId.toString() !== viewerId) {
-      const isFriend = await this.relationshipModel.exists({
-        $or: [
-          { senderId: story.userId, receiverId: new Types.ObjectId(viewerId), status: 'ACCEPTED' },
-          { senderId: new Types.ObjectId(viewerId), receiverId: story.userId, status: 'ACCEPTED' },
-        ],
-      });
-      if (!isFriend) {
-        throw new ForbiddenException('You cannot view this story');
-      }
-    }
-
-    return story;
+    return this.sanitizeStory(
+      populatedStory,
+      this.getOwnerId(populatedStory) === viewerId
+    ) as Story;
   }
 
-  /**
-   * Mark story as viewed
-   */
   async viewStory(storyId: string, viewerId: string): Promise<void> {
-    try {
-      const story = await this.storyModel.findById(storyId);
-      if (!story) return;
+    const viewerObjectId = this.toObjectId(viewerId, 'viewerId');
+    const story = await this.findActiveStory(storyId);
+    await this.assertCanViewStory(story, viewerId);
+    if (this.getOwnerId(story) === viewerId) return;
 
-      // Don't track own views
-      if (story.userId.toString() === viewerId) return;
-
-      // Check if already viewed - handle both old (ObjectId) and new ({userId, viewedAt}) format
-      const alreadyViewed = story.viewers.some((v) => {
-        if (typeof v === 'object' && v.userId) {
-          return v.userId.toString() === viewerId;
-        }
-        return v.toString() === viewerId;
-      });
-
-      if (!alreadyViewed) {
-        await this.storyModel.findByIdAndUpdate(storyId, {
-          $push: {
+    const now = new Date();
+    await this.storyModel.updateOne(
+      {
+        _id: story._id,
+        userId: story.userId,
+        privacy: story.privacy,
+        isDeleted: false,
+        expiresAt: { $gt: now },
+        viewers: { $ne: viewerObjectId },
+        'viewers.userId': { $ne: viewerObjectId },
+      },
+      [
+        {
+          $set: {
             viewers: {
-              userId: new Types.ObjectId(viewerId),
-              viewedAt: new Date(),
+              $slice: [
+                {
+                  $cond: [
+                    {
+                      $in: [
+                        viewerObjectId,
+                        {
+                          $map: {
+                            input: { $ifNull: ['$viewers', []] },
+                            as: 'viewer',
+                            in: { $ifNull: ['$$viewer.userId', '$$viewer'] },
+                          },
+                        },
+                      ],
+                    },
+                    { $ifNull: ['$viewers', []] },
+                    {
+                      $concatArrays: [
+                        { $ifNull: ['$viewers', []] },
+                        [{ userId: viewerObjectId, viewedAt: now }],
+                      ],
+                    },
+                  ],
+                },
+                -200,
+              ],
             },
           },
-        });
-      }
-    } catch (error) {
-      console.error('Error in viewStory:', error);
-      // Don't throw - viewing is not critical
-    }
+        },
+      ]
+    );
   }
 
-  /**
-   * React to a story
-   */
   async reactToStory(storyId: string, userId: string, reaction: string): Promise<Story> {
-    const story = await this.storyModel.findById(storyId);
-    if (!story) {
-      throw new NotFoundException('Story not found');
-    }
-
-    // Don't allow reacting to own story
-    if (story.userId.toString() === userId) {
+    const reactorObjectId = this.toObjectId(userId, 'userId');
+    const story = await this.findActiveStory(storyId);
+    await this.assertCanViewStory(story, userId);
+    if (this.getOwnerId(story) === userId) {
       throw new ForbiddenException('You cannot react to your own story');
     }
 
-    // Also mark as viewed if not already
-    const alreadyViewed = story.viewers.some((v) => {
-      if (typeof v === 'object' && v.userId) {
-        return v.userId.toString() === userId;
-      }
-      return v.toString() === userId;
-    });
+    const now = new Date();
+    const updatedStory = await this.storyModel.findOneAndUpdate(
+      {
+        _id: story._id,
+        userId: story.userId,
+        privacy: story.privacy,
+        isDeleted: false,
+        expiresAt: { $gt: now },
+      },
+      [
+        {
+          $set: {
+            viewers: {
+              $slice: [
+                {
+                  $cond: [
+                    {
+                      $in: [
+                        reactorObjectId,
+                        {
+                          $map: {
+                            input: { $ifNull: ['$viewers', []] },
+                            as: 'viewer',
+                            in: { $ifNull: ['$$viewer.userId', '$$viewer'] },
+                          },
+                        },
+                      ],
+                    },
+                    { $ifNull: ['$viewers', []] },
+                    {
+                      $concatArrays: [
+                        { $ifNull: ['$viewers', []] },
+                        [{ userId: reactorObjectId, viewedAt: now }],
+                      ],
+                    },
+                  ],
+                },
+                -200,
+              ],
+            },
+            reactions: {
+              $slice: [
+                {
+                  $concatArrays: [
+                    {
+                      $filter: {
+                        input: { $ifNull: ['$reactions', []] },
+                        as: 'existingReaction',
+                        cond: { $ne: ['$$existingReaction.userId', reactorObjectId] },
+                      },
+                    },
+                    [{ userId: reactorObjectId, reaction, createdAt: now }],
+                  ],
+                },
+                -200,
+              ],
+            },
+          },
+        },
+      ],
+      { new: true, runValidators: true }
+    );
 
-    if (!alreadyViewed) {
-      story.viewers.push({
-        userId: new Types.ObjectId(userId),
-        viewedAt: new Date(),
-      });
+    if (!updatedStory) {
+      throw new NotFoundException('Story is no longer available');
     }
-
-    // Remove existing reaction from this user
-    story.reactions = story.reactions.filter((r) => r.userId.toString() !== userId);
-
-    // Add new reaction
-    story.reactions.push({
-      userId: new Types.ObjectId(userId),
-      reaction,
-      createdAt: new Date(),
-    });
-
-    return story.save();
+    return this.sanitizeStory(updatedStory.toObject(), false) as Story;
   }
 
-  /**
-   * Update a story (caption, privacy, captionStyle)
-   */
   async updateStory(storyId: string, userId: string, updateDto: UpdateStoryDto): Promise<Story> {
-    const story = await this.storyModel.findById(storyId);
+    const _id = this.toObjectId(storyId, 'storyId');
+    const ownerId = this.toObjectId(userId, 'userId');
+    const updates: Record<string, unknown> = {};
+    if (updateDto.caption !== undefined) updates.caption = updateDto.caption.trim();
+    if (updateDto.privacy !== undefined) updates.privacy = updateDto.privacy;
+    if (updateDto.captionStyle !== undefined) {
+      updates.captionStyle = updateDto.captionStyle
+        ? this.normalizeCaptionStyle(updateDto.captionStyle)
+        : null;
+    }
+
+    const story = await this.storyModel.findOneAndUpdate(
+      {
+        _id,
+        userId: ownerId,
+        isDeleted: false,
+        expiresAt: { $gt: new Date() },
+      },
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
     if (!story) {
       throw new NotFoundException('Story not found');
     }
-
-    if (story.userId.toString() !== userId) {
-      throw new ForbiddenException('You can only edit your own stories');
-    }
-
-    Object.assign(story, updateDto);
-    return story.save();
+    return story;
   }
 
-  /**
-   * Delete a story
-   */
   async deleteStory(storyId: string, userId: string): Promise<void> {
-    const story = await this.storyModel.findById(storyId);
-    if (!story) {
+    const _id = this.toObjectId(storyId, 'storyId');
+    const ownerId = this.toObjectId(userId, 'userId');
+    const result = await this.storyModel.updateOne(
+      {
+        _id,
+        userId: ownerId,
+        isDeleted: false,
+        expiresAt: { $gt: new Date() },
+      },
+      { $set: { isDeleted: true } }
+    );
+    if (result.matchedCount === 0) {
       throw new NotFoundException('Story not found');
     }
-
-    if (story.userId.toString() !== userId) {
-      throw new ForbiddenException('You can only delete your own stories');
-    }
-
-    story.isDeleted = true;
-    await story.save();
   }
 
-  /**
-   * Get story viewers with their reactions
-   */
   async getStoryViewers(
     storyId: string,
     userId: string
-  ): Promise<{ viewers: any[]; totalViews: number }> {
-    const story = await this.storyModel.findById(storyId).lean();
-
-    if (!story) {
-      throw new NotFoundException('Story not found');
-    }
-
-    if (story.userId.toString() !== userId) {
+  ): Promise<{ viewers: StoryViewerDetails[]; totalViews: number }> {
+    const story = await this.findActiveStory(storyId);
+    if (this.getOwnerId(story) !== userId) {
       throw new ForbiddenException('You can only view viewers of your own stories');
     }
 
-    // Handle empty viewers
-    if (!story.viewers || story.viewers.length === 0) {
-      return { viewers: [], totalViews: 0 };
+    const normalizedViewers = ((story.viewers as unknown[] | undefined) ?? []).reduce<
+      { userId: Types.ObjectId; viewedAt: Date }[]
+    >((result, viewer) => {
+      const embeddedViewer =
+        viewer && typeof viewer === 'object'
+          ? (viewer as { userId?: unknown; viewedAt?: unknown })
+          : null;
+      const viewerObjectId = this.optionalObjectId(embeddedViewer?.userId ?? viewer);
+      if (!viewerObjectId) return result;
+      result.push({
+        userId: viewerObjectId,
+        viewedAt:
+          embeddedViewer?.viewedAt instanceof Date
+            ? embeddedViewer.viewedAt
+            : typeof embeddedViewer?.viewedAt === 'string' ||
+                typeof embeddedViewer?.viewedAt === 'number'
+              ? new Date(embeddedViewer.viewedAt)
+              : story.createdAt,
+      });
+      return result;
+    }, []);
+    const uniqueViewers = new Map<string, { userId: Types.ObjectId; viewedAt: Date }>();
+    for (const viewer of normalizedViewers) {
+      const key = viewer.userId.toString();
+      const current = uniqueViewers.get(key);
+      if (!current || viewer.viewedAt > current.viewedAt) uniqueViewers.set(key, viewer);
     }
+    if (uniqueViewers.size === 0) return { viewers: [], totalViews: 0 };
 
-    // Check if viewers are in old format (ObjectId) or new format ({userId, viewedAt})
-    const isOldFormat = story.viewers.length > 0 && !story.viewers[0].userId;
+    const viewerAccounts = await this.storyModel.db
+      .collection<StoryViewerAccount>('accounts')
+      .find({ _id: { $in: [...uniqueViewers.values()].map((viewer) => viewer.userId) } })
+      .project<StoryViewerAccount>({
+        _id: 1,
+        firstName: 1,
+        lastName: 1,
+        avatar: 1,
+        status: 1,
+      })
+      .toArray();
+    const accountById = new Map(viewerAccounts.map((account) => [account._id.toString(), account]));
+    const reactionByUserId = new Map(
+      (story.reactions ?? []).map((reaction) => [reaction.userId.toString(), reaction.reaction])
+    );
+    const viewers = [...uniqueViewers.values()]
+      .sort((left, right) => right.viewedAt.getTime() - left.viewedAt.getTime())
+      .map((viewer) => {
+        const account = accountById.get(viewer.userId.toString());
+        return {
+          userId: viewer.userId,
+          viewedAt: viewer.viewedAt,
+          user: account
+            ? {
+                _id: account._id,
+                firstName: account.firstName,
+                lastName: account.lastName,
+                avatar: account.avatar,
+                status: account.status,
+              }
+            : null,
+          reaction: reactionByUserId.get(viewer.userId.toString()) ?? null,
+        };
+      });
 
-    if (isOldFormat) {
-      // Old format: viewers are just ObjectIds
-      const viewerIds = story.viewers.map((v) => new Types.ObjectId(v.toString()));
-      const viewerAccounts = await this.storyModel.db
-        .collection('accounts')
-        .find({ _id: { $in: viewerIds } })
-        .project({ _id: 1, firstName: 1, lastName: 1, avatar: 1, status: 1 })
-        .toArray();
-
-      const reactionsMap = new Map(story.reactions.map((r) => [r.userId.toString(), r.reaction]));
-
-      const viewers = viewerAccounts.map((acc) => ({
-        userId: acc._id,
-        viewedAt: new Date(),
-        user: {
-          _id: acc._id,
-          firstName: acc.firstName,
-          lastName: acc.lastName,
-          avatar: acc.avatar,
-          status: acc.status,
-        },
-        reaction: reactionsMap.get(acc._id.toString()) || null,
-      }));
-
-      return { viewers, totalViews: story.viewers.length };
-    }
-
-    // New format: viewers have {userId, viewedAt}
-    const viewersWithDetails = await this.storyModel.aggregate([
-      { $match: { _id: new Types.ObjectId(storyId) } },
-      { $unwind: '$viewers' },
-      {
-        $lookup: {
-          from: 'accounts',
-          localField: 'viewers.userId',
-          foreignField: '_id',
-          as: 'viewerInfo',
-        },
-      },
-      { $unwind: { path: '$viewerInfo', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          userId: '$viewers.userId',
-          viewedAt: '$viewers.viewedAt',
-          user: {
-            _id: '$viewerInfo._id',
-            firstName: '$viewerInfo.firstName',
-            lastName: '$viewerInfo.lastName',
-            avatar: '$viewerInfo.avatar',
-            status: '$viewerInfo.status',
-          },
-        },
-      },
-      { $sort: { viewedAt: -1 } },
-    ]);
-
-    // Add reactions to each viewer
-    const reactionsMap = new Map(story.reactions.map((r) => [r.userId.toString(), r.reaction]));
-
-    const viewers = viewersWithDetails.map((viewer) => ({
-      ...viewer,
-      reaction: reactionsMap.get(viewer.userId?.toString()) || null,
-    }));
-
-    return {
-      viewers,
-      totalViews: story.viewers.length,
-    };
+    return { viewers, totalViews: uniqueViewers.size };
   }
 
-  /**
-   * Get story reactions
-   */
-  async getStoryReactions(storyId: string): Promise<any[]> {
+  async getStoryReactions(storyId: string, userId: string): Promise<unknown[]> {
+    const _id = this.toObjectId(storyId, 'storyId');
+    const ownerId = this.toObjectId(userId, 'userId');
     const story = await this.storyModel
-      .findById(storyId)
+      .findOne({
+        _id,
+        userId: ownerId,
+        isDeleted: false,
+        expiresAt: { $gt: new Date() },
+      })
+      .select('reactions')
       .populate('reactions.userId', 'firstName lastName avatar status')
       .lean();
 
     if (!story) {
       throw new NotFoundException('Story not found');
     }
-
-    return story.reactions;
+    return story.reactions ?? [];
   }
 }

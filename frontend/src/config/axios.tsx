@@ -18,6 +18,7 @@ const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL;
 
 const instance = axios.create({
     baseURL,
+    allowAbsoluteUrls: false,
     timeout: 10000,
     withCredentials: true,
     headers: {
@@ -27,40 +28,68 @@ const instance = axios.create({
 
 const isAuthEndpoint = (url?: string) => {
     if (!url) return false;
+    const pathname = url.split("?")[0];
     return (
-        url.includes("/auth/login") ||
-        url.includes("/auth/signup") ||
-        url.includes("/auth/refresh-token") ||
-        url.includes("/auth/password/")
+        pathname === "/auth/login" ||
+        pathname === "/auth/signup" ||
+        pathname.startsWith("/auth/google/") ||
+        pathname === "/auth/refresh-token" ||
+        pathname.startsWith("/auth/password/")
     );
 };
 
-let isRefreshing = false;
-let refreshQueue: {
-    resolve: (value?: unknown) => void;
+const isAbsoluteOrProtocolRelativeUrl = (url?: string) =>
+    !!url && (/^[a-z][a-z\d+.-]*:\/\//i.test(url) || url.startsWith("//"));
+
+interface TokenEndpointResult {
+    accessToken: string;
+    account?: Record<string, unknown>;
+}
+
+let tokenRequestInFlight = false;
+let tokenWaiters: {
+    resolve: (value: TokenEndpointResult) => void;
     reject: (error: unknown) => void;
 }[] = [];
 
-const processRefreshQueue = (error: unknown, token: string | null = null) => {
-    refreshQueue.forEach((prom) => {
+const processTokenQueue = (error: unknown, result: TokenEndpointResult | null = null) => {
+    tokenWaiters.forEach((prom) => {
         if (error) prom.reject(error);
-        else prom.resolve(token);
+        else prom.resolve(result as TokenEndpointResult);
     });
-    refreshQueue = [];
+    tokenWaiters = [];
 };
 
-let isBootstrappingToken = false;
-let bootstrapQueue: {
-    resolve: (value: string | PromiseLike<string | null> | null) => void;
-    reject: (error: unknown) => void;
-}[] = [];
+// Single-flight POST /api/auth/token shared by cold-start bootstrap and the
+// 401-refresh handler, so a concurrent burst never fires two overlapping
+// rotations. Uses bare axios (never `instance`), so the request interceptor
+// is bypassed exactly as before — no re-entry deadlock.
+const postTokenEndpoint = async (): Promise<TokenEndpointResult> => {
+    if (tokenRequestInFlight) {
+        return new Promise((resolve, reject) => {
+            tokenWaiters.push({ resolve, reject });
+        });
+    }
 
-const processBootstrapQueue = (error: unknown, token: string | null = null) => {
-    bootstrapQueue.forEach((prom) => {
-        if (error) prom.reject(error);
-        else prom.resolve(token);
-    });
-    bootstrapQueue = [];
+    tokenRequestInFlight = true;
+    try {
+        const response = await axios.post("/api/auth/token");
+        const accessToken = response?.data?.accessToken as string | undefined;
+        const account = response?.data?.data?.account;
+
+        if (!accessToken) {
+            throw new Error("Token endpoint returned no access token");
+        }
+
+        const result = { accessToken, account };
+        processTokenQueue(null, result);
+        return result;
+    } catch (err) {
+        processTokenQueue(err, null);
+        throw err;
+    } finally {
+        tokenRequestInFlight = false;
+    }
 };
 
 const mapAccountToStoreUser = (
@@ -96,40 +125,25 @@ const ensureAccessToken = async (): Promise<string | null> => {
     const currentToken = useAuthStore.getState().accessToken;
     if (currentToken) return currentToken;
 
-    if (isBootstrappingToken) {
-        return new Promise((resolve, reject) => {
-            bootstrapQueue.push({ resolve, reject });
-        });
-    }
-
-    isBootstrappingToken = true;
     try {
-        const response = await axios.post("/api/auth/token");
-        const accessToken = response?.data?.accessToken as string | undefined;
-        const account = response?.data?.data?.account;
-
-        if (!accessToken) {
-            processBootstrapQueue(new Error("No access token"), null);
-            return null;
-        }
-
+        const { accessToken, account } = await postTokenEndpoint();
         useAuthStore.setState({
             accessToken,
             user: mapAccountToStoreUser(account),
         });
-
-        processBootstrapQueue(null, accessToken);
         return accessToken;
-    } catch (err) {
-        processBootstrapQueue(err, null);
+    } catch {
         return null;
-    } finally {
-        isBootstrappingToken = false;
     }
 };
 
 instance.interceptors.request.use(
     async (config: InternalAxiosRequestConfig) => {
+        if (isAbsoluteOrProtocolRelativeUrl(config.url)) {
+            return Promise.reject(
+                new Error("Authenticated API requests must use a relative backend path")
+            );
+        }
         const token =
             typeof window !== "undefined" ? useAuthStore.getState().accessToken || "" : "";
 
@@ -154,6 +168,9 @@ instance.interceptors.request.use(
 instance.interceptors.response.use(
     (response: AxiosResponse) => response,
     async (error: AxiosError) => {
+        if (axios.isCancel(error)) {
+            return Promise.reject(error);
+        }
         const originalRequest = error.config as InternalAxiosRequestConfig & {
             _retry?: boolean;
         };
@@ -174,42 +191,30 @@ instance.interceptors.response.use(
         if (status === 401 && !originalRequest?._retry && !isAuthEndpoint(originalRequest?.url)) {
             originalRequest._retry = true;
 
-            if (isRefreshing) {
-                return new Promise((resolve, reject) => {
-                    refreshQueue.push({ resolve, reject });
-                })
-                    .then((token) => {
-                        if (originalRequest.headers && token) {
-                            originalRequest.headers.Authorization = `Bearer ${token}`;
+            if (tokenRequestInFlight) {
+                return postTokenEndpoint()
+                    .then(({ accessToken }) => {
+                        if (originalRequest.headers && accessToken) {
+                            originalRequest.headers.Authorization = `Bearer ${accessToken}`;
                         }
                         return instance(originalRequest);
                     })
                     .catch((err) => Promise.reject(err));
             }
 
-            isRefreshing = true;
             try {
-                const response = await axios.post("/api/auth/token");
-                const accessToken = response?.data?.accessToken as string | undefined;
-                const account = response?.data?.data?.account;
-
-                if (!accessToken) {
-                    throw new Error("Refresh failed");
-                }
+                const { accessToken, account } = await postTokenEndpoint();
 
                 useAuthStore.setState({
                     accessToken,
                     user: mapAccountToStoreUser(account),
                 });
 
-                processRefreshQueue(null, accessToken);
-
                 if (originalRequest.headers) {
                     originalRequest.headers.Authorization = `Bearer ${accessToken}`;
                 }
                 return instance(originalRequest);
             } catch (err) {
-                processRefreshQueue(err, null);
                 useAuthStore.setState({ accessToken: null, user: null });
 
                 if (typeof window !== "undefined") {
@@ -222,8 +227,6 @@ instance.interceptors.response.use(
                 }
 
                 return Promise.reject(err);
-            } finally {
-                isRefreshing = false;
             }
         }
 
@@ -254,5 +257,18 @@ instance.interceptors.response.use(
     }
 );
 
+export { ensureAccessToken };
+
+export function unwrap<T>(payload: unknown): T {    const envelope = payload as { data?: unknown } | null | undefined;
+    if (
+        envelope &&
+        typeof envelope === "object" &&
+        "data" in envelope &&
+        envelope.data !== undefined
+    ) {
+        return envelope.data as T;
+    }
+    return payload as T;
+}
+
 export default instance;
-export { instance as adminAxios, instance as publicAxios };

@@ -14,6 +14,9 @@ import { ConfigModule } from '@nestjs/config';
 import { Notification } from 'src/notification/entities/notification.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { KafkaModule } from 'src/kafka/kafka.module';
+import { RelationshipModule } from 'src/relationship/relationship.module';
+import { GroupModule } from 'src/group/group.module';
+import { PostAccessModule } from './post-access.module';
 
 @Module({
   imports: [
@@ -29,6 +32,9 @@ import { KafkaModule } from 'src/kafka/kafka.module';
     ConfigModule,
     NotificationModule,
     KafkaModule,
+    RelationshipModule,
+    GroupModule,
+    PostAccessModule,
   ],
   controllers: [PostController],
   providers: [PostService, ApiVideoService],

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose, { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { Account } from 'src/account/entities/account.entity';
 import { Group } from './group.entity';
 
@@ -19,13 +19,13 @@ export enum MemberStatus {
 
 @Schema({ timestamps: true })
 export class GroupMember {
-  _id: mongoose.Schema.Types.ObjectId;
+  _id: Types.ObjectId;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Group.name, required: true })
-  groupId: mongoose.Schema.Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: Group.name, required: true })
+  groupId: Types.ObjectId;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Account.name, required: true })
-  userId: mongoose.Schema.Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: Account.name, required: true })
+  userId: Types.ObjectId;
 
   @Prop({ enum: GroupRole, default: GroupRole.MEMBER })
   role: GroupRole;
@@ -33,8 +33,8 @@ export class GroupMember {
   @Prop({ enum: MemberStatus, default: MemberStatus.APPROVED })
   status: MemberStatus;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Account.name, default: null })
-  invitedBy: mongoose.Schema.Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: Account.name, default: null })
+  invitedBy: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: Account.name, default: null })
   approvedBy: Types.ObjectId;
@@ -56,3 +56,5 @@ GroupMemberSchema.index({ groupId: 1, userId: 1 }, { unique: true });
 GroupMemberSchema.index({ groupId: 1, status: 1 });
 GroupMemberSchema.index({ groupId: 1, role: 1 });
 GroupMemberSchema.index({ userId: 1 });
+GroupMemberSchema.index({ userId: 1, status: 1, groupId: 1 });
+GroupMemberSchema.index({ groupId: 1, status: 1, joinedAt: -1 });

@@ -1,6 +1,6 @@
 "use client";
-import { uploadMedia, UploadMediaResult } from '@/services/cloudinary.service';
-import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import { deleteCloudinaryMedia, uploadMedia } from '@/services/cloudinary.service';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 
 export interface MediaUploadResult {
     url: string;
@@ -45,6 +45,8 @@ interface MediaUploadContextType {
 }
 
 const MediaUploadContext = createContext<MediaUploadContextType | undefined>(undefined);
+const MAX_PENDING_MEDIA = 10;
+const MAX_MEDIA_SIZE_BYTES = 100 * 1024 * 1024;
 
 export function MediaUploadProvider({ children }: { children: ReactNode }) {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +55,15 @@ export function MediaUploadProvider({ children }: { children: ReactNode }) {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadedMedia, setUploadedMedia] = useState<MediaUploadResult[]>([]);
+    const pendingMediaRef = useRef<PendingMediaItem[]>([]);
+
+    useEffect(() => {
+        pendingMediaRef.current = pendingMedia;
+    }, [pendingMedia]);
+
+    useEffect(() => () => {
+        pendingMediaRef.current.forEach((media) => URL.revokeObjectURL(media.preview));
+    }, []);
 
     // Handle file selection
     const handleFileSelect = useCallback(
@@ -60,15 +71,21 @@ export function MediaUploadProvider({ children }: { children: ReactNode }) {
             const files = event.target.files;
             if (!files) return;
 
-            const newMedia: PendingMediaItem[] = Array.from(files).map((file) => ({
-                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            const acceptedFiles = Array.from(files)
+                .filter((file) =>
+                    (file.type.startsWith("image/") || file.type.startsWith("video/")) &&
+                    file.size <= MAX_MEDIA_SIZE_BYTES
+                )
+                .slice(0, Math.max(0, MAX_PENDING_MEDIA - pendingMediaRef.current.length));
+            const newMedia: PendingMediaItem[] = acceptedFiles.map((file) => ({
+                id: crypto.randomUUID(),
                 file,
                 preview: URL.createObjectURL(file),
                 mediaType: file.type.startsWith("video/") ? "VIDEO" : "IMAGE",
                 uploadStatus: "pending" as const,
             }));
 
-            setPendingMedia((prev) => [...prev, ...newMedia]);
+            setPendingMedia((prev) => [...prev, ...newMedia].slice(0, MAX_PENDING_MEDIA));
 
             // Reset file input
             if (fileInputRef.current) {
@@ -84,30 +101,39 @@ export function MediaUploadProvider({ children }: { children: ReactNode }) {
             const mediaItem = pendingMedia.find((m) => m.id === mediaId);
             if (!mediaItem) return;
 
-            // Revoke object URL to free memory
-            URL.revokeObjectURL(mediaItem.preview);
-
-            // If already uploaded, delete from Cloudinary via backend
+            // If already uploaded, delete from Cloudinary via backend first.
+            // The preview URL is only revoked after removal succeeds, so a failed
+            // cloud delete doesn't leave behind a dead-preview item.
             if (mediaItem.uploadStatus === "uploaded" && mediaItem.publicId) {
-                // For simplicity, we don't delete from cloudinary on remove 
-                // since backend handles cleanup or you can implement deleteCloudinaryMedia
+                await deleteCloudinaryMedia([
+                    { publicId: mediaItem.publicId, mediaType: mediaItem.mediaType },
+                ]);
                 setUploadedMedia((prev) =>
                     prev.filter((m) => m.publicId !== mediaItem.publicId)
                 );
             }
 
             setPendingMedia((prev) => prev.filter((m) => m.id !== mediaId));
+
+            // Revoke object URL to free memory (only once removal is decided)
+            URL.revokeObjectURL(mediaItem.preview);
         },
         [pendingMedia]
     );
 
     // Upload all pending media using backend API
+    const isUploadingRef = useRef(false);
     const uploadAllMedia = useCallback(async (): Promise<MediaUploadResult[]> => {
+        // Concurrency guard: checked-and-set synchronously so rapid double submits
+        // can't start a second parallel upload (double post).
+        if (isUploadingRef.current) return uploadedMedia;
+
         const pendingFiles = pendingMedia.filter(
             (m) => m.uploadStatus === "pending"
         );
         if (pendingFiles.length === 0) return uploadedMedia;
 
+        isUploadingRef.current = true;
         setIsUploading(true);
         setUploadProgress(0);
 
@@ -120,16 +146,25 @@ export function MediaUploadProvider({ children }: { children: ReactNode }) {
             );
 
             // Use backend API for upload (supports both images and videos)
-            const response = await uploadMedia(pendingFiles.map((m) => m.file));
+            const response = await uploadMedia(
+                pendingFiles.map((m) => m.file),
+                setUploadProgress,
+            );
 
             if (!response.success) {
                 throw new Error(response.error || 'Upload failed');
+            }
+            if (response.results.length !== pendingFiles.length) {
+                throw new Error('The server returned an incomplete upload result');
+            }
+            if (response.results.some((result) => result.mediaType === 'RAW')) {
+                throw new Error('The server rejected an unsupported media type');
             }
 
             setUploadProgress(100);
 
             // Convert backend response to MediaUploadResult format
-            const results: MediaUploadResult[] = response.results.map((r: UploadMediaResult) => ({
+            const results: MediaUploadResult[] = response.results.map((r) => ({
                 url: r.url,
                 publicId: r.publicId,
                 mediaType: r.mediaType === 'VIDEO' ? 'VIDEO' : 'IMAGE',
@@ -171,6 +206,7 @@ export function MediaUploadProvider({ children }: { children: ReactNode }) {
             );
             throw error;
         } finally {
+            isUploadingRef.current = false;
             setIsUploading(false);
         }
     }, [pendingMedia, uploadedMedia]);

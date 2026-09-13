@@ -50,8 +50,24 @@ export async function POST() {
         (refreshResponse.status === 200 || refreshResponse.status === 201) &&
         refreshResponse.data?.data?.access_token
       ) {
-        const accessToken = refreshResponse.data?.data?.access_token;
-        const accountData = refreshResponse.data?.data?.payload;
+        const data = refreshResponse.data?.data;
+        const accessToken = data.access_token;
+        const accountData = data.payload;
+
+        // The backend rotates the session on every refresh; persist the new
+        // sessionId so subsequent flows do not re-present a rotated (revoked)
+        // id, which would trigger reuse detection.
+        const rotatedSessionId: string | undefined =
+          data.newSessionId || data.session_id;
+        if (rotatedSessionId && rotatedSessionId !== sessionId) {
+          cookieStore.set("session_id", rotatedSessionId, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 60 * 60 * 24 * 30,
+          });
+        }
 
         cookieStore.set("access_token", accessToken, {
           httpOnly: true,

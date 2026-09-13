@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose, { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { Account } from 'src/account/entities/account.entity';
 
 export type GroupDocument = HydratedDocument<Group>;
@@ -16,7 +16,7 @@ export enum GroupVisibility {
 
 @Schema({ timestamps: true })
 export class Group {
-  _id: mongoose.Schema.Types.ObjectId;
+  _id: Types.ObjectId;
 
   @Prop({ required: true })
   name: string;
@@ -39,8 +39,8 @@ export class Group {
   @Prop({ default: null })
   location: string;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Account.name, required: true })
-  createdBy: mongoose.Schema.Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: Account.name, required: true })
+  createdBy: Types.ObjectId;
 
   @Prop({ type: Number, default: 0 })
   memberCount: number;
@@ -67,3 +67,5 @@ export const GroupSchema = SchemaFactory.createForClass(Group);
 GroupSchema.index({ name: 'text', description: 'text' });
 GroupSchema.index({ createdBy: 1 });
 GroupSchema.index({ privacy: 1, visibility: 1 });
+GroupSchema.index({ isActive: 1, visibility: 1, memberCount: -1 });
+GroupSchema.index({ isActive: 1, privacy: 1, memberCount: -1 });

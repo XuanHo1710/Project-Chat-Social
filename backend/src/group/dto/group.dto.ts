@@ -1,5 +1,14 @@
-import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsMongoId,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { GroupPrivacy, GroupVisibility } from '../entities/group.entity';
+import { GroupRole } from '../entities/group-member.entity';
 
 export class CreateGroupDto {
   @IsString()
@@ -22,14 +31,17 @@ export class CreateGroupDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(120)
   location?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(2048)
   avatar?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(2048)
   coverImage?: string;
 }
 
@@ -55,27 +67,32 @@ export class UpdateGroupDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(120)
   location?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(2048)
   avatar?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(2048)
   coverImage?: string;
 
+  @IsArray()
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   @IsOptional()
   rules?: string[];
 }
 
 export class InviteMemberDto {
-  @IsString()
+  @IsMongoId()
   userId: string;
 }
 
 export class UpdateMemberRoleDto {
-  @IsString()
-  role: 'ADMIN' | 'MODERATOR' | 'MEMBER';
+  @IsEnum(GroupRole)
+  role: GroupRole;
 }

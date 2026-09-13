@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { readBoundedInteger } from './common/configuration';
 import { FeedModule } from './feed/feed.module';
 
 @Module({
@@ -13,36 +13,36 @@ import { FeedModule } from './feed/feed.module';
     // MongoDB connection
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI'),
-      }),
+      useFactory: (configService: ConfigService) => {
+        const uri = configService.get<string>('MONGODB_URI');
+        if (!uri) throw new Error('MONGODB_URI is required');
+        return {
+          uri,
+          maxPoolSize: readBoundedInteger(
+            configService.get('MONGODB_MAX_POOL_SIZE'),
+            20,
+            5,
+            100,
+            'MONGODB_MAX_POOL_SIZE',
+          ),
+          minPoolSize: readBoundedInteger(
+            configService.get('MONGODB_MIN_POOL_SIZE'),
+            2,
+            0,
+            20,
+            'MONGODB_MIN_POOL_SIZE',
+          ),
+          serverSelectionTimeoutMS: 10_000,
+          maxIdleTimeMS: 60_000,
+          retryWrites: true,
+        };
+      },
       inject: [ConfigService],
     }),
-
-    // Kafka client for producing messages (if needed)
-    ClientsModule.registerAsync([
-      {
-        name: 'KAFKA_SERVICE',
-        imports: [ConfigModule],
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.KAFKA,
-          options: {
-            client: {
-              clientId: 'kafka-producer',
-              brokers: [configService.get<string>('KAFKA_BROKER') || 'localhost:9092'],
-            },
-            producer: {
-              allowAutoTopicCreation: true,
-            },
-          },
-        }),
-        inject: [ConfigService],
-      },
-    ]),
 
     FeedModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}

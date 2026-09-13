@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -20,8 +26,11 @@ import { AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { ApiVideoService } from 'src/common/services/api-video.service';
 import { NotificationEmitterService } from 'src/notification/notification-emitter.service';
+import { NotificationService } from 'src/notification/notification.service';
 import { ConfigService } from '@nestjs/config';
 import { KafkaProducerService } from 'src/kafka/kafka-producer.service';
+import { RelationshipService } from 'src/relationship/relationship.service';
+import { GroupService } from 'src/group/group.service';
 interface ReactInfo {
   isReact: boolean;
   type: string | null;
@@ -33,7 +42,9 @@ export interface PostWithReactInfo extends Post {
 
 @Injectable()
 export class PostService {
+  private readonly logger = new Logger(PostService.name);
   private readonly aiServerUrl: string;
+  private readonly aiInternalApiKey: string;
 
   constructor(
     @InjectModel(Post.name)
@@ -44,10 +55,115 @@ export class PostService {
     private readonly httpService: HttpService,
     private apiVideoService: ApiVideoService,
     private notificationEmitter: NotificationEmitterService,
+    private notificationService: NotificationService,
     private configService: ConfigService,
-    private kafkaProducer: KafkaProducerService
+    private kafkaProducer: KafkaProducerService,
+    private relationshipService: RelationshipService,
+    private groupService: GroupService
   ) {
-    this.aiServerUrl = this.configService.get<string>('AI_SERVER_URL') || '';
+    this.aiServerUrl = (this.configService.get<string>('AI_SERVER_URL') || '').replace(/\/$/, '');
+    this.aiInternalApiKey = this.configService.get<string>('AI_INTERNAL_API_KEY') || '';
+  }
+
+  private aiRequestConfig(timeout: number): {
+    timeout: number;
+    headers: { 'X-AI-API-Key': string };
+  } {
+    if (!this.aiServerUrl || !this.aiInternalApiKey) {
+      throw new Error('AI server integration is not configured');
+    }
+    return {
+      timeout,
+      headers: { 'X-AI-API-Key': this.aiInternalApiKey },
+    };
+  }
+
+  private clampPagination(page: number, limit: number): { page: number; limit: number } {
+    return {
+      page: Math.max(1, Number.isFinite(page) ? Math.floor(page) : 1),
+      limit: Math.min(50, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 10)),
+    };
+  }
+
+  private async getVisibilityContext(currentUserId: string): Promise<{
+    filter: Record<string, unknown>;
+    friendIds: string[];
+    accessibleGroupIds: string[];
+  }> {
+    if (!Types.ObjectId.isValid(currentUserId)) {
+      throw new BadRequestException('Invalid user identifier');
+    }
+
+    const [friendIds, accessibleGroupIds] = await Promise.all([
+      this.relationshipService.getAcceptedFriendIdStrings(currentUserId),
+      this.groupService.getAccessibleGroupIds(currentUserId),
+    ]);
+    const currentUserObjectId = new Types.ObjectId(currentUserId);
+    const friendObjectIds = friendIds.map((id) => new Types.ObjectId(id));
+    const groupObjectIds = accessibleGroupIds.map((id) => new Types.ObjectId(id));
+
+    const filter = {
+      $or: [
+        { userId: currentUserObjectId, groupId: null },
+        { privacy: PostPrivacy.PUBLIC, groupId: null },
+        {
+          privacy: PostPrivacy.FRIEND,
+          groupId: null,
+          userId: { $in: friendObjectIds },
+        },
+        {
+          privacy: PostPrivacy.GROUP,
+          groupId: { $in: groupObjectIds },
+        },
+      ],
+    };
+
+    return { filter, friendIds, accessibleGroupIds };
+  }
+
+  private async buildVisibilityFilter(currentUserId: string): Promise<Record<string, unknown>> {
+    return (await this.getVisibilityContext(currentUserId)).filter;
+  }
+
+  async canViewPost(postId: string, currentUserId: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(postId)) return false;
+    const visibility = await this.buildVisibilityFilter(currentUserId);
+    const post = await this.postModel.exists({
+      _id: new Types.ObjectId(postId),
+      isDeleted: false,
+      isActive: true,
+      ...visibility,
+    });
+    return !!post;
+  }
+
+  async getLivestreamAccess(
+    postId: string,
+    currentUserId: string
+  ): Promise<{ canView: boolean; isBroadcaster: boolean }> {
+    if (!Types.ObjectId.isValid(postId) || !Types.ObjectId.isValid(currentUserId)) {
+      return { canView: false, isBroadcaster: false };
+    }
+    const visibility = await this.buildVisibilityFilter(currentUserId);
+    const post = await this.postModel
+      .findOne({
+        $and: [
+          {
+            _id: postId,
+            type: 'LIVESTREAM',
+            livestreamStatus: LivestreamStatus.LIVE,
+            isDeleted: false,
+            isActive: true,
+          },
+          visibility,
+        ],
+      })
+      .select('userId')
+      .lean();
+    return {
+      canView: !!post,
+      isBroadcaster: !!post && post.userId.toString() === currentUserId,
+    };
   }
 
   /**
@@ -87,12 +203,12 @@ export class PostService {
                   ? 'IMAGE'
                   : 'TEXT',
           },
-          { timeout: 10000 }
+          this.aiRequestConfig(10000)
         )
       );
     } catch (error: any) {
       // Log but don't throw - embedding is not critical for post creation
-      console.warn(`⚠️ Failed to embed post ${post._id}:`, error.message);
+      this.logger.warn(`⚠️ Failed to embed post ${post._id}: ${error.message}`);
     }
   }
 
@@ -102,14 +218,25 @@ export class PostService {
   private async deletePostEmbedding(postId: string): Promise<void> {
     try {
       await firstValueFrom(
-        this.httpService.delete(`${this.aiServerUrl}/embed/post/${postId}`, { timeout: 10000 })
+        this.httpService.delete(
+          `${this.aiServerUrl}/embed/post/${postId}`,
+          this.aiRequestConfig(10000),
+        )
       );
     } catch (error: any) {
-      console.warn(`⚠️ Failed to delete post embedding ${postId}:`, error.message);
+      this.logger.warn(`⚠️ Failed to delete post embedding ${postId}: ${error.message}`);
     }
   }
 
   async create(createPostDto: CreatePostDto, user: any): Promise<Post> {
+    const actorId = user?._id?.toString();
+    if (!actorId || !Types.ObjectId.isValid(actorId)) {
+      throw new BadRequestException('Invalid authenticated user');
+    }
+    if (createPostDto.media?.length) {
+      await this.cloudinaryService.assertOwnedMedia(actorId, createPostDto.media);
+    }
+
     // Validate: phải có content hoặc media hoặc sharedPostId
     if (
       !createPostDto.content &&
@@ -119,23 +246,45 @@ export class PostService {
       throw new BadRequestException('Post must have content, media, or be a shared post');
     }
 
-    // If sharing a post, check if sharing is allowed and increment share count
+    if (createPostDto.groupId) {
+      const isMember = await this.groupService.isMember(actorId, createPostDto.groupId);
+      if (!isMember) {
+        throw new ForbiddenException('Only approved group members can publish group posts');
+      }
+    }
+
+    let originalPost: {
+      _id: Types.ObjectId;
+      userId: Types.ObjectId;
+      allowShares?: boolean;
+    } | null = null;
     if (createPostDto.sharedPostId) {
-      const originalPost = await this.postModel.findById(createPostDto.sharedPostId);
+      const visibility = await this.buildVisibilityFilter(actorId);
+      originalPost = await this.postModel
+        .findOne({
+          $and: [
+            {
+              _id: new Types.ObjectId(createPostDto.sharedPostId),
+              isDeleted: false,
+              isActive: true,
+            },
+            visibility,
+          ],
+        })
+        .select('userId allowShares')
+        .lean<{ _id: Types.ObjectId; userId: Types.ObjectId; allowShares?: boolean }>();
       if (!originalPost) {
-        throw new NotFoundException('Bài viết gốc không tồn tại');
+        throw new ForbiddenException('You cannot share this post');
       }
       if (originalPost.allowShares === false) {
         throw new BadRequestException('Chia sẻ đã bị tắt cho bài viết này');
       }
-      await this.postModel.findByIdAndUpdate(createPostDto.sharedPostId, {
-        $inc: { totalShares: 1 },
-      });
     }
 
     const newPost = new this.postModel({
       ...createPostDto,
-      userId: new Types.ObjectId(createPostDto.userId),
+      userId: new Types.ObjectId(actorId),
+      content: createPostDto.content?.trim().slice(0, 10000),
       sharedPostId: createPostDto.sharedPostId
         ? new Types.ObjectId(createPostDto.sharedPostId)
         : null,
@@ -144,55 +293,76 @@ export class PostService {
       privacy: createPostDto.groupId
         ? PostPrivacy.GROUP
         : createPostDto.privacy || PostPrivacy.PUBLIC,
+      type: createPostDto.sharedPostId ? 'SHARE' : 'POST',
+      livestreamStatus: null,
       isActive: true,
     });
 
     const savedPost = await newPost.save();
 
-    // Process hashtags from content (if any)
-    if (createPostDto.content) {
-      await this.hashtagService.processHashtags(
-        createPostDto.content,
-        savedPost._id.toString(),
-        HashtagEntityType.POST,
-        createPostDto.userId
+    if (originalPost) {
+      const increment = await this.postModel.updateOne(
+        {
+          _id: originalPost._id,
+          isDeleted: false,
+          isActive: true,
+          allowShares: { $ne: false },
+        },
+        { $inc: { totalShares: 1 } },
       );
+      if (increment.modifiedCount !== 1) {
+        await this.postModel.deleteOne({ _id: savedPost._id });
+        throw new BadRequestException('The original post can no longer be shared');
+      }
     }
 
-    if (createPostDto.sharedPostId) {
-      const postShared = await this.postModel.findById(createPostDto.sharedPostId);
-      if (postShared) {
+    if (createPostDto.content) {
+      this.hashtagService
+        .processHashtags(
+          createPostDto.content,
+          savedPost._id.toString(),
+          HashtagEntityType.POST,
+          actorId,
+        )
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.warn(`Failed to index hashtags for post ${savedPost._id}: ${message}`);
+        });
+    }
+
+    if (createPostDto.sharedPostId && originalPost) {
         // Emit share notification via RabbitMQ
         await this.notificationEmitter.emitPostShared(
-          postShared.userId.toString(),
-          createPostDto.userId,
+          originalPost.userId.toString(),
+          actorId,
           savedPost._id.toString(),
-          `${user.fullname || 'Ai đó'} đã chia sẻ bài viết của bạn.`
+          user.fullname || 'Ai đó',
+          (createPostDto.content || '').trim().slice(0, 80) || undefined
         );
 
         // Emit Kafka Interaction for AI Learning
         this.kafkaProducer
           .emitInteractionPostShare(
-            createPostDto.userId,
+            actorId,
             createPostDto.sharedPostId,
             savedPost._id.toString()
           )
-          .catch((err) => console.warn('Kafka share error:', err));
-      }
+          .catch((err) => this.logger.warn(`Kafka share error: ${err?.message || err}`));
     }
 
-    await (
-      await (
-        await savedPost.populate('userId', 'firstName lastName avatar username')
-      ).populate('groupId', 'name avatar privacy')
-    ).populate({
-      path: 'sharedPostId',
-      populate: { path: 'userId', select: 'firstName lastName avatar username' },
-    });
+    await savedPost.populate([
+      { path: 'userId', select: 'firstName lastName avatar username' },
+      { path: 'groupId', select: 'name avatar privacy' },
+      {
+        path: 'sharedPostId',
+        match: { isDeleted: false },
+        populate: { path: 'userId', select: 'firstName lastName avatar username' },
+      },
+    ]);
 
     // Emit Kafka event for newsfeed fan-out (async, don't block response)
     // This will push the post to all followers' pre-computed feeds
-    this.emitPostCreatedToKafka(savedPost, createPostDto.userId).catch(() => {});
+    this.emitPostCreatedToKafka(savedPost, actorId).catch(() => {});
 
     return savedPost;
   }
@@ -216,7 +386,7 @@ export class PostService {
         }
       );
     } catch (error: any) {
-      console.warn('Failed to emit post to Kafka:', error.message);
+      this.logger.warn(`Failed to emit post to Kafka: ${error.message}`);
     }
   }
 
@@ -226,6 +396,13 @@ export class PostService {
     description: string,
     privacy: PostPrivacy = PostPrivacy.PUBLIC
   ): Promise<any> {
+    if (!Types.ObjectId.isValid(userId) || !Object.values(PostPrivacy).includes(privacy)) {
+      throw new BadRequestException('Invalid livestream owner or privacy');
+    }
+    if (privacy === PostPrivacy.GROUP) {
+      throw new BadRequestException('Group livestreams require a group context');
+    }
+    description = (description || '').trim().slice(0, 10000);
     const liveStream = await this.apiVideoService.createLiveStream(
       description || `Livestream của ${userId}`
     );
@@ -263,6 +440,9 @@ export class PostService {
   }
 
   async endLivestream(postId: string, userId: string) {
+    if (!Types.ObjectId.isValid(postId) || !Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid livestream identifier');
+    }
     const post = await this.postModel.findOne({ _id: postId, userId: new Types.ObjectId(userId) });
     if (!post) throw new NotFoundException('Post not found');
 
@@ -277,21 +457,28 @@ export class PostService {
   }
 
   async findAll(
+    currentUserId: string,
     page = 1,
     limit = 10,
-    userId?: string
+    authorId?: string
   ): Promise<{ data: Post[]; total: number; page: number; totalPages: number }> {
+    ({ page, limit } = this.clampPagination(page, limit));
     const skip = (page - 1) * limit;
+    const visibility = await this.buildVisibilityFilter(currentUserId);
 
     // Build query filter
     const filter: Record<string, unknown> = {
-      isDeleted: false,
-      isActive: true,
+      $and: [{ isDeleted: false, isActive: true }, visibility],
     };
 
     // If userId provided, filter by user's posts
-    if (userId) {
-      filter.userId = new Types.ObjectId(userId);
+    if (authorId) {
+      if (!Types.ObjectId.isValid(authorId)) {
+        throw new BadRequestException('Invalid author identifier');
+      }
+      (filter.$and as Record<string, unknown>[]).push({
+        userId: new Types.ObjectId(authorId),
+      });
     }
 
     const [data, total] = await Promise.all([
@@ -300,17 +487,19 @@ export class PostService {
         .populate('userId', 'firstName lastName avatar username')
         .populate({
           path: 'sharedPostId',
+          match: { isDeleted: false },
           populate: { path: 'userId', select: 'firstName lastName avatar username' },
         })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
+        .lean()
         .exec(),
       this.postModel.countDocuments(filter),
     ]);
 
     return {
-      data,
+      data: data as unknown as Post[],
       total,
       page,
       totalPages: Math.ceil(total / limit),
@@ -320,11 +509,10 @@ export class PostService {
   async findNewsFeed(
     currentUserId: string,
     page = 1,
-    limit = 10,
-    friendIds: string[] = []
+    limit = 10
   ): Promise<{ data: PostWithReactInfo[]; total: number; page: number; totalPages: number }> {
-    const currentUserObjId = new Types.ObjectId(currentUserId);
-    const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
+    ({ page, limit } = this.clampPagination(page, limit));
+    const { filter: visibility } = await this.getVisibilityContext(currentUserId);
 
     // 2. Fallback to Direct AI Server Call (Realtime Inference)
     try {
@@ -333,12 +521,8 @@ export class PostService {
         total: number;
       }> = await firstValueFrom(
         this.httpService.get(`${this.aiServerUrl}/newsfeed/${currentUserId}`, {
-          params: {
-            friend_ids: friendIds.join(','),
-            limit,
-            page,
-          },
-          timeout: 10000, // Reduced timeout
+          params: { limit, page },
+          ...this.aiRequestConfig(10000),
         })
       );
 
@@ -347,11 +531,17 @@ export class PostService {
 
       if (postRelevantIds.length > 0) {
         const dataPosts = await this.postModel
-          .find({ _id: { $in: postRelevantIds }, isDeleted: false, isActive: true })
+          .find({
+            $and: [
+              { _id: { $in: postRelevantIds }, isDeleted: false, isActive: true },
+              visibility,
+            ],
+          })
           .populate('userId', 'firstName lastName avatar username')
           .populate('groupId', 'name avatar privacy')
           .populate({
             path: 'sharedPostId',
+            match: { isDeleted: false },
             populate: { path: 'userId', select: 'firstName lastName avatar username' },
           })
           .lean()
@@ -368,13 +558,7 @@ export class PostService {
           })
           .filter((post) => post !== null);
 
-        // Filter private group posts
-        const filteredData = sortedPosts.filter((post) => {
-          if (!post.groupId) return true;
-          const group = post.groupId as any;
-          if (group.privacy === 'PUBLIC') return true;
-          return post.userId && (post.userId as any)._id?.toString() === currentUserId;
-        });
+        const filteredData = sortedPosts;
 
         // Add reactions info
         const postIds = filteredData.map((p) => p._id);
@@ -382,7 +566,7 @@ export class PostService {
 
         const [userReactions, reactionsSummary] = await Promise.all([
           this.reactionService.userReactions(postIds, currentUserId),
-          this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+          this.reactionService.getVisiblePostsReactionsSummary(postIdStrings, currentUserId),
         ]);
 
         const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
@@ -404,20 +588,13 @@ export class PostService {
         };
       }
     } catch (error: any) {
-      console.warn('AI Server unavailable, falling back to standard newsfeed:', error.message);
+      this.logger.warn(`AI Server unavailable, falling back to standard newsfeed: ${error.message}`);
     }
 
     // Fallback: Standard MongoDB query (original logic)
     const skip = (page - 1) * limit;
     const filter = {
-      isDeleted: false,
-      isActive: true,
-      $or: [
-        { privacy: PostPrivacy.PUBLIC },
-        { privacy: PostPrivacy.FRIEND, userId: { $in: friendObjIds } },
-        { userId: currentUserObjId },
-        { privacy: PostPrivacy.GROUP, groupId: { $ne: null } },
-      ],
+      $and: [{ isDeleted: false, isActive: true }, visibility],
     };
 
     const [data, total] = await Promise.all([
@@ -427,31 +604,25 @@ export class PostService {
         .populate('groupId', 'name avatar privacy')
         .populate({
           path: 'sharedPostId',
+          match: { isDeleted: false },
           populate: { path: 'userId', select: 'firstName lastName avatar username' },
         })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit + 20)
+        .limit(limit)
         .lean()
         .exec(),
       this.postModel.countDocuments(filter),
     ]);
 
-    const filteredData = data
-      .filter((post) => {
-        if (!post.groupId) return true;
-        const group = post.groupId as any;
-        if (group.privacy === 'PUBLIC') return true;
-        return post.userId && (post.userId as any)._id?.toString() === currentUserId;
-      })
-      .slice(0, limit);
+    const filteredData = data;
 
     const postIds = filteredData.map((p) => p._id);
     const postIdStrings = postIds.map((id) => id.toString());
 
     const [userReactions, reactionsSummary] = await Promise.all([
       this.reactionService.userReactions(postIds, currentUserId),
-      this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+      this.reactionService.getVisiblePostsReactionsSummary(postIdStrings, currentUserId),
     ]);
 
     const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
@@ -477,10 +648,10 @@ export class PostService {
     currentUserId: string,
     page = 1,
     limit = 10,
-    friendIds: string[] = [],
     keyword?: string
   ): Promise<any> {
-    const currentUserObjId = new Types.ObjectId(currentUserId);
+    ({ page, limit } = this.clampPagination(page, limit));
+    const { filter: visibility } = await this.getVisibilityContext(currentUserId);
 
     if (!keyword || keyword.trim().length === 0) {
       return { data: [], total: 0, page, totalPages: 0 };
@@ -496,12 +667,11 @@ export class PostService {
           params: {
             q: keyword,
             current_user_id: currentUserId,
-            friend_ids: friendIds.join(','),
             limit,
             page,
             apply_privacy_filter: true,
           },
-          timeout: 30000,
+          ...this.aiRequestConfig(30000),
         })
       );
 
@@ -519,11 +689,17 @@ export class PostService {
 
       // Fetch posts from DB
       const dataPosts = await this.postModel
-        .find({ _id: { $in: postRelevantIds }, isDeleted: false, isActive: true })
+        .find({
+          $and: [
+            { _id: { $in: postRelevantIds }, isDeleted: false, isActive: true },
+            visibility,
+          ],
+        })
         .populate('userId', 'firstName lastName avatar username')
         .populate('groupId', 'name avatar privacy')
         .populate({
           path: 'sharedPostId',
+          match: { isDeleted: false },
           populate: { path: 'userId', select: 'firstName lastName avatar username' },
         })
         .lean()
@@ -540,13 +716,7 @@ export class PostService {
         })
         .filter((post) => post !== null);
 
-      // Filter private group posts
-      const filteredData = sortedPosts.filter((post) => {
-        if (!post.groupId) return true;
-        const group = post.groupId as any;
-        if (group.privacy === 'PUBLIC') return true;
-        return post.userId && (post.userId as any)._id?.toString() === currentUserId;
-      });
+      const filteredData = sortedPosts;
 
       // Add reactions info
       const postIds = filteredData.map((p) => p._id);
@@ -554,7 +724,7 @@ export class PostService {
 
       const [userReactions, reactionsSummary] = await Promise.all([
         this.reactionService.userReactions(postIds, currentUserId),
-        this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+        this.reactionService.getVisiblePostsReactionsSummary(postIdStrings, currentUserId),
       ]);
 
       const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
@@ -575,21 +745,15 @@ export class PostService {
         totalPages: Math.ceil(responseAPIAi.data.total / limit),
       };
     } catch (error: any) {
-      console.error('AI Server search failed:', error.message);
+      this.logger.error(`AI Server search failed: ${error.message}`);
 
       // Fallback: basic text search with MongoDB
-      const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
       const skip = (page - 1) * limit;
 
       const filter = {
-        isDeleted: false,
-        isActive: true,
-        $text: { $search: keyword },
-        $or: [
-          { privacy: PostPrivacy.PUBLIC },
-          { privacy: PostPrivacy.FRIEND, userId: { $in: friendObjIds } },
-          { userId: currentUserObjId },
-          { privacy: PostPrivacy.GROUP, groupId: { $ne: null } },
+        $and: [
+          { isDeleted: false, isActive: true, $text: { $search: keyword } },
+          visibility,
         ],
       };
 
@@ -601,6 +765,7 @@ export class PostService {
             .populate('groupId', 'name avatar privacy')
             .populate({
               path: 'sharedPostId',
+              match: { isDeleted: false },
               populate: { path: 'userId', select: 'firstName lastName avatar username' },
             })
             .sort({ score: { $meta: 'textScore' } })
@@ -616,7 +781,7 @@ export class PostService {
 
         const [userReactions, reactionsSummary] = await Promise.all([
           this.reactionService.userReactions(postIds, currentUserId),
-          this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+          this.reactionService.getVisiblePostsReactionsSummary(postIdStrings, currentUserId),
         ]);
 
         const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
@@ -647,11 +812,10 @@ export class PostService {
   async findVideoReels(
     currentUserId: string,
     page = 1,
-    limit = 10,
-    friendIds: string[] = []
+    limit = 10
   ): Promise<{ data: PostWithReactInfo[]; total: number; page: number; totalPages: number }> {
-    const currentUserObjId = new Types.ObjectId(currentUserId);
-    const friendObjIds = friendIds.map((id) => new Types.ObjectId(id));
+    ({ page, limit } = this.clampPagination(page, limit));
+    const { filter: visibility } = await this.getVisibilityContext(currentUserId);
 
     // Try AI Server for personalization
     try {
@@ -661,12 +825,11 @@ export class PostService {
       }> = await firstValueFrom(
         this.httpService.get(`${this.aiServerUrl}/newsfeed/${currentUserId}`, {
           params: {
-            friend_ids: friendIds.join(','),
             limit, // Use requested limit directly as AI now filters by type
             page,
             media_type: 'VIDEO', // Request specific type
           },
-          timeout: 30000,
+          ...this.aiRequestConfig(30000),
         })
       );
 
@@ -676,15 +839,21 @@ export class PostService {
       if (postRelevantIds.length > 0) {
         const dataPosts = await this.postModel
           .find({
-            _id: { $in: postRelevantIds },
-            isDeleted: false,
-            isActive: true,
-            'media.mediaType': 'VIDEO', // Only VIDEO posts
+            $and: [
+              {
+                _id: { $in: postRelevantIds },
+                isDeleted: false,
+                isActive: true,
+                'media.mediaType': 'VIDEO',
+              },
+              visibility,
+            ],
           })
           .populate('userId', 'firstName lastName avatar username')
           .populate('groupId', 'name avatar privacy')
           .populate({
             path: 'sharedPostId',
+            match: { isDeleted: false },
             populate: { path: 'userId', select: 'firstName lastName avatar username' },
           })
           .lean()
@@ -701,13 +870,7 @@ export class PostService {
           })
           .filter((post) => post !== null);
 
-        // Filter private group posts
-        const filteredData = sortedPosts.filter((post) => {
-          if (!post.groupId) return true;
-          const group = post.groupId as any;
-          if (group.privacy === 'PUBLIC') return true;
-          return post.userId && (post.userId as any)._id?.toString() === currentUserId;
-        });
+        const filteredData = sortedPosts;
 
         // Add reactions info
         const postIds = filteredData.map((p) => p._id);
@@ -715,7 +878,7 @@ export class PostService {
 
         const [userReactions, reactionsSummary] = await Promise.all([
           this.reactionService.userReactions(postIds, currentUserId),
-          this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+          this.reactionService.getVisiblePostsReactionsSummary(postIdStrings, currentUserId),
         ]);
 
         const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
@@ -739,9 +902,8 @@ export class PostService {
         }
       }
     } catch (error: any) {
-      console.warn(
-        'AI Server unavailable for Reels, falling back to chronological:',
-        error.message
+      this.logger.warn(
+        `AI Server unavailable for Reels, falling back to chronological: ${error.message}`
       );
     }
 
@@ -749,14 +911,9 @@ export class PostService {
     const skip = (page - 1) * limit;
 
     const filter = {
-      isDeleted: false,
-      isActive: true,
-      'media.mediaType': 'VIDEO',
-      $or: [
-        { privacy: PostPrivacy.PUBLIC },
-        { privacy: PostPrivacy.FRIEND, userId: { $in: friendObjIds } },
-        { userId: currentUserObjId },
-        { privacy: PostPrivacy.GROUP, groupId: { $ne: null } },
+      $and: [
+        { isDeleted: false, isActive: true, 'media.mediaType': 'VIDEO' },
+        visibility,
       ],
     };
 
@@ -767,6 +924,7 @@ export class PostService {
         .populate('groupId', 'name avatar privacy')
         .populate({
           path: 'sharedPostId',
+          match: { isDeleted: false },
           populate: { path: 'userId', select: 'firstName lastName avatar username' },
         })
         .sort({ createdAt: -1 })
@@ -777,13 +935,7 @@ export class PostService {
       this.postModel.countDocuments(filter),
     ]);
 
-    // Filter out private group posts where user is not the author
-    const filteredData = data.filter((post) => {
-      if (!post.groupId) return true;
-      const group = post.groupId as any;
-      if (group.privacy === 'PUBLIC') return true;
-      return post.userId && (post.userId as any)._id?.toString() === currentUserId;
-    });
+    const filteredData = data;
 
     const postIds = filteredData.map((p) => p._id);
     const postIdStrings = postIds.map((id) => id.toString());
@@ -791,7 +943,7 @@ export class PostService {
     // Get user reactions and top reactions summary in parallel
     const [userReactions, reactionsSummary] = await Promise.all([
       this.reactionService.userReactions(postIds, currentUserId),
-      this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+      this.reactionService.getVisiblePostsReactionsSummary(postIdStrings, currentUserId),
     ]);
 
     const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
@@ -816,12 +968,23 @@ export class PostService {
     };
   }
 
-  async findOne(id: string): Promise<Post> {
+  async findOne(id: string, currentUserId: string): Promise<Post> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid post identifier');
+    }
+    const visibility = await this.buildVisibilityFilter(currentUserId);
     const post = await this.postModel
-      .findOne({ _id: new Types.ObjectId(id), isDeleted: false })
+      .findOne({
+        $and: [
+          { _id: new Types.ObjectId(id), isDeleted: false, isActive: true },
+          visibility,
+        ],
+      })
       .populate('userId', 'firstName lastName avatar username')
+      .populate('groupId', 'name avatar privacy')
       .populate({
         path: 'sharedPostId',
+        match: { isDeleted: false },
         populate: { path: 'userId', select: 'firstName lastName avatar username' },
       })
       .exec();
@@ -837,45 +1000,26 @@ export class PostService {
     userId: string,
     page = 1,
     limit = 10,
-    currentUserId?: string,
-    friendIds: string[] = []
+    currentUserId?: string
   ): Promise<{ data: Post[]; total: number; page: number; totalPages: number }> {
+    if (!currentUserId || !Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid viewer or profile identifier');
+    }
+    ({ page, limit } = this.clampPagination(page, limit));
     const skip = (page - 1) * limit;
     const targetUserObjId = new Types.ObjectId(userId);
+    const visibility = await this.buildVisibilityFilter(currentUserId);
 
     // Build privacy filter based on viewer:
     // 1. Own profile: see all posts
     // 2. Friend viewing: see PUBLIC + FRIEND posts
     // 3. Non-friend viewing: see PUBLIC posts only
-    let privacyFilter: Record<string, unknown>;
-
-    const isOwnProfile = currentUserId === userId;
-    const isFriend = currentUserId && friendIds.includes(userId);
-
-    if (isOwnProfile) {
-      // Own profile - see all posts
-      privacyFilter = {
-        userId: targetUserObjId,
-        isDeleted: false,
-        isActive: true,
-      };
-    } else if (isFriend) {
-      // Friend - see PUBLIC and FRIEND posts
-      privacyFilter = {
-        userId: targetUserObjId,
-        isDeleted: false,
-        isActive: true,
-        privacy: { $in: [PostPrivacy.PUBLIC, PostPrivacy.FRIEND] },
-      };
-    } else {
-      // Non-friend/Guest - see PUBLIC posts only
-      privacyFilter = {
-        userId: targetUserObjId,
-        isDeleted: false,
-        isActive: true,
-        privacy: PostPrivacy.PUBLIC,
-      };
-    }
+    const privacyFilter: Record<string, unknown> = {
+      $and: [
+        { userId: targetUserObjId, isDeleted: false, isActive: true },
+        visibility,
+      ],
+    };
 
     const [data, total] = await Promise.all([
       this.postModel
@@ -883,6 +1027,7 @@ export class PostService {
         .populate('userId', 'firstName lastName avatar username')
         .populate({
           path: 'sharedPostId',
+          match: { isDeleted: false },
           populate: { path: 'userId', select: 'firstName lastName avatar username' },
         })
         .sort({ createdAt: -1 })
@@ -896,11 +1041,11 @@ export class PostService {
     const postIds = data.map((p) => p._id);
     const postIdStrings = postIds.map((id) => id.toString());
 
-    const reactionViewerId = currentUserId || userId;
+    const reactionViewerId = currentUserId;
 
     const [userReactions, reactionsSummary] = await Promise.all([
       this.reactionService.userReactions(postIds, reactionViewerId),
-      this.reactionService.getPostsReactionsSummary(postIdStrings, reactionViewerId),
+      this.reactionService.getVisiblePostsReactionsSummary(postIdStrings, reactionViewerId),
     ]);
 
     const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));
@@ -923,10 +1068,16 @@ export class PostService {
   }
 
   async update(id: string, updatePostDto: UpdatePostDto, currentUserId: string): Promise<Post> {
-    const post = await this.postModel.findOne({
-      _id: new Types.ObjectId(id),
-      isDeleted: false,
-    });
+    if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(currentUserId)) {
+      throw new BadRequestException('Invalid post or user identifier');
+    }
+    const post = await this.postModel
+      .findOne({
+        _id: new Types.ObjectId(id),
+        isDeleted: false,
+      })
+      .select('userId groupId media')
+      .lean();
 
     if (!post) {
       throw new NotFoundException('Post not found');
@@ -939,7 +1090,37 @@ export class PostService {
         : String(post.userId);
 
     if (postOwnerId !== currentUserId) {
-      throw new BadRequestException('You can only edit your own posts');
+      throw new ForbiddenException('You can only edit your own posts');
+    }
+    if (post.groupId && !(await this.groupService.isMember(currentUserId, post.groupId.toString()))) {
+      throw new ForbiddenException('You are no longer a member of this post group');
+    }
+    if (updatePostDto.media !== undefined) {
+      const existingPublicIds = new Set((post.media || []).map((media) => media.publicId));
+      const newlyAttachedMedia = updatePostDto.media.filter(
+        (media) => !existingPublicIds.has(media.publicId),
+      );
+      await this.cloudinaryService.assertOwnedMedia(currentUserId, newlyAttachedMedia);
+    }
+
+    const safeUpdate: Record<string, unknown> = {};
+    if (updatePostDto.content !== undefined) {
+      safeUpdate.content = updatePostDto.content?.trim().slice(0, 10000) || '';
+    }
+    if (updatePostDto.media !== undefined) safeUpdate.media = updatePostDto.media;
+    if (updatePostDto.background !== undefined) safeUpdate.background = updatePostDto.background;
+    if (updatePostDto.allowComments !== undefined) {
+      safeUpdate.allowComments = updatePostDto.allowComments;
+    }
+    if (updatePostDto.allowShares !== undefined) safeUpdate.allowShares = updatePostDto.allowShares;
+    if (updatePostDto.allowReactions !== undefined) {
+      safeUpdate.allowReactions = updatePostDto.allowReactions;
+    }
+    if (!post.groupId && updatePostDto.privacy !== undefined) {
+      safeUpdate.privacy = updatePostDto.privacy;
+    }
+    if (Object.keys(safeUpdate).length === 0) {
+      throw new BadRequestException('No supported post fields were provided');
     }
 
     // Xóa media cũ không còn trong danh sách mới
@@ -954,14 +1135,14 @@ export class PostService {
 
       if (mediaToDelete.length > 0) {
         // Xóa async, không block response
-        this.cloudinaryService.deleteMultipleMedia(mediaToDelete).catch((err) => {
-          console.error('Failed to delete old media from Cloudinary:', err);
+        this.cloudinaryService.deleteOwnedMedia(currentUserId, mediaToDelete).catch((err) => {
+          this.logger.error(`Failed to delete old media from Cloudinary: ${err?.message || err}`);
         });
       }
     }
 
     const updatedPost = await this.postModel
-      .findByIdAndUpdate(id, { $set: updatePostDto }, { new: true })
+      .findByIdAndUpdate(id, { $set: safeUpdate }, { new: true, runValidators: true })
       .populate('userId', 'firstName lastName avatar username')
       .exec();
 
@@ -984,31 +1165,35 @@ export class PostService {
   }
 
   async hidePost(postId: string, userId: string) {
-    const post = await this.postModel.findById(postId);
-    if (!post) {
+    if (!(await this.canViewPost(postId, userId))) {
       throw new NotFoundException('Post not found');
     }
 
     // Emit to Kafka for AI scoring (POST_HIDE has weight -2.0)
     this.kafkaProducer
       .emitPostHide(userId, postId)
-      .catch((err) => console.warn('Kafka hide event error:', err));
+      .catch((err) => this.logger.warn(`Kafka hide event error: ${err?.message || err}`));
 
     return { message: 'Post hidden successfully' };
   }
 
   async remove(id: string, currentUserId: string): Promise<{ message: string }> {
-    const post = await this.postModel.findOne({
-      _id: new Types.ObjectId(id),
-      isDeleted: false,
-    });
+    if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(currentUserId)) {
+      throw new BadRequestException('Invalid post or user identifier');
+    }
+    const post = await this.postModel
+      .findOne({
+        _id: new Types.ObjectId(id),
+        isDeleted: false,
+      })
+      .select('userId media sharedPostId');
 
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
     if (post.userId.toString() !== currentUserId) {
-      throw new BadRequestException('You can only delete your own posts');
+      throw new ForbiddenException('You can only delete your own posts');
     }
 
     // Xóa media trên Cloudinary nếu có
@@ -1022,8 +1207,8 @@ export class PostService {
 
       if (mediaToDelete.length > 0) {
         // Xóa async, không block response
-        this.cloudinaryService.deleteMultipleMedia(mediaToDelete).catch((err) => {
-          console.error('Failed to delete post media from Cloudinary:', err);
+        this.cloudinaryService.deleteOwnedMedia(currentUserId, mediaToDelete).catch((err) => {
+          this.logger.error(`Failed to delete post media from Cloudinary: ${err?.message || err}`);
         });
       }
     }
@@ -1037,26 +1222,47 @@ export class PostService {
       deletedAt: new Date(),
     });
 
+    if (post.sharedPostId) {
+      await this.postModel.updateOne(
+        { _id: post.sharedPostId, totalShares: { $gt: 0 } },
+        { $inc: { totalShares: -1 } }
+      );
+    }
+
     this.deletePostEmbedding(id).catch(() => {});
+
+    await this.notificationService.deactivateByPostRef(id);
 
     return { message: 'Post deleted successfully' };
   }
 
   // Helper methods for reactions/comments (can be expanded later)
   async incrementReacts(id: string): Promise<void> {
-    await this.postModel.findByIdAndUpdate(id, { $inc: { totalReacts: 1 } });
+    await this.postModel.updateOne(
+      { _id: id, isDeleted: false, allowReactions: { $ne: false } },
+      { $inc: { totalReacts: 1 } }
+    );
   }
 
   async decrementReacts(id: string): Promise<void> {
-    await this.postModel.findByIdAndUpdate(id, { $inc: { totalReacts: -1 } });
+    await this.postModel.updateOne(
+      { _id: id, totalReacts: { $gt: 0 } },
+      { $inc: { totalReacts: -1 } }
+    );
   }
 
   async incrementComments(id: string): Promise<void> {
-    await this.postModel.findByIdAndUpdate(id, { $inc: { totalComments: 1 } });
+    await this.postModel.updateOne(
+      { _id: id, isDeleted: false, allowComments: { $ne: false } },
+      { $inc: { totalComments: 1 } }
+    );
   }
 
   async incrementShares(id: string): Promise<void> {
-    await this.postModel.findByIdAndUpdate(id, { $inc: { totalShares: 1 } });
+    await this.postModel.updateOne(
+      { _id: id, isDeleted: false, allowShares: { $ne: false } },
+      { $inc: { totalShares: 1 } }
+    );
   }
 
   // Get posts by group
@@ -1066,6 +1272,13 @@ export class PostService {
     page = 1,
     limit = 10
   ): Promise<{ data: PostWithReactInfo[]; total: number; page: number; totalPages: number }> {
+    if (
+      !Types.ObjectId.isValid(groupId) ||
+      !(await this.groupService.canViewGroupContent(currentUserId, groupId))
+    ) {
+      throw new ForbiddenException('You cannot view posts from this group');
+    }
+    ({ page, limit } = this.clampPagination(page, limit));
     const skip = (page - 1) * limit;
 
     const filter = {
@@ -1081,6 +1294,7 @@ export class PostService {
         .populate('groupId', 'name avatar privacy')
         .populate({
           path: 'sharedPostId',
+          match: { isDeleted: false },
           populate: { path: 'userId', select: 'firstName lastName avatar username' },
         })
         .sort({ createdAt: -1 })
@@ -1097,7 +1311,7 @@ export class PostService {
     // Get user reactions and top reactions summary in parallel
     const [userReactions, reactionsSummary] = await Promise.all([
       this.reactionService.userReactions(postIds, currentUserId),
-      this.reactionService.getPostsReactionsSummary(postIdStrings, currentUserId),
+      this.reactionService.getVisiblePostsReactionsSummary(postIdStrings, currentUserId),
     ]);
 
     const reactionMap = new Map(userReactions.map((r) => [r.factorId.toString(), r]));

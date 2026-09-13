@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose, { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 export type HashtagDocument = HydratedDocument<Hashtag>;
 
@@ -11,7 +11,7 @@ export type HashtagDocument = HydratedDocument<Hashtag>;
  */
 @Schema({ timestamps: true })
 export class Hashtag {
-    _id: mongoose.Schema.Types.ObjectId;
+    _id: Types.ObjectId;
 
     // Normalized lowercase for searching and uniqueness
     // Example: "ai", "javascript", "reactjs"
@@ -38,3 +38,4 @@ export const HashtagSchema = SchemaFactory.createForClass(Hashtag);
 
 // Compound index for trending queries (sort by usage, filter by time)
 HashtagSchema.index({ usageCount: -1, createdAt: -1 });
+HashtagSchema.index({ tagTextLowercase: 1, usageCount: -1 });

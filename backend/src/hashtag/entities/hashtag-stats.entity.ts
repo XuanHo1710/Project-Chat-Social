@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose, { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { Hashtag } from './hashtag.entity';
 
 export type HashtagStatsDocument = HydratedDocument<HashtagStats>;
@@ -11,10 +11,10 @@ export type HashtagStatsDocument = HydratedDocument<HashtagStats>;
  */
 @Schema({ timestamps: true })
 export class HashtagStats {
-    _id: mongoose.Schema.Types.ObjectId;
+    _id: Types.ObjectId;
 
-    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Hashtag.name, required: true, index: true })
-    hashtagId: mongoose.Schema.Types.ObjectId;
+    @Prop({ type: Types.ObjectId, ref: Hashtag.name, required: true, index: true })
+    hashtagId: Types.ObjectId;
 
     // The date this stat represents (start of period)
     @Prop({ type: Date, required: true, index: true })
@@ -22,7 +22,7 @@ export class HashtagStats {
 
     // Period type: 'HOURLY', 'DAILY', 'WEEKLY'
     @Prop({ type: String, enum: ['HOURLY', 'DAILY', 'WEEKLY'], required: true })
-    periodType: string;
+    periodType: 'HOURLY' | 'DAILY' | 'WEEKLY';
 
     // Number of times used in this period
     @Prop({ type: Number, default: 0 })

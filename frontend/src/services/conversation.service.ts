@@ -1,4 +1,4 @@
-import axios from "@/config/axios";
+import axios, { unwrap } from "@/config/axios";
 import { APIResponse } from "@/types/common";
 import { ConversationResponseData } from "@/types/conversation";
 
@@ -7,14 +7,14 @@ class ConversationService {
     const response = await axios.get<APIResponse<{ unreadCount: number }>>(
       "/conversation/total-unread-count",
     );
-    return response.data.data;
+    return unwrap<{ unreadCount: number }>(response.data);
   }
 
   async getConversationByUserId(
-    userId: string,
+    _userId: string,
   ): Promise<APIResponse<ConversationResponseData[]>> {
     const response = await axios.get<APIResponse<ConversationResponseData[]>>(
-      "/conversation/" + userId,
+      "/conversation",
     );
     return response.data;
   }
@@ -39,7 +39,7 @@ class ConversationService {
     const response = await axios.post<APIResponse<ConversationResponseData>>(
       "/conversation/chatbot",
     );
-    return response.data.data;
+    return unwrap<ConversationResponseData>(response.data);
   }
 
   async getOrCreateDirectConversation(
@@ -48,7 +48,7 @@ class ConversationService {
     const response = await axios.post<APIResponse<ConversationResponseData>>(
       `/conversation/direct/${targetUserId}`,
     );
-    return response.data.data;
+    return unwrap<ConversationResponseData>(response.data);
   }
 }
 

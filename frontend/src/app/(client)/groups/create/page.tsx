@@ -258,7 +258,7 @@ export default function CreateGroupPage() {
                             </Typography>
                             <TextField
                                 fullWidth
-                                placeholder={t('groups.invite_placeholder', { defaultValue: 'Enter name or email' })}
+                                placeholder={t('groups.search_friends')}
                                 value={friendSearch}
                                 onChange={(e) => setFriendSearch(e.target.value)}
                                 sx={{

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Box, CircularProgress, Typography, useMediaQuery, useTheme } from "@mui/material";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useConversationByUserId, useConversationDetail } from "@/queries/useConversationQueries";
@@ -40,28 +40,7 @@ export default function ChatDetailPage() {
     const { socketChat, socketRelationship } = useSocket();
     const queryClient = useQueryClient();
 
-    // Dynamic tab title for unread messages
-    const unreadMsgCount = useRef(0);
-    const originalTitle = useRef("Social Chat - Mạng xã hội kết nối bạn bè");
-
-    const updateTabTitle = useCallback((senderName: string) => {
-        unreadMsgCount.current += 1;
-        document.title = `${senderName} đã gửi ${unreadMsgCount.current} tin nhắn đến bạn`;
-    }, []);
-
-    // Reset title when user focuses the tab
-    useEffect(() => {
-        const title = originalTitle.current;
-        const handleFocus = () => {
-            unreadMsgCount.current = 0;
-            document.title = title;
-        };
-        window.addEventListener("focus", handleFocus);
-        return () => {
-            window.removeEventListener("focus", handleFocus);
-            document.title = title;
-        };
-    }, []);
+    // Tab title / favicon unread projection is owned by SocketContext.
 
     // Fetch all conversations for sidebar
     const { data: listConversation, isLoading: isLoadingConversations } = useConversationByUserId(user?.id || "");
@@ -137,15 +116,7 @@ export default function ChatDetailPage() {
         if (!socketChat || !user?.id) return;
 
         const handleGlobalMessageNew = (msg: MessageResponse) => {
-            // Update tab title if message is from someone else and tab is not focused
             const senderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
-            if (senderId !== user.id && !document.hasFocus()) {
-                const senderName = typeof msg.senderId === 'object'
-                    ? `${msg.senderId.firstName} ${msg.senderId.lastName}`.trim()
-                    : 'Ai đó';
-                updateTabTitle(senderName);
-            }
-
             queryClient.setQueryData<{ data: ConversationResponseData[] }>(
                 [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
                 (oldData) => {
@@ -261,7 +232,7 @@ export default function ChatDetailPage() {
             socketChat.off("conversation:created", handleConversationUpdate);
             socketChat.off("conversation:mute:updated", handleMuteUpdated);
         };
-    }, [socketChat, queryClient, user?.id, conversationId, updateTabTitle]);
+    }, [socketChat, queryClient, user?.id, conversationId]);
 
     // Handle real-time restriction/unrestriction
     useEffect(() => {

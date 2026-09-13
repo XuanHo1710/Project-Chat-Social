@@ -22,19 +22,20 @@ import { HashtagModule } from './hashtag/hashtag.module';
 import { StoryModule } from './story/story.module';
 import { GroupModule } from './group/group.module';
 import { NotificationModule } from './notification/notification.module';
-import { FirebaseService } from 'src/firebase/firebase.service';
 import { EmailModule } from './email/email.module';
 import { OtpModule } from './otp/otp.module';
 import { AdminModule } from './admin/admin.module';
-import { ClientsModule, Transport } from '@nestjs/microservices';
 import { RabbitMQEventsController } from 'src/notification/rabbitmq-events.controller';
 import { KafkaModule } from './kafka/kafka.module';
 import { ThemeModule } from './theme/theme.module';
+import { validateEnvironment } from './common/config/environment.config';
+import { RabbitMqClientModule } from './common/messaging/rabbitmq-client.module';
+import { PresenceModule } from './common/presence/presence.module';
 const mongooseAutoPopulate = require('mongoose-autopopulate');
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -64,23 +65,8 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     AdminModule,
     KafkaModule,
     ThemeModule,
-    ClientsModule.registerAsync([
-      {
-        name: 'RABBITMQ_SERVICE',
-        imports: [ConfigModule],
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.get<string>('RABBITMQ_URL')!],
-            queue: configService.get<string>('RABBITMQ_QUEUE_NAME')!,
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
-        inject: [ConfigService],
-      },
-    ]),
+    RabbitMqClientModule,
+    PresenceModule,
   ],
   controllers: [AppController, RabbitMQEventsController],
   providers: [
@@ -92,7 +78,6 @@ const mongooseAutoPopulate = require('mongoose-autopopulate');
     JwtStrategy,
     LocalStrategy,
     GoogleStrategy,
-    FirebaseService,
   ],
 })
 export class AppModule { }

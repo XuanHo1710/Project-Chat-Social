@@ -11,15 +11,12 @@ import {
 import { Server, Socket } from 'socket.io';
 import { CreateRelationshipDto } from 'src/relationship/dto/create-relationship.dto';
 import { RelationshipService } from 'src/relationship/relationship.service';
-
-// Map để lưu userId -> Set<socketId> (support multiple connections per user)
-const userSockets = new Map<string, Set<string>>();
+import { SocketAuthService } from 'src/auth/socket-auth.service';
+import { socketCorsOptions } from 'src/common/config/cors.config';
+import { PresenceService } from 'src/common/presence/presence.service';
 
 @WebSocketGateway({
-  cors: {
-    origin: '*',
-    credentials: true,
-  },
+  cors: socketCorsOptions,
   namespace: '/relationship',
 })
 export class RelationshipGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -27,44 +24,32 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
   server: Server;
   private logger = new Logger('RelationshipGateway');
 
-  constructor(private readonly relationshipService: RelationshipService) {}
+  constructor(
+    private readonly relationshipService: RelationshipService,
+    private readonly socketAuthService: SocketAuthService,
+    private readonly presenceService: PresenceService
+  ) {}
 
   async handleConnection(client: Socket) {
     try {
-      const userId = client.handshake.query.userId as string;
-
-      //  Lúc vô là join room theo userId để gửi request dễ hơn.
+      const { userId } = await this.socketAuthService.authenticate(client);
       client.join(userId);
 
-      if (!userId) {
-        this.logger.warn(`Client ${client.id} connected without userId`);
-        client.disconnect();
-        return;
-      }
-
-      // Store userId in client data for later use
-      client.data.userId = userId;
-
       // Lưu mapping userId -> Set<socketId> (support multiple devices)
-      if (!userSockets.has(userId)) {
-        userSockets.set(userId, new Set());
-      }
-      userSockets.get(userId)!.add(client.id);
-    } catch {}
+      this.presenceService.register(userId, client.id);
+    } catch {
+      this.logger.warn(`Rejected unauthorized relationship socket ${client.id}`);
+      this.socketAuthService.reject(client);
+    }
   }
 
   async handleDisconnect(client: Socket) {
     try {
-      const userId = client.data.userId || (client.handshake.query.userId as string);
+      const userId = client.data.userId as string | undefined;
 
-      if (userId && userSockets.has(userId)) {
-        const sockets = userSockets.get(userId)!;
-        sockets.delete(client.id);
-
+      if (userId) {
         // Only broadcast offline if no more connections for this user
-        if (sockets.size === 0) {
-          userSockets.delete(userId);
-
+        if (this.presenceService.unregister(userId, client.id)) {
           // Update lastActive when user goes offline
           // const lastActive = new Date();
           // await this.userModel.findByIdAndUpdate(userId, {
@@ -91,24 +76,26 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
     }
 
     try {
-      await this.relationshipService.addFriend(data);
+      const actorId = userId.toString();
+      const friendId = data.friendId.toString();
+      await this.relationshipService.addFriend({ ...data, userId: actorId as any });
 
       // Lấy data song song cho cả 2 người (tối ưu performance)
       const [sentForUserId, receivedForUserId, sentForFriendId, receivedForFriendId] =
         await Promise.all([
-          this.relationshipService.getSentFriendRequests(data.userId.toString()),
-          this.relationshipService.getReceivedFriendRequests(data.userId.toString()),
-          this.relationshipService.getSentFriendRequests(data.friendId.toString()),
-          this.relationshipService.getReceivedFriendRequests(data.friendId.toString()),
+          this.relationshipService.getSentFriendRequests(actorId),
+          this.relationshipService.getReceivedFriendRequests(actorId),
+          this.relationshipService.getSentFriendRequests(friendId),
+          this.relationshipService.getReceivedFriendRequests(friendId),
         ]);
 
       // Gửi cho người A (userId)
-      this.server.to(data.userId.toString()).emit('friend:sent', sentForUserId);
-      this.server.to(data.userId.toString()).emit('friend:received', receivedForUserId);
+      this.server.to(actorId).emit('friend:sent', sentForUserId);
+      this.server.to(actorId).emit('friend:received', receivedForUserId);
 
       // Gửi cho người B (friendId)
-      this.server.to(data.friendId.toString()).emit('friend:sent', sentForFriendId);
-      this.server.to(data.friendId.toString()).emit('friend:received', receivedForFriendId);
+      this.server.to(friendId).emit('friend:sent', sentForFriendId);
+      this.server.to(friendId).emit('friend:received', receivedForFriendId);
 
       return { success: true };
     } catch (err: any) {
@@ -130,9 +117,11 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
     }
 
     try {
+      const actorId = userId.toString();
+      const friendId = data.friendId.toString();
       await this.relationshipService.updateStatusRelationship(
-        data.userId.toString(),
-        data.friendId.toString(),
+        actorId,
+        friendId,
         data.status || ''
       );
 
@@ -145,23 +134,23 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
         receivedForFriendId,
         friendsForFriendId,
       ] = await Promise.all([
-        this.relationshipService.getSentFriendRequests(data.userId.toString()),
-        this.relationshipService.getReceivedFriendRequests(data.userId.toString()),
-        this.relationshipService.getFriendsList(data.userId.toString()),
-        this.relationshipService.getSentFriendRequests(data.friendId.toString()),
-        this.relationshipService.getReceivedFriendRequests(data.friendId.toString()),
-        this.relationshipService.getFriendsList(data.friendId.toString()),
+        this.relationshipService.getSentFriendRequests(actorId),
+        this.relationshipService.getReceivedFriendRequests(actorId),
+        this.relationshipService.getFriendsList(actorId),
+        this.relationshipService.getSentFriendRequests(friendId),
+        this.relationshipService.getReceivedFriendRequests(friendId),
+        this.relationshipService.getFriendsList(friendId),
       ]);
 
       // Gửi cho người A (userId)
-      this.server.to(data.userId.toString()).emit('friend:sent', sentForUserId);
-      this.server.to(data.userId.toString()).emit('friend:received', receivedForUserId);
-      this.server.to(data.userId.toString()).emit('friend:friends', friendsForUserId);
+      this.server.to(actorId).emit('friend:sent', sentForUserId);
+      this.server.to(actorId).emit('friend:received', receivedForUserId);
+      this.server.to(actorId).emit('friend:friends', friendsForUserId);
 
       // Gửi cho người B (friendId)
-      this.server.to(data.friendId.toString()).emit('friend:sent', sentForFriendId);
-      this.server.to(data.friendId.toString()).emit('friend:received', receivedForFriendId);
-      this.server.to(data.friendId.toString()).emit('friend:friends', friendsForFriendId);
+      this.server.to(friendId).emit('friend:sent', sentForFriendId);
+      this.server.to(friendId).emit('friend:received', receivedForFriendId);
+      this.server.to(friendId).emit('friend:friends', friendsForFriendId);
 
       return { success: true };
     } catch (err: any) {
@@ -183,7 +172,9 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
     }
 
     try {
-      await this.relationshipService.acceptFriend(data.userId.toString(), data.friendId.toString());
+      const actorId = userId.toString();
+      const friendId = data.friendId.toString();
+      await this.relationshipService.acceptFriend(actorId, friendId);
 
       // Lấy data song song cho cả 2 người (tối ưu performance)
       const [
@@ -194,23 +185,23 @@ export class RelationshipGateway implements OnGatewayConnection, OnGatewayDiscon
         receivedForFriendId,
         friendsForFriendId,
       ] = await Promise.all([
-        this.relationshipService.getSentFriendRequests(data.userId.toString()),
-        this.relationshipService.getReceivedFriendRequests(data.userId.toString()),
-        this.relationshipService.getFriendsList(data.userId.toString()),
-        this.relationshipService.getSentFriendRequests(data.friendId.toString()),
-        this.relationshipService.getReceivedFriendRequests(data.friendId.toString()),
-        this.relationshipService.getFriendsList(data.friendId.toString()),
+        this.relationshipService.getSentFriendRequests(actorId),
+        this.relationshipService.getReceivedFriendRequests(actorId),
+        this.relationshipService.getFriendsList(actorId),
+        this.relationshipService.getSentFriendRequests(friendId),
+        this.relationshipService.getReceivedFriendRequests(friendId),
+        this.relationshipService.getFriendsList(friendId),
       ]);
 
       // Gửi cho người A (userId)
-      this.server.to(data.userId.toString()).emit('friend:sent', sentForUserId);
-      this.server.to(data.userId.toString()).emit('friend:received', receivedForUserId);
-      this.server.to(data.userId.toString()).emit('friend:friends', friendsForUserId);
+      this.server.to(actorId).emit('friend:sent', sentForUserId);
+      this.server.to(actorId).emit('friend:received', receivedForUserId);
+      this.server.to(actorId).emit('friend:friends', friendsForUserId);
 
       // Gửi cho người B (friendId)
-      this.server.to(data.friendId.toString()).emit('friend:sent', sentForFriendId);
-      this.server.to(data.friendId.toString()).emit('friend:received', receivedForFriendId);
-      this.server.to(data.friendId.toString()).emit('friend:friends', friendsForFriendId);
+      this.server.to(friendId).emit('friend:sent', sentForFriendId);
+      this.server.to(friendId).emit('friend:received', receivedForFriendId);
+      this.server.to(friendId).emit('friend:friends', friendsForFriendId);
 
       return { success: true };
     } catch (err: any) {

@@ -122,3 +122,10 @@ export class Post {
 }
 
 export const PostSchema = SchemaFactory.createForClass(Post);
+
+PostSchema.index({ content: 'text' });
+PostSchema.index({ isDeleted: 1, isActive: 1, privacy: 1, createdAt: -1 });
+PostSchema.index({ userId: 1, isDeleted: 1, isActive: 1, createdAt: -1 });
+PostSchema.index({ groupId: 1, isDeleted: 1, isActive: 1, createdAt: -1 });
+PostSchema.index({ 'media.mediaType': 1, isDeleted: 1, isActive: 1, createdAt: -1 });
+PostSchema.index({ type: 1, livestreamStatus: 1, isDeleted: 1 });

@@ -49,7 +49,9 @@ export interface Story {
       };
   type: StoryType;
   mediaUrl: string;
+  mediaPublicId: string;
   thumbnail?: string;
+  thumbnailPublicId?: string;
   duration?: number;
   caption?: string;
   captionStyle?: CaptionStyle;
@@ -76,15 +78,21 @@ export interface StoryGroup {
   hasUnviewed: boolean;
 }
 
-export interface CreateStoryPayload {
+interface CreateStoryPayloadBase {
   type: StoryType;
   mediaUrl: string;
-  thumbnail?: string;
+  mediaPublicId: string;
   duration?: number;
   caption?: string;
   captionStyle?: CaptionStyle;
   privacy?: StoryPrivacy;
 }
+
+export type CreateStoryPayload = CreateStoryPayloadBase &
+  (
+    | { thumbnail?: undefined; thumbnailPublicId?: undefined }
+    | { thumbnail: string; thumbnailPublicId: string }
+  );
 
 export interface UpdateStoryPayload {
   caption?: string;

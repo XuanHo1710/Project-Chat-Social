@@ -1,0 +1,89 @@
+{
+  "common": {
+    "start": "Start",
+    "playAgain": "Play Again",
+    "time": "TIME",
+    "win": "YOU WIN!",
+    "gameOver": "Game Over!"
+  },
+  "hub": {
+    "title": "Game Center",
+    "featured": "Featured Games"
+  },
+  "tictactoe": {
+    "name": "Tic Tac Toe",
+    "description": "The classic tic-tac-toe game. Challenge the computer or your friends.",
+    "turn": "Turn: {{player}}",
+    "winner": "Winner: {{winner}}",
+    "draw": "It's a draw!"
+  },
+  "snake": {
+    "name": "Snake",
+    "description": "Guide the snake to eat food and avoid collisions.",
+    "score": "Score: {{score}}",
+    "instructions": "Use the arrow keys to move",
+    "gameOverPlayAgain": "Game Over - Play Again"
+  },
+  "memory": {
+    "name": "Memory Match",
+    "description": "Train your memory with this card-matching game.",
+    "moves": "Moves: {{moves}}"
+  },
+  "2048": {
+    "name": "2048",
+    "description": "Merge numbered tiles to reach 2048.",
+    "scoreLabel": "SCORE",
+    "newGame": "New Game",
+    "instructions": "Use the arrow keys to move the tiles"
+  },
+  "minesweeper": {
+    "name": "Minesweeper",
+    "description": "Find all the mines without getting blown up.",
+    "gameOver": "GAME OVER!",
+    "instructions": "Left click to reveal, right click to flag"
+  },
+  "rockpaperscissors": {
+    "name": "Rock Paper Scissors",
+    "description": "Rock paper scissors - a classic folk game.",
+    "rock": "Rock",
+    "paper": "Paper",
+    "scissors": "Scissors",
+    "you": "You",
+    "computer": "Computer",
+    "draw": "It's a draw!",
+    "youWin": "You Win!",
+    "computerWin": "Computer Wins!",
+    "youChose": "You chose",
+    "computerChose": "Computer chose",
+    "playMore": "Play Again"
+  },
+  "whackamole": {
+    "name": "Whack-a-Mole",
+    "description": "A lightning-fast reflex challenge.",
+    "scoreLabel": "SCORE"
+  },
+  "pong": {
+    "name": "Ping Pong",
+    "description": "Classic table tennis against the computer.",
+    "player": "PLAYER",
+    "computer": "COMPUTER",
+    "instructions": "Move the mouse up/down to control the paddle",
+    "stop": "Stop"
+  },
+  "typingspeed": {
+    "name": "Typing Speed",
+    "description": "Test how fast you can type.",
+    "scoreLabel": "SCORE (Characters)",
+    "placeholder": "Type the word above...",
+    "results": "Results",
+    "avgSpeed": "Average typing speed",
+    "retry": "Try Again",
+    "instructions": "Retype the words shown on screen as fast as you can."
+  },
+  "breakout": {
+    "name": "Brick Breaker",
+    "heading": "Breakout",
+    "description": "Smash the bricks with the ball.",
+    "instructions": "Move the mouse left/right to catch the ball"
+  }
+}

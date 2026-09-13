@@ -1,0 +1,89 @@
+{
+  "common": {
+    "start": "Bắt Đầu",
+    "playAgain": "Chơi lại",
+    "time": "THỜI GIAN",
+    "win": "CHIẾN THẮNG!",
+    "gameOver": "Game Over!"
+  },
+  "hub": {
+    "title": "Game Center",
+    "featured": "Trò chơi nổi bật"
+  },
+  "tictactoe": {
+    "name": "Tic Tac Toe",
+    "description": "Trò chơi Caro kinh điển. Thách đấu với máy hoặc bạn bè.",
+    "turn": "Lượt chơi: {{player}}",
+    "winner": "Người thắng: {{winner}}",
+    "draw": "Hòa!"
+  },
+  "snake": {
+    "name": "Rắn Săn Mồi",
+    "description": "Điều khiển chú rắn ăn mồi và tránh va chạm.",
+    "score": "Score: {{score}}",
+    "instructions": "Sử dụng các phím mũi tên để di chuyển",
+    "gameOverPlayAgain": "Game Over - Chơi lại"
+  },
+  "memory": {
+    "name": "Lật Hình",
+    "description": "Rèn luyện trí nhớ với trò chơi lật hình.",
+    "moves": "Lượt: {{moves}}"
+  },
+  "2048": {
+    "name": "2048",
+    "description": "Ghép các ô số để đạt được số 2048.",
+    "scoreLabel": "SCORE",
+    "newGame": "New Game",
+    "instructions": "Sử dụng phím mũi tên để di chuyển các ô số"
+  },
+  "minesweeper": {
+    "name": "Dò Mìn",
+    "description": "Tìm kiếm mìn mà không bị nổ.",
+    "gameOver": "GAME OVER!",
+    "instructions": "Chuột trái để mở, Chuột phải để cắm cờ"
+  },
+  "rockpaperscissors": {
+    "name": "Oẳn Tù Tì",
+    "description": "Kéo búa bao - Trò chơi dân gian.",
+    "rock": "Búa",
+    "paper": "Bao",
+    "scissors": "Kéo",
+    "you": "Bạn",
+    "computer": "Máy",
+    "draw": "Hòa!",
+    "youWin": "Bạn Thắng!",
+    "computerWin": "Máy Thắng!",
+    "youChose": "Bạn chọn",
+    "computerChose": "Máy chọn",
+    "playMore": "Chơi tiếp"
+  },
+  "whackamole": {
+    "name": "Đập Chuột",
+    "description": "Thử thách phản xạ cực nhanh.",
+    "scoreLabel": "ĐIỂM SỐ"
+  },
+  "pong": {
+    "name": "Ping Pong",
+    "description": "Bóng bàn cổ điển với máy.",
+    "player": "PLAYER",
+    "computer": "COMPUTER",
+    "instructions": "Di chuyển chuột lên/xuống để điều khiển vợt",
+    "stop": "Dừng Lại"
+  },
+  "typingspeed": {
+    "name": "Gõ Phím Nhanh",
+    "description": "Kiểm tra tốc độ gõ phím của bạn.",
+    "scoreLabel": "ĐIỂM (Ký tự)",
+    "placeholder": "Gõ từ trên...",
+    "results": "Kết Quả",
+    "avgSpeed": "Tốc độ gõ trung bình",
+    "retry": "Thử Lại",
+    "instructions": "Gõ lại chính xác các từ xuất hiện trên màn hình càng nhanh càng tốt."
+  },
+  "breakout": {
+    "name": "Phá Gạch",
+    "heading": "Phá Gạch (Breakout)",
+    "description": "Phá vỡ các viên gạch bằng bóng.",
+    "instructions": "Di chuyển chuột trái/phải để hứng bóng"
+  }
+}

@@ -34,10 +34,18 @@ interface MessageCacheState {
 
   // Clear all pending for a conversation
   clearPending: (conversationId: string) => void;
+
+  // Restore initial state
+  reset: () => void;
 }
+
+const MAX_PENDING_PER_CONVERSATION = 200;
+const MAX_PENDING_CONVERSATIONS = 100;
 
 export const useMessageCacheStore = create<MessageCacheState>((set, get) => ({
   pendingMessages: {},
+
+  reset: () => set({ pendingMessages: {} }),
 
   addPendingMessage: (conversationId, message) => {
     set((state) => {
@@ -46,11 +54,17 @@ export const useMessageCacheStore = create<MessageCacheState>((set, get) => ({
       if (existing.some((m) => m._id === message._id)) {
         return state;
       }
+      const nextPending = {
+        ...state.pendingMessages,
+        [conversationId]: [...existing, message].slice(-MAX_PENDING_PER_CONVERSATION),
+      };
+      const conversationIds = Object.keys(nextPending);
+      while (conversationIds.length > MAX_PENDING_CONVERSATIONS) {
+        const oldestConversationId = conversationIds.shift();
+        if (oldestConversationId) delete nextPending[oldestConversationId];
+      }
       return {
-        pendingMessages: {
-          ...state.pendingMessages,
-          [conversationId]: [...existing, message],
-        },
+        pendingMessages: nextPending,
       };
     });
   },
@@ -68,6 +82,9 @@ export const useMessageCacheStore = create<MessageCacheState>((set, get) => ({
   updatePendingMessage: (conversationId, message) => {
     set((state) => {
       const existing = state.pendingMessages[conversationId] || [];
+      if (!existing.some((item) => item._id === message._id)) {
+        return state;
+      }
       const updated = existing.map((m) =>
         m._id === message._id ? message : m
       );

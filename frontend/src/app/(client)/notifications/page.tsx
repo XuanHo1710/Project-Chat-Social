@@ -33,7 +33,7 @@ import { Notification, NotificationEnum } from '@/types/notification';
 import { useTranslation } from 'react-i18next';
 import { useSocket } from '@/contexts/SocketContext';
 import { toast } from 'sonner';
-import { getNotificationMessage } from '@/utils/notification';
+import { renderNotification } from '@/utils/notificationText';
 
 export default function NotificationsPage() {
     const router = useRouter();
@@ -168,6 +168,8 @@ export default function NotificationsPage() {
             setNotifications(prev => prev.map(n => n._id === id ? {
                 ...n, actionStatus: accept ? 'ACCEPTED' : 'REJECTED', status: 'READ' as const,
                 message: accept ? t('notifications.accepted_invitation') : t('notifications.declined_invitation'),
+                templateKey: undefined,
+                templateParams: undefined,
             } : n));
         } catch {
             toast.error(t('common.error'));
@@ -208,7 +210,9 @@ export default function NotificationsPage() {
         (diff < 86400000 ? today : earlier).push(n);
     });
 
-    const renderItem = (n: Notification) => (
+    const renderItem = (n: Notification) => {
+        const text = renderNotification(n, t);
+        return (
         <ListItemButton
             key={n._id}
             onClick={() => handleClick(n)}
@@ -253,13 +257,23 @@ export default function NotificationsPage() {
             </ListItemAvatar>
             <ListItemText
                 primary={
-                    <Typography sx={{
-                        fontSize: 14, fontWeight: n.status === 'UNREAD' ? 600 : 400,
-                        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                        lineHeight: 1.3,
-                    }}>
-                        {getNotificationMessage(n, t)}
-                    </Typography>
+                    <>
+                        <Typography sx={{
+                            fontSize: 14, fontWeight: n.status === 'UNREAD' ? 600 : 400,
+                            display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                            lineHeight: 1.3,
+                        }}>
+                            {text.title}
+                        </Typography>
+                        {text.message && (
+                            <Typography sx={{
+                                fontSize: 12, color: 'text.secondary', mt: 0.25,
+                                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                            }}>
+                                {text.message}
+                            </Typography>
+                        )}
+                    </>
                 }
                 secondary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
@@ -286,7 +300,8 @@ export default function NotificationsPage() {
                 <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
             )}
         </ListItemButton>
-    );
+        );
+    };
 
     const renderSection = (title: string, items: Notification[]) => {
         if (!items.length) return null;

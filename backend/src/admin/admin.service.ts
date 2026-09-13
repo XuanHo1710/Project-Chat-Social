@@ -1,81 +1,131 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Account, AccountDocument } from '../account/entities/account.entity';
-import { Post, PostDocument } from '../post/entities/post.entity';
 import { Comment, CommentDocument } from '../comment/entities/comment.entity';
+import { Post, PostDocument } from '../post/entities/post.entity';
 import { Reaction, ReactionDocument } from '../reaction/entities/reaction.entity';
-
-interface PaginationQuery {
-  page: number;
-  limit: number;
-  status?: string;
-  role?: string;
-  privacy?: string;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  search?: string;
-}
+import {
+  AdminPostQueryDto,
+  AdminUserQueryDto,
+  CreateAdminAccountDto,
+} from './dto/admin.dto';
+import { UserRole } from '../common/enums/user-role.enum';
 
 @Injectable()
 export class AdminService {
   constructor(
-    @InjectModel(Account.name) private accountModel: Model<AccountDocument>,
-    @InjectModel(Post.name) private postModel: Model<PostDocument>,
-    @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
-    @InjectModel(Reaction.name) private reactionModel: Model<ReactionDocument>
+    @InjectModel(Account.name) private readonly accountModel: Model<AccountDocument>,
+    @InjectModel(Post.name) private readonly postModel: Model<PostDocument>,
+    @InjectModel(Comment.name) private readonly commentModel: Model<CommentDocument>,
+    @InjectModel(Reaction.name) private readonly reactionModel: Model<ReactionDocument>,
   ) {}
 
-  // ========== DASHBOARD STATISTICS ==========
+  private objectId(id: string, label = 'ID'): Types.ObjectId {
+    if (!Types.ObjectId.isValid(id)) throw new BadRequestException(`${label} không hợp lệ`);
+    return new Types.ObjectId(id);
+  }
 
-  async getDashboardStats() {
+  private isBlockActive(account: Record<string, any>): boolean {
+    return (
+      account.isBlocked === true &&
+      (!account.expireBlockAt || new Date(account.expireBlockAt).getTime() > Date.now())
+    );
+  }
+
+  private mapAdminUser(user: Record<string, any>) {
+    return {
+      id: user._id,
+      name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+      email: user.email || '',
+      avatar: user.avatar,
+      role: user.role,
+      status: this.isBlockActive(user) ? 'BLOCKED' : user.isActive ? 'ACTIVE' : 'PENDING',
+      lastLogin: user.lastLogin || null,
+      createdAt: user.createdAt,
+      isBlocked: this.isBlockActive(user),
+      expireBlockAt: user.expireBlockAt || null,
+      blockReason: user.blockReason || '',
+      phone: user.phone || '',
+      username: user.username || '',
+    };
+  }
+
+  private async assertNotLastActiveAdmin(target: Record<string, any>): Promise<void> {
+    if (
+      target.role !== UserRole.ADMIN ||
+      target.isDeleted ||
+      !target.isActive ||
+      this.isBlockActive(target)
+    ) {
+      return;
+    }
+    const activeAdminCount = await this.accountModel.countDocuments({
+      role: UserRole.ADMIN,
+      isDeleted: { $ne: true },
+      isActive: true,
+      $or: [
+        { isBlocked: { $ne: true } },
+        { expireBlockAt: { $lte: new Date() } },
+      ],
+    });
+    if (activeAdminCount <= 1) {
+      throw new ConflictException('Không thể vô hiệu hóa quản trị viên hoạt động cuối cùng');
+    }
+  }
+
+  async getDashboardStats(): Promise<Record<string, number>> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-
-    // Total Users
-    const totalUsers = await this.accountModel.countDocuments({ isDeleted: { $ne: true } });
-    const newUsersToday = await this.accountModel.countDocuments({
-      createdAt: { $gte: today },
-      isDeleted: { $ne: true },
-    });
-
-    // Online Users (active in last 5 minutes)
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    const onlineUsers = await this.accountModel.countDocuments({
-      status: 'ACTIVE',
-      lastActive: { $gte: fiveMinutesAgo },
-      isDeleted: { $ne: true },
-    });
 
-    // Total Posts
-    const totalPosts = await this.postModel.countDocuments({ isDeleted: { $ne: true } });
-    const newPostsToday = await this.postModel.countDocuments({
-      createdAt: { $gte: today },
-      isDeleted: { $ne: true },
-    });
+    const [
+      totalUsers,
+      newUsersToday,
+      onlineUsers,
+      totalPosts,
+      newPostsToday,
+      totalComments,
+      totalReactions,
+      usersYesterday,
+    ] = await Promise.all([
+      this.accountModel.countDocuments({ isDeleted: { $ne: true }, role: { $ne: UserRole.BOT } }),
+      this.accountModel.countDocuments({
+        createdAt: { $gte: today },
+        isDeleted: { $ne: true },
+        role: { $ne: UserRole.BOT },
+      }),
+      this.accountModel.countDocuments({
+        status: 'ACTIVE',
+        lastActive: { $gte: fiveMinutesAgo },
+        isDeleted: { $ne: true },
+      }),
+      this.postModel.countDocuments({ isDeleted: { $ne: true } }),
+      this.postModel.countDocuments({ createdAt: { $gte: today }, isDeleted: { $ne: true } }),
+      this.commentModel.countDocuments({ isActive: true }),
+      this.reactionModel.countDocuments({}),
+      this.accountModel.countDocuments({
+        createdAt: { $gte: yesterday, $lt: today },
+        isDeleted: { $ne: true },
+        role: { $ne: UserRole.BOT },
+      }),
+    ]);
 
-    // Total Comments
-    const totalComments = await this.commentModel.countDocuments({ isDeleted: { $ne: true } });
-
-    // Reactions count
-    const totalReactions = await this.reactionModel.countDocuments({});
-
-    // Calculate percentage change (compare with yesterday)
-    const usersYesterday = await this.accountModel.countDocuments({
-      createdAt: { $gte: yesterday, $lt: today },
-      isDeleted: { $ne: true },
-    });
     const userChange =
-      newUsersToday > 0 && usersYesterday > 0
+      usersYesterday > 0
         ? Math.round(((newUsersToday - usersYesterday) / usersYesterday) * 100)
         : newUsersToday > 0
           ? 100
           : 0;
-
     return {
       totalUsers,
       newUsersToday,
@@ -88,73 +138,47 @@ export class AdminService {
     };
   }
 
-  async getWeeklyPostsStats() {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-
-    const weekAgo = new Date(today);
-    weekAgo.setDate(weekAgo.getDate() - 6);
-    weekAgo.setHours(0, 0, 0, 0);
-
-    // Get posts for each day of the week
+  async getWeeklyPostsStats(): Promise<Array<{ day: string; count: number }>> {
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 6);
+    start.setHours(0, 0, 0, 0);
     const stats = await this.postModel.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: weekAgo, $lte: today },
-          isDeleted: { $ne: true },
-        },
-      },
+      { $match: { createdAt: { $gte: start, $lte: end }, isDeleted: { $ne: true } } },
       {
         $group: {
-          _id: { $dayOfWeek: '$createdAt' }, // 1 = Sunday, 2 = Monday, ...
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'UTC' } },
           count: { $sum: 1 },
         },
       },
-      { $sort: { _id: 1 } },
     ]);
-
-    // Map to weekday labels (T2-CN)
-    const dayLabels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-    const result = dayLabels.map((label, index) => {
-      const dayData = stats.find((s) => s._id === (index === 0 ? 1 : index + 1));
-      return {
-        day: label,
-        count: dayData ? dayData.count : 0,
-      };
+    const countByDate = new Map(stats.map((row) => [row._id, row.count]));
+    const labels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    return Array.from({ length: 7 }, (_, offset) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + offset);
+      const key = date.toISOString().slice(0, 10);
+      return { day: labels[date.getDay()], count: countByDate.get(key) || 0 };
     });
-
-    // Reorder: T2, T3, T4, T5, T6, T7, CN
-    const orderedResult = [
-      ...result.slice(1), // T2 to T7
-      result[0], // CN
-    ];
-
-    return orderedResult;
   }
 
-  async getTopPagesStats() {
-    // Mock data - in real impl, you'd track page views
-    return [
-      { name: 'Trang chủ', views: 4520, percentage: 45.2 },
-      { name: 'Reels', views: 3210, percentage: 32.1 },
-      { name: 'Tin nhắn', views: 2840, percentage: 28.4 },
-      { name: 'Nhóm', views: 1830, percentage: 18.3 },
-      { name: 'Thông báo', views: 1230, percentage: 12.3 },
-    ];
+  async getTopPagesStats(): Promise<never[]> {
+    // Page-view tracking is not implemented; do not return fabricated production metrics.
+    return [];
   }
 
-  async getRecentComments(): Promise<any> {
+  async getRecentComments(): Promise<any[]> {
     const comments = await this.commentModel
-      .find({ isDeleted: { $ne: true } })
+      .find({ isActive: true })
       .sort({ createdAt: -1 })
       .limit(10)
       .populate('userId', 'firstName lastName avatar')
       .lean();
-
     return comments.map((comment) => ({
       id: comment._id,
       user: comment.userId
-        ? `${(comment.userId as any).firstName} ${(comment.userId as any).lastName}`
+        ? `${(comment.userId as any).firstName || ''} ${(comment.userId as any).lastName || ''}`.trim()
         : 'Anonymous',
       avatar: (comment.userId as any)?.avatar || '',
       content: comment.content,
@@ -162,18 +186,11 @@ export class AdminService {
     }));
   }
 
-  async getEmotionStats() {
+  async getEmotionStats(): Promise<any[]> {
     const emotions = await this.reactionModel.aggregate([
-      {
-        $group: {
-          _id: '$type',
-          count: { $sum: 1 },
-        },
-      },
+      { $group: { _id: '$type', count: { $sum: 1 } } },
     ]);
-
-    const total = emotions.reduce((sum, e) => sum + e.count, 0);
-
+    const total = emotions.reduce((sum, emotion) => sum + emotion.count, 0);
     const emotionMap: Record<string, { label: string; color: string }> = {
       LIKE: { label: 'Like', color: '#1877f2' },
       LOVE: { label: 'Love', color: '#f23e5c' },
@@ -182,209 +199,203 @@ export class AdminService {
       SAD: { label: 'Sad', color: '#f7b928' },
       ANGRY: { label: 'Angry', color: '#e9710f' },
     };
-
-    return emotions.map((e) => ({
-      type: e._id,
-      label: emotionMap[e._id]?.label || e._id,
-      count: e.count,
-      percentage: total > 0 ? Math.round((e.count / total) * 100) : 0,
-      color: emotionMap[e._id]?.color || '#65676b',
+    return emotions.map((emotion) => ({
+      type: emotion._id,
+      label: emotionMap[emotion._id]?.label || emotion._id,
+      count: emotion.count,
+      percentage: total > 0 ? Math.round((emotion.count / total) * 100) : 0,
+      color: emotionMap[emotion._id]?.color || '#65676b',
     }));
   }
 
-  // ========== USER MANAGEMENT ==========
+  async getUsers(query: AdminUserQueryDto): Promise<any> {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(100, Math.max(1, query.limit || 10));
+    const filter: Record<string, any> = { isDeleted: { $ne: true }, role: { $ne: UserRole.BOT } };
+    const now = new Date();
 
-  async getUsers(query: PaginationQuery): Promise<any> {
-    const { page, limit, status, role, sortBy = 'createdAt', sortOrder = 'desc', search } = query;
-    const skip = (page - 1) * limit;
-
-    // Build filter
-    const filter: any = { isDeleted: { $ne: true }, role: { $ne: 'BOT' } };
-
-    if (status) {
-      if (status === 'ACTIVE') filter.isBlocked = { $ne: true };
-      else if (status === 'BLOCKED') filter.isBlocked = true;
-      else if (status === 'PENDING') filter.isActive = false;
+    if (query.status === 'ACTIVE') {
+      filter.isActive = true;
+      filter.$or = [{ isBlocked: { $ne: true } }, { expireBlockAt: { $lte: now } }];
+    } else if (query.status === 'BLOCKED') {
+      filter.isBlocked = true;
+      filter.$or = [{ expireBlockAt: null }, { expireBlockAt: { $gt: now } }];
+    } else if (query.status === 'PENDING') {
+      filter.isActive = false;
     }
+    if (query.role && query.role !== 'ALL') filter.role = query.role;
+    if (query.search) filter.$text = { $search: query.search };
 
-    if (role && role !== 'ALL') {
-      filter.role = role;
-    }
-
-    if (search) {
-      filter.$or = [
-        { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { username: { $regex: search, $options: 'i' } },
-      ];
-    }
-
-    // Build sort
     const sortMapping: Record<string, string> = {
       lastLogin: 'lastLogin',
       email: 'email',
       name: 'firstName',
       createdAt: 'createdAt',
     };
-    const sortField = sortMapping[sortBy] || 'createdAt';
-    const sort: any = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
-
+    const sortField = sortMapping[query.sortBy || ''] || 'createdAt';
+    const sort = { [sortField]: query.sortOrder === 'asc' ? 1 : -1 } as Record<string, 1 | -1>;
+    const projection =
+      '_id firstName lastName email phone username avatar role isActive isBlocked expireBlockAt blockReason lastLogin createdAt';
     const [users, total] = await Promise.all([
       this.accountModel
         .find(filter)
-        .select('-password -accessToken -resetPasswordToken')
+        .select(projection)
         .sort(sort)
-        .skip(skip)
+        .skip((page - 1) * limit)
         .limit(limit)
         .lean(),
       this.accountModel.countDocuments(filter),
     ]);
-
     return {
-      data: users.map((user) => ({
-        id: user._id,
-        name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
-        email: user.email,
-        avatar: user.avatar,
-        role: user.role,
-        status: user.isBlocked ? 'BLOCKED' : user.isActive ? 'ACTIVE' : 'PENDING',
-        lastLogin: user.lastLogin || null,
-        createdAt: user.createdAt,
-        isBlocked: user.isBlocked || false,
-        phone: (user as any).phone || '',
-        username: user.username || '',
-      })),
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      data: users.map((user) => this.mapAdminUser(user as any)),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
   async getUserById(id: string): Promise<any> {
-    return this.accountModel
-      .findById(id)
-      .select('-password -accessToken -resetPasswordToken')
+    const user = await this.accountModel
+      .findById(this.objectId(id, 'User ID'))
+      .select(
+        '_id firstName lastName email phone username avatar role isActive isBlocked expireBlockAt blockReason lastLogin createdAt',
+      )
       .lean();
+    if (!user) throw new NotFoundException('Không tìm thấy tài khoản');
+    return this.mapAdminUser(user as any);
   }
 
-  async blockUser(id: string, reason?: string, expireAt?: Date) {
-    return this.accountModel
+  async blockUser(
+    actorId: string,
+    targetId: string,
+    reason?: string,
+    expireAt?: Date,
+  ): Promise<any> {
+    if (actorId === targetId) throw new ForbiddenException('Bạn không thể tự khóa tài khoản của mình');
+    if (expireAt && expireAt.getTime() <= Date.now()) {
+      throw new BadRequestException('Thời điểm hết hạn khóa phải ở tương lai');
+    }
+    const targetObjectId = this.objectId(targetId, 'User ID');
+    const target = await this.accountModel
+      .findById(targetObjectId)
+      .select('role isActive isBlocked expireBlockAt isDeleted')
+      .lean();
+    if (!target || target.isDeleted) throw new NotFoundException('Không tìm thấy tài khoản');
+    await this.assertNotLastActiveAdmin(target as any);
+
+    const updated = await this.accountModel
       .findByIdAndUpdate(
-        id,
+        targetObjectId,
         {
-          isBlocked: true,
-          expireBlockAt: expireAt || null,
-          $push: {
-            blockHistory: {
-              reason,
-              blockedAt: new Date(),
-              expireAt,
-            },
+          $set: {
+            isBlocked: true,
+            blockedAt: new Date(),
+            blockReason: reason?.trim() || '',
+            expireBlockAt: expireAt || null,
           },
+          $inc: { authVersion: 1 },
         },
-        { new: true }
+        { new: true, runValidators: true },
       )
-      .select('-password -accessToken');
+      .select(
+        '_id firstName lastName email phone username avatar role isActive isBlocked expireBlockAt blockReason lastLogin createdAt',
+      )
+      .lean();
+    return this.mapAdminUser(updated as any);
   }
 
-  async unblockUser(id: string) {
-    return this.accountModel
-      .findByIdAndUpdate(
-        id,
+  async unblockUser(id: string): Promise<any> {
+    const updated = await this.accountModel
+      .findOneAndUpdate(
+        { _id: this.objectId(id, 'User ID'), isDeleted: { $ne: true } },
         {
-          isBlocked: false,
-          expireBlockAt: null,
+          $set: { isBlocked: false, expireBlockAt: null, blockReason: '' },
+          $inc: { authVersion: 1 },
         },
-        { new: true }
+        { new: true },
       )
-      .select('-password -accessToken');
+      .select(
+        '_id firstName lastName email phone username avatar role isActive isBlocked expireBlockAt blockReason lastLogin createdAt',
+      )
+      .lean();
+    if (!updated) throw new NotFoundException('Không tìm thấy tài khoản');
+    return this.mapAdminUser(updated as any);
   }
 
-  async updateUserRole(id: string, role: string) {
-    if (!['USER', 'ADMIN', 'EMPLOYEE'].includes(role)) {
-      throw new Error('Invalid role');
+  async updateUserRole(
+    actorId: string,
+    targetId: string,
+    role: UserRole.USER | UserRole.ADMIN | UserRole.EMPLOYEE,
+  ): Promise<any> {
+    if (actorId === targetId && role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Bạn không thể tự hạ quyền quản trị của mình');
     }
-    return this.accountModel
-      .findByIdAndUpdate(id, { role }, { new: true })
-      .select('-password -accessToken');
+    const targetObjectId = this.objectId(targetId, 'User ID');
+    const target = await this.accountModel
+      .findById(targetObjectId)
+      .select('role isActive isBlocked expireBlockAt isDeleted')
+      .lean();
+    if (!target || target.isDeleted) throw new NotFoundException('Không tìm thấy tài khoản');
+    if (target.role === UserRole.ADMIN && role !== UserRole.ADMIN) {
+      await this.assertNotLastActiveAdmin(target as any);
+    }
+
+    const updated = await this.accountModel
+      .findByIdAndUpdate(
+        targetObjectId,
+        { $set: { role }, $inc: { authVersion: 1 } },
+        { new: true, runValidators: true },
+      )
+      .select(
+        '_id firstName lastName email phone username avatar role isActive isBlocked expireBlockAt blockReason lastLogin createdAt',
+      )
+      .lean();
+    return this.mapAdminUser(updated as any);
   }
 
-  async createAccount(data: any): Promise<any> {
-    const { fullName, email, password, role, username } = data;
-
-    if (!username) throw new BadRequestException('Vui lòng cung cấp username');
-
-    // Check if email or username exists
-    const existingUser = await this.accountModel.findOne({ $or: [{ email }, { username }] });
-    if (existingUser) {
-      if (existingUser.email === email) throw new BadRequestException('Email đã tồn tại');
-      if (existingUser.username === username) throw new BadRequestException('Username đã tồn tại');
+  async createAccount(data: CreateAdminAccountDto): Promise<any> {
+    if (Buffer.byteLength(data.password, 'utf8') > 72) {
+      throw new BadRequestException('Mật khẩu không được vượt quá 72 byte');
     }
+    const email = data.email.toLowerCase().trim();
+    const username = data.username.trim();
+    const existing = await this.accountModel
+      .findOne({ $or: [{ email }, { username }] })
+      .select('email username')
+      .lean();
+    if (existing) throw new BadRequestException('Email hoặc username đã tồn tại');
 
-    // Split name (simple logic)
-    const nameParts = fullName.trim().split(' ');
+    const nameParts = data.fullName.trim().split(/\s+/);
     const lastName = nameParts.length > 1 ? nameParts.pop() || '' : '';
-    const firstName = nameParts.join(' ') || fullName;
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const newAccount = new this.accountModel({
-      firstName,
-      lastName,
-      email,
-      username,
-      password: hashedPassword,
-      role,
-      status: 'ACTIVE',
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=random`,
-      authProvider: 'LOCAL',
-    });
-
-    await newAccount.save();
-
-    // Return without sensitive data
-    const { password: p, ...result } = newAccount.toObject();
-    return result;
+    const firstName = nameParts.join(' ') || data.fullName.trim();
+    const password = await bcrypt.hash(data.password, 12);
+    try {
+      const account = await this.accountModel.create({
+        firstName,
+        lastName,
+        email,
+        username,
+        password,
+        role: data.role,
+        status: 'DEACTIVE',
+        isActive: true,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.fullName)}&background=random`,
+        authProvider: 'LOCAL',
+      });
+      return this.mapAdminUser(account.toObject());
+    } catch (error: any) {
+      if (error?.code === 11000) throw new BadRequestException('Email hoặc username đã tồn tại');
+      throw error;
+    }
   }
 
-  // ========== POST MANAGEMENT ==========
+  async getPosts(query: AdminPostQueryDto): Promise<any> {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(100, Math.max(1, query.limit || 10));
+    const filter: Record<string, any> = { isDeleted: { $ne: true } };
+    if (query.status === 'ACTIVE') filter.isActive = true;
+    if (query.status === 'HIDDEN') filter.isActive = false;
+    if (query.privacy && query.privacy !== 'ALL') filter.privacy = query.privacy;
+    if (query.search) filter.$text = { $search: query.search };
 
-  async getPosts(query: PaginationQuery): Promise<any> {
-    const {
-      page,
-      limit,
-      status,
-      privacy,
-      sortBy = 'createdAt',
-      sortOrder = 'desc',
-      search,
-    } = query;
-    const skip = (page - 1) * limit;
-
-    // Build filter
-    const filter: any = { isDeleted: { $ne: true } };
-
-    if (status && status !== 'ALL') {
-      if (status === 'ACTIVE') filter.isHidden = { $ne: true };
-      else if (status === 'HIDDEN') filter.isHidden = true;
-      // else if (status === 'REPORTED') filter.reportCount = { $gt: 0 }; // Tạm ẩn vì chưa có field reportCount
-    }
-
-    if (privacy && privacy !== 'ALL') {
-      filter.privacy = privacy;
-    }
-
-    if (search) {
-      filter.$or = [{ content: { $regex: search, $options: 'i' } }];
-    }
-
-    // Build sort
     const sortMapping: Record<string, string> = {
       time: 'createdAt',
       reactions: 'totalReacts',
@@ -392,23 +403,20 @@ export class AdminService {
       shares: 'totalShares',
       createdAt: 'createdAt',
     };
-    const sortField = sortMapping[sortBy] || 'createdAt';
-    const sort: any = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
-
+    const sortField = sortMapping[query.sortBy || ''] || 'createdAt';
+    const sort = { [sortField]: query.sortOrder === 'asc' ? 1 : -1 } as Record<string, 1 | -1>;
     const [posts, total] = await Promise.all([
       this.postModel
         .find(filter)
         .populate('userId', 'firstName lastName avatar username')
         .sort(sort)
-        .skip(skip)
+        .skip((page - 1) * limit)
         .limit(limit)
         .lean(),
       this.postModel.countDocuments(filter),
     ]);
-
-    // Map posts with stats directly from Post entity fields
-    const postsWithStats = posts.map((post) => {
-      return {
+    return {
+      data: posts.map((post) => ({
         id: post._id,
         author: post.userId
           ? `${(post.userId as any).firstName || ''} ${(post.userId as any).lastName || ''}`.trim()
@@ -416,58 +424,62 @@ export class AdminService {
         authorAvatar: (post.userId as any)?.avatar,
         content: post.content,
         privacy: post.privacy,
-        reactions: (post as any).totalReacts || 0,
-        comments: (post as any).totalComments || 0,
-        shares: (post as any).totalShares || 0,
-        status: (post as any).isHidden
-          ? 'HIDDEN'
-          : (post as any).reportCount > 0
-            ? 'REPORTED'
-            : 'ACTIVE',
+        reactions: post.totalReacts || 0,
+        comments: post.totalComments || 0,
+        shares: post.totalShares || 0,
+        status: post.isActive === false ? 'HIDDEN' : 'ACTIVE',
         time: this.getTimeAgo(post.createdAt),
         createdAt: post.createdAt,
-      };
-    });
-
-    return {
-      data: postsWithStats,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      })),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
   async getPostById(id: string): Promise<any> {
-    return this.postModel
-      .findById(id)
+    const post = await this.postModel
+      .findById(this.objectId(id, 'Post ID'))
       .populate('userId', 'firstName lastName avatar username')
+      .populate('groupId', 'name avatar')
       .lean();
+    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    return post;
   }
 
-  async deletePost(id: string) {
-    return this.postModel.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+  async deletePost(id: string): Promise<any> {
+    const post = await this.postModel.findOneAndUpdate(
+      { _id: this.objectId(id, 'Post ID'), isDeleted: { $ne: true } },
+      { $set: { isDeleted: true, isActive: false, deletedAt: new Date() } },
+      { new: true },
+    );
+    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    return { message: 'Đã xóa bài viết' };
   }
 
-  async hidePost(id: string) {
-    return this.postModel.findByIdAndUpdate(id, { isHidden: true }, { new: true });
+  async hidePost(id: string): Promise<Post> {
+    const post = await this.postModel.findOneAndUpdate(
+      { _id: this.objectId(id, 'Post ID'), isDeleted: { $ne: true } },
+      { $set: { isActive: false } },
+      { new: true },
+    );
+    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    return post;
   }
 
-  async showPost(id: string) {
-    return this.postModel.findByIdAndUpdate(id, { isHidden: false }, { new: true });
+  async showPost(id: string): Promise<Post> {
+    const post = await this.postModel.findOneAndUpdate(
+      { _id: this.objectId(id, 'Post ID'), isDeleted: { $ne: true } },
+      { $set: { isActive: true } },
+      { new: true },
+    );
+    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    return post;
   }
-
-  // ========== HELPER METHODS ==========
 
   private getTimeAgo(date: Date): string {
-    const now = new Date();
-    const diff = now.getTime() - new Date(date).getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
+    const diff = Math.max(0, Date.now() - new Date(date).getTime());
+    const minutes = Math.floor(diff / 60_000);
+    const hours = Math.floor(diff / 3_600_000);
+    const days = Math.floor(diff / 86_400_000);
     if (minutes < 1) return 'Vừa xong';
     if (minutes < 60) return `${minutes} phút trước`;
     if (hours < 24) return `${hours} giờ trước`;
@@ -476,53 +488,42 @@ export class AdminService {
     return `${Math.floor(days / 30)} tháng trước`;
   }
 
-  /**
-   * Lấy thống kê traffic (logins & active users) trong N ngày gần nhất
-   */
   async getTrafficData(
-    days: number = 7
+    days = 7,
   ): Promise<Array<{ date: string; logins: number; activeUsers: number }>> {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
+    const safeDays = Math.min(90, Math.max(1, Math.floor(days || 7)));
+    const end = new Date();
+    end.setUTCHours(23, 59, 59, 999);
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - (safeDays - 1));
+    start.setUTCHours(0, 0, 0, 0);
 
-    const startDate = new Date(today);
-    startDate.setDate(startDate.getDate() - (days - 1));
-    startDate.setHours(0, 0, 0, 0);
-
-    const result: Array<{ date: string; logins: number; activeUsers: number }> = [];
-
-    for (let i = 0; i < days; i++) {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
-
-      // Đếm số lượt đăng nhập trong ngày này từ loginHistory
-      const loginStats = await this.accountModel.aggregate([
-        { $unwind: { path: '$loginHistory', preserveNullAndEmptyArrays: false } },
-        {
-          $match: {
-            'loginHistory.date': {
-              $gte: new Date(dateStr + 'T00:00:00.000Z'),
-              $lt: new Date(dateStr + 'T23:59:59.999Z'),
+    const stats = await this.accountModel.aggregate([
+      { $match: { isDeleted: { $ne: true }, 'loginHistory.date': { $gte: start, $lte: end } } },
+      { $unwind: '$loginHistory' },
+      { $match: { 'loginHistory.date': { $gte: start, $lte: end } } },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$loginHistory.date',
+              timezone: 'UTC',
             },
           },
+          logins: { $sum: '$loginHistory.count' },
+          users: { $addToSet: '$_id' },
         },
-        {
-          $group: {
-            _id: null,
-            totalLogins: { $sum: '$loginHistory.count' },
-            uniqueUsers: { $addToSet: '$_id' },
-          },
-        },
-      ]);
-
-      result.push({
-        date: dateStr,
-        logins: loginStats[0]?.totalLogins || 0,
-        activeUsers: loginStats[0]?.uniqueUsers?.length || 0,
-      });
-    }
-
-    return result;
+      },
+      { $project: { _id: 1, logins: 1, activeUsers: { $size: '$users' } } },
+    ]);
+    const byDate = new Map(stats.map((row) => [row._id, row]));
+    return Array.from({ length: safeDays }, (_, offset) => {
+      const date = new Date(start);
+      date.setUTCDate(start.getUTCDate() + offset);
+      const key = date.toISOString().slice(0, 10);
+      const row = byDate.get(key);
+      return { date: key, logins: row?.logins || 0, activeUsers: row?.activeUsers || 0 };
+    });
   }
 }

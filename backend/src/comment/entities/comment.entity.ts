@@ -37,7 +37,7 @@ export class Comment {
   })
   userId: mongoose.Schema.Types.ObjectId;
 
-  @Prop({ required: true })
+  @Prop({ default: '', maxlength: 2000 })
   content: string;
 
   @Prop({ type: String, default: null })
@@ -70,3 +70,7 @@ export class Comment {
 }
 
 export const CommentSchema = SchemaFactory.createForClass(Comment);
+
+CommentSchema.index({ postId: 1, parentId: 1, isActive: 1, createdAt: -1 });
+CommentSchema.index({ parentId: 1, isActive: 1, createdAt: 1 });
+CommentSchema.index({ userId: 1, isActive: 1, createdAt: -1 });

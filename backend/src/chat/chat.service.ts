@@ -3,9 +3,9 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { CreateMessageDto } from './dto/create-message.dto';
-import { UpdateMessageDto } from './dto/update-message.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Conversation, ConversationDocument } from 'src/conversation/entities/conversation.entity';
 import { Model, Types } from 'mongoose';
@@ -16,8 +16,29 @@ import {
 } from './entities/conversation-read-status.entity';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
+export interface MessageHistoryPage {
+  data: unknown[];
+  readStatuses: Array<Record<string, unknown>>;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    hasMore: boolean;
+  };
+}
+
+export interface MarkAsReadResult {
+  modifiedCount: number;
+  conversationId?: string;
+  readBy?: string;
+  lastReadMessageId?: Types.ObjectId;
+  readStatus?: Record<string, unknown> & { userId?: unknown };
+}
+
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
     @InjectModel(Conversation.name) private readonly conversationModel: Model<ConversationDocument>,
     @InjectModel(Message.name) private readonly messageModel: Model<Message>,
@@ -26,8 +47,69 @@ export class ChatService {
     private readonly cloudinaryService: CloudinaryService
   ) {}
 
-  async sendMessage(createMessageDto: CreateMessageDto) {
-    const message = await this.messageModel.create(createMessageDto);
+  private async assertActiveConversationMember(
+    conversationId: string,
+    userId: string
+  ): Promise<void> {
+    if (!Types.ObjectId.isValid(conversationId) || !Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid conversation or user identifier');
+    }
+
+    const membership = await this.conversationModel.exists({
+      _id: conversationId,
+      isDeleted: { $ne: true },
+      participants: {
+        $elemMatch: {
+          user: new Types.ObjectId(userId),
+          kickedAt: null,
+          leftAt: null,
+        },
+      },
+    });
+    if (!membership) {
+      throw new ForbiddenException('You are not an active member of this conversation');
+    }
+  }
+
+  async sendMessage(createMessageDto: CreateMessageDto, userId: string) {
+    const conversationId = createMessageDto.conversationId?.toString() || '';
+    await this.assertActiveConversationMember(conversationId, userId);
+
+    if (!Object.values(MessageType).includes(createMessageDto.type)) {
+      throw new BadRequestException('Unsupported message type');
+    }
+    const content = (createMessageDto.content || '').trim().slice(0, 5000);
+    const attachments = (createMessageDto.attachments || []).slice(0, 10).map((attachment) => ({
+      url: attachment.url?.trim().slice(0, 2048),
+      publicId: attachment.publicId?.trim().slice(0, 200),
+      fileName: attachment.fileName?.trim().slice(0, 255),
+      fileSize: Math.max(0, Math.min(Number(attachment.fileSize) || 0, 100 * 1024 * 1024)),
+      mediaType: attachment.mediaType,
+    }));
+    if (!content && attachments.length === 0 && !createMessageDto.postId && !createMessageDto.callData) {
+      throw new BadRequestException('Message content is required');
+    }
+    if (attachments.length > 0) {
+      await this.cloudinaryService.assertOwnedMedia(userId, attachments);
+    }
+
+    if (createMessageDto.replyTo) {
+      const validReplyTarget = await this.messageModel.exists({
+        _id: createMessageDto.replyTo,
+        conversationId: new Types.ObjectId(conversationId),
+      });
+      if (!validReplyTarget) {
+        throw new BadRequestException('Reply target does not belong to this conversation');
+      }
+    }
+
+    const message = await this.messageModel.create({
+      ...createMessageDto,
+      conversationId: new Types.ObjectId(conversationId),
+      senderId: new Types.ObjectId(userId),
+      content,
+      attachments,
+    });
     return await this.messageModel
       .findById(message._id)
       .populate('senderId', 'firstName lastName _id avatar')
@@ -64,7 +146,10 @@ export class ChatService {
     // For SYSTEM messages, senderId can be 'system' - we handle it specially
     if (data.senderId === 'system' || data.type === 'SYSTEM') {
       // Use a dummy ObjectId for system or the first participant
-      const conversation = await this.conversationModel.findById(data.conversationId);
+      const conversation = await this.conversationModel
+        .findById(data.conversationId)
+        .select('participants')
+        .lean();
       if (conversation && conversation.participants.length > 0) {
         messageData.senderId = conversation.participants[0].user;
       }
@@ -107,21 +192,31 @@ export class ChatService {
     page: number = 1,
     limit: number = 15,
     before?: string // cursor: load messages before this messageId
-  ) {
+  ): Promise<MessageHistoryPage> {
+    if (!Types.ObjectId.isValid(conversationId) || !Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid conversation or user identifier');
+    }
+    page = Math.max(1, Number.isFinite(page) ? Math.floor(page) : 1);
+    limit = Math.min(50, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 15));
+
     // Get conversation to check user's kicked/left status
-    const conversation = await this.conversationModel.findById(conversationId);
+    const conversation = await this.conversationModel
+      .findOne({ _id: conversationId, 'participants.user': new Types.ObjectId(userId) })
+      .select('participants isDeleted')
+      .lean();
     if (!conversation) {
       throw new NotFoundException('Không tìm thấy cuộc trò chuyện');
     }
 
     // Find user's participant record
     const participant = conversation.participants.find((p) => p.user.toString() === userId);
+    if (!participant) {
+      throw new ForbiddenException('You cannot access this conversation history');
+    }
 
     const query: any = {
-      $or: [
-        { conversationId: conversationId },
-        { conversationId: new Types.ObjectId(conversationId) },
-      ],
+      conversationId: new Types.ObjectId(conversationId),
+      aiProcessingStatus: { $nin: ['PENDING', 'FAILED', 'DEAD'] },
     };
 
     // If user was kicked, only show messages up to kickedAt time
@@ -135,8 +230,11 @@ export class ChatService {
     }
 
     // If cursor provided, get messages before that message
-    if (before) {
-      const cursorMessage = await this.messageModel.findById(before);
+    if (before && Types.ObjectId.isValid(before)) {
+      const cursorMessage = await this.messageModel
+        .findOne({ _id: before, conversationId: new Types.ObjectId(conversationId) })
+        .select('createdAt')
+        .lean();
       if (cursorMessage) {
         query.createdAt = { ...query.createdAt, $lt: cursorMessage.createdAt };
       }
@@ -224,7 +322,15 @@ export class ChatService {
   }
 
   // Get media messages (images/videos) for a conversation with pagination
-  async findMediaMessages(conversationId: string, page: number = 1, limit: number = 20) {
+  async findMediaMessages(
+    conversationId: string,
+    userId: string,
+    page: number = 1,
+    limit: number = 20
+  ) {
+    await this.assertActiveConversationMember(conversationId, userId);
+    page = Math.max(1, Number.isFinite(page) ? Math.floor(page) : 1);
+    limit = Math.min(50, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 20));
     const skip = (page - 1) * limit;
 
     const query = {
@@ -255,7 +361,15 @@ export class ChatService {
   }
 
   // Get file messages (documents/RAW files) for a conversation with pagination
-  async findFileMessages(conversationId: string, page: number = 1, limit: number = 20) {
+  async findFileMessages(
+    conversationId: string,
+    userId: string,
+    page: number = 1,
+    limit: number = 20
+  ) {
+    await this.assertActiveConversationMember(conversationId, userId);
+    page = Math.max(1, Number.isFinite(page) ? Math.floor(page) : 1);
+    limit = Math.min(50, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 20));
     const skip = (page - 1) * limit;
 
     const query = {
@@ -281,14 +395,30 @@ export class ChatService {
     };
   }
 
-  async findOne(id: string) {
-    return await this.messageModel.findById(id).exec();
+  async findOne(id: string, userId: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid message identifier');
+    }
+    const message = await this.messageModel.findById(id).lean();
+    if (!message) {
+      throw new NotFoundException('Message was not found');
+    }
+    await this.assertActiveConversationMember(message.conversationId.toString(), userId);
+    return message;
   }
 
-  // Find message by ID with full population (for RabbitMQ AI response)
-  async findMessageById(id: string) {
-    return await this.messageModel
-      .findById(id)
+  // Resolve only a persisted AI message that belongs to the broker-provided conversation.
+  async findAiMessageForBroker(messageId: string, conversationId: string): Promise<any> {
+    if (!Types.ObjectId.isValid(messageId) || !Types.ObjectId.isValid(conversationId)) {
+      throw new BadRequestException('Invalid broker message identifiers');
+    }
+    const message = await this.messageModel
+      .findOne({
+        _id: new Types.ObjectId(messageId),
+        conversationId: new Types.ObjectId(conversationId),
+        type: MessageType.CHATBOT,
+        isDeleted: { $ne: true },
+      })
       .populate('senderId', 'firstName lastName _id avatar')
       .populate({
         path: 'replyTo',
@@ -303,13 +433,56 @@ export class ChatService {
         populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
       })
       .exec();
+    if (!message) {
+      throw new NotFoundException('Broker AI message was not found');
+    }
+    return message;
+  }
+
+  async findMessageForConversation(messageId: string, conversationId: string): Promise<any> {
+    if (!Types.ObjectId.isValid(messageId) || !Types.ObjectId.isValid(conversationId)) {
+      throw new BadRequestException('Invalid message identifiers');
+    }
+    const message = await this.messageModel
+      .findOne({
+        _id: new Types.ObjectId(messageId),
+        conversationId: new Types.ObjectId(conversationId),
+        isDeleted: { $ne: true },
+      })
+      .populate('senderId', 'firstName lastName _id avatar')
+      .populate({
+        path: 'replyTo',
+        populate: { path: 'senderId', select: 'firstName lastName _id' },
+      })
+      .populate({
+        path: 'postId',
+        populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+      })
+      .populate({
+        path: 'postIdsRecommendationfromAI',
+        populate: { path: 'userId', select: 'firstName lastName _id avatar username' },
+      })
+      .exec();
+    if (!message) throw new NotFoundException('Message was not found');
+    return message;
+  }
+
+  async brokerConversationExists(conversationId: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(conversationId)) return false;
+    return !!(await this.conversationModel.exists({
+      _id: new Types.ObjectId(conversationId),
+      isDeleted: { $ne: true },
+    }));
   }
 
   // ============ MESSAGE FEATURES ============
 
   // 1. Chỉnh sửa tin nhắn (giới hạn 15 phút)
   async editMessage(messageId: string, userId: string, newContent: string) {
-    const message = await this.messageModel.findById(messageId);
+    if (!Types.ObjectId.isValid(messageId) || !Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid message or user identifier');
+    }
+    const message = await this.messageModel.findById(messageId).lean();
     if (!message) {
       throw new NotFoundException('Không tìm thấy tin nhắn');
     }
@@ -330,12 +503,17 @@ export class ChatService {
       throw new BadRequestException('Tin nhắn đã bị xóa');
     }
 
+    const content = (newContent || '').trim().slice(0, 5000);
+    if (!content) {
+      throw new BadRequestException('Message content is required');
+    }
+
     return await this.messageModel
       .findByIdAndUpdate(
         messageId,
         {
           $set: {
-            content: newContent,
+            content,
             isEdited: true,
           },
         },
@@ -366,7 +544,10 @@ export class ChatService {
 
   // 2. Thả cảm xúc tin nhắn
   async addReaction(messageId: string, userId: string, emotionType: EmotionType) {
-    const message = await this.messageModel.findById(messageId);
+    if (!Types.ObjectId.isValid(messageId) || !Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid message or user identifier');
+    }
+    const message = await this.messageModel.findById(messageId).lean();
     if (!message) {
       throw new NotFoundException('Không tìm thấy tin nhắn');
     }
@@ -375,27 +556,32 @@ export class ChatService {
       throw new BadRequestException('Tin nhắn đã bị xóa');
     }
 
+    await this.assertActiveConversationMember(message.conversationId.toString(), userId);
+
     // Update or add reaction in the array
     const userObjectId = new Types.ObjectId(userId);
 
-    // First remove any existing reaction from this user to ensure uniqueness per user
-    await this.messageModel.updateOne(
-      { _id: messageId },
-      { $pull: { emotions: { userId: userObjectId } } }
-    );
-
-    // Then add the new reaction
     return await this.messageModel
       .findByIdAndUpdate(
         messageId,
-        {
-          $push: {
-            emotions: {
-              userId: userObjectId,
-              emotionType,
+        [
+          {
+            $set: {
+              emotions: {
+                $concatArrays: [
+                  {
+                    $filter: {
+                      input: { $ifNull: ['$emotions', []] },
+                      as: 'existingEmotion',
+                      cond: { $ne: ['$$existingEmotion.userId', userObjectId] },
+                    },
+                  },
+                  [{ userId: userObjectId, emotionType }],
+                ],
+              },
             },
           },
-        },
+        ],
         { new: true }
       )
       .populate('senderId', 'firstName lastName _id avatar')
@@ -423,10 +609,15 @@ export class ChatService {
 
   // 3. Xóa cảm xúc tin nhắn
   async removeReaction(messageId: string, userId: string) {
-    const message = await this.messageModel.findById(messageId);
+    if (!Types.ObjectId.isValid(messageId) || !Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid message or user identifier');
+    }
+    const message = await this.messageModel.findById(messageId).lean();
     if (!message) {
       throw new NotFoundException('Không tìm thấy tin nhắn');
     }
+
+    await this.assertActiveConversationMember(message.conversationId.toString(), userId);
 
     return await this.messageModel
       .findByIdAndUpdate(
@@ -459,7 +650,10 @@ export class ChatService {
 
   // 4. Xóa tin nhắn (soft delete) + xóa media trên Cloudinary
   async deleteMessage(messageId: string, userId: string) {
-    const message = await this.messageModel.findById(messageId);
+    if (!Types.ObjectId.isValid(messageId) || !Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid message or user identifier');
+    }
+    const message = await this.messageModel.findById(messageId).lean();
     if (!message) {
       throw new NotFoundException('Không tìm thấy tin nhắn');
     }
@@ -471,22 +665,16 @@ export class ChatService {
 
     // Xóa media trên Cloudinary nếu có attachments
     if (message.attachments && message.attachments.length > 0) {
-      const mediaToDelete = message.attachments.map((attachment) => {
-        // Extract publicId from URL: chat_attachments/xxxxx
-        const urlParts = attachment.url.split('/');
-        const fileNameWithExt = urlParts[urlParts.length - 1];
-        const folderName = urlParts[urlParts.length - 2];
-        const publicId = `${folderName}/${fileNameWithExt.split('.')[0]}`;
-
-        return {
-          publicId,
+      const mediaToDelete = message.attachments
+        .filter((attachment) => attachment.publicId)
+        .map((attachment) => ({
+          publicId: attachment.publicId,
           mediaType: attachment.mediaType as 'IMAGE' | 'VIDEO' | 'RAW',
-        };
-      });
+        }));
 
       // Xóa media song song (không block response)
-      this.cloudinaryService.deleteMultipleMedia(mediaToDelete).catch((err) => {
-        console.error('Failed to delete media from Cloudinary:', err);
+      this.cloudinaryService.deleteOwnedMedia(userId, mediaToDelete).catch((err) => {
+        this.logger.error(`Failed to delete media from Cloudinary: ${err?.message || err}`);
       });
     }
 
@@ -551,7 +739,11 @@ export class ChatService {
 
   // 6. Mark message as read - NEW LOGIC using ConversationReadStatus
   // Optional messageId parameter: if provided, use it as cursor; otherwise use latest message
-  async markAsRead(conversationId: string, userId: string, messageId?: string) {
+  async markAsRead(
+    conversationId: string,
+    userId: string,
+    messageId?: string
+  ): Promise<MarkAsReadResult> {
     // Validate IDs
     if (!Types.ObjectId.isValid(conversationId)) {
       throw new BadRequestException('Invalid conversationId');
@@ -559,46 +751,107 @@ export class ChatService {
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('Invalid userId');
     }
+    await this.assertActiveConversationMember(conversationId, userId);
 
     const userObjectId = new Types.ObjectId(userId);
     const convObjectId = new Types.ObjectId(conversationId);
 
-    let targetMessageId: Types.ObjectId;
-    let foundMessage = false;
+    let targetMessage: { _id: Types.ObjectId; createdAt: Date } | null = null;
 
     if (messageId && Types.ObjectId.isValid(messageId)) {
-      // Use provided messageId as cursor
-      const messageExists = await this.messageModel.findOne({
-        _id: new Types.ObjectId(messageId),
-        isDeleted: { $ne: true },
-      });
-
-      if (messageExists && messageExists.conversationId.toString() === conversationId) {
-        targetMessageId = messageExists._id;
-        foundMessage = true;
-      }
+      targetMessage = await this.messageModel
+        .findOne({
+          _id: new Types.ObjectId(messageId),
+          conversationId: convObjectId,
+          isDeleted: { $ne: true },
+        })
+        .select('_id createdAt')
+        .lean<{ _id: Types.ObjectId; createdAt: Date }>();
     }
 
     // STRICT MODE: If no specific message ID provided or found, DO NOT Mark All As Read.
     // This prevents the cursor from jumping to the end when opening the chat or switching tabs.
     // The frontend must explicitly send the message ID it wants to mark as read.
-    if (!foundMessage) {
-      console.warn('[Service] markAsRead skipped: No valid messageId provided or found.');
+    if (!targetMessage) {
       return { modifiedCount: 0 };
     }
 
-    // 2. Upsert ConversationReadStatus for this user
+    // Lazily backfill the sortable cursor for records created before this field existed.
+    const legacyStatus = await this.readStatusModel
+      .findOne({
+        conversationId: convObjectId,
+        userId: userObjectId,
+        lastReadMessageId: { $ne: null },
+        lastReadMessageCreatedAt: { $exists: false },
+      })
+      .select('_id lastReadMessageId')
+      .lean();
+    if (legacyStatus?.lastReadMessageId) {
+      const legacyMessage = await this.messageModel
+        .findById(legacyStatus.lastReadMessageId)
+        .select('createdAt')
+        .lean<{ createdAt: Date }>();
+      if (legacyMessage?.createdAt) {
+        await this.readStatusModel.updateOne(
+          { _id: legacyStatus._id, lastReadMessageCreatedAt: { $exists: false } },
+          { $set: { lastReadMessageCreatedAt: legacyMessage.createdAt } }
+        );
+      }
+    }
+
+    const now = new Date();
+    const advanceFilter = {
+      conversationId: convObjectId,
+      userId: userObjectId,
+      $or: [
+        { lastReadMessageCreatedAt: { $exists: false } },
+        { lastReadMessageCreatedAt: { $lte: targetMessage.createdAt } },
+      ],
+    };
+    const advanceUpdate = {
+      $set: {
+        lastReadMessageId: targetMessage._id,
+        lastReadMessageCreatedAt: targetMessage.createdAt,
+        lastReadAt: now,
+      },
+    };
+
+    let advanced = Boolean(
+      await this.readStatusModel
+        .findOneAndUpdate(advanceFilter, advanceUpdate, { new: true })
+        .select('_id')
+        .lean()
+    );
+
+    if (!advanced) {
+      try {
+        await this.readStatusModel.create({
+          conversationId: convObjectId,
+          userId: userObjectId,
+          lastReadMessageId: targetMessage._id,
+          lastReadMessageCreatedAt: targetMessage.createdAt,
+          lastReadAt: now,
+        });
+        advanced = true;
+      } catch (error: unknown) {
+        if ((error as { code?: number }).code !== 11000) {
+          throw error;
+        }
+        advanced = Boolean(
+          await this.readStatusModel
+            .findOneAndUpdate(advanceFilter, advanceUpdate, { new: true })
+            .select('_id')
+            .lean()
+        );
+      }
+    }
+
+    if (!advanced) {
+      return { modifiedCount: 0 };
+    }
+
     const result = await this.readStatusModel
-      .findOneAndUpdate(
-        { conversationId: convObjectId, userId: userObjectId },
-        {
-          $set: {
-            lastReadMessageId: targetMessageId!, // Assert non-null because we checked foundMessage
-            lastReadAt: new Date(),
-          },
-        },
-        { upsert: true, new: true }
-      )
+      .findOne({ conversationId: convObjectId, userId: userObjectId })
       .populate('userId', 'firstName lastName _id avatar')
       .populate('lastReadMessageId', 'createdAt')
       .lean();
@@ -629,13 +882,14 @@ export class ChatService {
       modifiedCount: 1,
       conversationId,
       readBy: userId,
-      lastReadMessageId: targetMessageId!,
+      lastReadMessageId: targetMessage._id,
       readStatus: normalizedReadStatus,
     };
   }
 
   // 7. Update message status to delivered when user connects
   async markAsDelivered(conversationId: string, userId: string) {
+    await this.assertActiveConversationMember(conversationId, userId);
     const userObjectId = new Types.ObjectId(userId);
 
     await this.messageModel.updateMany(
@@ -652,7 +906,11 @@ export class ChatService {
   }
 
   // Get latest read status for conversation (who read what)
-  async getReadStatus(conversationId: string) {
+  async getReadStatus(
+    conversationId: string,
+    userId: string
+  ): Promise<Array<Record<string, unknown>>> {
+    await this.assertActiveConversationMember(conversationId, userId);
     // Return list of ReadStatus for all users in this conversation
     const readStatuses = await this.readStatusModel
       .find({
@@ -686,12 +944,4 @@ export class ChatService {
     return normalizedReadStatuses;
   }
 
-  // Legacy methods
-  async update(id: string, updateMessageDto: UpdateMessageDto) {
-    return await this.messageModel.updateOne({ _id: id }, updateMessageDto).exec();
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} chat`;
-  }
 }

@@ -1,5 +1,5 @@
-import axios from "@/config/axios";
-import { AxiosError } from "axios";
+import axios, { unwrap } from "@/config/axios";
+import { AxiosError, AxiosProgressEvent } from "axios";
 
 export interface DeleteMediaItem {
   publicId: string;
@@ -33,6 +33,7 @@ export interface UploadMediaResponse {
 const uploadMediaToEndpoint = async (
   files: File[],
   endpoint: string,
+  onProgress?: (progress: number) => void,
 ): Promise<UploadMediaResponse> => {
   if (!files || files.length === 0) {
     return { success: true, message: "No files to upload", results: [] };
@@ -49,10 +50,14 @@ const uploadMediaToEndpoint = async (
         "Content-Type": "multipart/form-data",
       },
       timeout: 180000, // 3 minutes for large video uploads
+      onUploadProgress: (event: AxiosProgressEvent) => {
+        if (!onProgress || !event.total) return;
+        onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      },
     });
 
     // Handle wrapped response: { data: { success, results } }
-    const result = response.data?.data || response.data;
+    const result = unwrap<UploadMediaResponse>(response.data);
     return {
       success: result.success,
       message: result.message,
@@ -84,8 +89,9 @@ const uploadMediaToEndpoint = async (
  */
 export const uploadMedia = async (
   files: File[],
+  onProgress?: (progress: number) => void,
 ): Promise<UploadMediaResponse> => {
-  return uploadMediaToEndpoint(files, "/cloudinary/upload");
+  return uploadMediaToEndpoint(files, "/cloudinary/upload", onProgress);
 };
 
 /**
@@ -93,8 +99,9 @@ export const uploadMedia = async (
  */
 export const uploadChatMedia = async (
   files: File[],
+  onProgress?: (progress: number) => void,
 ): Promise<UploadMediaResponse> => {
-  return uploadMediaToEndpoint(files, "/cloudinary/upload/chat");
+  return uploadMediaToEndpoint(files, "/cloudinary/upload/chat", onProgress);
 };
 
 /**
@@ -109,13 +116,15 @@ export const deleteCloudinaryMedia = async (
   }
 
   try {
-    const response = await axios.post<DeleteMediaResponse>(
+    const response = await axios.post<
+      DeleteMediaResponse | { data: DeleteMediaResponse }
+    >(
       "/cloudinary/delete",
       {
         media,
       },
     );
-    return response.data;
+    return unwrap<DeleteMediaResponse>(response.data);
   } catch (error) {
     console.error("Failed to delete media from Cloudinary:", error);
     return {

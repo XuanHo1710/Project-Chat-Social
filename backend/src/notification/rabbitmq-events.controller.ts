@@ -1,71 +1,78 @@
-import { Controller, Logger } from '@nestjs/common';
+import { BadRequestException, Controller, Logger, NotFoundException } from '@nestjs/common';
 import { Ctx, EventPattern, Payload, RmqContext } from '@nestjs/microservices';
-import { NotificationGateway } from 'src/notification/notification.gateway';
+import { Types } from 'mongoose';
+import {
+  BackendRmqChannel,
+  BackendRmqMessage,
+  settleBackendRmqFailure,
+} from '../common/messaging/rabbitmq-delivery';
+import { NotificationGateway } from './notification.gateway';
+import { NotificationService } from './notification.service';
 
-/**
- * Controller để nhận events từ RabbitMQ microservice
- * Đây là các events được gửi ngược về từ RabbitMQ consumer (notification sender)
- */
+class InvalidNotificationBrokerPayloadError extends Error {}
+
 @Controller()
 export class RabbitMQEventsController {
-  private readonly logger = new Logger('RabbitMQEvents');
+  private readonly logger = new Logger(RabbitMQEventsController.name);
 
-  constructor(private readonly notificationGateway: NotificationGateway) {}
+  constructor(
+    private readonly notificationGateway: NotificationGateway,
+    private readonly notificationService: NotificationService,
+  ) {}
 
-  /**
-   * Nhận notification từ RabbitMQ Sender Worker và broadcast qua Socket
-   */
   @EventPattern('notification.send')
-  async handleNotificationSend(
-    @Payload()
-    payload: {
-      recipientId: string;
-      notification: any;
-      unreadCount: number;
-    },
-    @Ctx() context: RmqContext
-  ) {
-    const channel = context.getChannelRef();
-    const originalMsg = context.getMessage();
-
-    this.logger.log(`Received notification.send for user ${payload.recipientId}`);
+  async handleNotificationSend(@Payload() rawPayload: unknown, @Ctx() context: RmqContext) {
+    const channel = context.getChannelRef() as BackendRmqChannel;
+    const originalMessage = context.getMessage() as BackendRmqMessage;
 
     try {
-      // Broadcast notification via Socket
-      this.notificationGateway.sendNotification(payload.recipientId, payload.notification);
-      this.notificationGateway.sendUnreadCountUpdate(payload.recipientId, payload.unreadCount);
-
-      // Acknowledge message
-      this.safeAck(channel, originalMsg);
+      const { recipientId, notificationId } = this.validatePayload(rawPayload);
+      const canonical = await this.notificationService.getBrokerNotification(
+        notificationId,
+        recipientId,
+      );
+      this.notificationGateway.sendNotification(recipientId, canonical.notification);
+      this.notificationGateway.sendUnreadCountUpdate(recipientId, canonical.unreadCount);
+      channel.ack(originalMessage);
     } catch (error) {
-      this.logger.error('Error broadcasting notification:', error);
-      this.safeNack(channel, originalMsg);
+      const message = error instanceof Error ? error.message : 'Unknown broker handler error';
+      this.logger.warn(`Rejected notification.send: ${message}`);
+      await settleBackendRmqFailure({
+        channel,
+        message: originalMessage,
+        pattern: 'notification.send',
+        error,
+        permanent:
+          error instanceof InvalidNotificationBrokerPayloadError ||
+          error instanceof BadRequestException ||
+          error instanceof NotFoundException,
+        logger: this.logger,
+      });
     }
   }
 
-  /**
-   * Safely acknowledge a message
-   */
-  private safeAck(channel: any, message: any): void {
-    try {
-      if (channel && message) {
-        channel.ack(message);
-      }
-    } catch (error: any) {
-      this.logger.warn('Failed to ack message:', error.message);
+  private validatePayload(value: unknown): { recipientId: string; notificationId: string } {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new InvalidNotificationBrokerPayloadError('Payload must be an object');
     }
+    const payload = value as Record<string, unknown>;
+    const recipientId = this.objectId(payload.recipientId, 'recipientId');
+    const notification = payload.notification;
+    if (!notification || typeof notification !== 'object' || Array.isArray(notification)) {
+      throw new InvalidNotificationBrokerPayloadError('notification must be an object');
+    }
+    const notificationId = this.objectId(
+      (notification as Record<string, unknown>)._id,
+      'notification._id',
+    );
+    return { recipientId, notificationId };
   }
 
-  /**
-   * Safely negative acknowledge a message
-   */
-  private safeNack(channel: any, message: any): void {
-    try {
-      if (channel && message) {
-        channel.nack(message, false, false);
-      }
-    } catch (error: any) {
-      this.logger.warn('Failed to nack message:', error.message);
+  private objectId(value: unknown, field: string): string {
+    const normalized = typeof value === 'string' ? value : String(value || '');
+    if (!/^[a-f\d]{24}$/i.test(normalized) || !Types.ObjectId.isValid(normalized)) {
+      throw new InvalidNotificationBrokerPayloadError(`${field} is invalid`);
     }
+    return normalized;
   }
 }

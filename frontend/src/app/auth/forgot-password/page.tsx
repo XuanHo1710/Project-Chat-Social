@@ -24,6 +24,7 @@ export default function ForgotPasswordPage() {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState("");
+    const [resetToken, setResetToken] = useState("");
     const [apiError, setApiError] = useState("");
 
     // Mouse Parallax Logic
@@ -75,7 +76,8 @@ export default function ForgotPasswordPage() {
 
         try {
             const response = await authService.verifyOtp(email, otp);
-            if (response.success) {
+            if (response.success && response.resetToken) {
+                setResetToken(response.resetToken);
                 setStep(3);
             } else {
                 setApiError(response.message || "Mã OTP không chính xác");
@@ -112,7 +114,12 @@ export default function ForgotPasswordPage() {
         setApiError("");
 
         try {
-            const response = await authService.resetPassword(email, password);
+            if (!resetToken) {
+                setApiError("Phiên xác minh đã hết hạn. Vui lòng bắt đầu lại.");
+                setStep(1);
+                return;
+            }
+            const response = await authService.resetPassword(email, password, resetToken);
             if (response.success) {
                 toast.success("Đổi mật khẩu thành công!");
                 router.push(CLIENT_PATH.LOGIN);

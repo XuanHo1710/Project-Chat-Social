@@ -1,4 +1,4 @@
-import axios from "@/config/axios";
+import axios, { unwrap } from "@/config/axios";
 import { APIResponse } from "@/types/common";
 import {
   Notification,
@@ -22,28 +22,28 @@ class NotificationService {
     const response = await axios.get<APIResponse<NotificationResponse>>(
       `/notification?${params.toString()}`
     );
-    return response.data.data;
+    return unwrap<NotificationResponse>(response.data);
   }
 
   async getUnreadCount(): Promise<UnreadCountResponse> {
     const response = await axios.get<APIResponse<UnreadCountResponse>>(
       "/notification/unread-count"
     );
-    return response.data.data;
+    return unwrap<UnreadCountResponse>(response.data);
   }
 
   async markAsRead(notificationId: string): Promise<Notification> {
     const response = await axios.put<APIResponse<Notification>>(
       `/notification/${notificationId}/read`
     );
-    return response.data.data;
+    return unwrap<Notification>(response.data);
   }
 
   async markAllAsRead(): Promise<{ message: string }> {
     const response = await axios.put<APIResponse<{ message: string }>>(
       "/notification/read-all"
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async deleteNotification(
@@ -52,7 +52,7 @@ class NotificationService {
     const response = await axios.delete<APIResponse<{ message: string }>>(
       `/notification/${notificationId}`
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 
   async respondToGroupInvitation(
@@ -63,7 +63,7 @@ class NotificationService {
       "/notification/group-invitation/respond",
       { notificationId, action }
     );
-    return response.data.data;
+    return unwrap<{ message: string }>(response.data);
   }
 }
 

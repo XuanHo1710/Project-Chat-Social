@@ -28,12 +28,12 @@ import { notificationService } from '@/services/notification.service';
 
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useSocket } from '@/contexts/SocketContext';
 import { timeAgo } from '@/utils/formatDate';
 import { Notification, NotificationEnum } from '@/types/notification';
 import { useTranslation } from 'react-i18next';
-import { getNotificationMessage } from '@/utils/notification';
+import { renderNotification } from '@/utils/notificationText';
 
 interface NotificationPopupProps {
     onUnreadCountChange?: (count: number) => void;
@@ -43,7 +43,8 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     const router = useRouter();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
-    const { user, accessToken } = useAuthStore();
+    const { user } = useAuthStore();
+    const { socketNotification } = useSocket();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -59,7 +60,6 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
         unread: { currentPage: 1, totalPages: 1, hasMore: false },
         invitations: { currentPage: 1, totalPages: 1, hasMore: false },
     });
-    const socketRef = useRef<Socket | null>(null);
     const listRef = useRef<HTMLDivElement | null>(null);
 
 
@@ -67,26 +67,11 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     const selectedBg = isDark ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.primary.main, 0.1);
     const { t } = useTranslation();
 
-    // Connect to notification socket
+    // Reuse the authenticated application socket instead of opening a duplicate connection.
     useEffect(() => {
-        if (user?.id && accessToken) {
-            if (socketRef.current) return; // đã connect rồi thì thôi
+        if (!user?.id || !socketNotification) return;
 
-            const backendUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
-            const newSocket = io(`${backendUrl}/notifications`, {
-                query: { userId: user.id },
-                transports: ['websocket'],
-                reconnection: true,
-            });
-
-            socketRef.current = newSocket;
-
-
-            newSocket.on('connect', () => {
-                console.log('Connected to notification socket');
-            });
-
-            newSocket.on('newNotification', (notification: Notification) => {
+        const handleNewNotification = (notification: Notification) => {
                 setNotifications(prev => {
                     // Check if notification already exists (for aggregated notifications)
                     const existingIndex = prev.findIndex(n => n._id === notification._id);
@@ -99,22 +84,21 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                     // New notification - add to top
                     return [notification, ...prev];
                 });
-                // Don't manually increment unreadCount - let unreadCountUpdate handle it
-            });
+        };
 
-            newSocket.on('unreadCountUpdate', ({ count }: { count: number }) => {
-                setUnreadCount(count);
-                onUnreadCountChange?.(count);
-            });
+        const handleUnreadCountUpdate = ({ count }: { count: number }) => {
+            setUnreadCount(count);
+            onUnreadCountChange?.(count);
+        };
 
+        socketNotification.on('newNotification', handleNewNotification);
+        socketNotification.on('unreadCountUpdate', handleUnreadCountUpdate);
 
-            return () => {
-                newSocket.disconnect();
-                socketRef.current = null;
-
-            };
-        }
-    }, [user?.id, accessToken, onUnreadCountChange]);
+        return () => {
+            socketNotification.off('newNotification', handleNewNotification);
+            socketNotification.off('unreadCountUpdate', handleUnreadCountUpdate);
+        };
+    }, [user?.id, socketNotification, onUnreadCountChange]);
 
     // Load notifications - now respects activeTab
     const loadNotifications = useCallback(async (tab: 'all' | 'unread' | 'invitations' = 'all') => {
@@ -309,7 +293,9 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                     ...n,
                     actionStatus: accept ? 'ACCEPTED' : 'REJECTED',
                     status: "READ",
-                    message: accept ? t('notifications.accepted_invitation') : t('notifications.declined_invitation')
+                    message: accept ? t('notifications.accepted_invitation') : t('notifications.declined_invitation'),
+                    templateKey: undefined,
+                    templateParams: undefined
                 }
                 : n
             ));
@@ -321,7 +307,9 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
     }
 
     // Render notification item
-    const renderNotificationItem = (notification: Notification) => (
+    const renderNotificationItem = (notification: Notification) => {
+        const text = renderNotification(notification, t);
+        return (
         <ListItemButton
             key={notification._id}
             onClick={() => handleNotificationClick(notification)}
@@ -442,20 +430,37 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
             </ListItemAvatar>
             <ListItemText
                 primary={
-                    <Typography
-                        sx={{
-                            fontSize: { xs: 14, sm: 15 },
-                            fontWeight: notification.status === "UNREAD" ? 600 : 400,
-                            color: 'text.primary',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 3,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                            lineHeight: 1.3,
-                        }}
-                    >
-                        {getNotificationMessage(notification, t)}
-                    </Typography>
+                    <>
+                        <Typography
+                            sx={{
+                                fontSize: { xs: 14, sm: 15 },
+                                fontWeight: notification.status === "UNREAD" ? 600 : 400,
+                                color: 'text.primary',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 3,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                lineHeight: 1.3,
+                            }}
+                        >
+                            {text.title}
+                        </Typography>
+                        {text.message && (
+                            <Typography
+                                sx={{
+                                    fontSize: 12,
+                                    color: 'text.secondary',
+                                    mt: 0.25,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                {text.message}
+                            </Typography>
+                        )}
+                    </>
                 }
                 secondary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
@@ -557,7 +562,8 @@ export default function NotificationPopup({ onUnreadCountChange }: NotificationP
                 />
             )}
         </ListItemButton>
-    );
+        );
+    };
 
     return (
         <Paper

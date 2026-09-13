@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Box, Typography, Button, Paper, Grid } from "@mui/material";
-import { Refresh, Flag } from "@mui/icons-material";
+import { Box, Typography } from "@mui/material";
+import { Flag } from "@mui/icons-material";
+import GameShell from "@/components/games/GameShell";
+import { useTranslation } from "react-i18next";
 
 const ROWS = 10;
 const COLS = 10;
@@ -17,6 +19,7 @@ interface Cell {
 }
 
 export default function MinesweeperPage() {
+    const { t } = useTranslation('games');
     const [board, setBoard] = useState<Cell[]>([]);
     const [gameOver, setGameOver] = useState(false);
     const [gameWon, setGameWon] = useState(false);
@@ -126,78 +129,68 @@ export default function MinesweeperPage() {
     };
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', pt: 4 }}>
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3 }}>
-                <Paper elevation={3} sx={{ p: 4, borderRadius: 4, maxWidth: 500, width: '100%', textAlign: 'center', bgcolor: 'background.paper' }}>
-                    <Typography variant="h4" fontWeight={900} sx={{ mb: 2, color: 'text.primary' }}>
-                        Dò Mìn
-                    </Typography>
-
-                    <Box sx={{ mb: 3 }}>
-                        {gameOver ?
-                            <Typography color="error" variant="h6" fontWeight={700}>GAME OVER!</Typography> :
-                            (gameWon ? <Typography color="success.main" variant="h6" fontWeight={700}>CHIẾN THẮNG!</Typography> :
-                                <Typography sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                                    <Flag color="error" /> {MINES - board.filter(c => c.isFlagged).length}
-                                </Typography>)
-                        }
-                    </Box>
-
-                    <Box sx={{
-                        display: 'grid',
-                        gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-                        gap: 0.5,
-                        maxWidth: 350,
-                        mx: 'auto',
-                        mb: 4,
-                        bgcolor: '#bdbdbd',
-                        p: 1,
-                        borderRadius: 1
-                    }}>
-                        {board.map((cell) => (
-                            <Box
-                                key={cell.id}
-                                onClick={() => revealCell(cell.id)}
-                                onContextMenu={(e) => toggleFlag(e, cell.id)}
-                                sx={{
-                                    width: 30,
-                                    height: 30,
-                                    bgcolor: cell.isRevealed
-                                        ? (cell.hasMine ? '#ef5350' : '#e0e0e0')
-                                        : '#bdbdbd',
-                                    border: cell.isRevealed ? '1px solid #9e9e9e' : '4px outset #eceff1',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    fontSize: 14,
-                                    fontWeight: 'bold',
-                                    color: [
-                                        '', 'blue', 'green', 'red', 'darkblue', 'brown', 'cyan', 'black', 'gray'
-                                    ][cell.neighborMines]
-                                }}
-                            >
-                                {cell.isRevealed && !cell.hasMine && cell.neighborMines > 0 && cell.neighborMines}
-                                {cell.isRevealed && cell.hasMine && '💣'}
-                                {!cell.isRevealed && cell.isFlagged && <Flag color="error" sx={{ fontSize: 16 }} />}
-                            </Box>
-                        ))}
-                    </Box>
-
-                    <Button
-                        variant="contained"
-                        size="large"
-                        onClick={initGame}
-                        startIcon={<Refresh />}
-                        sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
-                    >
-                        Chơi lại
-                    </Button>
-                    <Typography variant="caption" sx={{ display: 'block', mt: 3, color: 'text.secondary' }}>
-                        Chuột trái để mở, Chuột phải để cắm cờ
-                    </Typography>
-                </Paper>
+        <GameShell
+            titleKey="minesweeper.name"
+            titleSx={{ color: 'text.primary' }}
+            maxWidth={500}
+            onRestart={initGame}
+            restartLabelKey="common.playAgain"
+            actions={
+                <Typography variant="caption" sx={{ display: 'block', mt: 3, color: 'text.secondary' }}>
+                    {t('minesweeper.instructions')}
+                </Typography>
+            }
+        >
+            <Box sx={{ mb: 3 }}>
+                {gameOver ?
+                    <Typography color="error" variant="h6" fontWeight={700}>{t('minesweeper.gameOver')}</Typography> :
+                    (gameWon ? <Typography color="success.main" variant="h6" fontWeight={700}>{t('common.win')}</Typography> :
+                        <Typography sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                            <Flag color="error" /> {MINES - board.filter(c => c.isFlagged).length}
+                        </Typography>)
+                }
             </Box>
-        </Box>
+
+            <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${COLS}, 1fr)`,
+                gap: 0.5,
+                maxWidth: 350,
+                mx: 'auto',
+                mb: 4,
+                bgcolor: '#bdbdbd',
+                p: 1,
+                borderRadius: 1
+            }}>
+                {board.map((cell) => (
+                    <Box
+                        key={cell.id}
+                        onClick={() => revealCell(cell.id)}
+                        onContextMenu={(e) => toggleFlag(e, cell.id)}
+                        sx={{
+                            width: 30,
+                            height: 30,
+                            bgcolor: cell.isRevealed
+                                ? (cell.hasMine ? '#ef5350' : '#e0e0e0')
+                                : '#bdbdbd',
+                            border: cell.isRevealed ? '1px solid #9e9e9e' : '4px outset #eceff1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            fontWeight: 'bold',
+                            color: [
+                                '', 'blue', 'green', 'red', 'darkblue', 'brown', 'cyan', 'black', 'gray'
+                            ][cell.neighborMines]
+                        }}
+                    >
+                        {cell.isRevealed && !cell.hasMine && cell.neighborMines > 0 && cell.neighborMines}
+                        {cell.isRevealed && cell.hasMine && '💣'}
+                        {!cell.isRevealed && cell.isFlagged && <Flag color="error" sx={{ fontSize: 16 }} />}
+                    </Box>
+                ))}
+            </Box>
+        </GameShell>
     );
 }

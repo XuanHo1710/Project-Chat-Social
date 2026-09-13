@@ -9,6 +9,8 @@ import { Comment, CommentSchema } from 'src/comment/entities/comment.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { AccountModule } from 'src/account/account.module';
 import { KafkaModule } from 'src/kafka/kafka.module';
+import { AuthModule } from 'src/auth/auth.module';
+import { PostAccessModule } from 'src/post/post-access.module';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { KafkaModule } from 'src/kafka/kafka.module';
     NotificationModule,
     AccountModule,
     KafkaModule,
+    AuthModule,
+    PostAccessModule,
   ],
   controllers: [ReactionController],
   providers: [ReactionService, ReactionGateway],

@@ -4,9 +4,11 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, PhoneOff, Video } from 'lucide-react';
 import { useCall } from '@/contexts/CallContext';
+import { useTranslation } from 'react-i18next';
 
 export default function IncomingCall() {
     const { callReceived, callerInfo, answerCall, rejectCall } = useCall();
+    const { t } = useTranslation();
 
     if (!callReceived || !callerInfo) return null;
 
@@ -34,7 +36,7 @@ export default function IncomingCall() {
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 flex items-center gap-2">
                         <Video size={16} className="text-blue-500" />
-                        Đang gọi video cho bạn...
+                        {t('call.incoming_video_call')}
                     </p>
 
                     <div className="flex gap-8 w-full justify-center">
@@ -45,7 +47,7 @@ export default function IncomingCall() {
                             <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center transition-transform group-hover:scale-110">
                                 <PhoneOff size={24} />
                             </div>
-                            <span className="text-xs text-gray-500 font-medium">Từ chối</span>
+                            <span className="text-xs text-gray-500 font-medium">{t('call.decline')}</span>
                         </button>
 
                         <button
@@ -55,7 +57,7 @@ export default function IncomingCall() {
                             <div className="w-12 h-12 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg shadow-green-500/30 transition-transform group-hover:scale-110 animate-pulse">
                                 <Phone size={24} />
                             </div>
-                            <span className="text-xs text-gray-500 font-medium">Trả lời</span>
+                            <span className="text-xs text-gray-500 font-medium">{t('call.answer')}</span>
                         </button>
                     </div>
                 </div>

@@ -69,21 +69,3 @@ export interface ReactionUser {
   isFriend: boolean;
   hasSentRequest?: boolean;
 }
-
-export const REACTION_COLORS: Record<ReactionType, string> = {
-  LIKE: "#1877f2",
-  LOVE: "#f33e58",
-  HAHA: "#f7b125",
-  WOW: "#f7b125",
-  SAD: "#f7b125",
-  ANGRY: "#e9710f",
-};
-
-export const REACTION_LABELS: Record<ReactionType, string> = {
-  LIKE: "Thích",
-  LOVE: "Yêu thích",
-  HAHA: "Haha",
-  WOW: "Wow",
-  SAD: "Buồn",
-  ANGRY: "Phẫn nộ",
-};

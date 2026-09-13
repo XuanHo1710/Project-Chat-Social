@@ -46,11 +46,13 @@ export class PostController {
 
   @Get()
   findAll(
+    @UserInfo() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('userId') userId?: string
   ) {
     return this.postService.findAll(
+      user._id.toString(),
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 10,
       userId
@@ -62,15 +64,12 @@ export class PostController {
     @UserInfo() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @Query('friendIds') friendIds?: string,
     @Query('keyword') keyword?: string
   ) {
-    const friends = friendIds ? friendIds.split(',') : [];
     return this.postService.searchWithModelAIServer(
       user._id,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 10,
-      friends,
       keyword
     );
   }
@@ -79,15 +78,12 @@ export class PostController {
   getNewsFeed(
     @UserInfo() user: any,
     @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('friendIds') friendIds?: string
+    @Query('limit') limit?: string
   ) {
-    const friends = friendIds ? friendIds.split(',') : [];
     return this.postService.findNewsFeed(
       user._id,
       page ? parseInt(page) : 1,
-      limit ? parseInt(limit) : 10,
-      friends
+      limit ? parseInt(limit) : 10
     );
   }
 
@@ -96,16 +92,13 @@ export class PostController {
     @UserInfo() user: any,
     @Param('userId') userId: string,
     @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('friendIds') friendIds?: string
+    @Query('limit') limit?: string
   ) {
-    const friends = friendIds ? friendIds.split(',') : [];
     return this.postService.findByUserId(
       userId,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 10,
-      user?._id,
-      friends
+      user?._id
     );
   }
 
@@ -113,15 +106,12 @@ export class PostController {
   getReels(
     @UserInfo() user: any,
     @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('friendIds') friendIds?: string
+    @Query('limit') limit?: string
   ) {
-    const friends = friendIds ? friendIds.split(',') : [];
     return this.postService.findVideoReels(
       user._id,
       page ? parseInt(page) : 1,
-      limit ? parseInt(limit) : 10,
-      friends
+      limit ? parseInt(limit) : 10
     );
   }
 
@@ -141,8 +131,8 @@ export class PostController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.postService.findOne(id);
+  findOne(@Param('id') id: string, @UserInfo() user: any) {
+    return this.postService.findOne(id, user._id.toString());
   }
 
   @Patch(':id')

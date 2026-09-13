@@ -1,88 +1,99 @@
-import { Controller, Get, Post, UseGuards, Res, Req, Param, Body } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { Public, UserInfo } from 'decorators/customize';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
-import { LocalAuthGuard } from 'src/auth/passport/local-auth.guard';
-import { Account } from 'src/account/entities/account.entity';
-import { GoogleAuthGuard } from 'src/auth/passport/google-auth.guard';
+import { Public, UserInfo } from 'decorators/customize';
 import { AccountGoogleDto } from 'src/account/dto/account-google-dto';
+import { Account } from 'src/account/entities/account.entity';
+import { AuthService } from './auth.service';
+import { GoogleExchangeDto, LoginDto, LogoutDto, RefreshTokenDto, SignupDto } from './dto/auth.dto';
+import { GoogleAuthGuard } from './passport/google-auth.guard';
+import { LocalAuthGuard } from './passport/local-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  private getClientCallbackUrl(params: Record<string, string>): string {
+    const configuredClientUrl = this.configService.get<string>('CLIENT_URL');
+    if (!configuredClientUrl) throw new Error('CLIENT_URL is not configured');
+    const callbackUrl = new URL('/auth/google/callback', configuredClientUrl);
+    if (!['http:', 'https:'].includes(callbackUrl.protocol)) {
+      throw new Error('CLIENT_URL must use HTTP or HTTPS');
+    }
+    Object.entries(params).forEach(([key, value]) => callbackUrl.searchParams.set(key, value));
+    return callbackUrl.toString();
+  }
 
   @Public()
   @UseGuards(LocalAuthGuard)
   @Post('/login')
-  async login(@Req() req: Request) {
-    return this.authService.login(req.user as Account); // Default la user. Do thang lon Passport lam nhu vay djt con me :)))
+  @HttpCode(HttpStatus.OK)
+  async login(@Req() req: Request, @Body() _loginDto: LoginDto) {
+    return this.authService.login(req.user as Account);
   }
 
   @Public()
   @UseGuards(GoogleAuthGuard)
   @Get('/login/google')
-  async loginWithGoogle() {
-    // Guard se tu dong xu ly redirect sang Google va xu ly callback
+  loginWithGoogle(): void {
+    // Passport performs the redirect.
   }
 
-  @Get('/google/callback')
   @Public()
   @UseGuards(GoogleAuthGuard)
+  @Get('/google/callback')
   async googleAuthRedirect(@Req() request: Request, @Res() response: Response) {
-    const clientUrl = process.env.CLIENT_URL;
-    const user = request.user;
-    if (!user) {
-      return response.redirect(`${clientUrl}/auth/google/callback?error=login_failed`);
+    response.setHeader('Cache-Control', 'no-store');
+    if (!request.user) {
+      return response.redirect(this.getClientCallbackUrl({ error: 'login_failed' }));
     }
 
     try {
-      const checkAccountGoogle = await this.authService.googleLogin(user as AccountGoogleDto);
-      const result = await this.authService.login(checkAccountGoogle);
-      const params = new URLSearchParams({
-        access_token: result.access_token,
-        session_id: result.session_id,
-        payload: JSON.stringify(result.payload),
-      });
-      return response.redirect(`${clientUrl}/auth/google/callback?${params.toString()}`);
-    } catch (error) {
-      return response.redirect(`${clientUrl}/auth/google/callback?error=login_failed`);
+      const account = await this.authService.googleLogin(request.user as AccountGoogleDto);
+      const result = await this.authService.login(account);
+      const code = await this.authService.createGoogleExchange(result);
+      return response.redirect(this.getClientCallbackUrl({ code }));
+    } catch {
+      return response.redirect(this.getClientCallbackUrl({ error: 'login_failed' }));
     }
+  }
+
+  @Public()
+  @Post('/google/exchange')
+  @HttpCode(HttpStatus.OK)
+  exchangeGoogleCode(@Body() dto: GoogleExchangeDto) {
+    return this.authService.exchangeGoogleCode(dto.code);
   }
 
   @Public()
   @Post('/signup')
-  async signup(
-    @Body() signupData: { username: string; password: string; firstName: string; lastName: string }
-  ) {
+  signup(@Body() signupData: SignupDto) {
     return this.authService.signup(signupData);
   }
 
+  @Public()
   @Post('/logout')
-  handleLogout(@Body() body: { sessionId?: string }) {
-    return this.authService.logout(body?.sessionId);
+  @HttpCode(HttpStatus.OK)
+  async handleLogout(@Req() request: Request, @Body() body: LogoutDto) {
+    const authorization = request.headers['authorization'];
+    const principalUserId = await this.authService.resolveOptionalPrincipalUserId(
+      Array.isArray(authorization) ? authorization[0] : authorization,
+    );
+    return this.authService.logout(body.sessionId, principalUserId);
   }
 
   @Public()
   @Post('/refresh-token')
-  refreshToken(@Body() body: { sessionId: string }) {
+  @HttpCode(HttpStatus.OK)
+  refreshToken(@Body() body: RefreshTokenDto) {
     return this.authService.processNewToken(body.sessionId);
   }
 
   @Get('/profile')
-  getProfile(@UserInfo() user: any) {
+  getProfile(@UserInfo() user: unknown) {
     return user;
   }
-
-  @Public()
-  @Get('/decode/:type')
-  decodeToken(@Req() request: Request, @Param() { type }: { type: string }) {
-    const token: string = request.cookies['token'] as string;
-    return this.authService.decodeToken(token, type);
-  }
-
-  // @UseGuards(AuthGuard)
-  // @Get('profile')
-  // getProfile(@Request() req) {
-  //   return req.employee;
-  // }
 }

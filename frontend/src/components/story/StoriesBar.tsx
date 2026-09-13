@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
     Box,
     Avatar,
@@ -28,12 +28,13 @@ import {
     Lock as LockIcon,
 } from '@mui/icons-material';
 import { useStoriesFeed, useCreateStory } from '@/queries/useStoryQueries';
-import { uploadChatMedia } from '@/services/cloudinary.service';
+import { uploadMedia } from '@/services/cloudinary.service';
 import StoryViewer from '@/components/story/StoryViewer';
 import DraggableCaption from '@/components/story/DraggableCaption';
 import { UserLoginType } from '@/types/account';
 import { StoryPrivacy, CaptionStyle } from '@/types/story';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 const DEFAULT_CAPTION_STYLE: CaptionStyle = {
     x: 50,
@@ -42,6 +43,8 @@ const DEFAULT_CAPTION_STYLE: CaptionStyle = {
     color: '#FFFFFF',
     backgroundColor: 'rgba(0,0,0,0.5)',
 };
+
+const MAX_STORY_FILE_SIZE = 100 * 1024 * 1024;
 
 export default function StoriesBar({ currentUser }: { currentUser: UserLoginType }) {
     const { data: storyGroups, isLoading } = useStoriesFeed();
@@ -68,9 +71,21 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
     const fileInputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
+    useEffect(() => () => {
+        if (previewUrl?.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
+    }, [previewUrl]);
+
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        if (
+            (!file.type.startsWith('image/') && !file.type.startsWith('video/')) ||
+            file.size > MAX_STORY_FILE_SIZE
+        ) {
+            setVideoError('Only images or videos up to 100 MB are supported.');
+            e.target.value = '';
+            return;
+        }
 
         // Check if video
         if (file.type.startsWith('video/')) {
@@ -89,6 +104,12 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
                     setPreviewUrl(URL.createObjectURL(file));
                 }
             };
+            video.onerror = () => {
+                window.URL.revokeObjectURL(video.src);
+                setVideoError('Unable to read this video file.');
+                setSelectedFile(null);
+                setPreviewUrl(null);
+            };
             video.src = URL.createObjectURL(file);
         } else {
             setVideoError('');
@@ -104,17 +125,18 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
 
         setIsUploading(true);
         try {
-            const uploadResult = await uploadChatMedia([selectedFile]);
+            const uploadResult = await uploadMedia([selectedFile]);
             if (!uploadResult.success || uploadResult.results.length === 0) {
                 throw new Error('Upload failed');
             }
 
-            const mediaUrl = uploadResult.results[0].url;
+            const uploadedMedia = uploadResult.results[0];
             const isVideo = selectedFile.type.startsWith('video/');
 
             await createStoryMutation.mutateAsync({
                 type: isVideo ? 'VIDEO' : 'IMAGE',
-                mediaUrl,
+                mediaUrl: uploadedMedia.url,
+                mediaPublicId: uploadedMedia.publicId,
                 duration: isVideo ? videoDuration : undefined,
                 caption: caption || undefined,
                 captionStyle: caption ? captionStyle : undefined,
@@ -123,7 +145,7 @@ export default function StoriesBar({ currentUser }: { currentUser: UserLoginType
 
             handleCloseDialog();
         } catch (error) {
-            console.error('Failed to create story:', error);
+            toast.error(error instanceof Error ? error.message : 'Failed to create story');
         } finally {
             setIsUploading(false);
         }

@@ -1,6 +1,6 @@
 export interface FindAllResponse {
   items: {
-    id: any;
+    id: string;
     name: string;
     mutualFriends: number;
     mutualFriendPreview?: {

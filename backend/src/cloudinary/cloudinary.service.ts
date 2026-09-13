@@ -1,152 +1,239 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/mongoose';
 import { v2 as cloudinary } from 'cloudinary';
+import { randomUUID } from 'crypto';
+import { Model, Types } from 'mongoose';
+import { MediaAsset, MediaAssetDocument } from './entities/media-asset.entity';
 
 export interface DeleteMediaDto {
   publicId: string;
   mediaType: 'IMAGE' | 'VIDEO' | 'RAW';
 }
 
+interface UploadFile {
+  buffer: Buffer;
+  originalname: string;
+  mimetype: string;
+  size: number;
+}
+
+export interface UploadMediaResult {
+  url: string;
+  publicId: string;
+  mediaType: 'IMAGE' | 'VIDEO' | 'RAW';
+  fileName: string;
+  fileSize: number;
+}
+
 @Injectable()
 export class CloudinaryService implements OnModuleInit {
-  constructor(private configService: ConfigService) {}
+  private readonly logger = new Logger(CloudinaryService.name);
 
-  onModuleInit() {
-    cloudinary.config({
-      cloud_name: this.configService.get<string>('CLOUDINARY_CLOUD_NAME'),
-      api_key: this.configService.get<string>('CLOUDINARY_API_KEY'),
-      api_secret: this.configService.get<string>('CLOUDINARY_API_SECRET'),
-    });
+  constructor(
+    private readonly configService: ConfigService,
+    @InjectModel(MediaAsset.name)
+    private readonly mediaAssetModel: Model<MediaAssetDocument>,
+  ) {}
+
+  onModuleInit(): void {
+    const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
+    const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
+    const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
+    if (!cloudName || !apiKey || !apiSecret) {
+      throw new Error('Cloudinary credentials are not fully configured');
+    }
+    cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
   }
 
-  /**
-   * Delete a single media file from Cloudinary
-   */
+  private resourceType(mediaType: 'IMAGE' | 'VIDEO' | 'RAW'): 'image' | 'video' | 'raw' {
+    return mediaType === 'VIDEO' ? 'video' : mediaType === 'RAW' ? 'raw' : 'image';
+  }
+
+  private mediaTypeFor(file: UploadFile): 'IMAGE' | 'VIDEO' | 'RAW' {
+    if (file.mimetype.startsWith('image/')) return 'IMAGE';
+    if (file.mimetype.startsWith('video/')) return 'VIDEO';
+    return 'RAW';
+  }
+
+  private safeFileName(fileName: string): string {
+    const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
+    return decoded.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 255) || 'attachment';
+  }
+
+  private async destroyRemote(
+    publicId: string,
+    mediaType: 'IMAGE' | 'VIDEO' | 'RAW',
+  ): Promise<boolean> {
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: this.resourceType(mediaType),
+      invalidate: true,
+    });
+    return result.result === 'ok' || result.result === 'not found';
+  }
+
   async deleteMedia(
     publicId: string,
-    mediaType: 'IMAGE' | 'VIDEO' | 'RAW' = 'IMAGE'
+    mediaType: 'IMAGE' | 'VIDEO' | 'RAW' = 'IMAGE',
   ): Promise<boolean> {
     try {
-      const resourceType = mediaType === 'VIDEO' ? 'video' : mediaType === 'RAW' ? 'raw' : 'image';
-      const result = await cloudinary.uploader.destroy(publicId, {
-        resource_type: resourceType,
-      });
-      return result.result === 'ok';
-    } catch (error) {
-      console.error(`Failed to delete media ${publicId}:`, error);
+      const deleted = await this.destroyRemote(publicId, mediaType);
+      if (deleted) await this.mediaAssetModel.deleteOne({ publicId });
+      return deleted;
+    } catch (error: any) {
+      this.logger.warn(`Failed to delete media ${publicId}: ${error?.message || 'unknown error'}`);
       return false;
     }
   }
 
-  /**
-   * Upload a single media file to Cloudinary
-   */
-  async uploadMedia(
-    fileBuffer: Buffer,
-    filename: string,
-    mediaType: 'IMAGE' | 'VIDEO' | 'RAW' = 'IMAGE'
+  private async uploadRemote(
+    file: UploadFile,
+    mediaType: 'IMAGE' | 'VIDEO' | 'RAW',
   ): Promise<{ url: string; publicId: string }> {
-    const resourceType = mediaType === 'VIDEO' ? 'video' : mediaType === 'RAW' ? 'raw' : 'image';
-
-    // Generate a safe public_id without special characters
-    const safeFilename = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
-
+    const publicId = randomUUID();
+    const fileName = this.safeFileName(file.originalname);
     return new Promise((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(
           {
-            resource_type: resourceType,
-            folder: 'chat_attachments',
-            public_id: safeFilename,
-            filename_override: filename,
+            resource_type: this.resourceType(mediaType),
+            folder: 'social_uploads',
+            public_id: publicId,
+            filename_override: fileName,
+            use_filename: false,
           },
           (error, result) => {
-            if (error) {
-              reject(error);
-            } else if (result) {
-              resolve({
-                url: result.secure_url,
-                publicId: result.public_id,
-              });
+            if (error) return reject(error);
+            if (!result?.secure_url || !result.public_id) {
+              return reject(new Error('Cloudinary returned an incomplete upload result'));
             }
-          }
+            resolve({ url: result.secure_url, publicId: result.public_id });
+          },
         )
-        .end(fileBuffer);
+        .end(file.buffer);
     });
   }
 
-  /**
-   * Upload multiple media files to Cloudinary
-   */
-  async uploadMultipleMedia(
-    files: { buffer: Buffer; originalname: string; mimetype: string; size: number }[]
-  ): Promise<
-    {
-      url: string;
-      publicId: string;
-      mediaType: 'IMAGE' | 'VIDEO' | 'RAW';
-      fileName: string;
-      fileSize: number;
-    }[]
-  > {
-    const uploadPromises = files.map(async (file) => {
-      let mediaType: 'IMAGE' | 'VIDEO' | 'RAW' = 'IMAGE';
+  async uploadMedia(file: UploadFile, ownerId: string): Promise<UploadMediaResult> {
+    if (!Types.ObjectId.isValid(ownerId)) throw new BadRequestException('User ID không hợp lệ');
+    const mediaType = this.mediaTypeFor(file);
+    const fileName = this.safeFileName(file.originalname);
+    const uploaded = await this.uploadRemote(file, mediaType);
 
-      if (file.mimetype.startsWith('video/')) {
-        mediaType = 'VIDEO';
-      } else if (
-        file.mimetype.startsWith('application/') ||
-        file.mimetype.startsWith('text/') ||
-        file.mimetype.includes('pdf') ||
-        file.mimetype.includes('document') ||
-        file.mimetype.includes('sheet') ||
-        file.mimetype.includes('presentation') ||
-        file.originalname.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar)$/i)
-      ) {
-        mediaType = 'RAW';
-      }
-
-      const utf8FileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-
-      const result = await this.uploadMedia(file.buffer, utf8FileName, mediaType);
-      return {
-        ...result,
-        mediaType,
-        fileName: utf8FileName,
-        fileSize: file.size,
-      };
-    });
-
-    return Promise.all(uploadPromises);
-  }
-
-  /**
-   * Delete multiple media files from Cloudinary
-   * Uses parallel processing for better performance
-   */
-  async deleteMultipleMedia(
-    mediaItems: DeleteMediaDto[]
-  ): Promise<{ publicId: string; success: boolean }[]> {
-    const deletePromises = mediaItems.map(async (item) => {
-      const success = await this.deleteMedia(item.publicId, item.mediaType);
-      return { publicId: item.publicId, success };
-    });
-
-    return Promise.all(deletePromises);
-  }
-
-  /**
-   * Delete all media by public IDs (for cleanup operations)
-   */
-  async bulkDelete(publicIds: string[], resourceType: 'image' | 'video' = 'image'): Promise<any> {
     try {
-      const result = await cloudinary.api.delete_resources(publicIds, {
-        resource_type: resourceType,
+      await this.mediaAssetModel.create({
+        ownerId: new Types.ObjectId(ownerId),
+        publicId: uploaded.publicId,
+        url: uploaded.url,
+        mediaType,
+        fileName,
+        fileSize: file.size,
       });
-      return result;
     } catch (error) {
-      console.error('Bulk delete failed:', error);
+      await this.destroyRemote(uploaded.publicId, mediaType).catch(() => false);
       throw error;
     }
+
+    return { ...uploaded, mediaType, fileName, fileSize: file.size };
+  }
+
+  async uploadMultipleMedia(files: UploadFile[], ownerId: string): Promise<UploadMediaResult[]> {
+    const results: UploadMediaResult[] = [];
+    const concurrency = 3;
+    try {
+      for (let index = 0; index < files.length; index += concurrency) {
+        const batch = files.slice(index, index + concurrency);
+        results.push(...(await Promise.all(batch.map((file) => this.uploadMedia(file, ownerId)))));
+      }
+      return results;
+    } catch (error) {
+      await this.deleteMultipleMedia(
+        results.map(({ publicId, mediaType }) => ({ publicId, mediaType })),
+      );
+      throw error;
+    }
+  }
+
+  async deleteOwnedMedia(
+    ownerId: string,
+    mediaItems: DeleteMediaDto[],
+  ): Promise<{ publicId: string; success: boolean }[]> {
+    if (!Types.ObjectId.isValid(ownerId)) throw new BadRequestException('User ID không hợp lệ');
+    const uniqueItems = [...new Map(mediaItems.map((item) => [item.publicId, item])).values()];
+    const assets = await this.mediaAssetModel
+      .find({
+        ownerId: new Types.ObjectId(ownerId),
+        publicId: { $in: uniqueItems.map((item) => item.publicId) },
+      })
+      .select('publicId mediaType')
+      .lean();
+    const ownedByPublicId = new Map(assets.map((asset) => [asset.publicId, asset]));
+
+    return Promise.all(
+      uniqueItems.map(async (item) => {
+        const asset = ownedByPublicId.get(item.publicId);
+        if (!asset || asset.mediaType !== item.mediaType) {
+          return { publicId: item.publicId, success: false };
+        }
+        return { publicId: item.publicId, success: await this.deleteMedia(item.publicId, item.mediaType) };
+      }),
+    );
+  }
+
+  async assertOwnedMedia(
+    ownerId: string,
+    mediaItems: Array<{
+      publicId?: string;
+      url?: string;
+      mediaType?: 'IMAGE' | 'VIDEO' | 'RAW';
+    }>,
+  ): Promise<void> {
+    if (!Types.ObjectId.isValid(ownerId)) throw new BadRequestException('User ID không hợp lệ');
+    if (mediaItems.length === 0) return;
+    if (mediaItems.some((item) => !item.publicId)) {
+      throw new BadRequestException('Uploaded media is missing its public ID');
+    }
+
+    const uniquePublicIds = [...new Set(mediaItems.map((item) => item.publicId!))];
+    const assets = await this.mediaAssetModel
+      .find({
+        ownerId: new Types.ObjectId(ownerId),
+        publicId: { $in: uniquePublicIds },
+      })
+      .select('publicId url mediaType')
+      .lean();
+    const assetMap = new Map(assets.map((asset) => [asset.publicId, asset]));
+    const isValid = mediaItems.every((item) => {
+      const asset = assetMap.get(item.publicId!);
+      return (
+        !!asset &&
+        (!item.url || asset.url === item.url) &&
+        (!item.mediaType || asset.mediaType === item.mediaType)
+      );
+    });
+
+    if (!isValid || assets.length !== uniquePublicIds.length) {
+      throw new BadRequestException('One or more media assets are invalid or not owned by this user');
+    }
+  }
+
+  async deleteMultipleMedia(
+    mediaItems: DeleteMediaDto[],
+  ): Promise<{ publicId: string; success: boolean }[]> {
+    const uniqueItems = [...new Map(mediaItems.map((item) => [item.publicId, item])).values()];
+    return Promise.all(
+      uniqueItems.map(async (item) => ({
+        publicId: item.publicId,
+        success: await this.deleteMedia(item.publicId, item.mediaType),
+      })),
+    );
+  }
+
+  async bulkDelete(publicIds: string[], resourceType: 'image' | 'video' = 'image'): Promise<any> {
+    const uniqueIds = [...new Set(publicIds)].slice(0, 100);
+    if (uniqueIds.length === 0) return { deleted: {} };
+    const result = await cloudinary.api.delete_resources(uniqueIds, { resource_type: resourceType });
+    await this.mediaAssetModel.deleteMany({ publicId: { $in: uniqueIds } });
+    return result;
   }
 }

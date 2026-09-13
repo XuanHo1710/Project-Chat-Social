@@ -22,8 +22,15 @@ export async function POST() {
               : undefined,
           },
         );
-      } catch {
-        // Always clear cookies even if backend logout fails
+      } catch (error) {
+        // If the backend rejected the credentials we sent (e.g. an invalid,
+        // non-expired access token), retry once without the Authorization
+        // header so the backend's anonymous revocation path still deletes the
+        // presented sessionId.
+        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+        if (status === 401 && accessToken) {
+          await axios.post(`${backendUrl}/auth/logout`, { sessionId });
+        }
       }
     }
 

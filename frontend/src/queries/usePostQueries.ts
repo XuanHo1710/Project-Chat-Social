@@ -26,11 +26,7 @@ export const useGetPosts = (params?: {
 /**
  * Hook to fetch news feed posts
  */
-export const useGetNewsFeed = (params?: {
-  page?: number;
-  limit?: number;
-  friendIds?: string[];
-}) => {
+export const useGetNewsFeed = (params?: { page?: number; limit?: number }) => {
   return useQuery({
     queryKey: [QUERY_KEYS.NEWS_FEED, params],
     queryFn: () => postService.getNewsFeed(params),
@@ -94,15 +90,13 @@ export const useGetUserPosts = (
 export const useGetUserPostsInfinite = (
   userId: string,
   limit: number = 10,
-  friendIds: string[] = []
 ) => {
   return useInfiniteQuery({
-    queryKey: [QUERY_KEYS.USER_POSTS, "infinite", userId, limit, friendIds],
+    queryKey: [QUERY_KEYS.USER_POSTS, "infinite", userId, limit],
     queryFn: ({ pageParam = 1 }) =>
       postService.getPostsByUserId(userId, {
         page: pageParam,
         limit,
-        friendIds,
       }),
     getNextPageParam: (lastPage) => {
       if (lastPage.page >= lastPage.totalPages) {

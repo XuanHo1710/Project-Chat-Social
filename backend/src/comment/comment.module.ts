@@ -10,6 +10,7 @@ import { Reaction, ReactionSchema } from 'src/reaction/entities/reaction.entity'
 import { ReactionModule } from 'src/reaction/reaction.module';
 import { NotificationModule } from 'src/notification/notification.module';
 import { KafkaModule } from 'src/kafka/kafka.module';
+import { PostAccessModule } from 'src/post/post-access.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { KafkaModule } from 'src/kafka/kafka.module';
     forwardRef(() => ReactionModule),
     NotificationModule,
     KafkaModule,
+    PostAccessModule,
   ],
   controllers: [CommentController],
   providers: [CommentService],

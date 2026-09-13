@@ -1,4 +1,4 @@
-import axios from "@/config/axios";
+import axios, { unwrap } from "@/config/axios";
 import {
   CreateReactionPayload,
   CreatePostReactionPayload,
@@ -15,7 +15,7 @@ export const toggleReaction = async (
   data: CreateReactionPayload
 ): Promise<ToggleReactionResponse> => {
   const response = await axios.post("/reaction", data);
-  return response.data?.data || response.data;
+  return unwrap<ToggleReactionResponse>(response.data);
 };
 
 // Legacy: Toggle reaction on a post
@@ -23,7 +23,7 @@ export const togglePostReaction = async (
   data: CreatePostReactionPayload
 ): Promise<ToggleReactionResponse> => {
   const response = await axios.post("/reaction/post", data);
-  return response.data?.data || response.data;
+  return unwrap<ToggleReactionResponse>(response.data);
 };
 
 // Legacy: Toggle reaction on a comment
@@ -31,7 +31,7 @@ export const toggleCommentReaction = async (
   data: CreateCommentReactionPayload
 ): Promise<ToggleReactionResponse> => {
   const response = await axios.post("/reaction/comment", data);
-  return response.data?.data || response.data;
+  return unwrap<ToggleReactionResponse>(response.data);
 };
 
 // Get reactions for a factor
@@ -44,7 +44,7 @@ export const getFactorReactions = async (
   const response = await axios.get(
     `/reaction/${typeFactor}/${factorId}?page=${page}&limit=${limit}`
   );
-  return response.data?.data || response.data;
+  return unwrap<ReactionsResponse>(response.data);
 };
 
 // Legacy: Get reactions for a post
@@ -56,7 +56,7 @@ export const getPostReactions = async (
   const response = await axios.get(
     `/reaction/post/${postId}?page=${page}&limit=${limit}`
   );
-  return response.data?.data || response.data;
+  return unwrap<ReactionsResponse>(response.data);
 };
 
 // Legacy: Get reactions for a comment
@@ -68,7 +68,7 @@ export const getCommentReactions = async (
   const response = await axios.get(
     `/reaction/comment/${commentId}?page=${page}&limit=${limit}`
   );
-  return response.data?.data || response.data;
+  return unwrap<ReactionsResponse>(response.data);
 };
 
 // Get user's reaction on a factor
@@ -78,7 +78,7 @@ export const getUserReactionByFactor = async (
 ): Promise<Reaction | null> => {
   try {
     const response = await axios.get(`/reaction/${typeFactor}/${factorId}/user`);
-    const result = response.data?.data ?? response.data;
+    const result = unwrap<Reaction | null>(response.data);
     return result || null;
   } catch {
     return null;
@@ -91,7 +91,7 @@ export const getUserReaction = async (
 ): Promise<Reaction | null> => {
   try {
     const response = await axios.get(`/reaction/post/${postId}/user`);
-    const result = response.data?.data ?? response.data;
+    const result = unwrap<Reaction | null>(response.data);
     return result || null;
   } catch {
     return null;
@@ -104,7 +104,7 @@ export const getUserCommentReaction = async (
 ): Promise<Reaction | null> => {
   try {
     const response = await axios.get(`/reaction/comment/${commentId}/user`);
-    const result = response.data?.data ?? response.data;
+    const result = unwrap<Reaction | null>(response.data);
     return result || null;
   } catch {
     return null;
@@ -116,7 +116,7 @@ export const getReactionsSummary = async (
   postIds: string[]
 ): Promise<Record<string, ReactionSummary>> => {
   const response = await axios.post("/reaction/summary", { postIds });
-  return response.data?.data || response.data;
+  return unwrap<Record<string, ReactionSummary>>(response.data);
 };
 
 // Generic: Get reaction summaries for multiple factors
@@ -125,5 +125,5 @@ export const getFactorReactionsSummary = async (
   typeFactor: TypeFactor
 ): Promise<Record<string, ReactionSummary>> => {
   const response = await axios.post(`/reaction/summary/${typeFactor}`, { factorIds });
-  return response.data?.data || response.data;
+  return unwrap<Record<string, ReactionSummary>>(response.data);
 };

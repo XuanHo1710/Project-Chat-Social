@@ -1,91 +1,81 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  Query,
-  Put,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Put } from '@nestjs/common';
 import { AccountService } from './account.service';
-import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
+import { ActivityStatusDto, FcmTokenDto } from './dto/account-settings.dto';
 import { UserInfo } from 'decorators/customize';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+
+interface AuthenticatedUser {
+  _id: string;
+}
 
 @Controller('account')
 export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 
-  @Post()
-  create(@Body() createAccountDto: CreateAccountDto) {
-    return this.accountService.create(createAccountDto);
-  }
-
   @Get()
-  findAll(@UserInfo() user: any, @Query('page') page: number) {
+  findAll(@UserInfo() user: AuthenticatedUser, @Query('page') page: number) {
     return this.accountService.findAll(user, +page);
   }
 
   // Get own profile
   @Get('profile')
-  getOwnProfile(@UserInfo() userInfo: any) {
-    return this.accountService.getProfile(userInfo._id);
+  getOwnProfile(@UserInfo() userInfo: AuthenticatedUser): Promise<any> {
+    return this.accountService.getOwnProfile(userInfo._id);
   }
 
   // Update own profile
   @Put('profile')
-  updateProfile(@UserInfo() userInfo: any, @Body() updateAccountDto: UpdateAccountDto) {
+  updateProfile(
+    @UserInfo() userInfo: AuthenticatedUser,
+    @Body() updateAccountDto: UpdateAccountDto
+  ) {
     return this.accountService.updateProfile(userInfo._id, updateAccountDto);
   }
 
   // Get profile by username (for viewing other users)
   @Get('profile/:username')
-  getProfileByUsername(@Param('username') username: string) {
+  getProfileByUsername(@Param('username') username: string): Promise<any> {
     return this.accountService.getProfileByUsername(username);
   }
 
   @Post('fcm-token')
-  async saveFcmToken(@UserInfo() user: any, @Body('token') token: string) {
-    return this.accountService.saveFcmToken(user._id, token);
+  async saveFcmToken(@UserInfo() user: AuthenticatedUser, @Body() dto: FcmTokenDto) {
+    return this.accountService.saveFcmToken(user._id, dto.token);
   }
 
   @Delete('fcm-token')
-  async removeFcmToken(@UserInfo() user: any, @Body('token') token: string) {
-    return this.accountService.removeFcmToken(user._id, token);
+  async removeFcmToken(@UserInfo() user: AuthenticatedUser, @Body() dto: FcmTokenDto) {
+    return this.accountService.removeFcmToken(user._id, dto.token);
   }
 
   // ==================== SETTINGS ====================
 
   // Get user settings
   @Get('settings')
-  getSettings(@UserInfo() user: any) {
+  getSettings(@UserInfo() user: AuthenticatedUser) {
     return this.accountService.getSettings(user._id);
   }
 
   // Toggle activity status
   @Patch('settings/activity-status')
-  toggleActivityStatus(@UserInfo() user: any, @Body('show') show: boolean) {
-    return this.accountService.toggleActivityStatus(user._id, show);
+  toggleActivityStatus(@UserInfo() user: AuthenticatedUser, @Body() dto: ActivityStatusDto) {
+    return this.accountService.toggleActivityStatus(user._id, dto.show);
   }
 
   // Self-block account for 30 days
   @Post('settings/self-block')
-  selfBlockAccount(@UserInfo() user: any) {
+  selfBlockAccount(@UserInfo() user: AuthenticatedUser) {
     return this.accountService.selfBlockAccount(user._id);
   }
 
   // Unblock self (cancel self-block)
   @Delete('settings/self-block')
-  unblockSelfAccount(@UserInfo() user: any) {
+  unblockSelfAccount(@UserInfo() user: AuthenticatedUser) {
     return this.accountService.unblockSelfAccount(user._id);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.accountService.findOne(id);
+  findOne(@Param('id') id: string): Promise<any> {
+    return this.accountService.getProfile(id);
   }
 }

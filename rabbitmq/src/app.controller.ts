@@ -1,97 +1,189 @@
-import { Controller, Logger } from '@nestjs/common';
+import { createHash } from 'crypto';
+import { Controller, Inject, Logger } from '@nestjs/common';
+import { Ctx, ClientProxy, EventPattern, Payload, RmqContext } from '@nestjs/microservices';
+import { lastValueFrom } from 'rxjs';
 import { AppService } from './app.service';
-import { Ctx, EventPattern, Payload, RmqContext } from '@nestjs/microservices';
-import { MessageCreatedEventDto } from './dto/message.dto';
-import { NotificationEventDto } from './dto/notification.dto';
+import {
+  PermanentEventError,
+  validateMessageEvent,
+  validateNotificationEvent,
+} from './common/event-validation';
+import { EventInboxService, EventLeaseBusyError } from './services/event-inbox.service';
 import { NotificationAggregationService } from './services/notification-aggregation.service';
+import { RmqChannel, RmqMessage, RmqRetryService } from './services/rmq-retry.service';
 
 @Controller()
 export class AppController {
-  private logger = new Logger('AppController');
+  private readonly logger = new Logger(AppController.name);
 
   constructor(
     private readonly appService: AppService,
     private readonly notificationAggregationService: NotificationAggregationService,
-  ) { }
+    private readonly eventInbox: EventInboxService,
+    private readonly retryService: RmqRetryService,
+    @Inject('BACKEND_SERVICE') private readonly backendService: ClientProxy
+  ) {}
 
-  /**
-   * Listen for chat.message.created events from Backend
-   * Process AI chatbot and FCM notifications
-   */
   @EventPattern('chat.message.created')
-  async handleMessageCreated(
-    @Payload() payload: MessageCreatedEventDto,
-    @Ctx() context: RmqContext,
-  ) {
-    const channel = context.getChannelRef();
-    const originalMsg = context.getMessage();
-
-    this.logger.log(`Received message event: ${payload.messageId}`);
-
-    try {
-      await this.appService.handleMessageCreated(payload);
-
-      // Acknowledge message after successful processing
-      this.safeAck(channel, originalMsg);
-    } catch (error) {
-      this.logger.error('Error processing message:', error);
-
-      // Negative acknowledge - will be retried or sent to DLQ
-      this.safeNack(channel, originalMsg);
-    }
+  async handleMessageCreated(@Payload() rawPayload: unknown, @Ctx() context: RmqContext) {
+    const eventId = this.getEventId(context, 'chat.message.created', rawPayload);
+    await this.processEvent(
+      context,
+      eventId,
+      'chat.message.created',
+      async () => {
+        const payload = validateMessageEvent(rawPayload);
+        await this.appService.handleMessageCreated(payload, eventId);
+      },
+      async (error) => {
+        if (error instanceof PermanentEventError) return;
+        try {
+          await this.appService.handleMessageExhausted(
+            validateMessageEvent(rawPayload),
+            eventId,
+            error
+          );
+        } catch (finalizationError) {
+          this.logger.error(
+            `Could not finalize failed chat event ${eventId}: ${this.errorMessage(finalizationError)}`
+          );
+        }
+      },
+      rawPayload
+    );
   }
 
-  /**
-   * Listen for notification.created events from Backend
-   * Process through Aggregation Worker -> Sender Worker -> Socket
-   */
   @EventPattern('notification.created')
-  async handleNotificationCreated(
-    @Payload() payload: NotificationEventDto,
-    @Ctx() context: RmqContext,
-  ) {
-    const channel = context.getChannelRef();
-    const originalMsg = context.getMessage();
+  async handleNotificationCreated(@Payload() rawPayload: unknown, @Ctx() context: RmqContext) {
+    const eventId = this.getEventId(context, 'notification.created', rawPayload);
+    await this.processEvent(context, eventId, 'notification.created', async () => {
+      const payload = validateNotificationEvent(rawPayload);
+      await this.notificationAggregationService.processNotificationEvent(payload, eventId);
+    });
+  }
 
-    this.logger.log(`Received notification event: ${payload.type} for ${payload.recipientId}`);
+  private async processEvent(
+    context: RmqContext,
+    eventId: string,
+    eventType: string,
+    handler: () => Promise<void>,
+    beforeDeadLetter?: (error: unknown) => Promise<void>,
+    rawPayload?: unknown
+  ): Promise<void> {
+    const channel = context.getChannelRef() as RmqChannel;
+    const message = context.getMessage() as unknown as RmqMessage;
 
     try {
-      await this.notificationAggregationService.processNotificationEvent(payload);
-
-      // Acknowledge message after successful processing
-      this.safeAck(channel, originalMsg);
+      await handler();
+      this.retryService.ack(channel, message);
     } catch (error) {
-      this.logger.error('Error processing notification:', error);
+      if (error instanceof EventLeaseBusyError) {
+        try {
+          if (this.retryService.canDeferForLease(message)) {
+            await this.retryService.deferForLease(channel, message, eventId);
+          } else {
+            if (eventType === 'chat.message.created' && rawPayload !== undefined) {
+              await this.stopTypingForLeaseExhaustedChatEvent(eventId, rawPayload);
+            }
+            await this.retryService.deadLetter(channel, message, eventId, error);
+          }
+          this.retryService.ack(channel, message);
+        } catch (routingError) {
+          this.logger.error(
+            `Could not defer duplicate ${eventType} ${eventId}: ${this.errorMessage(routingError)}`
+          );
+          this.retryService.nack(channel, message);
+        }
+        return;
+      }
+      this.logger.warn(`Failed ${eventType} ${eventId}: ${this.errorMessage(error)}`);
+      try {
+        await this.ensureInboxFailure(eventId, eventType, error);
 
-      // Negative acknowledge - will be retried or sent to DLQ
-      this.safeNack(channel, originalMsg);
+        if (!(error instanceof PermanentEventError) && this.retryService.canRetry(message)) {
+          await this.retryService.retry(channel, message, eventId, error);
+          this.retryService.ack(channel, message);
+          return;
+        }
+
+        if (beforeDeadLetter) await beforeDeadLetter(error);
+        await this.retryService.deadLetter(channel, message, eventId, error);
+        await this.eventInbox.markDeadLettered(eventId, error);
+        this.retryService.ack(channel, message);
+      } catch (routingError) {
+        this.logger.error(
+          `Could not settle ${eventType} ${eventId}; source delivery will be requeued: ${this.errorMessage(routingError)}`
+        );
+        this.retryService.nack(channel, message);
+      }
     }
   }
 
-  /**
-   * Safely acknowledge a message, handling cases where the channel may be closed
-   */
-  private safeAck(channel: any, message: any): void {
+  private async stopTypingForLeaseExhaustedChatEvent(
+    eventId: string,
+    rawPayload: unknown
+  ): Promise<void> {
     try {
-      if (channel && message) {
-        channel.ack(message);
-      }
-    } catch (error) {
-      this.logger.warn('Failed to ack message (channel may be closed):', error.message);
+      const payload = validateMessageEvent(rawPayload);
+      const isChatbotMessage =
+        payload.conversationType === 'CHATBOT' || Boolean(payload.isChatbotMentioned);
+      if (!isChatbotMessage) return;
+      const aiCompleted = await this.eventInbox.isStepCompleted(eventId, 'aiCompleted');
+      if (aiCompleted) return;
+      await lastValueFrom(
+        this.backendService.emit('chat.typing', {
+          conversationId: payload.conversationId,
+          isTyping: false,
+        }),
+        { defaultValue: undefined }
+      );
+    } catch (typingError) {
+      this.logger.warn(
+        `Could not clear stuck typing indicator for ${eventId}: ${this.errorMessage(typingError)}`
+      );
     }
   }
 
-  /**
-   * Safely negative acknowledge a message, handling cases where the channel may be closed
-   */
-  private safeNack(channel: any, message: any): void {
+  private async ensureInboxFailure(
+    eventId: string,
+    eventType: string,
+    error: unknown
+  ): Promise<void> {
     try {
-      if (channel && message) {
-        channel.nack(message, false, false);
-      }
-    } catch (error) {
-      this.logger.warn('Failed to nack message (channel may be closed):', error.message);
+      await this.eventInbox.recordFailure(eventId, error, eventType);
+    } catch (inboxError) {
+      this.logger.error(
+        `Could not record inbox failure for ${eventId}: ${this.errorMessage(inboxError)}`
+      );
+      throw inboxError;
     }
+  }
+
+  private getEventId(context: RmqContext, pattern: string, rawPayload: unknown): string {
+    const message = context.getMessage() as unknown as RmqMessage;
+    const headerValue = message.properties?.headers?.['x-event-id'];
+    const headerId = Buffer.isBuffer(headerValue)
+      ? headerValue.toString('utf8')
+      : typeof headerValue === 'string'
+        ? headerValue
+        : '';
+    const payloadId =
+      rawPayload &&
+      typeof rawPayload === 'object' &&
+      !Array.isArray(rawPayload) &&
+      typeof (rawPayload as Record<string, unknown>).eventId === 'string'
+        ? ((rawPayload as Record<string, unknown>).eventId as string)
+        : '';
+    const candidate = headerId || payloadId;
+    if (/^[a-zA-Z0-9._:-]{1,200}$/.test(candidate)) return candidate;
+    const digest = createHash('sha256').update(message.content).digest('hex');
+    return `${pattern}:${digest}`;
+  }
+
+  private errorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'string') return error;
+    if (typeof error === 'number' || typeof error === 'boolean') return String(error);
+    return 'Unknown processing error';
   }
 }
-

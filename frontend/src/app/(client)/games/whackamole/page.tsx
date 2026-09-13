@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Box, Typography, Button, Paper, Grid } from "@mui/material";
+import { Box, Typography, Button, Grid, Paper } from "@mui/material";
 import { Pets } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
+import GameShell from "@/components/games/GameShell";
+import { useTranslation } from "react-i18next";
 
 const HOLES = 9;
 const GAME_DURATION = 30;
 
 export default function WhackAMolePage() {
+    const { t } = useTranslation('games');
     const [moles, setMoles] = useState<boolean[]>(Array(HOLES).fill(false));
     const [score, setScore] = useState(0);
     const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
@@ -85,78 +88,73 @@ export default function WhackAMolePage() {
     }, []);
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', pt: 4 }}>
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3 }}>
-                <Paper elevation={3} sx={{ p: 4, borderRadius: 4, maxWidth: 500, width: '100%', textAlign: 'center', bgcolor: 'background.paper' }}>
-                    <Typography variant="h4" fontWeight={900} sx={{ mb: 4, color: '#795548' }}>
-                        Đập Chuột
-                    </Typography>
-
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4, px: 4 }}>
-                        <Box>
-                            <Typography variant="caption" color="text.secondary">ĐIỂM SỐ</Typography>
-                            <Typography variant="h4" fontWeight={700} color="primary">{score}</Typography>
-                        </Box>
-                        <Box>
-                            <Typography variant="caption" color="text.secondary">THỜI GIAN</Typography>
-                            <Typography variant="h4" fontWeight={700} color={timeLeft < 10 ? "error" : "text.primary"}>{timeLeft}s</Typography>
-                        </Box>
-                    </Box>
-
-                    <Grid container spacing={2} sx={{ maxWidth: 400, mx: 'auto', mb: 4 }}>
-                        {moles.map((isMole, i) => (
-                            // @ts-ignore
-                            <Grid item xs={4} key={i}>
-                                <Paper
-                                    elevation={0}
-                                    sx={{
-                                        aspectRatio: '1/1',
-                                        bgcolor: '#a1887f',
-                                        borderRadius: '50%',
-                                        position: 'relative',
-                                        overflow: 'hidden',
-                                        border: '4px solid #5d4037'
-                                    }}
-                                    onClick={() => whack(i)}
-                                >
-                                    <AnimatePresence>
-                                        {isMole && (
-                                            <motion.div
-                                                initial={{ y: 100 }}
-                                                animate={{ y: 0 }}
-                                                exit={{ y: 100 }}
-                                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                                style={{
-                                                    position: 'absolute',
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    cursor: 'pointer'
-                                                }}
-                                            >
-                                                <Pets sx={{ fontSize: 60, color: '#3e2723' }} />
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </Paper>
-                            </Grid>
-                        ))}
-                    </Grid>
-
-                    {!isPlaying && (
-                        <Button
-                            variant="contained"
-                            size="large"
-                            onClick={startGame}
-                            sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
+        <GameShell
+            titleKey="whackamole.name"
+            titleSx={{ color: '#795548', mb: 4 }}
+            scoreLabelKey="whackamole.scoreLabel"
+            score={score}
+            scoreValueColor="primary"
+            scoreRowSx={{ mb: 4, px: 4 }}
+            scoreAside={
+                <Box>
+                    <Typography variant="caption" color="text.secondary">{t('common.time')}</Typography>
+                    <Typography variant="h4" fontWeight={700} color={timeLeft < 10 ? "error" : "text.primary"}>{timeLeft}s</Typography>
+                </Box>
+            }
+            maxWidth={500}
+            actions={
+                !isPlaying && (
+                    <Button
+                        variant="contained"
+                        size="large"
+                        onClick={startGame}
+                        sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
+                    >
+                        {timeLeft === 0 ? t('common.playAgain') : t('common.start')}
+                    </Button>
+                )
+            }
+        >
+            <Grid container spacing={2} sx={{ maxWidth: 400, mx: 'auto', mb: 4 }}>
+                {moles.map((isMole, i) => (
+                    <Grid size={4} key={i}>
+                        <Paper
+                            elevation={0}
+                            sx={{
+                                aspectRatio: '1/1',
+                                bgcolor: '#a1887f',
+                                borderRadius: '50%',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                border: '4px solid #5d4037'
+                            }}
+                            onClick={() => whack(i)}
                         >
-                            {timeLeft === 0 ? "Chơi Lại" : "Bắt Đầu"}
-                        </Button>
-                    )}
-                </Paper>
-            </Box>
-        </Box>
+                            <AnimatePresence>
+                                {isMole && (
+                                    <motion.div
+                                        initial={{ y: 100 }}
+                                        animate={{ y: 0 }}
+                                        exit={{ y: 100 }}
+                                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                        style={{
+                                            position: 'absolute',
+                                            width: '100%',
+                                            height: '100%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <Pets sx={{ fontSize: 60, color: '#3e2723' }} />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </Paper>
+                    </Grid>
+                ))}
+            </Grid>
+        </GameShell>
     );
 }

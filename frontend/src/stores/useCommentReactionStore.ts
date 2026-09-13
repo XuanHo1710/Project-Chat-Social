@@ -29,10 +29,15 @@ interface CommentReactionStore {
 
     // Set from server socket response (updates totalLikes)
     setFromServer: (commentId: string, totalLikes: number) => void;
+
+    // Restore initial state
+    reset: () => void;
 }
 
 export const useCommentReactionStore = create<CommentReactionStore>((set, get) => ({
     commentReactions: {},
+
+    reset: () => set({ commentReactions: {} }),
 
     setCommentReaction: (commentId, state) => {
         set(prev => ({

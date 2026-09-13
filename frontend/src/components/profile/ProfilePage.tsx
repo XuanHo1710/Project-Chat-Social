@@ -135,8 +135,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         isLoading: postsLoading
     } = useGetUserPostsInfinite(
         profile?._id || '',
-        5, // limit
-        isFriend ? [user?.id || ''] : []
+        5 // limit
     );
     // Flatten pages
     const posts = React.useMemo(() => {
@@ -200,7 +199,24 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
     // Cover Photo Edit Modal
     const [openCoverEditModal, setOpenCoverEditModal] = useState(false);
     const [coverPreviewUrl, setCoverPreviewUrl] = useState<string>('');
+    const coverPreviewUrlRef = useRef<string>('');
     const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
+
+    // Revoke local blob object URLs used as cover previews on close/replace/unmount
+    // (remote profile.background URLs must never be revoked)
+    const revokeCoverPreviewIfBlob = useCallback((url: string) => {
+        if (url && url.startsWith('blob:')) {
+            try { URL.revokeObjectURL(url); } catch (_) { /* already revoked */ }
+        }
+    }, []);
+
+    useEffect(() => {
+        coverPreviewUrlRef.current = coverPreviewUrl;
+    }, [coverPreviewUrl]);
+
+    useEffect(() => () => {
+        revokeCoverPreviewIfBlob(coverPreviewUrlRef.current);
+    }, [revokeCoverPreviewIfBlob]);
 
 
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -695,6 +711,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     // Cover photo edit modal handlers
     const handleOpenCoverEditModal = () => {
+        revokeCoverPreviewIfBlob(coverPreviewUrlRef.current);
         setCoverPreviewUrl(profile?.background || '');
         setSelectedCoverFile(null);
         setOpenCoverEditModal(true);
@@ -702,6 +719,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
 
     const handleCloseCoverEditModal = () => {
         setOpenCoverEditModal(false);
+        revokeCoverPreviewIfBlob(coverPreviewUrlRef.current);
         setCoverPreviewUrl('');
         setSelectedCoverFile(null);
     };
@@ -710,6 +728,7 @@ export default function ProfilePage({ userName }: ProfilePageProps) {
         const file = event.target.files?.[0];
         if (file) {
             setSelectedCoverFile(file);
+            revokeCoverPreviewIfBlob(coverPreviewUrlRef.current);
             const previewUrl = URL.createObjectURL(file);
             setCoverPreviewUrl(previewUrl);
         }

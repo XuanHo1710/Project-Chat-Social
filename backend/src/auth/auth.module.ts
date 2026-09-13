@@ -8,6 +8,7 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OtpModule } from 'src/otp/otp.module';
 import { AuthSessionService } from './auth-session.service';
+import { SocketAuthService } from './socket-auth.service';
 const ms = require('ms');
 
 @Module({
@@ -29,7 +30,7 @@ const ms = require('ms');
     }),
   ],
   controllers: [AuthController, PasswordResetController],
-  providers: [AuthService, AuthSessionService, JwtService, ConfigService],
-  exports: [AuthService, AuthSessionService, JwtService, ConfigService],
+  providers: [AuthService, AuthSessionService, SocketAuthService, JwtService, ConfigService],
+  exports: [AuthService, AuthSessionService, SocketAuthService, JwtService, ConfigService],
 })
 export class AuthModule {}

@@ -1,4 +1,4 @@
-import axios from "@/config/axios";
+import axios, { unwrap } from "@/config/axios";
 import {
   Comment,
   CommentsResponse,
@@ -32,8 +32,7 @@ export const getCommentsByPost = async (
       `/comment/post/${postId}?page=${page}&limit=${limit}`
     );
     // Backend wraps response in { data: actualData }
-    const result = response.data?.data;
-    return result || emptyResponse;
+    return unwrap<CommentsResponse>(response.data) || emptyResponse;
   } catch {
     return emptyResponse;
   }
@@ -50,8 +49,7 @@ export const getCommentReplies = async (
       `/comment/${commentId}/replies?page=${page}&limit=${limit}`
     );
     // Backend wraps response in { data: actualData }
-    const result = response.data?.data || response.data;
-    return result || emptyResponse;
+    return unwrap<CommentsResponse>(response.data) || emptyResponse;
   } catch {
     return {
       ...emptyResponse,
@@ -66,7 +64,7 @@ export const createComment = async (
 ): Promise<Comment> => {
   const response = await axios.post("/comment", data);
   // Backend wraps response in { data: actualData }
-  return response.data?.data || response.data;
+  return unwrap<Comment>(response.data);
 };
 
 // Update a comment
@@ -76,7 +74,7 @@ export const updateComment = async (
 ): Promise<Comment> => {
   const response = await axios.patch(`/comment/${commentId}`, data);
   // Backend wraps response in { data: actualData }
-  return response.data?.data || response.data;
+  return unwrap<Comment>(response.data);
 };
 
 // Delete a comment
@@ -92,7 +90,7 @@ export const toggleCommentReaction = async (
 ): Promise<CommentReactionResponse> => {
   // Use new unified reaction endpoint
   const response = await axios.post("/reaction/comment", data);
-  return response.data?.data || response.data;
+  return unwrap<CommentReactionResponse>(response.data);
 };
 
 // Get user's reaction on a comment
@@ -102,7 +100,7 @@ export const getUserCommentReaction = async (
   try {
     // Use new unified reaction endpoint
     const response = await axios.get(`/reaction/comment/${commentId}/user`);
-    return response.data?.data || response.data;
+    return unwrap<CommentReaction>(response.data) || null;
   } catch {
     return null;
   }
@@ -128,5 +126,5 @@ export const getCommentReactions = async (
   const response = await axios.get(
     `/reaction/comment/${commentId}?page=${page}&limit=${limit}`
   );
-  return response.data?.data || response.data;
+  return unwrap(response.data);
 };

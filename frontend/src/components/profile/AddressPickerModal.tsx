@@ -184,7 +184,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <HomeIcon sx={{ color: 'primary.main' }} />
                     <Typography variant="h6" fontWeight={700} color={primaryText}>
-                        {existingAddress ? t('address.edit_address') : t('address.add_new_address')}
+                        {existingAddress ? t('common.edit_address') : t('address.add_new_address')}
                     </Typography>
                 </Box>
                 <IconButton onClick={onClose}>
@@ -231,7 +231,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                                 }}
                             />
                         )}
-                        noOptionsText={t('address.no_options')}
+                        noOptionsText={t('common.no_options')}
                     />
 
                     {/* District */}
@@ -258,7 +258,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                                 }}
                             />
                         )}
-                        noOptionsText={t('address.no_options')}
+                        noOptionsText={t('common.no_options')}
                     />
 
                     {/* Ward */}
@@ -285,7 +285,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                                 }}
                             />
                         )}
-                        noOptionsText={t('address.no_options')}
+                        noOptionsText={t('common.no_options')}
                     />
 
                     {/* Detail Address */}
@@ -302,7 +302,7 @@ export default function AddressPickerModal({ open, onClose, onSave, existingAddr
                     {isValid && (
                         <Box sx={{ p: 2, bgcolor: bgLight, borderRadius: 2 }}>
                             <Typography fontSize={12} color={secondaryText} gutterBottom>
-                                {t('address.your_address')}
+                                {t('common.your_address')}
                             </Typography>
                             <Typography fontSize={14} color={primaryText} fontWeight={500}>
                                 {detailAddress && `${detailAddress}, `}

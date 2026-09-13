@@ -28,7 +28,7 @@ import {
     NotificationsOff as NotificationsOffIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { authService } from '@/services/auth.service';
+import { performLogout } from '@/utils/logout';
 import { toast } from 'sonner';
 import { formatChatTimestamp } from '@/utils/formatDate';
 import { ConversationResponseData } from '@/types/conversation';
@@ -36,6 +36,7 @@ import { useRouter } from 'next/navigation';
 import { CLIENT_PATH } from '@/constants/paths';
 import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
 import { useSocket } from '@/contexts/SocketContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { renderContentWithMentionsPlain } from '@/utils/hashtagParser';
 import { useTranslation } from 'react-i18next';
 import Link from 'next/link';
@@ -68,12 +69,12 @@ export default function ChatSidebar({
     onMobileClose,
 }: ChatSidebarProps) {
     const user = useAuthStore((state) => state.user);
-    const logout = useAuthStore((state) => state.logout);
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { socketChat } = useSocket();
 
     const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : '#f0f2f5';
@@ -139,16 +140,16 @@ export default function ChatSidebar({
 
     const handleLogout = async () => {
         handleMenuClose();
-        const response = await authService.logout();
-        if (response?.success) {
-            logout();
+        const success = await performLogout({
+            queryClient,
+            navigate: () => router.push(CLIENT_PATH.LOGIN),
+        });
+        if (success) {
             toast.success(t('auth.logout_success'));
         } else {
             // Still clear local state even on API failure
-            logout();
-            toast.error(t('auth.logout_failed'));
+            toast.error(t('common.logout_failed'));
         }
-        router.push(CLIENT_PATH.LOGIN);
     };
 
     const filteredConversations = conversations.filter((conversation) => {
@@ -352,7 +353,7 @@ export default function ChatSidebar({
                         }}
                     >
                         <LogoutIcon sx={{ mr: 2, color: 'text.secondary' }} fontSize="small" />
-                        {t('auth.logout')}
+                        {t('common.logout')}
                     </MenuItem>
                 </Menu>
 

@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, RmqRecordBuilder } from '@nestjs/microservices';
 import { NotificationType } from './entities/notification.entity';
+import { randomUUID } from 'crypto';
+import { lastValueFrom } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 
 export interface NotificationEventPayload {
     recipientId: string;
@@ -13,6 +16,34 @@ export interface NotificationEventPayload {
     commentId?: string;
     metadata?: Record<string, any>;
     typeReaction?: string;
+    templateKey?: string;
+    templateParams?: Record<string, string | number>;
+}
+
+interface TypedNotificationArgs {
+    recipientId: string;
+    senderId: string;
+    senderName?: string;
+    preview?: string;
+    postId?: string;
+    commentId?: string;
+    groupId?: string;
+    typeReaction?: string;
+    reactionType?: string;
+    reactionLabel?: string;
+    otherCount?: number;
+    groupName?: string;
+    roleName?: string;
+    newRole?: string;
+}
+
+interface TypedNotificationConfig {
+    suppressSelfAction: boolean;
+    title: string;
+    templateKey: string;
+    message: (args: TypedNotificationArgs) => string;
+    templateParams: (args: TypedNotificationArgs) => Record<string, string | number | undefined>;
+    metadata?: (args: TypedNotificationArgs) => Record<string, any>;
 }
 
 /**
@@ -29,16 +60,163 @@ export class NotificationEmitterService {
         private readonly rabbitMQClient: ClientProxy,
     ) { }
 
+    // Declarative table: notification type -> title/template key/message + param builders.
+    // suppressSelfAction mirrors the per-method self-notification suppression semantics.
+    private readonly typeConfig: Record<NotificationType, TypedNotificationConfig> = {
+        [NotificationType.POST_REACTED]: {
+            suppressSelfAction: true,
+            title: 'Bài viết của bạn có lượt thích mới',
+            templateKey: 'notifications.post_reacted',
+            message: ({ senderName, reactionLabel }) =>
+                `${senderName} đã thả cảm xúc "${reactionLabel}" về bài viết của bạn`,
+            templateParams: ({ senderName, reactionType, otherCount }) => ({
+                senderName,
+                reactionType,
+                ...(otherCount !== undefined ? { otherCount } : {}),
+            }),
+        },
+        [NotificationType.POST_COMMENTED]: {
+            suppressSelfAction: true,
+            title: 'Bài viết của bạn có bình luận mới',
+            templateKey: 'notifications.post_commented',
+            message: ({ senderName, preview }) =>
+                `${senderName} đã bình luận: "${preview}" về bài viết của bạn`,
+            templateParams: ({ senderName, preview }) => ({
+                senderName,
+                commentPreview: preview ?? '',
+            }),
+        },
+        [NotificationType.COMMENT_REPLIED]: {
+            suppressSelfAction: true,
+            title: 'Bình luận của bạn có phản hồi mới',
+            templateKey: 'notifications.comment_replied',
+            message: ({ senderName }) => `${senderName} đã trả lời bình luận của bạn`,
+            templateParams: ({ senderName, preview }) => ({
+                senderName,
+                commentPreview: preview ?? '',
+            }),
+        },
+        [NotificationType.COMMENT_REACTED]: {
+            suppressSelfAction: true,
+            title: 'Bình luận của bạn có lượt thích mới',
+            templateKey: 'notifications.comment_reacted',
+            message: ({ senderName, reactionLabel }) =>
+                `${senderName} đã thả cảm xúc "${reactionLabel}" về bình luận của bạn`,
+            templateParams: ({ senderName, reactionType }) => ({
+                senderName,
+                reactionType,
+            }),
+        },
+        [NotificationType.POST_SHARED]: {
+            suppressSelfAction: true,
+            title: 'Bài viết của bạn đã được chia sẻ',
+            templateKey: 'notifications.post_shared',
+            message: ({ senderName }) => `${senderName} đã chia sẻ bài viết của bạn.`,
+            templateParams: ({ senderName, preview }) => ({
+                senderName,
+                postPreview: preview ?? '',
+            }),
+        },
+        [NotificationType.GROUP_INVITATION]: {
+            suppressSelfAction: false,
+            title: 'Lời mời tham gia nhóm',
+            templateKey: 'notifications.group_invitation',
+            message: ({ senderName, groupName }) =>
+                `${senderName} đã mời bạn tham gia nhóm "${groupName}"`,
+            templateParams: ({ senderName, groupName }) => ({
+                senderName,
+                groupName,
+            }),
+        },
+        [NotificationType.GROUP_ROLE_CHANGED]: {
+            suppressSelfAction: false,
+            title: 'Thay đổi vai trò trong nhóm',
+            templateKey: 'notifications.group_role_changed',
+            message: ({ roleName, groupName }) =>
+                `Bạn đã được thay đổi vai trò thành ${roleName} trong nhóm "${groupName}"`,
+            templateParams: ({ roleName, groupName }) => ({
+                roleName,
+                groupName,
+            }),
+            metadata: ({ newRole }) => ({ newRole }),
+        },
+        [NotificationType.GROUP_OWNERSHIP_TRANSFERRED]: {
+            suppressSelfAction: false,
+            title: 'Nhận quyền sở hữu nhóm',
+            templateKey: 'notifications.group_ownership_transferred',
+            message: ({ groupName }) => `Bạn đã được nhận quyền sở hữu nhóm "${groupName}"`,
+            templateParams: ({ groupName }) => ({
+                groupName,
+            }),
+        },
+        [NotificationType.GROUP_REQUEST_APPROVED]: {
+            suppressSelfAction: false,
+            title: 'Yêu cầu tham gia nhóm được chấp nhận',
+            templateKey: 'notifications.group_request_approved',
+            message: ({ groupName }) =>
+                `Yêu cầu tham gia nhóm "${groupName}" của bạn đã được chấp nhận.`,
+            templateParams: ({ groupName }) => ({
+                groupName,
+            }),
+        },
+        [NotificationType.GROUP_REQUEST_REJECTED]: {
+            suppressSelfAction: false,
+            title: 'Yêu cầu tham gia nhóm bị từ chối',
+            templateKey: 'notifications.group_request_rejected',
+            message: ({ groupName }) =>
+                `Yêu cầu tham gia nhóm "${groupName}" của bạn đã bị từ chối.`,
+            templateParams: ({ groupName }) => ({
+                groupName,
+            }),
+        },
+        [NotificationType.FRIEND_REQUEST]: {
+            suppressSelfAction: false,
+            title: 'Lời mời kết bạn',
+            templateKey: 'notifications.friend_request',
+            message: ({ senderName }) => `${senderName} đã gửi lời mời kết bạn`,
+            templateParams: ({ senderName }) => ({
+                senderName,
+            }),
+        },
+        [NotificationType.FRIEND_ACCEPTED]: {
+            suppressSelfAction: false,
+            title: 'Lời mời kết bạn được chấp nhận',
+            templateKey: 'notifications.friend_accepted',
+            message: ({ senderName }) => `${senderName} đã chấp nhận lời mời kết bạn`,
+            templateParams: ({ senderName }) => ({
+                senderName,
+            }),
+        },
+        [NotificationType.SYSTEM]: {
+            suppressSelfAction: false,
+            title: 'Thông báo hệ thống',
+            templateKey: 'notifications.system',
+            message: ({ preview }) => preview || '',
+            templateParams: () => ({}),
+        },
+    };
+
     /**
      * Emit notification event tới RabbitMQ
      * Event sẽ được xử lý bởi Aggregation Worker -> Sender Worker -> Socket
      */
     async emit(payload: NotificationEventPayload): Promise<void> {
+        const eventId = randomUUID();
         try {
-            this.rabbitMQClient.emit('notification.created', {
+            const record = new RmqRecordBuilder({
                 ...payload,
+                eventId,
                 timestamp: Date.now(),
-            });
+            })
+                .setOptions({
+                    persistent: true,
+                    headers: { 'x-event-id': eventId },
+                })
+                .build();
+            await lastValueFrom(
+                this.rabbitMQClient.emit('notification.created', record).pipe(timeout(5000)),
+                { defaultValue: undefined },
+            );
             this.logger.log(`Emitted notification event: ${payload.type} for ${payload.recipientId}`);
         } catch (error) {
             this.logger.error('Failed to emit notification event:', error);
@@ -56,19 +234,18 @@ export class NotificationEmitterService {
         reactorId: string,
         postId: string,
         reactionType: string,
-        message: string,
+        reactionLabel: string,
+        senderName: string,
+        otherCount?: number,
     ): Promise<void> {
-        // Don't notify if reacting to own post
-        if (postOwnerId === reactorId) return;
-
-        await this.emit({
+        await this.emitTyped(NotificationType.POST_REACTED, {
             recipientId: postOwnerId,
             senderId: reactorId,
-            type: NotificationType.POST_REACTED,
-            title: 'Bài viết của bạn có lượt thích mới',
-            message,
             postId,
             typeReaction: reactionType,
+            reactionLabel,
+            senderName,
+            otherCount,
         });
     }
 
@@ -77,18 +254,15 @@ export class NotificationEmitterService {
         postOwnerId: string,
         commenterId: string,
         postId: string,
-        message: string,
+        commenterName: string,
+        commentPreview: string,
     ): Promise<void> {
-        // Don't notify if commenting on own post
-        if (postOwnerId === commenterId) return;
-
-        await this.emit({
+        await this.emitTyped(NotificationType.POST_COMMENTED, {
             recipientId: postOwnerId,
             senderId: commenterId,
-            type: NotificationType.POST_COMMENTED,
-            title: 'Bài viết của bạn có bình luận mới',
-            message,
             postId,
+            senderName: commenterName,
+            preview: commentPreview,
         });
     }
 
@@ -98,19 +272,16 @@ export class NotificationEmitterService {
         replierId: string,
         postId: string,
         commentId: string,
-        message: string,
+        replierName: string,
+        commentPreview: string,
     ): Promise<void> {
-        // Don't notify if replying to own comment
-        if (parentCommentOwnerId === replierId) return;
-
-        await this.emit({
+        await this.emitTyped(NotificationType.COMMENT_REPLIED, {
             recipientId: parentCommentOwnerId,
             senderId: replierId,
-            type: NotificationType.COMMENT_REPLIED,
-            title: 'Bình luận của bạn có phản hồi mới',
-            message,
             postId,
             commentId,
+            senderName: replierName,
+            preview: commentPreview,
         });
     }
 
@@ -120,19 +291,16 @@ export class NotificationEmitterService {
         reactorId: string,
         commentId: string,
         reactionType: string,
-        message: string,
+        reactionLabel: string,
+        senderName: string,
     ): Promise<void> {
-        // Don't notify if reacting to own comment
-        if (commentOwnerId === reactorId) return;
-
-        await this.emit({
+        await this.emitTyped(NotificationType.COMMENT_REACTED, {
             recipientId: commentOwnerId,
             senderId: reactorId,
-            type: NotificationType.COMMENT_REACTED,
-            title: 'Bình luận của bạn có lượt thích mới',
-            message,
             commentId,
             typeReaction: reactionType,
+            reactionLabel,
+            senderName,
         });
     }
 
@@ -141,18 +309,15 @@ export class NotificationEmitterService {
         originalPostOwnerId: string,
         sharerId: string,
         postId: string,
-        message: string,
+        sharerName: string,
+        postPreview?: string,
     ): Promise<void> {
-        // Don't notify if sharing own post
-        if (originalPostOwnerId === sharerId) return;
-
-        await this.emit({
+        await this.emitTyped(NotificationType.POST_SHARED, {
             recipientId: originalPostOwnerId,
             senderId: sharerId,
-            type: NotificationType.POST_SHARED,
-            title: 'Bài viết của bạn đã được chia sẻ',
-            message,
             postId,
+            senderName: sharerName,
+            preview: postPreview,
         });
     }
 
@@ -161,15 +326,15 @@ export class NotificationEmitterService {
         targetUserId: string,
         inviterId: string,
         groupId: string,
-        message: string,
+        inviterName: string,
+        groupName: string,
     ): Promise<void> {
-        await this.emit({
+        await this.emitTyped(NotificationType.GROUP_INVITATION, {
             recipientId: targetUserId,
             senderId: inviterId,
-            type: NotificationType.GROUP_INVITATION,
-            title: 'Lời mời tham gia nhóm',
-            message,
             groupId,
+            senderName: inviterName,
+            groupName,
         });
     }
 
@@ -179,16 +344,16 @@ export class NotificationEmitterService {
         changedById: string,
         groupId: string,
         newRole: string,
-        message: string,
+        roleName: string,
+        groupName: string,
     ): Promise<void> {
-        await this.emit({
+        await this.emitTyped(NotificationType.GROUP_ROLE_CHANGED, {
             recipientId: userId,
             senderId: changedById,
-            type: NotificationType.GROUP_ROLE_CHANGED,
-            title: 'Thay đổi vai trò trong nhóm',
-            message,
             groupId,
-            metadata: { newRole },
+            newRole,
+            roleName,
+            groupName,
         });
     }
 
@@ -197,15 +362,13 @@ export class NotificationEmitterService {
         newOwnerId: string,
         oldOwnerId: string,
         groupId: string,
-        message: string,
+        groupName: string,
     ): Promise<void> {
-        await this.emit({
+        await this.emitTyped(NotificationType.GROUP_OWNERSHIP_TRANSFERRED, {
             recipientId: newOwnerId,
             senderId: oldOwnerId,
-            type: NotificationType.GROUP_OWNERSHIP_TRANSFERRED,
-            title: 'Nhận quyền sở hữu nhóm',
-            message,
             groupId,
+            groupName,
         });
     }
 
@@ -214,15 +377,13 @@ export class NotificationEmitterService {
         requesterId: string,
         approverId: string,
         groupId: string,
-        message: string,
+        groupName: string,
     ): Promise<void> {
-        await this.emit({
+        await this.emitTyped(NotificationType.GROUP_REQUEST_APPROVED, {
             recipientId: requesterId,
             senderId: approverId,
-            type: NotificationType.GROUP_REQUEST_APPROVED,
-            title: 'Yêu cầu tham gia nhóm được chấp nhận',
-            message,
             groupId,
+            groupName,
         });
     }
 
@@ -231,15 +392,13 @@ export class NotificationEmitterService {
         requesterId: string,
         rejecterId: string,
         groupId: string,
-        message: string,
+        groupName: string,
     ): Promise<void> {
-        await this.emit({
+        await this.emitTyped(NotificationType.GROUP_REQUEST_REJECTED, {
             recipientId: requesterId,
             senderId: rejecterId,
-            type: NotificationType.GROUP_REQUEST_REJECTED,
-            title: 'Yêu cầu tham gia nhóm bị từ chối',
-            message,
             groupId,
+            groupName,
         });
     }
 
@@ -247,14 +406,12 @@ export class NotificationEmitterService {
     async emitFriendRequest(
         targetUserId: string,
         requesterId: string,
-        message: string,
+        requesterName: string,
     ): Promise<void> {
-        await this.emit({
+        await this.emitTyped(NotificationType.FRIEND_REQUEST, {
             recipientId: targetUserId,
             senderId: requesterId,
-            type: NotificationType.FRIEND_REQUEST,
-            title: 'Lời mời kết bạn',
-            message,
+            senderName: requesterName,
         });
     }
 
@@ -262,14 +419,46 @@ export class NotificationEmitterService {
     async emitFriendAccepted(
         requesterId: string,
         accepterId: string,
-        message: string,
+        accepterName: string,
     ): Promise<void> {
-        await this.emit({
+        await this.emitTyped(NotificationType.FRIEND_ACCEPTED, {
             recipientId: requesterId,
             senderId: accepterId,
-            type: NotificationType.FRIEND_ACCEPTED,
-            title: 'Lời mời kết bạn được chấp nhận',
-            message,
+            senderName: accepterName,
         });
+    }
+
+    private async emitTyped(
+        type: NotificationType,
+        args: TypedNotificationArgs,
+    ): Promise<void> {
+        const config = this.typeConfig[type];
+        if (config.suppressSelfAction && args.recipientId === args.senderId) return;
+
+        const payload: NotificationEventPayload = {
+            recipientId: args.recipientId,
+            senderId: args.senderId,
+            type,
+            title: config.title,
+            message: config.message(args),
+            groupId: args.groupId,
+            postId: args.postId,
+            commentId: args.commentId,
+            typeReaction: args.typeReaction,
+            templateKey: config.templateKey,
+            templateParams: config.templateParams(args) as Record<string, string | number>,
+        };
+        if (config.metadata) payload.metadata = config.metadata(args);
+
+        try {
+            await this.emit(payload);
+        } catch (error) {
+            // Never fail the caller's business transaction because the RMQ
+            // notification hop is unavailable — log and continue.
+            const reason = error instanceof Error ? error.message : String(error);
+            this.logger.warn(
+                `Failed to emit notification event (type=${type}, recipient=${args.recipientId}): ${reason}`,
+            );
+        }
     }
 }

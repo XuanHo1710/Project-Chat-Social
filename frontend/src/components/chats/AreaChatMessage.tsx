@@ -155,7 +155,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 // Fallback to REST API
                 await relationshipService.unblockUser(selectedConversation.otherId);
                 toast.success(t('chat.user_unblocked'));
-                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_DETAIL, selectedConversation._id] });
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATION_BY_USER, 'detail', selectedConversation._id] });
                 queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CONVERSATIONS] });
                 setIsUnblocking(false);
             }
@@ -200,6 +200,8 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     const [displayMessage, setDisplayMessage] = useState("");
     const [replyMsg, setReplyMsg] = useState<MessageResponse | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string; type: 'image' | 'video' }[]>([]);
+    const mediaPreviewRef = useRef<{ file: File; url: string; type: 'image' | 'video' }[]>(mediaPreview);
+    const activeConvIdRef = useRef(selectedConversation._id);
     const [filePreview, setFilePreview] = useState<{ file: File; name: string; size: number; type: string }[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
@@ -230,6 +232,36 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
         return validFiles;
     };
+
+    useEffect(() => {
+        mediaPreviewRef.current = mediaPreview;
+    }, [mediaPreview]);
+
+    useEffect(() => {
+        activeConvIdRef.current = selectedConversation._id;
+    }, [selectedConversation._id]);
+
+    // Unmount-only cleanup: revoke any leftover local blob previews so they don't leak —
+    // both staged (not-yet-sent) media and optimistic messages still holding
+    // _localMediaPreviews in the query cache.
+    useEffect(() => {
+        return () => {
+            mediaPreviewRef.current.forEach(m => {
+                try { URL.revokeObjectURL(m.url); } catch (_) { }
+            });
+
+            const cached = queryClient.getQueryData<InfiniteData<MessagesResponse>>(
+                [QUERY_KEYS.CHATS, activeConvIdRef.current]
+            );
+            cached?.pages.forEach(page =>
+                page.data.forEach(msg => {
+                    msg._localMediaPreviews?.forEach(url => {
+                        try { URL.revokeObjectURL(url); } catch (_) { }
+                    });
+                })
+            );
+        };
+    }, [queryClient]);
 
     // Track current cursor (lastReadMessageId) for optimization
     const currentCursorRef = useRef<string | null>(null);
@@ -638,20 +670,24 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
 
                     // If this is our own message, find and replace the optimistic placeholder
                     if (isOwnMessage) {
-                        // Find the oldest optimistic message matching this content/type
-                        // Also check createdAt proximity (within 60s) to avoid mismatching
-                        let optimisticFound = false;
+                        // Primary: exact temp-id match — the server ack/broadcast echoes back
+                        // the client-generated temp id, so match it before falling back to heuristics.
+                        const echoedTempId = msg._tempId ?? (msg as unknown as { tempId?: string }).tempId;
+                        // Last resort: content/type + createdAt proximity (within 60s) to avoid mismatching
                         const msgTime = new Date(msg.createdAt).getTime();
+                        let optimisticFound = false;
                         const newPages = oldData.pages.map(page => ({
                             ...page,
                             data: page.data.map(m => {
                                 if (!optimisticFound && m._isOptimistic && m._tempId?.startsWith('_optimistic_')) {
+                                    const exactMatch = !!echoedTempId && (m._id === echoedTempId || m._tempId === echoedTempId);
                                     const timeClose = Math.abs(new Date(m.createdAt).getTime() - msgTime) < 60000;
                                     const contentMatch = m.content === msg.content;
                                     const typeMatch = m.type === msg.type;
-                                    // Primary: exact content + type match within time window
-                                    // Fallback: content match only within time window (type may differ e.g. TEXT→IMAGE after upload)
-                                    if (timeClose && (contentMatch && typeMatch || contentMatch)) {
+                                    // 1. Exact temp-id match (authoritative)
+                                    // 2. Content + type match within time window
+                                    // 3. Content-only match within time window (type may differ e.g. TEXT→IMAGE after upload)
+                                    if (exactMatch || (timeClose && ((contentMatch && typeMatch) || (contentMatch && timeClose)))) {
                                         optimisticFound = true;
                                         // Revoke local blob URLs to prevent memory leaks
                                         if (m._localMediaPreviews) {
@@ -968,19 +1004,21 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         const handleTypingStart = (data: { conversationId: string; userId: string }) => {
             if (data.conversationId === selectedConversation._id) {
                 setIsOtherTyping(true);
-                const userTyping = conversation?.participants.find(p => p.user._id === data.userId);
-                if (!userTyping) return;
-                const newUserTypings = usersTyping.filter(u => u.user._id !== userTyping.user._id)
-                setUsersTyping([...newUserTypings, userTyping]);
-                // Clear existing timeout
+
+                // Clear existing timeout and re-arm BEFORE any early return so the
+                // indicator can never get stuck when the participant lookup misses.
                 if (typingTimeoutRef.current) {
                     clearTimeout(typingTimeoutRef.current);
                 }
-
                 // Auto-hide after 3 seconds
                 typingTimeoutRef.current = setTimeout(() => {
                     setIsOtherTyping(false);
                 }, 3000);
+
+                const userTyping = conversation?.participants.find(p => p.user._id === data.userId);
+                if (!userTyping) return;
+                const newUserTypings = usersTyping.filter(u => u.user._id !== userTyping.user._id)
+                setUsersTyping([...newUserTypings, userTyping]);
             }
         };
 
@@ -1031,6 +1069,10 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
             }
+            // Safety timeout for the chatbot typing indicator (armed in send flows)
+            if (chatbotTypingTimeoutRef.current) {
+                clearTimeout(chatbotTypingTimeoutRef.current);
+            }
         };
     }, [socketChat, selectedConversation._id, userId, setUsersTyping, usersTyping, conversation]);
 
@@ -1038,12 +1080,28 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
     useEffect(() => {
         if (!socketChat) return;
 
+        // Best-effort: read any already-accumulated text for this streaming message from
+        // the query cache so a remount mid-stream doesn't truncate the displayed content.
+        const seedStreamingText = (messageId: string): string => {
+            const cached = queryClient.getQueryData<InfiniteData<MessagesResponse>>(
+                [QUERY_KEYS.CHATS, selectedConversation._id]
+            );
+            if (!cached) return '';
+            for (const page of cached.pages) {
+                const found = page.data.find(m => m._id === messageId);
+                if (found) return found.content || '';
+            }
+            return '';
+        };
+
         // Stream started — insert a placeholder CHATBOT message in the cache
         const handleStreamStart = (data: { conversationId: string; messageId: string; senderId: string }) => {
             if (data.conversationId !== selectedConversation._id) return;
 
             setStreamingMessageId(data.messageId);
-            streamingTextRef.current = '';
+            // Seed from existing placeholder content ('' for a fresh stream) instead of
+            // unconditionally resetting, so remounts keep accumulated tokens.
+            streamingTextRef.current = seedStreamingText(data.messageId);
             // Don't clear typing yet — we keep it until first token arrives
 
             // Insert placeholder message into query cache
@@ -1056,8 +1114,13 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 data: [{
                                     _id: data.messageId,
                                     conversationId: data.conversationId,
-                                    senderId: { _id: data.senderId } as any,
-                                    type: 'CHATBOT' as any,
+                                    senderId: {
+                                        _id: data.senderId,
+                                        firstName: 'AI',
+                                        lastName: 'Assistant',
+                                        avatar: '',
+                                    },
+                                    type: 'CHATBOT',
                                     content: '',
                                     createdAt: new Date().toISOString(),
                                     status: 'SENT',
@@ -1081,8 +1144,13 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         data: [...newPages[lastIdx].data, {
                             _id: data.messageId,
                             conversationId: data.conversationId,
-                            senderId: { _id: data.senderId } as any,
-                            type: 'CHATBOT' as any,
+                            senderId: {
+                                _id: data.senderId,
+                                firstName: 'AI',
+                                lastName: 'Assistant',
+                                avatar: '',
+                            },
+                            type: 'CHATBOT',
                             content: '',
                             createdAt: new Date().toISOString(),
                             status: 'SENT',
@@ -1109,6 +1177,11 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
             setIsChatbotTyping(false);
             if (chatbotTypingTimeoutRef.current) clearTimeout(chatbotTypingTimeoutRef.current);
 
+            // If the ref was reset (e.g. remount mid-stream), re-seed from the cached
+            // placeholder so previously streamed tokens are not lost.
+            if (!streamingTextRef.current) {
+                streamingTextRef.current = seedStreamingText(data.messageId);
+            }
             streamingTextRef.current += data.token;
             const currentText = streamingTextRef.current;
 
@@ -1153,7 +1226,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                         ...page,
                         data: page.data.map(msg =>
                             msg._id === finalMsg._id
-                                ? { ...finalMsg, _isStreaming: false } as any
+                                ? { ...finalMsg, _isStreaming: false }
                                 : msg
                         ),
                     }));
@@ -1350,12 +1423,14 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
         const optimisticAttachments: AttachmentData[] = [
             ...currentMediaPreview.map(m => ({
                 url: m.url, // Local blob URL
+                publicId: "", // Assigned only after the authenticated upload completes
                 fileName: m.file.name,
                 fileSize: m.file.size,
                 mediaType: (m.type === 'image' ? 'IMAGE' : 'VIDEO') as 'IMAGE' | 'VIDEO' | 'RAW',
             })),
             ...currentFilePreview.map(f => ({
                 url: '', // No preview for files
+                publicId: "",
                 fileName: f.name,
                 fileSize: f.size,
                 mediaType: 'RAW' as 'IMAGE' | 'VIDEO' | 'RAW',
@@ -1445,6 +1520,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 if (uploadResult.success) {
                     attachments = uploadResult.results.map(u => ({
                         url: u.url,
+                        publicId: u.publicId,
                         fileName: u.fileName,
                         fileSize: u.fileSize,
                         mediaType: u.mediaType
@@ -1479,6 +1555,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 if (uploadResult.success) {
                     const docAttachments = uploadResult.results.map(u => ({
                         url: u.url,
+                        publicId: u.publicId,
                         fileName: u.fileName,
                         fileSize: u.fileSize,
                         mediaType: u.mediaType
@@ -1518,6 +1595,12 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                                 ...page,
                                 data: page.data.map(msg => {
                                     if (msg._id === tempId) {
+                                        // Revoke local blob URLs before replacing them with real uploaded URLs
+                                        if (msg._localMediaPreviews) {
+                                            msg._localMediaPreviews.forEach(url => {
+                                                try { URL.revokeObjectURL(url); } catch (_) { }
+                                            });
+                                        }
                                         // Replace local blob URLs with real uploaded URLs
                                         return {
                                             ...msg,
@@ -1540,6 +1623,7 @@ export default function AreaChatMessages({ selectedConversation, userId, onMobil
                 senderId: userId,
                 type: messageType,
                 content: messageContent,
+                tempId,
                 attachments: attachments.length > 0 ? attachments : undefined,
                 replyTo: currentReplyMsg?._id,
             };

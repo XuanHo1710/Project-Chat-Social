@@ -1,41 +1,133 @@
-import { Types } from 'mongoose';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsIn,
+  IsMongoId,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { MessageType } from 'src/chat/entities/message.entity';
 
+export class MessageAttachmentDto {
+  @IsString()
+  @MaxLength(2048)
+  url: string;
+
+  @IsString()
+  @MaxLength(200)
+  publicId: string;
+
+  @IsString()
+  @MaxLength(255)
+  fileName: string;
+
+  @IsNumber()
+  @Min(0)
+  fileSize: number;
+
+  @IsIn(['IMAGE', 'VIDEO', 'RAW'])
+  mediaType: 'IMAGE' | 'VIDEO' | 'RAW';
+}
+
+export class MessageCallDataDto {
+  @IsIn(['AUDIO', 'VIDEO'])
+  callType: 'AUDIO' | 'VIDEO';
+
+  @IsIn(['ANSWERED', 'MISSED', 'CANCELLED', 'ONGOING'])
+  callStatus: 'ANSWERED' | 'MISSED' | 'CANCELLED' | 'ONGOING';
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  duration?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isGroup?: boolean;
+}
+
+export class MessageStoryReplyDto {
+  @IsString()
+  @MaxLength(128)
+  storyId: string;
+
+  @IsString()
+  @MaxLength(2048)
+  storyMediaUrl: string;
+
+  @IsMongoId()
+  storyOwnerId: string;
+
+  @IsString()
+  @MaxLength(120)
+  storyOwnerName: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  storyCaption?: string;
+}
+
 export class CreateMessageDto {
-  conversationId: Types.ObjectId;
+  @IsMongoId()
+  conversationId: string;
 
-  senderId: Types.ObjectId; // For CHATBOT type, use trigger user's ID
+  // Accepted for backward compatibility but always overwritten server-side
+  // with the authenticated user's id.
+  @IsOptional()
+  @IsMongoId()
+  senderId?: string;
 
+  @IsEnum(MessageType)
   type: MessageType;
 
-  content?: string; // Nội dung text hoặc URL của file/image (max 5000 chars)
+  // Nội dung text hoặc URL của file/image
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  content?: string;
 
-  attachments?: {
-    url: string;
-    fileName: string;
-    fileSize: number;
-    mediaType: 'IMAGE' | 'VIDEO' | 'RAW';
-  }[]; // Danh sách file đính kèm
+  // Danh sách file đính kèm
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => MessageAttachmentDto)
+  attachments?: MessageAttachmentDto[];
 
-  replyTo?: Types.ObjectId; // Tin nhắn được reply
+  // Tin nhắn được reply
+  @IsOptional()
+  @IsMongoId()
+  replyTo?: string;
 
-  postId?: Types.ObjectId; // ID của bài viết được chia sẻ (cho type=POST)
+  // ID của bài viết được chia sẻ (cho type=POST)
+  @IsOptional()
+  @IsMongoId()
+  postId?: string;
 
-  postIdsRecommendationfromAI?: string[]; // Danh sách post IDs được AI gợi ý (cho type=CHATBOT)
+  // Danh sách post IDs được AI gợi ý (cho type=CHATBOT)
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsMongoId({ each: true })
+  postIdsRecommendationfromAI?: string[];
 
-  callData?: {
-    callType: 'AUDIO' | 'VIDEO';
-    callStatus: 'ANSWERED' | 'MISSED' | 'CANCELLED' | 'ONGOING';
-    duration?: number;
-    isGroup?: boolean;
-  }; // Dữ liệu cuộc gọi (cho type=CALL)
+  // Dữ liệu cuộc gọi (cho type=CALL)
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MessageCallDataDto)
+  callData?: MessageCallDataDto;
 
   // Story reply data (cho type=STORY_REPLY)
-  storyReply?: {
-    storyId: string;
-    storyMediaUrl: string;
-    storyOwnerId: string;
-    storyOwnerName: string;
-    storyCaption?: string;
-  };
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MessageStoryReplyDto)
+  storyReply?: MessageStoryReplyDto;
 }

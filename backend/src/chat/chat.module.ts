@@ -16,11 +16,13 @@ import { Account, AccountSchema } from 'src/account/entities/account.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { RelationshipModule } from 'src/relationship/relationship.module';
 import { HttpModule } from '@nestjs/axios';
-import { FirebaseService } from 'src/firebase/firebase.service';
 import { CommentModule } from 'src/comment/comment.module';
 import { ReactionModule } from 'src/reaction/reaction.module';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { PostModule } from 'src/post/post.module';
+import { RabbitMqClientModule } from 'src/common/messaging/rabbitmq-client.module';
+import { GroupCallStateService } from 'src/chat/services/group-call-state.service';
+import { CallSignalingHandler } from 'src/chat/services/call-signaling.handler';
+import { LivestreamSignalingService } from 'src/chat/services/livestream-signaling.service';
 
 @Module({
   imports: [
@@ -36,27 +38,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     RelationshipModule,
     CommentModule,
     ReactionModule,
+    PostModule,
     HttpModule,
-    ClientsModule.registerAsync([
-      {
-        name: 'RABBITMQ_SERVICE',
-        imports: [ConfigModule],
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [configService.get<string>('RABBITMQ_URL')!],
-            queue: configService.get<string>('RABBITMQ_QUEUE_NAME')!,
-            queueOptions: {
-              durable: true,
-            },
-          },
-        }),
-        inject: [ConfigService],
-      },
-    ]),
+    RabbitMqClientModule,
   ],
   controllers: [ChatController, ChatRabbitMQController],
-  providers: [ChatGateway, ChatService, FirebaseService],
+  providers: [
+    ChatGateway,
+    ChatService,
+    GroupCallStateService,
+    CallSignalingHandler,
+    LivestreamSignalingService,
+  ],
   exports: [ChatGateway, ChatService],
 })
 export class ChatModule { }

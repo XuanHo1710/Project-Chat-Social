@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Box, Typography, Button, Paper, TextField, LinearProgress } from "@mui/material";
+import { Box, Typography, Button, TextField, LinearProgress } from "@mui/material";
 import { PlayArrow, Refresh } from "@mui/icons-material";
+import GameShell from "@/components/games/GameShell";
+import { useTranslation } from "react-i18next";
 
 const WORDS = [
     "react", "nextjs", "javascript", "typescript", "frontend", "backend", "fullstack",
@@ -17,6 +19,7 @@ const WORDS = [
 const GAME_TIME = 60;
 
 export default function TypingSpeedPage() {
+    const { t } = useTranslation('games');
     const [currentWord, setCurrentWord] = useState("");
     const [input, setInput] = useState("");
     const [score, setScore] = useState(0);
@@ -71,75 +74,69 @@ export default function TypingSpeedPage() {
     };
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', pt: 4 }}>
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3 }}>
-                <Paper elevation={3} sx={{ p: 4, borderRadius: 4, maxWidth: 600, width: '100%', textAlign: 'center', bgcolor: 'background.paper' }}>
-                    <Typography variant="h4" fontWeight={900} sx={{ mb: 4, color: 'primary.main' }}>
-                        Gõ Phím Nhanh
+        <GameShell
+            titleKey="typingspeed.name"
+            titleSx={{ mb: 4 }}
+            scoreLabelKey="typingspeed.scoreLabel"
+            score={score}
+            scoreRowSx={{ mb: 2, px: 2 }}
+            scoreAside={
+                <Box>
+                    <Typography variant="caption" color="text.secondary">{t('common.time')}</Typography>
+                    <Typography variant="h4" fontWeight={700} color={timeLeft < 10 ? 'error' : 'inherit'}>{timeLeft}s</Typography>
+                </Box>
+            }
+            maxWidth={600}
+        >
+            <LinearProgress
+                variant="determinate"
+                value={(timeLeft / GAME_TIME) * 100}
+                sx={{ mb: 4, height: 8, borderRadius: 4 }}
+            />
+
+            {isPlaying ? (
+                <Box sx={{ mb: 4 }}>
+                    <Typography variant="h2" fontWeight={800} sx={{ mb: 2, color: 'text.primary', letterSpacing: 2 }}>
+                        {currentWord}
                     </Typography>
-
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, px: 2 }}>
-                        <Box>
-                            <Typography variant="caption" color="text.secondary">ĐIỂM (Ký tự)</Typography>
-                            <Typography variant="h4" fontWeight={700}>{score}</Typography>
-                        </Box>
-                        <Box>
-                            <Typography variant="caption" color="text.secondary">THỜI GIAN</Typography>
-                            <Typography variant="h4" fontWeight={700} color={timeLeft < 10 ? 'error' : 'inherit'}>{timeLeft}s</Typography>
-                        </Box>
-                    </Box>
-
-                    <LinearProgress
-                        variant="determinate"
-                        value={(timeLeft / GAME_TIME) * 100}
-                        sx={{ mb: 4, height: 8, borderRadius: 4 }}
+                    <TextField
+                        ref={inputRef}
+                        value={input}
+                        onChange={handleChange}
+                        placeholder={t('typingspeed.placeholder')}
+                        variant="outlined"
+                        fullWidth
+                        autoFocus
+                        inputProps={{
+                            style: { textAlign: 'center', fontSize: '1.5rem', fontWeight: 600 }
+                        }}
+                        sx={{ maxWidth: 400 }}
                     />
-
-                    {isPlaying ? (
-                        <Box sx={{ mb: 4 }}>
-                            <Typography variant="h2" fontWeight={800} sx={{ mb: 2, color: 'text.primary', letterSpacing: 2 }}>
-                                {currentWord}
-                            </Typography>
-                            <TextField
-                                ref={inputRef}
-                                value={input}
-                                onChange={handleChange}
-                                placeholder="Gõ từ trên..."
-                                variant="outlined"
-                                fullWidth
-                                autoFocus
-                                inputProps={{
-                                    style: { textAlign: 'center', fontSize: '1.5rem', fontWeight: 600 }
-                                }}
-                                sx={{ maxWidth: 400 }}
-                            />
-                        </Box>
-                    ) : (
-                        <Box sx={{ mb: 4 }}>
-                            {timeLeft === 0 && (
-                                <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
-                                    <Typography variant="h6">Kết Quả</Typography>
-                                    <Typography variant="h3" color="primary" fontWeight={800}>{Math.round(score / 5)} WPM</Typography>
-                                    <Typography variant="body2" color="text.secondary">Tốc độ gõ trung bình</Typography>
-                                </Box>
-                            )}
-                            <Button
-                                variant="contained"
-                                size="large"
-                                onClick={startGame}
-                                startIcon={timeLeft === 0 ? <Refresh /> : <PlayArrow />}
-                                sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
-                            >
-                                {timeLeft === 0 ? "Thử Lại" : "Bắt Đầu"}
-                            </Button>
+                </Box>
+            ) : (
+                <Box sx={{ mb: 4 }}>
+                    {timeLeft === 0 && (
+                        <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+                            <Typography variant="h6">{t('typingspeed.results')}</Typography>
+                            <Typography variant="h3" color="primary" fontWeight={800}>{Math.round(score / 5)} WPM</Typography>
+                            <Typography variant="body2" color="text.secondary">{t('typingspeed.avgSpeed')}</Typography>
                         </Box>
                     )}
+                    <Button
+                        variant="contained"
+                        size="large"
+                        onClick={startGame}
+                        startIcon={timeLeft === 0 ? <Refresh /> : <PlayArrow />}
+                        sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
+                    >
+                        {timeLeft === 0 ? t('typingspeed.retry') : t('common.start')}
+                    </Button>
+                </Box>
+            )}
 
-                    <Typography color="text.secondary" variant="body2">
-                        Gõ lại chính xác các từ xuất hiện trên màn hình càng nhanh càng tốt.
-                    </Typography>
-                </Paper>
-            </Box>
-        </Box>
+            <Typography color="text.secondary" variant="body2">
+                {t('typingspeed.instructions')}
+            </Typography>
+        </GameShell>
     );
 }

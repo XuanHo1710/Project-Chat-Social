@@ -30,10 +30,15 @@ interface ReactionStore {
 
     // Set from server socket response (updates totalReacts)
     setFromServer: (postId: string, totalReacts: number) => void;
+
+    // Restore initial state
+    reset: () => void;
 }
 
 export const useReactionStore = create<ReactionStore>((set, get) => ({
     postReactions: {},
+
+    reset: () => set({ postReactions: {} }),
 
     setPostReaction: (postId, state) => {
         set(prev => ({

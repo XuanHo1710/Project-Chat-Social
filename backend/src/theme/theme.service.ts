@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Theme, ThemeDocument } from './schemas/theme.schema';
 import { CreateThemeDto } from './dto/create-theme.dto';
 import { UpdateThemeDto } from './dto/update-theme.dto';
@@ -8,6 +8,12 @@ import { UpdateThemeDto } from './dto/update-theme.dto';
 @Injectable()
 export class ThemeService {
     constructor(@InjectModel(Theme.name) private themeModel: Model<ThemeDocument>) { }
+
+    private validateId(id: string): void {
+        if (!Types.ObjectId.isValid(id)) {
+            throw new NotFoundException(`Theme with ID ${id} not found`);
+        }
+    }
 
     async create(createThemeDto: CreateThemeDto): Promise<Theme> {
         if (createThemeDto.isActive) {
@@ -22,6 +28,7 @@ export class ThemeService {
     }
 
     async findOne(id: string): Promise<Theme> {
+        this.validateId(id);
         const theme = await this.themeModel.findById(id).exec();
         if (!theme) {
             throw new NotFoundException(`Theme with ID ${id} not found`);
@@ -34,6 +41,7 @@ export class ThemeService {
     }
 
     async update(id: string, updateThemeDto: UpdateThemeDto): Promise<Theme> {
+        this.validateId(id);
         if (updateThemeDto.isActive) {
             await this.themeModel.updateMany({ _id: { $ne: id } }, { isActive: false });
         }
@@ -45,6 +53,14 @@ export class ThemeService {
     }
 
     async remove(id: string): Promise<Theme> {
+        this.validateId(id);
+        const current = await this.themeModel.findById(id).select('isActive').lean();
+        if (!current) {
+            throw new NotFoundException(`Theme with ID ${id} not found`);
+        }
+        if (current.isActive) {
+            throw new ConflictException('Active theme cannot be deleted; activate another theme first');
+        }
         const deletedTheme = await this.themeModel.findByIdAndDelete(id).exec();
         if (!deletedTheme) {
             throw new NotFoundException(`Theme with ID ${id} not found`);
@@ -53,6 +69,7 @@ export class ThemeService {
     }
 
     async setActive(id: string): Promise<Theme> {
+        this.validateId(id);
         const theme = await this.themeModel.findById(id);
         if (!theme) {
             throw new NotFoundException(`Theme with ID ${id} not found`);

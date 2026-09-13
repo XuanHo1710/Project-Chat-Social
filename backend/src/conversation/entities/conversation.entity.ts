@@ -72,8 +72,8 @@ export class Conversation {
   @Prop()
   createdAt: Date;
 
-  @Prop()
-  updatedAt: Array<Date>;
+  @Prop({ type: Date })
+  updatedAt?: Date;
 
   @Prop({ default: false })
   isDeleted: boolean;
@@ -100,6 +100,18 @@ export class Conversation {
   // Danh sách user đã tắt thông báo cho conversation này
   @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: Account.name }], default: [] })
   mutedBy: mongoose.Schema.Types.ObjectId[];
+
+  // Khóa cặp participants đã sort (chỉ dùng cho type DIRECT) để chống tạo trùng
+  @Prop({ type: String })
+  directPairKey?: string;
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);
+
+ConversationSchema.index({ 'participants.user': 1, isDeleted: 1, lastMessageAt: -1 });
+ConversationSchema.index({ type: 1, 'participants.user': 1 });
+ConversationSchema.index({ creator: 1, type: 1, isDeleted: 1 });
+ConversationSchema.index(
+  { directPairKey: 1 },
+  { unique: true, partialFilterExpression: { directPairKey: { $type: 'string' } } },
+);

@@ -19,5 +19,6 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "resolveJsonModule": true
-  }
+  },
+  "exclude": ["node_modules", "dist", "documentation"]
 }

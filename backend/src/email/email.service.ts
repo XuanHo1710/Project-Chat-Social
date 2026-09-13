@@ -77,20 +77,18 @@ export class EmailService {
     }
   }
 
-  /**
-   * Send OTP email for password reset
-   * In dev mode or when email fails, OTP will be logged to console
-   */
+  /** Send a password-reset OTP. Plaintext logging is explicit and development-only. */
   async sendOtpEmail(email: string, otp: string, expiresInMinutes: number = 5): Promise<boolean> {
-    // Always log OTP in dev mode for testing
     const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
-    if (nodeEnv !== 'production') {
+    const mayLogOtp =
+      nodeEnv !== 'production' && this.configService.get<string>('EMAIL_LOG_OTP') === 'true';
+    if (mayLogOtp) {
       this.logger.warn(`[DEV MODE] OTP for ${email}: ${otp} (expires in ${expiresInMinutes} min)`);
     }
 
-    // If no API key, skip email but return true for dev testing
     if (!this.apiKey) {
-      return true; // Allow flow to continue in dev
+      this.logger.warn('BREVO_API_KEY is not configured; OTP email was not sent');
+      return mayLogOtp;
     }
 
     const htmlContent = this.generateOtpEmailTemplate(otp, expiresInMinutes);
@@ -101,10 +99,8 @@ export class EmailService {
       htmlContent,
     });
 
-    // If email fails, still log OTP for dev testing
     if (!success) {
-      // Return true in non-production to allow testing
-      return nodeEnv !== 'production';
+      return mayLogOtp;
     }
 
     return success;

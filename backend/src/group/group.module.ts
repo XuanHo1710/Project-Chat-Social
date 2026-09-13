@@ -7,6 +7,7 @@ import { Group, GroupSchema } from './entities/group.entity';
 import { GroupMember, GroupMemberSchema } from './entities/group-member.entity';
 import { NotificationModule } from 'src/notification/notification.module';
 import { Account, AccountSchema } from 'src/account/entities/account.entity';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Account, AccountSchema } from 'src/account/entities/account.entity';
       { name: Account.name, schema: AccountSchema },
     ]),
     forwardRef(() => NotificationModule),
+    AuthModule,
   ],
   controllers: [GroupController],
   providers: [GroupService, GroupGateway],

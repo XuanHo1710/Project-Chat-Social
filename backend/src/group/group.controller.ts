@@ -9,6 +9,10 @@ import {
 } from './dto/group.dto';
 import { UserInfo } from 'decorators/customize';
 
+interface AuthenticatedUser {
+  _id: string;
+}
+
 @Controller('group')
 @UseGuards(JwtAuthGuard)
 export class GroupController {
@@ -17,13 +21,13 @@ export class GroupController {
   // ==================== GROUP CRUD ====================
 
   @Post()
-  createGroup(@UserInfo() user: any, @Body() dto: CreateGroupDto) {
+  createGroup(@UserInfo() user: AuthenticatedUser, @Body() dto: CreateGroupDto) {
     return this.groupService.createGroup(user._id, dto);
   }
 
   @Put(':groupId')
   updateGroup(
-    @UserInfo() user: any,
+    @UserInfo() user: AuthenticatedUser,
     @Param('groupId') groupId: string,
     @Body() dto: UpdateGroupDto
   ) {
@@ -31,23 +35,23 @@ export class GroupController {
   }
 
   @Delete(':groupId')
-  deleteGroup(@UserInfo() user: any, @Param('groupId') groupId: string) {
+  deleteGroup(@UserInfo() user: AuthenticatedUser, @Param('groupId') groupId: string) {
     return this.groupService.deleteGroup(user._id, groupId);
   }
 
   @Get('my-groups')
-  getMyGroups(@UserInfo() user: any) {
+  getMyGroups(@UserInfo() user: AuthenticatedUser) {
     return this.groupService.getMyGroups(user._id);
   }
 
   @Get('suggested')
-  getSuggestedGroups(@UserInfo() user: any, @Query('limit') limit?: string) {
+  getSuggestedGroups(@UserInfo() user: AuthenticatedUser, @Query('limit') limit?: string) {
     return this.groupService.getSuggestedGroups(user._id, limit ? parseInt(limit) : 10);
   }
 
   @Get('search')
   searchGroups(
-    @UserInfo() user: any,
+    @UserInfo() user: AuthenticatedUser,
     @Query('q') query: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string
@@ -61,34 +65,36 @@ export class GroupController {
   }
 
   @Get(':groupId')
-  getGroupById(@UserInfo() user: any, @Param('groupId') groupId: string) {
+  getGroupById(@UserInfo() user: AuthenticatedUser, @Param('groupId') groupId: string) {
     return this.groupService.getGroupById(groupId, user._id);
   }
 
   // ==================== MEMBERSHIP ====================
 
   @Post(':groupId/join')
-  joinGroup(@UserInfo() user: any, @Param('groupId') groupId: string) {
+  joinGroup(@UserInfo() user: AuthenticatedUser, @Param('groupId') groupId: string) {
     return this.groupService.joinGroup(user._id, groupId);
   }
 
   @Post(':groupId/leave')
-  leaveGroup(@UserInfo() user: any, @Param('groupId') groupId: string) {
+  leaveGroup(@UserInfo() user: AuthenticatedUser, @Param('groupId') groupId: string) {
     return this.groupService.leaveGroup(user._id, groupId);
   }
 
   @Delete(':groupId/cancel-request')
-  cancelJoinRequest(@UserInfo() user: any, @Param('groupId') groupId: string) {
+  cancelJoinRequest(@UserInfo() user: AuthenticatedUser, @Param('groupId') groupId: string) {
     return this.groupService.cancelJoinRequest(user._id, groupId);
   }
 
   @Get(':groupId/members')
   getMembers(
+    @UserInfo() user: AuthenticatedUser,
     @Param('groupId') groupId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string
   ) {
     return this.groupService.getMembers(
+      user._id,
       groupId,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 20
@@ -96,13 +102,17 @@ export class GroupController {
   }
 
   @Get(':groupId/members/top')
-  getTopMembers(@Param('groupId') groupId: string, @Query('limit') limit?: string) {
-    return this.groupService.getTopMembers(groupId, limit ? parseInt(limit) : 12);
+  getTopMembers(
+    @UserInfo() user: AuthenticatedUser,
+    @Param('groupId') groupId: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.groupService.getTopMembers(user._id, groupId, limit ? parseInt(limit) : 12);
   }
 
   @Get(':groupId/members/pending')
   getPendingMembers(
-    @UserInfo() user: any,
+    @UserInfo() user: AuthenticatedUser,
     @Param('groupId') groupId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string
@@ -117,7 +127,7 @@ export class GroupController {
 
   @Post(':groupId/members/:targetUserId/approve')
   approveMember(
-    @UserInfo() user: any,
+    @UserInfo() user: AuthenticatedUser,
     @Param('groupId') groupId: string,
     @Param('targetUserId') targetUserId: string
   ) {
@@ -126,7 +136,7 @@ export class GroupController {
 
   @Post(':groupId/members/:targetUserId/reject')
   rejectMember(
-    @UserInfo() user: any,
+    @UserInfo() user: AuthenticatedUser,
     @Param('groupId') groupId: string,
     @Param('targetUserId') targetUserId: string
   ) {
@@ -135,7 +145,7 @@ export class GroupController {
 
   @Delete(':groupId/members/:targetUserId')
   removeMember(
-    @UserInfo() user: any,
+    @UserInfo() user: AuthenticatedUser,
     @Param('groupId') groupId: string,
     @Param('targetUserId') targetUserId: string
   ) {
@@ -144,17 +154,17 @@ export class GroupController {
 
   @Put(':groupId/members/:targetUserId/role')
   updateMemberRole(
-    @UserInfo() user: any,
+    @UserInfo() user: AuthenticatedUser,
     @Param('groupId') groupId: string,
     @Param('targetUserId') targetUserId: string,
     @Body() dto: UpdateMemberRoleDto
   ) {
-    return this.groupService.updateMemberRole(user._id, groupId, targetUserId, dto.role as any);
+    return this.groupService.updateMemberRole(user._id, groupId, targetUserId, dto.role);
   }
 
   @Post(':groupId/invite')
   inviteMember(
-    @UserInfo() user: any,
+    @UserInfo() user: AuthenticatedUser,
     @Param('groupId') groupId: string,
     @Body() dto: InviteMemberDto
   ) {
@@ -163,7 +173,7 @@ export class GroupController {
 
   @Post(':groupId/transfer-ownership')
   transferOwnership(
-    @UserInfo() user: any,
+    @UserInfo() user: AuthenticatedUser,
     @Param('groupId') groupId: string,
     @Body() dto: InviteMemberDto
   ) {

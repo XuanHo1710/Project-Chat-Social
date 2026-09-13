@@ -29,6 +29,12 @@ export class Story {
   @Prop({ type: String })
   thumbnail?: string; // Thumbnail cho video
 
+  @Prop({ type: String, required: true, maxlength: 512 })
+  mediaPublicId: string;
+
+  @Prop({ type: String, maxlength: 512 })
+  thumbnailPublicId?: string;
+
   @Prop({ type: Number })
   duration?: number; // Thời lượng video (giây), max 15s
 
@@ -89,7 +95,7 @@ export class Story {
   createdAt: Date;
 
   @Prop({ type: Date })
-  expiresAt: Date; // Story hết hạn sau 24h
+  expiresAt?: Date; // Story hết hạn sau 24h
 
   @Prop({ type: Boolean, default: false })
   isArchived: boolean;
@@ -100,8 +106,15 @@ export class Story {
 
 export const StorySchema = SchemaFactory.createForClass(Story);
 
-// Auto-set expiresAt to 24 hours from creation
+// Auto-set expiresAt to 24 hours from creation.
+// Archived stories must not be TTL-deleted: clearing expiresAt removes them
+// from the TTL index scope (MongoDB TTL skips docs where the indexed field is
+// absent), so archives persist while live stories keep the +24h expiry.
 StorySchema.pre('save', function (next) {
+  if (this.isArchived === true) {
+    this.expiresAt = undefined;
+    return next();
+  }
   if (!this.expiresAt) {
     this.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
   }
@@ -112,3 +125,6 @@ StorySchema.pre('save', function (next) {
 StorySchema.index({ userId: 1, createdAt: -1 });
 StorySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index - auto delete expired
 StorySchema.index({ privacy: 1 });
+StorySchema.index({ userId: 1, isDeleted: 1, expiresAt: 1, createdAt: -1 });
+StorySchema.index({ privacy: 1, isDeleted: 1, expiresAt: 1, createdAt: -1 });
+StorySchema.index({ mediaPublicId: 1 });

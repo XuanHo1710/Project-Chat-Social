@@ -3,14 +3,14 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { StoryController } from './story.controller';
 import { StoryService } from './story.service';
 import { Story, StorySchema } from './entities/story.entity';
-import { Relationship, RelationshipSchema } from 'src/relationship/entities/relationship.entity';
+import { RelationshipModule } from 'src/relationship/relationship.module';
+import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Story.name, schema: StorySchema },
-      { name: Relationship.name, schema: RelationshipSchema },
-    ]),
+    MongooseModule.forFeature([{ name: Story.name, schema: StorySchema }]),
+    RelationshipModule,
+    CloudinaryModule,
   ],
   controllers: [StoryController],
   providers: [StoryService],

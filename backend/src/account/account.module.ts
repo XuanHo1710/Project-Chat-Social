@@ -9,12 +9,11 @@ import { Relationship, RelationshipSchema } from 'src/relationship/entities/rela
   imports: [
     MongooseModule.forFeature([
       { name: Account.name, schema: AccountSchema },
-      { name: Relationship.name, schema: RelationshipSchema }
-
-    ])
+      { name: Relationship.name, schema: RelationshipSchema },
+    ]),
   ],
   controllers: [AccountController],
   providers: [AccountService],
-  exports: [AccountService]
+  exports: [AccountService],
 })
-export class AccountModule { }
+export class AccountModule {}

@@ -12,9 +12,10 @@ import { Server, Socket } from 'socket.io';
 import { ReactionService } from './reaction.service';
 import { ReactionType, TypeFactor } from './entities/reaction.entity';
 import { AccountService } from 'src/account/account.service';
+import { SocketAuthService } from 'src/auth/socket-auth.service';
+import { socketCorsOptions } from 'src/common/config/cors.config';
+import { PresenceService } from 'src/common/presence/presence.service';
 
-// Map để lưu userId -> Set<socketId> (support multiple connections per user)
-const userSockets = new Map<string, Set<string>>();
 // Map để lưu factorId -> Set<socketId> (users đang xem factor này)
 const factorViewers = new Map<string, Set<string>>();
 
@@ -50,10 +51,7 @@ interface LegacyCommentReactionDto {
 }
 
 @WebSocketGateway({
-  cors: {
-    origin: '*',
-    credentials: true,
-  },
+  cors: socketCorsOptions,
   namespace: '/reaction',
 })
 export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -63,42 +61,30 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   constructor(
     private readonly reactionService: ReactionService,
-    private readonly accountService: AccountService
+    private readonly accountService: AccountService,
+    private readonly socketAuthService: SocketAuthService,
+    private readonly presenceService: PresenceService
   ) {}
 
   async handleConnection(client: Socket) {
     try {
-      const userId = client.handshake.query.userId as string;
-
-      if (!userId) {
-        this.logger.warn(`Client ${client.id} connected without userId`);
-        client.disconnect();
-        return;
-      }
-
-      client.data.userId = userId;
+      const { userId } = await this.socketAuthService.authenticate(client);
       client.join(`user:${userId}`);
       this.logger.log(`Client ${client.id} connected as user ${userId}`);
 
-      if (!userSockets.has(userId)) {
-        userSockets.set(userId, new Set());
-      }
-      userSockets.get(userId)!.add(client.id);
-    } catch (error) {
-      this.logger.error('Connection error:', error);
+      this.presenceService.register(userId, client.id);
+    } catch {
+      this.logger.warn(`Rejected unauthorized reaction socket ${client.id}`);
+      this.socketAuthService.reject(client);
     }
   }
 
   async handleDisconnect(client: Socket) {
     try {
-      const userId = client.data.userId || (client.handshake.query.userId as string);
+      const userId = client.data.userId as string | undefined;
 
-      if (userId && userSockets.has(userId)) {
-        const sockets = userSockets.get(userId)!;
-        sockets.delete(client.id);
-        if (sockets.size === 0) {
-          userSockets.delete(userId);
-        }
+      if (userId) {
+        this.presenceService.unregister(userId, client.id);
       }
 
       // Remove from all factor viewer rooms
@@ -112,7 +98,9 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
 
       // Cleanup pending reactions
-      this.cleanupUserPendingReactions(userId);
+      if (userId) {
+        this.cleanupUserPendingReactions(userId);
+      }
       this.logger.log(`Client ${client.id} disconnected`);
     } catch (error) {
       this.logger.error('Disconnect error:', error);
@@ -123,10 +111,17 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
    * Subscribe to reaction updates for a factor (post/comment/message)
    */
   @SubscribeMessage('factor:subscribe')
-  handleSubscribeFactor(
+  async handleSubscribeFactor(
     @MessageBody() data: { factorId: string; typeFactor: TypeFactor },
     @ConnectedSocket() client: Socket
   ) {
+    const userId = client.data.userId as string | undefined;
+    if (!userId) return { success: false, error: 'Forbidden' };
+    try {
+      await this.reactionService.assertFactorAccess(data.factorId, data.typeFactor, userId);
+    } catch {
+      return { success: false, error: 'Forbidden' };
+    }
     const roomKey = `${data.typeFactor}:${data.factorId}`;
     client.join(roomKey);
 
@@ -142,7 +137,10 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
    * Legacy: Subscribe to post updates
    */
   @SubscribeMessage('post:subscribe')
-  handleSubscribePost(@MessageBody() data: { postId: string }, @ConnectedSocket() client: Socket) {
+  async handleSubscribePost(
+    @MessageBody() data: { postId: string },
+    @ConnectedSocket() client: Socket
+  ) {
     return this.handleSubscribeFactor(
       { factorId: data.postId, typeFactor: TypeFactor.POST },
       client
@@ -198,44 +196,27 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
       return { success: false, error: 'User not authenticated' };
     }
 
-    // Handle legacy format (postId instead of factorId)
-    let factorId: string;
-    let typeFactor: TypeFactor;
-    let type: ReactionType;
+    const { factorId, typeFactor } = this.normalizeReactionTarget(data);
+    const type = data.type;
 
-    if ('postId' in data) {
-      // Legacy format
-      factorId = data.postId;
-      typeFactor = TypeFactor.POST;
-      type = data.type;
-    } else {
-      factorId = data.factorId;
-      typeFactor = data.typeFactor;
-      type = data.type;
+    if (!Object.values(ReactionType).includes(type)) {
+      return { success: false, error: 'Invalid reaction type' };
+    }
+    try {
+      await this.reactionService.assertFactorAccess(factorId, typeFactor, userId);
+    } catch {
+      return { success: false, error: 'Forbidden' };
     }
 
     const key = `${userId}:${typeFactor}:${factorId}`;
     const roomKey = `${typeFactor}:${factorId}`;
-    const now = Date.now();
 
-    // Cancel existing pending reaction
-    const existing = pendingReactions.get(key);
-    if (existing?.timeout) {
-      clearTimeout(existing.timeout);
-    }
-
-    // Set new pending reaction with debounce
-    const timeout = setTimeout(async () => {
+    this.enqueueReaction(key, type, async (pendingType) => {
       try {
-        const pending = pendingReactions.get(key);
-        if (!pending) return;
-
-        pendingReactions.delete(key);
-
-        const user = await this.accountService.findOne(userId);
+        const user = client.data.account || (await this.accountService.findOne(userId));
 
         const result = await this.reactionService.toggleReaction(
-          { factorId, typeFactor, type: pending.type as ReactionType },
+          { factorId, typeFactor, type: pendingType },
           user
         );
 
@@ -250,7 +231,7 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
           commentId: typeFactor === TypeFactor.COMMENT ? factorId : undefined, // Legacy
           userId,
           action: result.action,
-          type: pending.type,
+          type: pendingType,
           totalReacts: result.totalReacts,
           topReactions,
         });
@@ -273,9 +254,8 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
           error: error.message,
         });
       }
-    }, RATE_LIMIT_WINDOW_MS);
+    });
 
-    pendingReactions.set(key, { type, timestamp: now, timeout });
     return { success: true, queued: true };
   }
 
@@ -293,27 +273,25 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
       return { success: false, error: 'User not authenticated' };
     }
 
-    const factorId = data.commentId;
-    const typeFactor = TypeFactor.COMMENT;
-    const key = `${userId}:${typeFactor}:${factorId}`;
-    const now = Date.now();
+    const { factorId, typeFactor } = this.normalizeReactionTarget(data);
+    const type = data.type;
 
-    const existing = pendingReactions.get(key);
-    if (existing?.timeout) {
-      clearTimeout(existing.timeout);
+    if (!Object.values(ReactionType).includes(type)) {
+      return { success: false, error: 'Invalid reaction type' };
     }
+    try {
+      await this.reactionService.assertFactorAccess(factorId, typeFactor, userId);
+    } catch {
+      return { success: false, error: 'Forbidden' };
+    }
+    const key = `${userId}:${typeFactor}:${factorId}`;
 
-    const timeout = setTimeout(async () => {
+    this.enqueueReaction(key, type, async (pendingType) => {
       try {
-        const pending = pendingReactions.get(key);
-        if (!pending) return;
-
-        pendingReactions.delete(key);
-
-        const user = await this.accountService.findOne(userId);
+        const user = client.data.account || (await this.accountService.findOne(userId));
 
         const result = await this.reactionService.toggleCommentReaction(
-          { commentId: factorId, type: pending.type as ReactionType },
+          { commentId: factorId, type: pendingType },
           user
         );
 
@@ -330,9 +308,8 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
           error: error.message,
         });
       }
-    }, RATE_LIMIT_WINDOW_MS);
+    });
 
-    pendingReactions.set(key, { type: data.type, timestamp: now, timeout });
     return { success: true, queued: true };
   }
 
@@ -351,22 +328,62 @@ export class ReactionGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     try {
-      let factorId: string;
-      let typeFactor: TypeFactor;
-
-      if ('postId' in data) {
-        factorId = data.postId;
-        typeFactor = TypeFactor.POST;
-      } else {
-        factorId = data.factorId;
-        typeFactor = data.typeFactor;
-      }
+      const { factorId, typeFactor } = this.normalizeReactionTarget(data);
 
       const reaction = await this.reactionService.getUserReaction(factorId, typeFactor, userId);
       return { success: true, reaction };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Normalize legacy payload shapes (postId / commentId) into the
+   * canonical factor coordinates without changing accepted inputs.
+   */
+  private normalizeReactionTarget(
+    data:
+      | ToggleReactionDto
+      | LegacyPostReactionDto
+      | LegacyCommentReactionDto
+      | { factorId: string; typeFactor: TypeFactor }
+      | { postId: string }
+  ): { factorId: string; typeFactor: TypeFactor } {
+    if ('postId' in data) {
+      return { factorId: data.postId, typeFactor: TypeFactor.POST };
+    }
+    if ('commentId' in data) {
+      return { factorId: data.commentId, typeFactor: TypeFactor.COMMENT };
+    }
+    return { factorId: data.factorId, typeFactor: data.typeFactor };
+  }
+
+  /**
+   * Debounced execution shared by every reaction toggle handler.
+   * Cancels any queued reaction registered under the same key and
+   * schedules fn to run once RATE_LIMIT_WINDOW_MS elapses quietly.
+   */
+  private enqueueReaction(
+    key: string,
+    type: ReactionType,
+    fn: (type: ReactionType) => void | Promise<void>
+  ) {
+    const existing = pendingReactions.get(key);
+    if (existing?.timeout) {
+      clearTimeout(existing.timeout);
+    }
+
+    const timeout = setTimeout(() => {
+      const pending = pendingReactions.get(key);
+      if (!pending) return;
+
+      pendingReactions.delete(key);
+      void Promise.resolve(fn(pending.type as ReactionType)).catch((error: any) =>
+        this.logger.error('Debounced reaction failed:', error)
+      );
+    }, RATE_LIMIT_WINDOW_MS);
+
+    pendingReactions.set(key, { type, timestamp: Date.now(), timeout });
   }
 
   /**

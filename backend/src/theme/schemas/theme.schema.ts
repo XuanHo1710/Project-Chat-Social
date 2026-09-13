@@ -26,3 +26,5 @@ export class Theme {
 }
 
 export const ThemeSchema = SchemaFactory.createForClass(Theme);
+
+ThemeSchema.index({ isActive: 1 }, { unique: true, partialFilterExpression: { isActive: true } });

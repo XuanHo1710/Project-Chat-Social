@@ -55,9 +55,29 @@ export class Notification {
   @Prop({ type: String, default: '' })
   message: string;
 
+  // i18n template key (title key, e.g. "notifications.post_reacted"; body key = key + "_message")
+  @Prop({ type: String })
+  templateKey?: string;
+
+  // i18n template params (e.g. senderName, otherCount, groupName, roleName, postPreview, commentPreview, reactionType)
+  @Prop({ type: Object })
+  templateParams?: Record<string, string | number>;
+
   // Để hiện thị cảm xúc gì trong thông báo
   @Prop({ type: String, default: '' })
   typeReaction: string;
+
+  @Prop({ select: false })
+  aggregationKey?: string;
+
+  @Prop({ type: Object })
+  metadata?: Record<string, unknown>;
+
+  @Prop({ type: String, select: false })
+  sourceEventId?: string;
+
+  @Prop({ type: [String], default: undefined, select: false })
+  sourceEventIds?: string[];
 
   // Reference data for different notification types
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: Group.name })
@@ -86,8 +106,23 @@ export class Notification {
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
 
 // Indexes
-NotificationSchema.index({ recipientId: 1, status: 1, createdAt: -1 });
+NotificationSchema.index({ recipientId: 1, isActive: 1, status: 1, updatedAt: -1 });
 NotificationSchema.index({ recipientId: 1, type: 1 });
 NotificationSchema.index({ groupId: 1, type: 1 });
 // Index for aggregated notifications lookup (find existing notification to update instead of creating new)
 NotificationSchema.index({ recipientId: 1, type: 1, postId: 1, commentId: 1 });
+NotificationSchema.index(
+  { aggregationKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      aggregationKey: { $type: 'string' },
+      status: NotificationStatus.UNREAD,
+      isActive: true,
+    },
+  },
+);
+NotificationSchema.index(
+  { sourceEventId: 1 },
+  { unique: true, partialFilterExpression: { sourceEventId: { $type: 'string' } } },
+);

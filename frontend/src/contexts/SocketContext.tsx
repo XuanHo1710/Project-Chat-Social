@@ -1,323 +1,376 @@
-// lib/socket-context.tsx  (hoặc app/socket-context.tsx nếu dùng app router)
-'use client';
+"use client";
 
-import { useAuthStore } from '@/stores/useAuthStore';
-import { useOnlineStatusStore } from '@/stores/useOnlineStatusStore';
-import { useMessageCacheStore } from '@/stores/useMessageCacheStore';
-import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useAuthStore } from "@/stores/useAuthStore";
+import { useMessageCacheStore } from "@/stores/useMessageCacheStore";
+import { useOnlineStatusStore } from "@/stores/useOnlineStatusStore";
+import { QUERY_KEYS } from "@/constants/query-keys";
+import { MessagesResponse } from "@/services/chat.service";
+import { MessageResponse } from "@/types/chat";
+import {
+  InfiniteData,
+  QueryClient,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { toast } from "sonner";
+import {
+  ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { io, Socket } from "socket.io-client";
 
 interface SocketContextType {
   socket: Socket | null;
-  socketChat: Socket | null; // Alias for socket (for clarity)
+  socketChat: Socket | null;
   isConnected: boolean;
   socketRelationship: Socket | null;
   socketReaction: Socket | null;
   socketNotification: Socket | null;
 }
 
-const SocketContext = createContext<SocketContextType>({
+type SocketState = SocketContextType;
+
+const EMPTY_SOCKET_STATE: SocketState = {
   socket: null,
   socketChat: null,
   isConnected: false,
   socketRelationship: null,
   socketReaction: null,
   socketNotification: null,
-});
+};
+
+const SocketContext = createContext<SocketContextType>(EMPTY_SOCKET_STATE);
 
 export const useSocket = () => useContext(SocketContext);
 
 export const SocketProvider = ({ children }: { children: ReactNode }) => {
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [socketRelationship, setSocketRelationship] = useState<Socket | null>(null);
-  const [socketReaction, setSocketReaction] = useState<Socket | null>(null);
-  const [socketNotification, setSocketNotification] = useState<Socket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const { user } = useAuthStore();
+  const [state, setState] = useState<SocketState>(EMPTY_SOCKET_STATE);
+  const userId = useAuthStore((store) => store.user?.id);
+  const accessToken = useAuthStore((store) => store.accessToken);
+  const hasAccessToken = Boolean(accessToken);
+  const queryClient = useQueryClient();
 
-  // Track if online status listener is already setup
-  const onlineListenerSetup = useRef(false);
-  const onlineCleanup = useRef<(() => void) | null>(null);
+  // Latest token without re-rendering socket instances. Sockets are created
+  // once per user; auth is patched in place so token refreshes never tear
+  // down live connections (e.g. mid-call signaling).
+  const accessTokenRef = useRef<string | null>(null);
+  const activeSocketsRef = useRef<Socket[]>([]);
 
   useEffect(() => {
-    const userId = user?.id;
+    accessTokenRef.current = accessToken ?? null;
+    for (const socket of activeSocketsRef.current) {
+      socket.auth = { token: accessTokenRef.current };
+      // Manual reconnect with the fresh token when the socket is idle or
+      // exhausted its automatic attempts. Listeners stay attached.
+      if (accessToken && !socket.connected && !socket.active) {
+        socket.connect();
+      }
+    }
+  }, [accessToken]);
 
-    if (!userId) {
+  useEffect(() => {
+    const socketBaseUrl = process.env.NEXT_PUBLIC_SOCKET_URL?.replace(/\/$/, "");
+    if (!userId || !hasAccessToken || !socketBaseUrl || !accessTokenRef.current) {
       return;
     }
 
-    // Chat socket
-    const socketIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/chat", {
-      query: { userId },
-      transports: ["websocket"],
+    const connectionOptions = {
+      auth: { token: accessTokenRef.current },
+      transports: ["websocket"] as ["websocket"],
       reconnection: true,
-    });
+      reconnectionAttempts: 10,
+      timeout: 10_000,
+    };
+    const chat = io(`${socketBaseUrl}/chat`, { ...connectionOptions });
+    const relationship = io(`${socketBaseUrl}/relationship`, { ...connectionOptions });
+    const reaction = io(`${socketBaseUrl}/reaction`, { ...connectionOptions });
+    const notification = io(`${socketBaseUrl}/notifications`, { ...connectionOptions });
+    activeSocketsRef.current = [chat, relationship, reaction, notification];
 
-    // Relationship socket
-    const socketRelationshipIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/relationship", {
-      query: { userId },
-      transports: ["websocket"],
-      reconnection: true,
-    });
+    const onChatConnect = () => {
+      setState((current) =>
+        current.socket === chat ? { ...current, isConnected: true } : current,
+      );
+    };
+    const onChatDisconnect = () => {
+      setState((current) =>
+        current.socket === chat ? { ...current, isConnected: false } : current,
+      );
+    };
+    const onConnectError = () => onChatDisconnect();
 
-    // Reaction socket
-    const socketReactionIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/reaction", {
-      query: { userId },
-      transports: ["websocket"],
-      reconnection: true,
-    });
+    chat.on("connect", onChatConnect);
+    chat.on("disconnect", onChatDisconnect);
+    chat.on("connect_error", onConnectError);
+    const cleanupGlobalListeners = setupGlobalChatListeners(chat, userId, queryClient);
 
-    // Notification socket
-    const socketNotificationIo = io(process.env.NEXT_PUBLIC_SOCKET_URL + "/notifications", {
-      query: { userId },
-      transports: ["websocket"],
-      reconnection: true,
-    });
+    const handleUserRestricted = () => {
+      toast.info("Bạn đã bị hạn chế tương tác với một người dùng");
+    };
+    relationship.on("user:restricted", handleUserRestricted);
 
-    // Event handlers
-    socketIo.on("connect", () => {
-      setIsConnected(true);
-
-      // Setup global listeners ONCE when connected
-      if (!onlineListenerSetup.current) {
-        onlineListenerSetup.current = true;
-        onlineCleanup.current = setupOnlineStatusListeners(socketIo, userId);
-      }
-    });
-
-    socketIo.on("disconnect", () => {
-      console.log("💬 Chat socket disconnected");
-      setIsConnected(false);
-    });
-
-    socketRelationshipIo.on("connect", () => {
-      console.log("👥 Relationship socket connected:", socketRelationshipIo.id);
-    });
-
-    socketRelationshipIo.on("disconnect", () => {
-      console.log("👥 Relationship socket disconnected");
-    });
-
-    socketReactionIo.on("connect", () => {
-      console.log("❤️ Reaction socket connected:", socketReactionIo.id);
-    });
-
-    socketReactionIo.on("disconnect", () => {
-      console.log("❤️ Reaction socket disconnected");
-    });
-
-    socketNotificationIo.on("connect", () => {
-      console.log("🔔 Notification socket connected:", socketNotificationIo.id);
-    })
-
-    socketNotificationIo.on("disconnect", () => {
-      console.log("🔔 Notification socket disconnected");
-    });
-
-    setSocket(socketIo);
-    setSocketRelationship(socketRelationshipIo);
-    setSocketReaction(socketReactionIo);
-    setSocketNotification(socketNotificationIo);
+    const publishSocketsTimer = window.setTimeout(() => {
+      setState({
+        socket: chat,
+        socketChat: chat,
+        isConnected: chat.connected,
+        socketRelationship: relationship,
+        socketReaction: reaction,
+        socketNotification: notification,
+      });
+    }, 0);
 
     return () => {
-      onlineListenerSetup.current = false;
-      onlineCleanup.current?.();
-      onlineCleanup.current = null;
-      socketIo.disconnect();
-      socketRelationshipIo.disconnect();
-      socketReactionIo.disconnect();
-      socketNotificationIo.disconnect();
+      cleanupGlobalListeners();
+      relationship.off("user:restricted", handleUserRestricted);
+      window.clearTimeout(publishSocketsTimer);
+      activeSocketsRef.current = [];
+      chat.off("connect", onChatConnect);
+      chat.off("disconnect", onChatDisconnect);
+      chat.off("connect_error", onConnectError);
+      chat.disconnect();
+      relationship.disconnect();
+      reaction.disconnect();
+      notification.disconnect();
+      setState((current) =>
+        current.socket === chat ? EMPTY_SOCKET_STATE : current,
+      );
     };
-  }, [user?.id]);
+  }, [userId, hasAccessToken, queryClient]);
 
+  const value = useMemo<SocketContextType>(() => state, [state]);
+  return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
+};
 
+const isMessageEvent = (value: unknown): value is MessageResponse => {
+  if (!value || typeof value !== "object") return false;
+  const message = value as Partial<MessageResponse>;
   return (
-    <SocketContext.Provider value={{ socket, socketChat: socket, isConnected, socketRelationship, socketReaction, socketNotification }}>
-      {children}
-    </SocketContext.Provider>
+    typeof message._id === "string" &&
+    typeof message.conversationId === "string"
   );
 };
 
-// Centralized online status listeners - runs ONCE
-function setupOnlineStatusListeners(socket: Socket, userId: string): () => void {
+function setupGlobalChatListeners(
+  socket: Socket,
+  currentUserId: string,
+  queryClient: QueryClient,
+): () => void {
   const onlineStore = useOnlineStatusStore.getState();
   const messageStore = useMessageCacheStore.getState();
-
-  console.log("🟢 Setting up global socket listeners (once)");
-
-  // ─── Global tab title notification for unread messages ───
-  let unreadMsgCount = 0;
-  const originalTitle = 'Social Chat - Mạng xã hội kết nối bạn bè';
-  let originalFaviconHref: string | null = null;
+  let disposed = false;
+  let unreadMessageCount = 0;
+  const originalTitle = document.title;
+  const BLINK_TITLE = "Tin nhắn mới!";
+  let lastSetTitle: string | null = null;
+  const reportedMessageErrors = new Set<string>();
+  const favicon = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+  const originalFaviconHref = favicon?.href || "/icon";
   let titleBlinkInterval: ReturnType<typeof setInterval> | null = null;
 
-  // Save original favicon
-  if (typeof document !== 'undefined') {
-    const link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
-    originalFaviconHref = link?.href || '/icon';
-  }
-
-  // Create a favicon with red notification badge
-  const setNotificationFavicon = (count: number) => {
-    if (typeof document === 'undefined') return;
-    const canvas = document.createElement('canvas');
-    canvas.width = 32;
-    canvas.height = 32;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, 32, 32);
-      // Draw red badge circle
-      ctx.beginPath();
-      ctx.arc(24, 8, 9, 0, 2 * Math.PI);
-      ctx.fillStyle = '#FF0000';
-      ctx.fill();
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      // Draw count number
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 12px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(count > 9 ? '9+' : String(count), 24, 8);
-      // Apply favicon
-      let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.head.appendChild(link);
-      }
-      link.href = canvas.toDataURL('image/png');
-    };
-    img.src = originalFaviconHref || '/icon';
-  };
-
-  const restoreFavicon = () => {
-    if (typeof document === 'undefined') return;
-    const link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
-    if (link && originalFaviconHref) {
-      link.href = originalFaviconHref;
-    }
+  const clearBlink = () => {
     if (titleBlinkInterval) {
       clearInterval(titleBlinkInterval);
       titleBlinkInterval = null;
     }
   };
 
+  const restoreFavicon = () => {
+    const current = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    if (current) current.href = originalFaviconHref;
+    clearBlink();
+  };
+
+  const setNotificationFavicon = (count: number) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 32;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      if (disposed) return;
+      try {
+        context.drawImage(image, 0, 0, 32, 32);
+        context.beginPath();
+        context.arc(24, 8, 9, 0, 2 * Math.PI);
+        context.fillStyle = "#f00";
+        context.fill();
+        context.strokeStyle = "#fff";
+        context.lineWidth = 2;
+        context.stroke();
+        context.fillStyle = "#fff";
+        context.font = "bold 12px Arial";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(count > 9 ? "9+" : String(count), 24, 8);
+        let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement("link");
+          link.rel = "icon";
+          document.head.appendChild(link);
+        }
+        link.href = canvas.toDataURL("image/png");
+      } catch {
+        // Cross-origin favicons can taint the canvas; title notification still works.
+      }
+    };
+    image.src = originalFaviconHref;
+  };
+
   const handleWindowFocus = () => {
-    unreadMsgCount = 0;
-    document.title = originalTitle;
+    unreadMessageCount = 0;
+    if (
+      lastSetTitle !== null &&
+      (document.title === lastSetTitle || document.title === BLINK_TITLE)
+    ) {
+      document.title = originalTitle;
+    }
     restoreFavicon();
   };
-  if (typeof window !== 'undefined') {
-    window.addEventListener('focus', handleWindowFocus);
-  }
 
-  // Listen for user online
-  socket.on('user:online', (data: { userId: string; status: string }) => {
-    console.log("🟢 User online:", data.userId);
-    onlineStore.updateFromSocket({ userId: data.userId, status: data.status });
-  });
-
-  // Listen for user offline
-  socket.on('user:offline', (data: { userId: string; status: string; lastActive?: Date }) => {
-    console.log("🔴 User offline:", data.userId);
-    onlineStore.updateFromSocket({ userId: data.userId, status: data.status, lastActive: data.lastActive });
-  });
-
-  // GLOBAL: Listen for new messages and store in pending cache
-  socket.on('message:new', (msg: any) => {
-    console.log("📨 Global message:new received:", msg.conversationId, msg._id);
-    // Store in pending cache - AreaChatMessage will consume this when it opens
-    messageStore.addPendingMessage(msg.conversationId, msg);
-
-    // Update tab title and favicon if message is from someone else and tab is not focused
-    const senderId = typeof msg.senderId === 'object' ? msg.senderId?._id : msg.senderId;
-    if (senderId && senderId !== userId && typeof document !== 'undefined' && !document.hasFocus()) {
-      let senderName = 'Ai đó';
-      if (typeof msg.senderId === 'object' && msg.senderId) {
-        const first = msg.senderId.firstName || '';
-        const last = msg.senderId.lastName || '';
-        const full = `${first} ${last}`.trim();
-        if (full) senderName = full;
-      }
-      unreadMsgCount += 1;
-      const notifTitle = `${senderName} đã gửi ${unreadMsgCount} tin nhắn đến bạn`;
-      document.title = notifTitle;
-
-      // Set red badge on favicon
-      setNotificationFavicon(unreadMsgCount);
-
-      // Blink tab title for attention
-      if (titleBlinkInterval) clearInterval(titleBlinkInterval);
-      let showNotif = true;
-      titleBlinkInterval = setInterval(() => {
-        if (document.hasFocus()) {
-          handleWindowFocus();
-          return;
-        }
-        document.title = showNotif ? notifTitle : '💬 Tin nhắn mới!';
-        showNotif = !showNotif;
-      }, 1500);
-    }
-  });
-
-  // GLOBAL: Listen for message edits
-  socket.on('message:edited', (msg: any) => {
-    console.log("✏️ Global message:edited received:", msg.conversationId, msg._id);
-    messageStore.updatePendingMessage(msg.conversationId, msg);
-  });
-
-  // GLOBAL: Listen for message reactions
-  socket.on('message:reaction:updated', (msg: any) => {
-    console.log("😀 Global message:reaction received:", msg.conversationId, msg._id);
-    messageStore.updatePendingMessage(msg.conversationId, msg);
-  });
-
-  // GLOBAL: Listen for message deletes
-  socket.on('message:deleted', (msg: any) => {
-    console.log("🗑️ Global message:deleted received:", msg.conversationId, msg._id);
-    messageStore.updatePendingMessage(msg.conversationId, msg);
-  });
-
-  // GLOBAL: Listen for message read status updates
-  socket.on('message:read:updated', (data: {
-    conversationId: string;
-    readBy: { _id: string; firstName: string; lastName: string; avatar?: string } | null;
-    readByUserId: string;
+  const handleUserOnline = (data: {
+    userId?: unknown;
+    status?: unknown;
   }) => {
-    console.log("👁️ Global message:read:updated received:", data);
-    if (data.readBy) {
-      messageStore.markPendingMessagesAsRead(data.conversationId, data.readBy, userId);
-    }
-  });
+    if (typeof data?.userId !== "string" || typeof data.status !== "string") return;
+    onlineStore.updateFromSocket({ userId: data.userId, status: data.status });
+  };
 
-  // Request current online users list - using emit with callback
-  socket.emit('users:online', {}, (response: { onlineUsers: string[] }) => {
-    console.log("📋 Online users list:", response);
-    if (response?.onlineUsers) {
-      onlineStore.setOnlineUsers(response.onlineUsers);
-    }
-  });
+  const handleUserOffline = (data: {
+    userId?: unknown;
+    status?: unknown;
+    lastActive?: Date | string;
+  }) => {
+    if (typeof data?.userId !== "string" || typeof data.status !== "string") return;
+    onlineStore.updateFromSocket({
+      userId: data.userId,
+      status: data.status,
+      lastActive: data.lastActive,
+    });
+  };
 
-  // Also listen for a direct response event (backup)
-  socket.on('users:online:response', (data: { onlineUsers: string[] }) => {
-    console.log("📋 Online users response event:", data);
-    if (data?.onlineUsers) {
-      onlineStore.setOnlineUsers(data.onlineUsers);
-    }
-  });
+  const handleNewMessage = (message: unknown) => {
+    if (!isMessageEvent(message)) return;
+    messageStore.addPendingMessage(message.conversationId, message);
+    const senderId =
+      typeof message.senderId === "object" ? message.senderId?._id : message.senderId;
+    if (!senderId || senderId === currentUserId || document.hasFocus()) return;
 
-  // Return cleanup function
+    const senderName =
+      typeof message.senderId === "object"
+        ? `${message.senderId?.firstName || ""} ${message.senderId?.lastName || ""}`.trim() ||
+          "Ai đó"
+        : "Ai đó";
+    unreadMessageCount += 1;
+    const notificationTitle = `${senderName} đã gửi ${unreadMessageCount} tin nhắn đến bạn`;
+    document.title = notificationTitle;
+    lastSetTitle = notificationTitle;
+    setNotificationFavicon(unreadMessageCount);
+    clearBlink();
+    let showNotification = true;
+    titleBlinkInterval = setInterval(() => {
+      if (document.hasFocus()) {
+        handleWindowFocus();
+        return;
+      }
+      document.title = showNotification ? notificationTitle : "Tin nhắn mới!";
+      showNotification = !showNotification;
+    }, 1500);
+  };
+
+  const handleMessageUpdate = (message: unknown) => {
+    if (!isMessageEvent(message)) return;
+    messageStore.updatePendingMessage(message.conversationId, message);
+  };
+
+  const handleReadUpdate = (data: {
+    conversationId?: unknown;
+    readBy?: {
+      _id: string;
+      firstName: string;
+      lastName: string;
+      avatar?: string;
+    } | null;
+  }) => {
+    if (typeof data?.conversationId !== "string" || !data.readBy?._id) return;
+    messageStore.markPendingMessagesAsRead(
+      data.conversationId,
+      data.readBy,
+      currentUserId,
+    );
+  };
+
+  const handleOnlineUsers = (data: { onlineUsers?: unknown }) => {
+    if (!Array.isArray(data?.onlineUsers)) return;
+    onlineStore.setOnlineUsers(
+      data.onlineUsers.filter((id): id is string => typeof id === "string").slice(0, 10_000),
+    );
+  };
+
+  const handleMessageError = (data: {
+    messageId?: unknown;
+    conversationId?: unknown;
+    error?: unknown;
+  }) => {
+    if (typeof data?.messageId !== "string" || typeof data?.conversationId !== "string") return;
+    if (reportedMessageErrors.has(data.messageId)) return;
+    reportedMessageErrors.add(data.messageId);
+
+    queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+      [QUERY_KEYS.CHATS, data.conversationId],
+      (oldData) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) => ({
+            ...page,
+            data: page.data.map((msg) =>
+              msg._id === data.messageId || msg._tempId === data.messageId
+                ? { ...msg, _sendFailed: true }
+                : msg
+            ),
+          })),
+        };
+      },
+    );
+
+    toast.error(
+      typeof data.error === "string" ? data.error : "Không thể xử lý tin nhắn",
+    );
+  };
+
+  window.addEventListener("focus", handleWindowFocus);
+  socket.on("user:online", handleUserOnline);
+  socket.on("user:offline", handleUserOffline);
+  socket.on("message:new", handleNewMessage);
+  socket.on("message:edited", handleMessageUpdate);
+  socket.on("message:reaction:updated", handleMessageUpdate);
+  socket.on("message:deleted", handleMessageUpdate);
+  socket.on("message:error", handleMessageError);
+  socket.on("message:read:updated", handleReadUpdate);
+  socket.emit("users:online", {}, handleOnlineUsers);
+
   return () => {
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('focus', handleWindowFocus);
-    }
+    disposed = true;
+    window.removeEventListener("focus", handleWindowFocus);
+    socket.off("user:online", handleUserOnline);
+    socket.off("user:offline", handleUserOffline);
+    socket.off("message:new", handleNewMessage);
+    socket.off("message:edited", handleMessageUpdate);
+    socket.off("message:reaction:updated", handleMessageUpdate);
+    socket.off("message:deleted", handleMessageUpdate);
+    socket.off("message:error", handleMessageError);
+    socket.off("message:read:updated", handleReadUpdate);
+    clearBlink();
     restoreFavicon();
-    document.title = originalTitle;
+    if (document.title.includes("tin nhắn") || document.title === "Tin nhắn mới!") {
+      document.title = originalTitle;
+    }
   };
 }

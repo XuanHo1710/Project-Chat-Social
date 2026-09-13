@@ -5,9 +5,12 @@ import {
   CreatePostReactionDto,
   CreateCommentReactionDto,
 } from './dto/create-reaction.dto';
+import { FactorReactionsSummaryDto, PostReactionsSummaryDto } from './dto/reactions-summary.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserInfo } from 'decorators/customize';
 import { TypeFactor } from './entities/reaction.entity';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Admin } from 'src/common/decorators/roles.decorator';
 
 @Controller('reaction')
 @UseGuards(JwtAuthGuard)
@@ -44,7 +47,7 @@ export class ReactionController {
    * Get reaction summary for multiple posts (for feed)
    */
   @Post('summary')
-  getReactionsSummary(@Body() body: { postIds: string[] }, @UserInfo() user: any) {
+  getReactionsSummary(@Body() body: PostReactionsSummaryDto, @UserInfo() user: any) {
     return this.reactionService.getPostsReactionsSummary(body.postIds, user._id);
   }
 
@@ -54,7 +57,7 @@ export class ReactionController {
   @Post('summary/:typeFactor')
   getFactorReactionsSummary(
     @Param('typeFactor') typeFactor: TypeFactor,
-    @Body() body: { factorIds: string[] },
+    @Body() body: FactorReactionsSummaryDto,
     @UserInfo() user: any
   ) {
     return this.reactionService.getReactionsSummary(body.factorIds, typeFactor, user._id);
@@ -78,11 +81,13 @@ export class ReactionController {
   @Get('post/:postId')
   getPostReactions(
     @Param('postId') postId: string,
+    @UserInfo() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string
   ) {
     return this.reactionService.getPostReactions(
       postId,
+      user._id.toString(),
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 20
     );
@@ -104,11 +109,13 @@ export class ReactionController {
   @Get('comment/:commentId')
   getCommentReactions(
     @Param('commentId') commentId: string,
+    @UserInfo() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string
   ) {
     return this.reactionService.getCommentReactions(
       commentId,
+      user._id.toString(),
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 20
     );
@@ -135,12 +142,14 @@ export class ReactionController {
   getFactorReactions(
     @Param('typeFactor') typeFactor: TypeFactor,
     @Param('factorId') factorId: string,
+    @UserInfo() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string
   ) {
     return this.reactionService.getFactorReactions(
       factorId,
       typeFactor,
+      user._id.toString(),
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 20
     );
@@ -150,6 +159,8 @@ export class ReactionController {
    * Admin endpoint to migrate old reactions to new schema
    */
   @Post('migrate')
+  @UseGuards(RolesGuard)
+  @Admin()
   async migrateReactions() {
     return this.reactionService.migrateOldReactions();
   }

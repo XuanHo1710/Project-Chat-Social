@@ -201,7 +201,6 @@ export default function CreatePostModal({
 
             // Create post with all data ready
             const result = await createPostMutation.mutateAsync({
-                userId: user.id,
                 content: postContent.trim() || undefined,
                 privacy: groupId ? "GROUP" : selectedPrivacy,
                 media: mediaToPost.length > 0 ? mediaToPost : undefined,

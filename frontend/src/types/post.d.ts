@@ -59,7 +59,6 @@ export interface PostType {
 }
 
 export interface CreatePostRequest {
-  userId: string;
   content?: string;
   privacy?: PostPrivacy;
   media?: MediaItem[];
@@ -67,8 +66,6 @@ export interface CreatePostRequest {
   sharedPostId?: string | null;
   groupId?: string | null;
   isAnonymous?: boolean;
-  type?: 'POST' | 'LIVESTREAM' | 'SHARE';
-  livestreamStatus?: 'PREPARING' | 'LIVE' | 'ENDED';
 }
 
 export interface UpdatePostRequest {
@@ -79,8 +76,6 @@ export interface UpdatePostRequest {
   allowComments?: boolean;
   allowShares?: boolean;
   allowReactions?: boolean;
-  type?: 'POST' | 'LIVESTREAM' | 'SHARE';
-  livestreamStatus?: 'PREPARING' | 'LIVE' | 'ENDED';
 }
 
 export interface PostPageResponse {

@@ -1,4 +1,4 @@
-import axios from "@/config/axios";
+import axios, { unwrap } from "@/config/axios";
 import { MessageResponse, SendMessagePayload } from "@/types/chat";
 import { APIResponse } from "@/types/common";
 
@@ -54,8 +54,7 @@ class ChatService {
       `/chat/messages/${conversationId}?${params.toString()}`
     );
     // Backend wraps response in { data: actualData }
-    const result = response.data?.data || response.data;
-    return result;
+    return unwrap<MessagesResponse>(response.data);
   }
 
   // Get media messages (images/videos) for a conversation
@@ -67,8 +66,7 @@ class ChatService {
     const response = await axios.get(
       `/chat/messages/${conversationId}/media?page=${page}&limit=${limit}`
     );
-    const result = response.data?.data || response.data;
-    return result;
+    return unwrap<MediaMessagesResponse>(response.data);
   }
 
   // Get file messages (documents) for a conversation
@@ -80,8 +78,7 @@ class ChatService {
     const response = await axios.get(
       `/chat/messages/${conversationId}/files?page=${page}&limit=${limit}`
     );
-    const result = response.data?.data || response.data;
-    return result;
+    return unwrap<MediaMessagesResponse>(response.data);
   }
 
   async sendMessage(

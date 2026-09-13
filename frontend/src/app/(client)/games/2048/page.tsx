@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Box, Typography, Button, Paper, useTheme } from "@mui/material";
-import { Refresh } from "@mui/icons-material";
-import { motion, AnimatePresence } from "framer-motion";
+import { Box, Typography } from "@mui/material";
+import GameShell from "@/components/games/GameShell";
+import { useTranslation } from "react-i18next";
 
 export default function Game2048Page() {
-    const theme = useTheme();
-    const [board, setBoard] = useState(Array(16).fill(0));
+    const { t } = useTranslation('games');
+    const [board, setBoard] = useState<number[]>(Array(16).fill(0));
     const [score, setScore] = useState(0);
     const [gameOver, setGameOver] = useState(false);
 
@@ -101,8 +101,6 @@ export default function Game2048Page() {
         if (gameOver) return;
 
         let newBoard = [...board];
-        let moved = false;
-        let addedScore = 0;
         let result;
 
         if (e.key === 'ArrowLeft') {
@@ -130,8 +128,7 @@ export default function Game2048Page() {
         }
 
         if (result && result.moved) {
-            moved = true;
-            addedScore = result.addedScore;
+            const addedScore = result.addedScore;
             newBoard = result.newBoard;
             addNumber(newBoard);
             setBoard(newBoard);
@@ -152,72 +149,62 @@ export default function Game2048Page() {
     }, [handleKeyDown]);
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', pt: 4 }}>
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3 }}>
-                <Paper elevation={3} sx={{ p: 4, borderRadius: 4, maxWidth: 500, width: '100%', textAlign: 'center', bgcolor: 'background.paper' }}>
-                    <Typography variant="h4" fontWeight={900} sx={{ mb: 2, color: '#edc22e' }}>
-                        2048
-                    </Typography>
-
-                    <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center', gap: 4 }}>
-                        <Box sx={{ bgcolor: '#bbada0', p: 1, borderRadius: 1, minWidth: 100 }}>
-                            <Typography variant="caption" sx={{ color: '#eee4da' }}>SCORE</Typography>
-                            <Typography variant="h6" sx={{ color: 'white', fontWeight: 700 }}>{score}</Typography>
-                        </Box>
-                    </Box>
-
-                    <Box sx={{
-                        bgcolor: '#bbada0',
-                        p: 1.5,
-                        borderRadius: 2,
-                        width: 320,
-                        maxWidth: '100%',
-                        aspectRatio: '1/1',
-                        height: 320,
-                        mx: 'auto',
-                        mb: 4,
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(4, 1fr)',
-                        gap: 1.5
-                    }}>
-                        {board.map((cell, i) => (
-                            <Box
-                                key={i}
-                                sx={{
-                                    width: '100%',
-                                    height: '100%',
-                                    bgcolor: getColor(cell),
-                                    borderRadius: 1,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: getTextColor(cell),
-                                    fontSize: cell > 100 ? 20 : 28,
-                                    fontWeight: 700
-                                }}
-                            >
-                                {cell > 0 ? cell : ''}
-                            </Box>
-                        ))}
-                    </Box>
-
-                    {gameOver && <Typography variant="h6" color="error" sx={{ mb: 2 }}>Game Over!</Typography>}
-
-                    <Button
-                        variant="contained"
-                        size="large"
-                        onClick={initGame}
-                        startIcon={<Refresh />}
-                        sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700, bgcolor: '#8f7a66' }}
-                    >
-                        New Game
-                    </Button>
-
-                    <Typography variant="caption" sx={{ display: 'block', mt: 3, color: 'text.secondary' }}>
-                        Sử dụng phím mũi tên để di chuyển các ô số
-                    </Typography>
-                </Paper>
+        <GameShell
+            titleKey="2048.name"
+            titleSx={{ color: '#edc22e' }}
+            maxWidth={500}
+            onRestart={initGame}
+            restartLabelKey="2048.newGame"
+            restartSx={{ bgcolor: '#8f7a66' }}
+            actions={
+                <Typography variant="caption" sx={{ display: 'block', mt: 3, color: 'text.secondary' }}>
+                    {t('2048.instructions')}
+                </Typography>
+            }
+        >
+            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center', gap: 4 }}>
+                <Box sx={{ bgcolor: '#bbada0', p: 1, borderRadius: 1, minWidth: 100 }}>
+                    <Typography variant="caption" sx={{ color: '#eee4da' }}>{t('2048.scoreLabel')}</Typography>
+                    <Typography variant="h6" sx={{ color: 'white', fontWeight: 700 }}>{score}</Typography>
+                </Box>
             </Box>
-        </Box>
+
+            <Box sx={{
+                bgcolor: '#bbada0',
+                p: 1.5,
+                borderRadius: 2,
+                width: 320,
+                maxWidth: '100%',
+                aspectRatio: '1/1',
+                height: 320,
+                mx: 'auto',
+                mb: 4,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: 1.5
+            }}>
+                {board.map((cell, i) => (
+                    <Box
+                        key={i}
+                        sx={{
+                            width: '100%',
+                            height: '100%',
+                            bgcolor: getColor(cell),
+                            borderRadius: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: getTextColor(cell),
+                            fontSize: cell > 100 ? 20 : 28,
+                            fontWeight: 700
+                        }}
+                    >
+                        {cell > 0 ? cell : ''}
+                    </Box>
+                ))}
+            </Box>
+
+            {gameOver && <Typography variant="h6" color="error" sx={{ mb: 2 }}>{t('common.gameOver')}</Typography>}
+        </GameShell>
     );
 }

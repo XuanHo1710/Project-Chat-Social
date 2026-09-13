@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Container, Grid, Card, CardContent, Typography, CardActionArea, IconButton, useTheme } from '@mui/material';
+import { Box, Container, Grid, Card, Typography, CardActionArea, useTheme } from '@mui/material';
 import {
     Gamepad as GamepadIcon,
     Casino as CasinoIcon,
@@ -16,84 +16,65 @@ import {
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 const games = [
     {
         id: 'tictactoe',
-        title: 'Tic Tac Toe',
-        description: 'Trò chơi Caro kinh điển. Thách đấu với máy hoặc bạn bè.',
         icon: <TicTacToeIcon sx={{ fontSize: 60, color: '#1877f2' }} />,
         color: '#e3f2fd',
         path: '/games/tictactoe'
     },
     {
         id: 'snake',
-        title: 'Rắn Săn Mồi',
-        description: 'Điều khiển chú rắn ăn mồi và tránh va chạm.',
         icon: <SnakeIcon sx={{ fontSize: 60, color: '#42b72a' }} />,
         color: '#e8f5e9',
         path: '/games/snake'
     },
     {
         id: 'memory',
-        title: 'Lật Hình',
-        description: 'Rèn luyện trí nhớ với trò chơi lật hình.',
         icon: <CasinoIcon sx={{ fontSize: 60, color: '#ff9800' }} />,
         color: '#fff3e0',
         path: '/games/memory'
     },
     {
         id: '2048',
-        title: '2048',
-        description: 'Ghép các ô số để đạt được số 2048.',
         icon: <GridIcon sx={{ fontSize: 60, color: '#edc22e' }} />,
         color: '#fdf3e0',
         path: '/games/2048'
     },
     {
         id: 'minesweeper',
-        title: 'Dò Mìn',
-        description: 'Tìm kiếm mìn mà không bị nổ.',
         icon: <FlagIcon sx={{ fontSize: 60, color: '#ef5350' }} />,
         color: '#ffebee',
         path: '/games/minesweeper'
     },
     {
-        id: 'rps',
-        title: 'Oẳn Tù Tì',
-        description: 'Kéo búa bao - Trò chơi dân gian.',
+        id: 'rockpaperscissors',
         icon: <ScissorsIcon sx={{ fontSize: 60, color: '#9c27b0' }} />,
         color: '#f3e5f5',
         path: '/games/rockpaperscissors'
     },
     {
         id: 'whackamole',
-        title: 'Đập Chuột',
-        description: 'Thử thách phản xạ cực nhanh.',
         icon: <PetsIcon sx={{ fontSize: 60, color: '#795548' }} />,
         color: '#efebe9',
         path: '/games/whackamole'
     },
     {
         id: 'pong',
-        title: 'Ping Pong',
-        description: 'Bóng bàn cổ điển với máy.',
         icon: <TennisIcon sx={{ fontSize: 60, color: '#29b6f6' }} />,
         color: '#e1f5fe',
         path: '/games/pong'
     },
     {
-        id: 'typing',
-        title: 'Gõ Phím Nhanh',
-        description: 'Kiểm tra tốc độ gõ phím của bạn.',
+        id: 'typingspeed',
         icon: <KeyboardIcon sx={{ fontSize: 60, color: '#607d8b' }} />,
         color: '#eceff1',
         path: '/games/typingspeed'
     },
     {
         id: 'breakout',
-        title: 'Phá Gạch',
-        description: 'Phá vỡ các viên gạch bằng bóng.',
         icon: <BreakoutIcon sx={{ fontSize: 60, color: '#ab47bc' }} />,
         color: '#fce4ec',
         path: '/games/breakout'
@@ -103,6 +84,7 @@ const games = [
 export default function GameHubPage() {
     const theme = useTheme();
     const router = useRouter();
+    const { t } = useTranslation('games');
     const isDark = theme.palette.mode === 'dark';
 
     return (
@@ -115,17 +97,16 @@ export default function GameHubPage() {
                         backgroundClip: 'text',
                         textFillColor: 'transparent'
                     }}>
-                        Game Center
+                        {t('hub.title')}
                     </Typography>
                 </Box>
                 <Typography variant="h5" sx={{ mb: 3, fontWeight: 700, color: 'text.primary' }}>
-                    Trò chơi nổi bật
+                    {t('hub.featured')}
                 </Typography>
 
                 <Grid container spacing={{ xs: 2, md: 3 }}>
                     {games.map((game, index) => (
-                        // @ts-ignore
-                        <Grid item xs={6} sm={4} md={3} key={game.id}>
+                        <Grid size={{ xs: 6, sm: 4, md: 3 }} key={game.id}>
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -176,7 +157,7 @@ export default function GameHubPage() {
                                                     fontSize: { xs: '1rem', md: '1.25rem' }
                                                 }}
                                             >
-                                                {game.title}
+                                                {t(`${game.id}.name`)}
                                             </Typography>
                                             <Typography
                                                 variant="body2"
@@ -189,7 +170,7 @@ export default function GameHubPage() {
                                                     overflow: 'hidden'
                                                 }}
                                             >
-                                                {game.description}
+                                                {t(`${game.id}.description`)}
                                             </Typography>
                                         </Box>
                                     </CardActionArea>

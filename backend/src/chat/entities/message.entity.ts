@@ -63,6 +63,7 @@ export class Message {
     type: [
       {
         url: String,
+        publicId: String,
         fileName: String,
         fileSize: Number,
         mediaType: { type: String, enum: ['IMAGE', 'VIDEO', 'RAW'] },
@@ -71,6 +72,7 @@ export class Message {
   })
   attachments?: {
     url: string;
+    publicId: string;
     fileName: string;
     fileSize: number;
     mediaType: 'IMAGE' | 'VIDEO' | 'RAW';
@@ -121,6 +123,18 @@ export class Message {
     duration?: number;
     isGroup?: boolean;
   };
+
+  @Prop({ type: Types.ObjectId, ref: 'Message' })
+  sourceMessageId?: Types.ObjectId;
+
+  @Prop({
+    type: String,
+    enum: ['PENDING', 'CONTENT_READY', 'COMPLETED', 'FAILED', 'DEAD'],
+  })
+  aiProcessingStatus?: string;
+
+  @Prop({ type: String, maxlength: 2000 })
+  aiProcessingError?: string;
 
   @Prop({ type: String, enum: MessageStatus, default: MessageStatus.SENT })
   status: MessageStatus;

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Box, Typography, Button, Paper, useTheme } from "@mui/material";
+import { Box, Typography, Button, useTheme } from "@mui/material";
 import { PlayArrow, Refresh } from "@mui/icons-material";
-import { useRouter } from "next/navigation";
+import GameShell from "@/components/games/GameShell";
+import { useTranslation } from "react-i18next";
 
 // Constants
 const CANVAS_SIZE = 400;
@@ -12,7 +13,7 @@ const SPEED = 100;
 
 export default function SnakePage() {
     const theme = useTheme();
-    const router = useRouter();
+    const { t } = useTranslation('games');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [snake, setSnake] = useState([{ x: 10, y: 10 }]);
     const [food, setFood] = useState({ x: 15, y: 15 });
@@ -121,47 +122,43 @@ export default function SnakePage() {
     }, [snake, food, theme.palette.mode]);
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', pt: 4 }}>
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3 }}>
-                <Paper elevation={3} sx={{ p: 4, borderRadius: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: 'background.paper' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', mb: 2 }}>
-                        <Typography variant="h5" fontWeight={800} color="primary">Score: {score}</Typography>
-                    </Box>
-
-                    <Box sx={{ border: `4px solid ${theme.palette.divider}`, borderRadius: 2, overflow: 'hidden', lineHeight: 0, maxWidth: '100%' }}>
-                        <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} style={{ maxWidth: '100%', height: 'auto' }} />
-                    </Box>
-
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 2, mb: 3 }}>
-                        Sử dụng các phím mũi tên để di chuyển
-                    </Typography>
-
-                    {gameOver ? (
-                        <Button
-                            variant="contained"
-                            size="large"
-                            color="error"
-                            onClick={resetGame}
-                            startIcon={<Refresh />}
-                            sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
-                        >
-                            Game Over - Chơi lại
-                        </Button>
-                    ) : (
-                        !isPlaying && (
-                            <Button
-                                variant="contained"
-                                size="large"
-                                onClick={resetGame}
-                                startIcon={<PlayArrow />}
-                                sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
-                            >
-                                Bắt đầu
-                            </Button>
-                        )
-                    )}
-                </Paper>
+        <GameShell paperSx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', mb: 2 }}>
+                <Typography variant="h5" fontWeight={800} color="primary">{t('snake.score', { score })}</Typography>
             </Box>
-        </Box>
+
+            <Box sx={{ border: `4px solid ${theme.palette.divider}`, borderRadius: 2, overflow: 'hidden', lineHeight: 0, maxWidth: '100%' }}>
+                <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} style={{ maxWidth: '100%', height: 'auto' }} />
+            </Box>
+
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 2, mb: 3 }}>
+                {t('snake.instructions')}
+            </Typography>
+
+            {gameOver ? (
+                <Button
+                    variant="contained"
+                    size="large"
+                    color="error"
+                    onClick={resetGame}
+                    startIcon={<Refresh />}
+                    sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
+                >
+                    {t('snake.gameOverPlayAgain')}
+                </Button>
+            ) : (
+                !isPlaying && (
+                    <Button
+                        variant="contained"
+                        size="large"
+                        onClick={resetGame}
+                        startIcon={<PlayArrow />}
+                        sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
+                    >
+                        {t('common.start')}
+                    </Button>
+                )
+            )}
+        </GameShell>
     );
 }

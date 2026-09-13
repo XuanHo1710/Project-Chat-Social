@@ -39,6 +39,7 @@ import { CLIENT_PATH } from '@/constants/paths';
 import { notificationService } from '@/services/notification.service';
 import { chatService } from '@/services/chat.service';
 import { conversationService } from '@/services/conversation.service';
+import { performLogout } from '@/utils/logout';
 import { useTranslation } from 'react-i18next';
 
 export default function Header() {
@@ -182,8 +183,8 @@ export default function Header() {
         };
 
         // Handle message read - decrease unread count
-        const handleMessageRead = (data: { conversationId: string; userId: string }) => {
-            if (data.userId === user.id) {
+        const handleMessageRead = (data: { conversationId: string; readByUserId?: string }) => {
+            if (data.readByUserId === user.id) {
                 queryClient.setQueryData<{ data: ConversationResponseData[] }>(
                     [QUERY_KEYS.CONVERSATION_BY_USER, user.id],
                     (oldData) => {
@@ -262,8 +263,9 @@ export default function Header() {
 
         socketNotification.on("unreadCountUpdate", handleNotificationUnreadUpdate);
         socketChat.on("message:new", handleGlobalMessageNew);
-        socketChat.on("conversation:unread:update", handleUnreadCountUpdate);
-        socketChat.on("message:read", handleMessageRead);
+        socketChat.on("conversation:unread:updated", handleUnreadCountUpdate);
+        socketChat.on("conversation:unread:reset", handleUnreadCountUpdate);
+        socketChat.on("message:read:updated", handleMessageRead);
         socketChat.on("conversation:member:added", handleConversationUpdate);
         socketChat.on("conversation:member:removed", handleConversationUpdate);
         socketChat.on("conversation:member:left", handleConversationUpdate);
@@ -277,8 +279,9 @@ export default function Header() {
 
         return () => {
             socketChat.off("message:new", handleGlobalMessageNew);
-            socketChat.off("conversation:unread:update", handleUnreadCountUpdate);
-            socketChat.off("message:read", handleMessageRead);
+            socketChat.off("conversation:unread:updated", handleUnreadCountUpdate);
+            socketChat.off("conversation:unread:reset", handleUnreadCountUpdate);
+            socketChat.off("message:read:updated", handleMessageRead);
             socketChat.off("conversation:member:added", handleConversationUpdate);
             socketChat.off("conversation:member:removed", handleConversationUpdate);
             socketChat.off("conversation:member:left", handleConversationUpdate);
@@ -312,9 +315,11 @@ export default function Header() {
         setMobileOpen(!mobileOpen);
     };
 
-    const handleLogout = () => {
-        useAuthStore.getState().logout();
-        router.push(CLIENT_PATH.LOGIN);
+    const handleLogout = async () => {
+        await performLogout({
+            queryClient,
+            navigate: () => router.push(CLIENT_PATH.LOGIN),
+        });
     };
 
     const drawerContent = (

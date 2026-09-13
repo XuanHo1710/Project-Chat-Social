@@ -77,11 +77,11 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
         try {
             await themeService.setActiveTheme(selectedTheme._id);
             setCustomTheme(selectedTheme);
-            toast.success(t('settings.theme_updated'));
+            toast.success(t('admin.theme_updated'));
             // useSettingsStore.getState().setThemeColor('custom'); // optional if we wanted to track "custom" in local store
         } catch (error) {
             console.error("Failed to set active theme", error);
-            toast.error(t('settings.theme_update_failed'));
+            toast.error(t('admin.theme_update_failed'));
         }
     };
 

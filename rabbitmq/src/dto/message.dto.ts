@@ -23,19 +23,6 @@ export class MessageCreatedEventDto {
 }
 
 /**
- * DTO cho event chat.ai.response từ RabbitMQ → Backend
- */
-export class AiResponseEventDto {
-  conversationId: string;
-  senderId: string; // Bot sender ID
-  content: string;
-  postIdsRecommendation?: string[];
-  originalSenderId: string; // User đã trigger chatbot
-  success: boolean;
-  error?: string;
-}
-
-/**
  * DTO cho event chat.typing từ RabbitMQ → Backend
  */
 export class TypingEventDto {

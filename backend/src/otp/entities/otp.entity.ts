@@ -10,7 +10,7 @@ export class Otp {
     @Prop({ required: true })
     email: string;
 
-    @Prop({ required: true })
+    @Prop({ required: true, select: false })
     code: string;
 
     @Prop({ required: true, enum: ['PASSWORD_RESET', 'EMAIL_VERIFICATION', 'PHONE_VERIFICATION'] })
@@ -28,6 +28,15 @@ export class Otp {
     @Prop()
     usedAt?: Date;
 
+    @Prop({ select: false })
+    resetTokenHash?: string;
+
+    @Prop({ default: false })
+    isConsumed: boolean;
+
+    @Prop()
+    consumedAt?: Date;
+
     @Prop()
     createdAt: Date;
 }
@@ -38,4 +47,5 @@ export const OtpSchema = SchemaFactory.createForClass(Otp);
 OtpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // Index cho tìm kiếm nhanh
-OtpSchema.index({ email: 1, type: 1, isUsed: 1 });
+OtpSchema.index({ email: 1, type: 1, isUsed: 1, createdAt: -1 });
+OtpSchema.index({ email: 1, type: 1, isConsumed: 1, usedAt: -1 });

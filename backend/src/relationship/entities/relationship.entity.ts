@@ -24,14 +24,17 @@ export class Relationship {
   @Prop({ type: String, enum: RelationshipStatus, default: RelationshipStatus.PENDING })
   status: RelationshipStatus; // PENDING, ACCEPTED, BLOCKED, REJECTED
 
+  @Prop({ type: String, select: false })
+  pairKey?: string;
+
   @Prop({
     type: { isBlocked: Boolean, blockedAt: Date, userBlockedId: Types.ObjectId },
     default: { isBlocked: false, blockedAt: null, userBlockedId: null },
   })
   block: {
     isBlocked: boolean;
-    blockedAt: Date;
-    userBlockedId: Types.ObjectId;
+    blockedAt: Date | null;
+    userBlockedId: Types.ObjectId | null;
   }; // Block thằng bạn
 
   @Prop({
@@ -63,3 +66,19 @@ export class Relationship {
 }
 
 export const RelationshipSchema = SchemaFactory.createForClass(Relationship);
+
+RelationshipSchema.pre('validate', function setPairKey() {
+  if (this.userId && this.friendId) {
+    this.pairKey = [this.userId.toString(), this.friendId.toString()].sort().join(':');
+  }
+});
+
+RelationshipSchema.index({ userId: 1, friendId: 1 }, { unique: true });
+RelationshipSchema.index(
+  { pairKey: 1 },
+  { unique: true, partialFilterExpression: { pairKey: { $type: 'string' } } },
+);
+RelationshipSchema.index({ userId: 1, status: 1, sendRequestAt: -1 });
+RelationshipSchema.index({ friendId: 1, status: 1, sendRequestAt: -1 });
+RelationshipSchema.index({ 'block.userBlockedId': 1, status: 1 });
+RelationshipSchema.index({ 'restrict.userRestrictedId': 1, 'restrict.isRestricted': 1 });

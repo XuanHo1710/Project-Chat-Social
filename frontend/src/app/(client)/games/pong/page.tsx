@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Box, Typography, Button, Paper, useTheme } from "@mui/material";
+import { Box, Typography, Button, useTheme } from "@mui/material";
 import { PlayArrow, Refresh } from "@mui/icons-material";
+import GameShell from "@/components/games/GameShell";
+import { useTranslation } from "react-i18next";
 
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 400;
@@ -12,6 +14,7 @@ const BALL_SIZE = 10;
 
 export default function PongPage() {
     const theme = useTheme();
+    const { t } = useTranslation('games');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [score, setScore] = useState({ player: 0, ai: 0 });
     const [isPlaying, setIsPlaying] = useState(false);
@@ -144,48 +147,40 @@ export default function PongPage() {
     };
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', pt: 4 }}>
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3 }}>
-                <Paper elevation={3} sx={{ p: 4, borderRadius: 4, width: 'fit-content', textAlign: 'center', bgcolor: 'background.paper' }}>
-                    <Typography variant="h4" fontWeight={900} sx={{ mb: 2, color: 'primary.main' }}>
-                        Ping Pong
-                    </Typography>
-
-                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 8, mb: 2 }}>
-                        <Box>
-                            <Typography variant="caption" color="text.secondary">PLAYER</Typography>
-                            <Typography variant="h3">{score.player}</Typography>
-                        </Box>
-                        <Box>
-                            <Typography variant="caption" color="text.secondary">COMPUTER</Typography>
-                            <Typography variant="h3">{score.ai}</Typography>
-                        </Box>
-                    </Box>
-
-                    <Box sx={{ border: '4px solid #333', borderRadius: 2, overflow: 'hidden', lineHeight: 0, mb: 3 }}>
-                        <canvas
-                            ref={canvasRef}
-                            width={CANVAS_WIDTH}
-                            height={CANVAS_HEIGHT}
-                            style={{ maxWidth: '100%', height: 'auto', cursor: 'none' }}
-                        />
-                    </Box>
-
-                    <Typography color="text.secondary" sx={{ mb: 3 }}>
-                        Di chuyển chuột lên/xuống để điều khiển vợt
-                    </Typography>
-
-                    <Button
-                        variant="contained"
-                        size="large"
-                        onClick={toggleGame}
-                        startIcon={isPlaying ? <Refresh /> : <PlayArrow />}
-                        sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
-                    >
-                        {isPlaying ? "Dừng Lại" : "Bắt Đầu"}
-                    </Button>
-                </Paper>
+        <GameShell titleKey="pong.name" fitContent>
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 8, mb: 2 }}>
+                <Box>
+                    <Typography variant="caption" color="text.secondary">{t('pong.player')}</Typography>
+                    <Typography variant="h3">{score.player}</Typography>
+                </Box>
+                <Box>
+                    <Typography variant="caption" color="text.secondary">{t('pong.computer')}</Typography>
+                    <Typography variant="h3">{score.ai}</Typography>
+                </Box>
             </Box>
-        </Box>
+
+            <Box sx={{ border: '4px solid #333', borderRadius: 2, overflow: 'hidden', lineHeight: 0, mb: 3 }}>
+                <canvas
+                    ref={canvasRef}
+                    width={CANVAS_WIDTH}
+                    height={CANVAS_HEIGHT}
+                    style={{ maxWidth: '100%', height: 'auto', cursor: 'none' }}
+                />
+            </Box>
+
+            <Typography color="text.secondary" sx={{ mb: 3 }}>
+                {t('pong.instructions')}
+            </Typography>
+
+            <Button
+                variant="contained"
+                size="large"
+                onClick={toggleGame}
+                startIcon={isPlaying ? <Refresh /> : <PlayArrow />}
+                sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 700 }}
+            >
+                {isPlaying ? t('pong.stop') : t('common.start')}
+            </Button>
+        </GameShell>
     );
 }

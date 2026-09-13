@@ -1,13 +1,9 @@
-.env*
-server-ai/.env
-/server-ai
-!/server-ai/
-/server-ai/*
-!/server-ai/app/
-/server-ai/app/*
-!/server-ai/app/services/
-server-ai/app/services/*
-!/server-ai/app/services/llm_service.py
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 
 *.pem
 

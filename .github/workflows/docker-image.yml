@@ -108,7 +108,14 @@ jobs:
 
       # 4. Deploy
       - name: Deploy on EC2
+        env:
+          AI_INTERNAL_API_KEY: ${{ secrets.AI_INTERNAL_API_KEY }}
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          CLIENT_URL: ${{ secrets.CLIENT_URL }}
         run: |
           cd /home/ubuntu/Project-Chat-Social
+          docker compose config --quiet
           docker compose pull
           docker compose up -d --remove-orphans
